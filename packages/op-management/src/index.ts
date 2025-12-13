@@ -96,6 +96,11 @@ import {
   updateRateLimitProfile,
   resetRateLimitProfile,
 } from './routes/settings/rate-limit';
+import {
+  getTokenExchangeConfig,
+  updateTokenExchangeConfig,
+  clearTokenExchangeConfig,
+} from './routes/settings/token-exchange';
 
 // Create Hono app with Cloudflare Workers types
 const app = new Hono<{ Bindings: Env }>();
@@ -281,6 +286,11 @@ app.get('/api/admin/settings/rate-limit', getRateLimitSettings);
 app.get('/api/admin/settings/rate-limit/:profile', getRateLimitProfile);
 app.put('/api/admin/settings/rate-limit/:profile', updateRateLimitProfile);
 app.delete('/api/admin/settings/rate-limit/:profile', resetRateLimitProfile);
+
+// Admin Token Exchange Configuration endpoints (RFC 8693)
+app.get('/api/admin/settings/token-exchange', getTokenExchangeConfig);
+app.put('/api/admin/settings/token-exchange', updateTokenExchangeConfig);
+app.delete('/api/admin/settings/token-exchange', clearTokenExchangeConfig);
 
 // Admin Refresh Token Sharding Configuration endpoints
 app.get('/api/admin/settings/refresh-token-sharding', getRefreshTokenShardingConfig);

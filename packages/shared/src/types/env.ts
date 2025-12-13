@@ -157,6 +157,32 @@ export interface Env {
   // Maximum response body size in bytes (default: 102400 = 100KB)
   HTTPS_REQUEST_URI_MAX_SIZE_BYTES?: string;
 
+  // RFC 8693: Token Exchange Feature Flag
+  // When "true", enables urn:ietf:params:oauth:grant-type:token-exchange grant type
+  // Default: disabled (to avoid OIDC certification test interference)
+  ENABLE_TOKEN_EXCHANGE?: string;
+
+  // RFC 8693: Allowed subject token types (comma-separated)
+  // Options: access_token, jwt, id_token
+  // Default: access_token
+  // Note: refresh_token is never allowed for security reasons
+  TOKEN_EXCHANGE_ALLOWED_TYPES?: string;
+
+  // RFC 8693: Maximum resource parameters (DoS prevention)
+  // Valid range: 1-100
+  // Default: 10
+  TOKEN_EXCHANGE_MAX_RESOURCE_PARAMS?: string;
+
+  // RFC 8693: Maximum audience parameters (DoS prevention)
+  // Valid range: 1-100
+  // Default: 10
+  TOKEN_EXCHANGE_MAX_AUDIENCE_PARAMS?: string;
+
+  // RFC 6749 Section 4.4: Client Credentials Grant Feature Flag
+  // When "true", enables client_credentials grant type for M2M communication
+  // Default: disabled (to avoid OIDC certification test interference)
+  ENABLE_CLIENT_CREDENTIALS?: string;
+
   // External IdP Configuration (Phase 7)
   // Identity stitching: automatically link external identities to existing users by verified email
   IDENTITY_STITCHING_ENABLED?: string; // "true" to enable automatic identity stitching

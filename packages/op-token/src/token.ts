@@ -33,6 +33,7 @@ import {
   calculateAtHash,
   createRefreshToken,
   parseToken,
+  parseTokenHeader,
   verifyToken,
   createSDJWTIDTokenFromClaims,
 } from '@authrim/shared';
@@ -48,9 +49,14 @@ import {
   getAccessTokenRBACClaims,
   evaluatePermissionsForScope,
   isPolicyEmbeddingEnabled,
+  isTokenRevoked,
+  timingSafeEqual,
   type JWEAlgorithm,
   type JWEEncryption,
   type IDTokenClaims,
+  type TokenTypeURN,
+  type ActClaim,
+  type ClientMetadata,
 } from '@authrim/shared';
 import { importPKCS8, importJWK, type CryptoKey } from 'jose';
 import { extractDPoPProof, validateDPoPProof } from '@authrim/shared';
@@ -377,6 +383,14 @@ export async function tokenHandler(c: Context<{ Bindings: Env }>) {
     return await handleDeviceCodeGrant(c, formData);
   } else if (grant_type === 'urn:openid:params:grant-type:ciba') {
     return await handleCIBAGrant(c, formData);
+  } else if (grant_type === 'urn:ietf:params:oauth:grant-type:token-exchange') {
+    // RFC 8693: Token Exchange (Feature Flag controlled)
+    // Pass raw body for multi-value parameter support (resource[], audience[])
+    const rawBody = await c.req.parseBody();
+    return await handleTokenExchangeGrant(c, formData, rawBody);
+  } else if (grant_type === 'client_credentials') {
+    // RFC 6749 Section 4.4: Client Credentials Grant
+    return await handleClientCredentialsGrant(c, formData);
   }
 
   // If grant_type is not supported
@@ -1438,7 +1452,9 @@ async function handleRefreshTokenGrant(
 
   // Verify refresh token signature
   try {
-    await verifyToken(refreshTokenValue, publicKey, c.env.ISSUER_URL, client_id);
+    await verifyToken(refreshTokenValue, publicKey, c.env.ISSUER_URL, {
+      audience: client_id,
+    });
   } catch (error) {
     console.error('Refresh token verification failed:', error);
     c.header('Cache-Control', 'no-store');
@@ -2780,4 +2796,1124 @@ async function recordTokenFamilyInD1(
     // Log but don't fail - this is a non-critical operation
     console.error('Failed to record token family in D1:', error);
   }
+}
+
+// =============================================================================
+// RFC 8693: OAuth 2.0 Token Exchange
+// =============================================================================
+
+/**
+ * Handle Token Exchange Grant (RFC 8693)
+ * https://datatracker.ietf.org/doc/html/rfc8693
+ *
+ * Token Exchange enables:
+ * - Cross-domain SSO (WebKit ITP / Firefox ETP bypass)
+ * - Service-to-service delegation
+ * - Token scope downgrade
+ * - Audience restriction
+ */
+async function handleTokenExchangeGrant(
+  c: Context<{ Bindings: Env }>,
+  formData: Record<string, string>,
+  rawBody: Record<string, string | File | (string | File)[]>
+): Promise<Response> {
+  // Check Feature Flag and settings (hybrid: KV > env > default)
+  let tokenExchangeEnabled = c.env.ENABLE_TOKEN_EXCHANGE === 'true';
+  // Default: only access_token is allowed
+  let allowedSubjectTokenTypes: string[] = ['access_token'];
+  // Default parameter limits (DoS prevention)
+  let maxResourceParams = 10;
+  let maxAudienceParams = 10;
+
+  // Parse env variables
+  if (c.env.TOKEN_EXCHANGE_ALLOWED_TYPES) {
+    allowedSubjectTokenTypes = c.env.TOKEN_EXCHANGE_ALLOWED_TYPES.split(',').map((t) => t.trim());
+  }
+  if (c.env.TOKEN_EXCHANGE_MAX_RESOURCE_PARAMS) {
+    const parsed = parseInt(c.env.TOKEN_EXCHANGE_MAX_RESOURCE_PARAMS, 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= 100) {
+      maxResourceParams = parsed;
+    }
+  }
+  if (c.env.TOKEN_EXCHANGE_MAX_AUDIENCE_PARAMS) {
+    const parsed = parseInt(c.env.TOKEN_EXCHANGE_MAX_AUDIENCE_PARAMS, 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= 100) {
+      maxAudienceParams = parsed;
+    }
+  }
+
+  // KV takes priority over env
+  try {
+    const settingsJson = await c.env.SETTINGS?.get('system_settings');
+    if (settingsJson) {
+      const settings = JSON.parse(settingsJson);
+      if (settings.oidc?.tokenExchange?.enabled !== undefined) {
+        tokenExchangeEnabled = settings.oidc.tokenExchange.enabled === true;
+      }
+      if (Array.isArray(settings.oidc?.tokenExchange?.allowedSubjectTokenTypes)) {
+        allowedSubjectTokenTypes = settings.oidc.tokenExchange.allowedSubjectTokenTypes;
+      }
+      if (typeof settings.oidc?.tokenExchange?.maxResourceParams === 'number') {
+        const value = settings.oidc.tokenExchange.maxResourceParams;
+        if (value >= 1 && value <= 100) {
+          maxResourceParams = value;
+        }
+      }
+      if (typeof settings.oidc?.tokenExchange?.maxAudienceParams === 'number') {
+        const value = settings.oidc.tokenExchange.maxAudienceParams;
+        if (value >= 1 && value <= 100) {
+          maxAudienceParams = value;
+        }
+      }
+    }
+  } catch {
+    // Ignore KV errors, fall back to env
+  }
+
+  if (!tokenExchangeEnabled) {
+    return c.json(
+      {
+        error: 'unsupported_grant_type',
+        error_description: 'Token Exchange is not enabled',
+      },
+      400
+    );
+  }
+
+  // Extract parameters
+  const subject_token = formData.subject_token;
+  const subject_token_type = formData.subject_token_type as TokenTypeURN | undefined;
+  const actor_token = formData.actor_token;
+  const actor_token_type = formData.actor_token_type as TokenTypeURN | undefined;
+  const requestedScope = formData.scope;
+  const requested_token_type = formData.requested_token_type as TokenTypeURN | undefined;
+
+  // RFC 8693 §2.1: Multiple resource/audience parameters are allowed
+  // Helper to extract string array from raw body (handles single value or array)
+  const extractStringArray = (key: string): string[] => {
+    const value = rawBody[key];
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.filter((v): v is string => typeof v === 'string');
+    }
+    return typeof value === 'string' ? [value] : [];
+  };
+
+  const resources = extractStringArray('resource');
+  const audiences = extractStringArray('audience');
+
+  // DoS prevention: Limit the number of resource/audience parameters (configurable via Admin API)
+  // RFC 8693 doesn't specify a limit, but unrestricted arrays could create oversized JWTs
+  if (resources.length > maxResourceParams) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: `Too many resource parameters (max: ${maxResourceParams})`,
+      },
+      400
+    );
+  }
+
+  if (audiences.length > maxAudienceParams) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: `Too many audience parameters (max: ${maxAudienceParams})`,
+      },
+      400
+    );
+  }
+
+  // 1. Validate required parameters
+  if (!subject_token) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'subject_token is required',
+      },
+      400
+    );
+  }
+
+  if (!subject_token_type) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'subject_token_type is required',
+      },
+      400
+    );
+  }
+
+  // Validate subject_token_type against allowed types
+  // Map short names to full URNs for comparison
+  const tokenTypeMap: Record<string, string> = {
+    access_token: 'urn:ietf:params:oauth:token-type:access_token',
+    jwt: 'urn:ietf:params:oauth:token-type:jwt',
+    id_token: 'urn:ietf:params:oauth:token-type:id_token',
+    refresh_token: 'urn:ietf:params:oauth:token-type:refresh_token',
+  };
+
+  // Build allowed URNs from settings
+  const allowedURNs = allowedSubjectTokenTypes
+    .map((t) => tokenTypeMap[t] || t)
+    .filter((t) => t !== undefined);
+
+  // Check if subject_token_type is allowed
+  if (!allowedURNs.includes(subject_token_type)) {
+    const allowedTypes = allowedSubjectTokenTypes.join(', ');
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: `subject_token_type '${subject_token_type}' is not allowed. Allowed types: ${allowedTypes}`,
+      },
+      400
+    );
+  }
+
+  // Additional security check: refresh_token is never allowed (even if misconfigured)
+  if (subject_token_type === 'urn:ietf:params:oauth:token-type:refresh_token') {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'refresh_token cannot be used as subject_token for security reasons',
+      },
+      400
+    );
+  }
+
+  // 2. Client Authentication (supports 4 methods)
+  let client_id = formData.client_id;
+  let client_secret = formData.client_secret;
+
+  // Check for JWT-based client authentication
+  const client_assertion = formData.client_assertion;
+  const client_assertion_type = formData.client_assertion_type;
+
+  if (
+    client_assertion &&
+    client_assertion_type === 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+  ) {
+    try {
+      const assertionPayload = parseToken(client_assertion);
+      if (!client_id && assertionPayload.sub) {
+        client_id = assertionPayload.sub as string;
+      }
+    } catch {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description: 'Invalid client_assertion format',
+        },
+        401
+      );
+    }
+  }
+
+  // Check HTTP Basic authentication
+  const authHeader = c.req.header('Authorization');
+  if (authHeader && authHeader.startsWith('Basic ')) {
+    try {
+      const base64Credentials = authHeader.substring(6);
+      const credentials = atob(base64Credentials);
+      const [basicClientId, basicClientSecret] = credentials.split(':', 2);
+      if (!client_id && basicClientId) {
+        client_id = decodeURIComponent(basicClientId);
+      }
+      if (!client_secret && basicClientSecret) {
+        client_secret = decodeURIComponent(basicClientSecret);
+      }
+    } catch {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description: 'Invalid Authorization header format',
+        },
+        401
+      );
+    }
+  }
+
+  // Validate client_id
+  const clientIdValidation = validateClientId(client_id);
+  if (!clientIdValidation.valid) {
+    return c.json(
+      {
+        error: 'invalid_client',
+        error_description: clientIdValidation.error,
+      },
+      401
+    );
+  }
+
+  // Fetch client metadata
+  const clientMetadata = await getClient(c.env, client_id!);
+  if (!clientMetadata) {
+    return c.json(
+      {
+        error: 'invalid_client',
+        error_description: 'Client not found',
+      },
+      401
+    );
+  }
+
+  // Cast to ClientMetadata for type safety
+  const typedClient = clientMetadata as unknown as ClientMetadata;
+
+  // 3. Authenticate client
+  if (
+    client_assertion &&
+    client_assertion_type === 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+  ) {
+    const assertionValidation = await validateClientAssertion(
+      client_assertion,
+      `${c.env.ISSUER_URL}/token`,
+      typedClient
+    );
+    if (!assertionValidation.valid) {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description:
+            assertionValidation.error_description || 'Client assertion validation failed',
+        },
+        401
+      );
+    }
+  } else if (typedClient.client_secret) {
+    // client_secret_basic or client_secret_post
+    if (!client_secret || !timingSafeEqual(typedClient.client_secret, client_secret)) {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description: 'Invalid client credentials',
+        },
+        401
+      );
+    }
+  } else {
+    // Public clients (no client_secret, no client_assertion) are NOT allowed to use Token Exchange
+    // RFC 8693 allows optional client auth, but for enterprise security, we require authentication.
+    // This prevents unauthorized token exchange by public clients.
+    return c.json(
+      {
+        error: 'invalid_client',
+        error_description: 'Client authentication is required for Token Exchange',
+      },
+      401
+    );
+  }
+
+  // 4. Check if client is allowed to use Token Exchange
+  if (!typedClient.token_exchange_allowed) {
+    return c.json(
+      {
+        error: 'unauthorized_client',
+        error_description: 'Client is not authorized for Token Exchange',
+      },
+      403
+    );
+  }
+
+  // Check delegation_mode
+  const delegationMode = typedClient.delegation_mode || 'delegation';
+  if (delegationMode === 'none') {
+    return c.json(
+      {
+        error: 'unauthorized_client',
+        error_description: 'Token Exchange is disabled for this client',
+      },
+      403
+    );
+  }
+
+  // 5. Validate requested_token_type (RFC 8693 §2.2.1)
+  // Only access_token is supported for issued tokens
+  if (
+    requested_token_type &&
+    requested_token_type !== 'urn:ietf:params:oauth:token-type:access_token'
+  ) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'Only access_token is supported as requested_token_type',
+      },
+      400
+    );
+  }
+
+  // 6. Parse and validate subject_token
+  let subjectTokenPayload: Record<string, unknown>;
+  let subjectTokenHeader;
+  try {
+    subjectTokenPayload = parseToken(subject_token);
+    subjectTokenHeader = parseTokenHeader(subject_token);
+  } catch {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'Invalid subject_token format',
+      },
+      400
+    );
+  }
+
+  // Get verification key from header (kid is in JWT header, NOT payload)
+  const subjectTokenKid = subjectTokenHeader.kid;
+  if (!subjectTokenKid) {
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: 'Subject token is missing kid in header',
+      },
+      400
+    );
+  }
+
+  // Verify subject_token signature (issuer only, aud validated separately)
+  try {
+    const publicKey = await getVerificationKeyFromJWKS(c.env, subjectTokenKid);
+    // Verify signature and issuer only; audience is validated in the authorization check below
+    await verifyToken(subject_token, publicKey, c.env.ISSUER_URL, {
+      skipAudienceCheck: true, // We validate audience ourselves in Token Exchange
+    });
+  } catch (error) {
+    console.error('Subject token verification failed:', error);
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: 'Subject token verification failed',
+      },
+      400
+    );
+  }
+
+  // Check subject_token expiration
+  const now = Math.floor(Date.now() / 1000);
+  const subjectExp = subjectTokenPayload.exp as number | undefined;
+  if (subjectExp && subjectExp < now) {
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: 'Subject token has expired',
+      },
+      400
+    );
+  }
+
+  // Check if subject_token is revoked
+  const subjectJti = subjectTokenPayload.jti as string | undefined;
+  if (subjectJti) {
+    const revoked = await isTokenRevoked(c.env, subjectJti);
+    if (revoked) {
+      return c.json(
+        {
+          error: 'invalid_grant',
+          error_description: 'Subject token has been revoked',
+        },
+        400
+      );
+    }
+  }
+
+  // 7. Audience validation (Cross-tenant escalation prevention)
+  // This is CRITICAL for security - prevents stealing tokens meant for other clients
+  const subjectAud = subjectTokenPayload.aud as string | string[] | undefined;
+  const subjectClientId = subjectTokenPayload.client_id as string | undefined;
+  const allowedSubjectClients = typedClient.allowed_subject_token_clients || [];
+  const subjectAudArray = Array.isArray(subjectAud) ? subjectAud : subjectAud ? [subjectAud] : [];
+
+  // Check 1: Is the requesting client in the subject_token's audience?
+  // (client_id must be explicitly in aud, NOT just issuer URL)
+  const isClientInAudience = subjectAudArray.includes(client_id!);
+
+  // Check 2: Is the subject_token's issuing client in our allowed list?
+  const isAllowedSubjectClient =
+    allowedSubjectClients.length > 0 && allowedSubjectClients.includes(subjectClientId || '');
+
+  // SECURITY: Reject if neither condition is met
+  // - Client must be explicitly authorized via audience or allowed_subject_token_clients
+  // - Issuer URL in aud is NOT sufficient (prevents cross-client token theft)
+  if (!isClientInAudience && !isAllowedSubjectClient) {
+    return c.json(
+      {
+        error: 'invalid_target',
+        error_description: 'Client is not authorized to exchange this token',
+      },
+      403
+    );
+  }
+
+  // 7. Scope handling (RFC 8693 §2.1)
+  // Options: inherit from subject_token, explicitly request subset, or let client.allowed_scopes limit
+  const subjectScope = subjectTokenPayload.scope as string | undefined;
+  const subjectScopes = subjectScope ? subjectScope.split(' ') : [];
+
+  // Track scope source for audit logging
+  const scopeSource: 'explicit' | 'inherited' = requestedScope ? 'explicit' : 'inherited';
+  const requestedScopes = requestedScope ? requestedScope.split(' ') : subjectScopes;
+  const allowedScopes = typedClient.allowed_scopes || [];
+
+  // Intersection: requested ∩ subject ∩ client.allowed_scopes
+  // This ensures scope can only be downgraded, never escalated
+  let grantedScopes = requestedScopes;
+  if (subjectScopes.length > 0) {
+    grantedScopes = grantedScopes.filter((s) => subjectScopes.includes(s));
+  }
+  if (allowedScopes.length > 0) {
+    grantedScopes = grantedScopes.filter((s) => allowedScopes.includes(s));
+  }
+
+  const grantedScope = grantedScopes.join(' ') || 'openid';
+
+  // Detect scope changes for security audit
+  const scopeDowngraded = subjectScopes.length > 0 && grantedScopes.length < subjectScopes.length;
+  const removedScopes = subjectScopes.filter((s) => !grantedScopes.includes(s));
+
+  // 8. Resource/Audience validation (RFC 8693 §2.1)
+  // RFC 8693 allows multiple resource and audience parameters
+  // aud claim will be an array combining both
+  let targetAudiences: string[] = [];
+  let audienceSource: 'audience_param' | 'resource_param' | 'both' | 'default';
+
+  // RFC 8693 §2.1: Each resource MUST be an absolute URI without fragment
+  for (const res of resources) {
+    try {
+      const resourceUrl = new URL(res);
+      // Validate: must be absolute URI with http/https scheme
+      if (!['http:', 'https:'].includes(resourceUrl.protocol)) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: `resource '${res}' must be an absolute URI with http or https scheme`,
+          },
+          400
+        );
+      }
+      // RFC 8693: MUST NOT include a fragment component
+      if (resourceUrl.hash) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: `resource '${res}' must not include a fragment component`,
+          },
+          400
+        );
+      }
+    } catch {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: `resource '${res}' must be a valid absolute URI`,
+        },
+        400
+      );
+    }
+  }
+
+  // Build target audiences array (audiences first, then resources)
+  // This follows RFC 8693's logical vs location-based identifier hierarchy
+  if (audiences.length > 0 && resources.length > 0) {
+    targetAudiences = [...audiences, ...resources];
+    audienceSource = 'both';
+  } else if (audiences.length > 0) {
+    targetAudiences = audiences;
+    audienceSource = 'audience_param';
+  } else if (resources.length > 0) {
+    targetAudiences = resources;
+    audienceSource = 'resource_param';
+  } else {
+    targetAudiences = [c.env.ISSUER_URL];
+    audienceSource = 'default';
+  }
+
+  // Validate against allowed resources (all targets must be allowed)
+  const allowedResources = typedClient.allowed_token_exchange_resources || [];
+  if (allowedResources.length > 0) {
+    const disallowedTargets = targetAudiences.filter((t) => !allowedResources.includes(t));
+    if (disallowedTargets.length > 0) {
+      return c.json(
+        {
+          error: 'invalid_target',
+          error_description: `Requested audience/resource not allowed: ${disallowedTargets.join(', ')}`,
+        },
+        403
+      );
+    }
+  }
+
+  // 9. Actor token validation (for delegation mode)
+  let actClaim: ActClaim | undefined;
+
+  if (delegationMode === 'delegation') {
+    // SECURITY: If actor_token is provided, actor_token_type MUST also be provided
+    // Otherwise, the actor_token is silently ignored and the client becomes the actor
+    if (actor_token && !actor_token_type) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'actor_token_type is required when actor_token is provided',
+        },
+        400
+      );
+    }
+
+    if (actor_token && actor_token_type) {
+      // Validate actor_token_type (only access_token supported)
+      if (actor_token_type !== 'urn:ietf:params:oauth:token-type:access_token') {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'Only access_token is supported as actor_token_type',
+          },
+          400
+        );
+      }
+
+      // Validate actor_token
+      let actorTokenPayload: Record<string, unknown>;
+      let actorTokenHeader;
+      try {
+        actorTokenPayload = parseToken(actor_token);
+        actorTokenHeader = parseTokenHeader(actor_token);
+      } catch {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'Invalid actor_token format',
+          },
+          400
+        );
+      }
+
+      // Get kid from header (NOT payload)
+      const actorTokenKid = actorTokenHeader.kid;
+      if (!actorTokenKid) {
+        return c.json(
+          {
+            error: 'invalid_grant',
+            error_description: 'Actor token is missing kid in header',
+          },
+          400
+        );
+      }
+
+      try {
+        const actorPublicKey = await getVerificationKeyFromJWKS(c.env, actorTokenKid);
+        // Verify signature and issuer only; audience is validated below
+        await verifyToken(actor_token, actorPublicKey, c.env.ISSUER_URL, {
+          skipAudienceCheck: true, // We validate audience ourselves after this
+        });
+      } catch (error) {
+        console.error('Actor token signature verification failed:', error);
+        return c.json(
+          {
+            error: 'invalid_grant',
+            error_description: 'Actor token verification failed',
+          },
+          400
+        );
+      }
+
+      // Check actor_token expiration
+      const actorExp = actorTokenPayload.exp as number | undefined;
+      if (actorExp && actorExp < now) {
+        return c.json(
+          {
+            error: 'invalid_grant',
+            error_description: 'Actor token has expired',
+          },
+          400
+        );
+      }
+
+      // Check if actor_token is revoked
+      const actorJti = actorTokenPayload.jti as string | undefined;
+      if (actorJti) {
+        const actorRevoked = await isTokenRevoked(c.env, actorJti);
+        if (actorRevoked) {
+          return c.json(
+            {
+              error: 'invalid_grant',
+              error_description: 'Actor token has been revoked',
+            },
+            400
+          );
+        }
+      }
+
+      // Validate actor_token audience (security: prevent use of tokens meant for other resources)
+      // Actor token MUST have an aud claim and it should contain the requesting client_id or the issuer URL
+      const actorAud = actorTokenPayload.aud as string | string[] | undefined;
+      const actorAudArray = Array.isArray(actorAud) ? actorAud : actorAud ? [actorAud] : [];
+
+      // SECURITY: Reject actor tokens without aud claim
+      // Tokens without aud could be used by any client, enabling token theft attacks
+      if (actorAudArray.length === 0) {
+        return c.json(
+          {
+            error: 'invalid_grant',
+            error_description: 'Actor token must have an audience claim',
+          },
+          400
+        );
+      }
+
+      const isActorAudValid =
+        actorAudArray.includes(client_id!) || actorAudArray.includes(c.env.ISSUER_URL);
+
+      if (!isActorAudValid) {
+        return c.json(
+          {
+            error: 'invalid_grant',
+            error_description: 'Actor token audience does not match requesting client',
+          },
+          400
+        );
+      }
+
+      // Build act claim with potential nesting (max 2 levels)
+      const existingAct = subjectTokenPayload.act as ActClaim | undefined;
+
+      actClaim = {
+        sub: actorTokenPayload.sub as string,
+        client_id: actorTokenPayload.client_id as string | undefined,
+        // Only nest 1 level (prevent infinite chains)
+        ...(existingAct && !existingAct.act ? { act: existingAct } : {}),
+      };
+    } else {
+      // No actor_token, use client as actor
+      actClaim = {
+        sub: `client:${client_id}`,
+        client_id: client_id!,
+      };
+    }
+  }
+  // impersonation mode: no act claim
+
+  // 10. Generate new access token
+  let privateKey: CryptoKey;
+  let keyId: string;
+
+  try {
+    const signingKey = await getSigningKeyFromKeyManager(c.env);
+    privateKey = signingKey.privateKey;
+    keyId = signingKey.kid;
+  } catch (error) {
+    console.error('Failed to get signing key from KeyManager:', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to load signing key',
+      },
+      500
+    );
+  }
+
+  const configManager = createOAuthConfigManager(c.env);
+  const expiresIn = await configManager.getTokenExpiry();
+
+  // DPoP support
+  let dpopJkt: string | undefined;
+  const dpopProof = extractDPoPProof(c.req.raw.headers);
+  if (dpopProof) {
+    const dpopValidation = await validateDPoPProof(
+      dpopProof,
+      c.req.method,
+      c.req.url,
+      undefined,
+      c.env.DPOP_JTI_STORE,
+      client_id!
+    );
+    if (!dpopValidation.valid) {
+      return c.json(
+        {
+          error: 'invalid_dpop_proof',
+          error_description: dpopValidation.error_description || 'DPoP validation failed',
+        },
+        400
+      );
+    }
+    dpopJkt = dpopValidation.jkt;
+  }
+
+  // Build access token claims
+  const subjectSub = subjectTokenPayload.sub as string;
+  // RFC 8693: aud can be a single string or array of strings
+  // Use single string if only one audience, array otherwise (for JWT compactness)
+  const audClaim = targetAudiences.length === 1 ? targetAudiences[0] : targetAudiences;
+  const accessTokenClaims: Record<string, unknown> = {
+    iss: c.env.ISSUER_URL,
+    sub: subjectSub,
+    aud: audClaim,
+    scope: grantedScope,
+    client_id: client_id,
+    // Add act claim for delegation
+    ...(actClaim ? { act: actClaim } : {}),
+    // Add resource URIs if specified (RFC 8693 §2.2.1)
+    ...(resources.length > 0
+      ? { resource: resources.length === 1 ? resources[0] : resources }
+      : {}),
+    // Add DPoP confirmation
+    ...(dpopJkt ? { cnf: { jkt: dpopJkt } } : {}),
+  };
+
+  let accessToken: string;
+  let accessTokenJti: string;
+  try {
+    const result = await createAccessToken(
+      accessTokenClaims as Parameters<typeof createAccessToken>[0],
+      privateKey,
+      keyId,
+      expiresIn
+    );
+    accessToken = result.token;
+    accessTokenJti = result.jti;
+  } catch (error) {
+    console.error('Failed to create access token:', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to create access token',
+      },
+      500
+    );
+  }
+
+  // Token Exchange does NOT issue refresh tokens (stateless by design)
+
+  // Audit log for Token Exchange (helps with security monitoring and debugging)
+  // Maps URN to short name for readability
+  const tokenTypeShortName: Record<string, string> = {
+    'urn:ietf:params:oauth:token-type:access_token': 'access_token',
+    'urn:ietf:params:oauth:token-type:jwt': 'jwt',
+    'urn:ietf:params:oauth:token-type:id_token': 'id_token',
+  };
+  console.log('[Token Exchange] Success', {
+    client_id: client_id,
+    subject_token_type: tokenTypeShortName[subject_token_type] || subject_token_type,
+    subject_sub: subjectSub,
+    delegation_mode: delegationMode,
+    has_actor_token: !!actor_token,
+    actor_sub: actClaim?.sub,
+    // Audience tracking (RFC 8693 multiple resource/audience support)
+    target_audiences: targetAudiences,
+    audience_source: audienceSource, // 'audience_param' | 'resource_param' | 'both' | 'default'
+    resource_count: resources.length,
+    audience_count: audiences.length,
+    // Scope tracking (RFC 8693 scope downgrade detection)
+    scope_source: scopeSource, // 'explicit' | 'inherited'
+    subject_scope: subjectScope || '(none)',
+    granted_scope: grantedScope,
+    scope_downgraded: scopeDowngraded,
+    ...(removedScopes.length > 0 && { removed_scopes: removedScopes }),
+    // Token binding
+    token_binding: dpopProof ? 'DPoP' : 'Bearer',
+    jti: accessTokenJti,
+  });
+
+  // Set cache control headers
+  c.header('Cache-Control', 'no-store');
+  c.header('Pragma', 'no-cache');
+
+  return c.json({
+    access_token: accessToken,
+    issued_token_type: (requested_token_type ||
+      'urn:ietf:params:oauth:token-type:access_token') as TokenTypeURN,
+    token_type: dpopProof ? 'DPoP' : 'Bearer',
+    expires_in: expiresIn,
+    scope: grantedScope,
+  });
+}
+
+// =============================================================================
+// RFC 6749 Section 4.4: Client Credentials Grant
+// =============================================================================
+
+/**
+ * Handle Client Credentials Grant (RFC 6749 Section 4.4)
+ * https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
+ *
+ * Machine-to-Machine (M2M) authentication where the client is the resource owner.
+ * No user authentication required.
+ */
+async function handleClientCredentialsGrant(
+  c: Context<{ Bindings: Env }>,
+  formData: Record<string, string>
+): Promise<Response> {
+  // Check Feature Flag (hybrid: KV > env)
+  let clientCredentialsEnabled = c.env.ENABLE_CLIENT_CREDENTIALS === 'true';
+  try {
+    const settingsJson = await c.env.SETTINGS?.get('system_settings');
+    if (settingsJson) {
+      const settings = JSON.parse(settingsJson);
+      if (settings.oidc?.clientCredentials?.enabled !== undefined) {
+        clientCredentialsEnabled = settings.oidc.clientCredentials.enabled === true;
+      }
+    }
+  } catch {
+    // Ignore KV errors, fall back to env
+  }
+
+  if (!clientCredentialsEnabled) {
+    return c.json(
+      {
+        error: 'unsupported_grant_type',
+        error_description: 'Client Credentials grant is not enabled',
+      },
+      400
+    );
+  }
+
+  const requestedScope = formData.scope;
+  const requestedAudience = formData.audience;
+
+  // 1. Client Authentication (required for client_credentials)
+  let client_id = formData.client_id;
+  let client_secret = formData.client_secret;
+
+  // Check for JWT-based client authentication
+  const client_assertion = formData.client_assertion;
+  const client_assertion_type = formData.client_assertion_type;
+
+  if (
+    client_assertion &&
+    client_assertion_type === 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+  ) {
+    try {
+      const assertionPayload = parseToken(client_assertion);
+      if (!client_id && assertionPayload.sub) {
+        client_id = assertionPayload.sub as string;
+      }
+    } catch {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description: 'Invalid client_assertion format',
+        },
+        401
+      );
+    }
+  }
+
+  // Check HTTP Basic authentication
+  const authHeader = c.req.header('Authorization');
+  if (authHeader && authHeader.startsWith('Basic ')) {
+    try {
+      const base64Credentials = authHeader.substring(6);
+      const credentials = atob(base64Credentials);
+      const [basicClientId, basicClientSecret] = credentials.split(':', 2);
+      if (!client_id && basicClientId) {
+        client_id = decodeURIComponent(basicClientId);
+      }
+      if (!client_secret && basicClientSecret) {
+        client_secret = decodeURIComponent(basicClientSecret);
+      }
+    } catch {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description: 'Invalid Authorization header format',
+        },
+        401
+      );
+    }
+  }
+
+  // Validate client_id
+  const clientIdValidation = validateClientId(client_id);
+  if (!clientIdValidation.valid) {
+    return c.json(
+      {
+        error: 'invalid_client',
+        error_description: clientIdValidation.error,
+      },
+      401
+    );
+  }
+
+  // Fetch client metadata
+  const clientMetadata = await getClient(c.env, client_id!);
+  if (!clientMetadata) {
+    return c.json(
+      {
+        error: 'invalid_client',
+        error_description: 'Client not found',
+      },
+      401
+    );
+  }
+
+  // Cast to ClientMetadata for type safety
+  const typedClient = clientMetadata as unknown as ClientMetadata;
+
+  // 2. Authenticate client (client_credentials REQUIRES authentication)
+  if (
+    client_assertion &&
+    client_assertion_type === 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+  ) {
+    const assertionValidation = await validateClientAssertion(
+      client_assertion,
+      `${c.env.ISSUER_URL}/token`,
+      typedClient
+    );
+    if (!assertionValidation.valid) {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description:
+            assertionValidation.error_description || 'Client assertion validation failed',
+        },
+        401
+      );
+    }
+  } else if (typedClient.client_secret) {
+    // client_secret_basic or client_secret_post
+    if (!client_secret || !timingSafeEqual(typedClient.client_secret, client_secret)) {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description: 'Invalid client credentials',
+        },
+        401
+      );
+    }
+  } else {
+    // Public clients are NOT allowed to use client_credentials
+    return c.json(
+      {
+        error: 'invalid_client',
+        error_description: 'Client credentials authentication is required',
+      },
+      401
+    );
+  }
+
+  // 3. Check if client is allowed to use Client Credentials grant
+  if (!typedClient.client_credentials_allowed) {
+    return c.json(
+      {
+        error: 'unauthorized_client',
+        error_description: 'Client is not authorized for Client Credentials grant',
+      },
+      403
+    );
+  }
+
+  // 4. Scope validation
+  const defaultScope = typedClient.default_scope || 'openid';
+  const scopes = requestedScope ? requestedScope.split(' ') : defaultScope.split(' ');
+  const allowedScopes = typedClient.allowed_scopes || [];
+
+  // If allowed_scopes is defined, filter requested scopes
+  let grantedScopes = scopes;
+  if (allowedScopes.length > 0) {
+    grantedScopes = scopes.filter((s) => allowedScopes.includes(s));
+    if (grantedScopes.length === 0) {
+      return c.json(
+        {
+          error: 'invalid_scope',
+          error_description: 'None of the requested scopes are allowed for this client',
+        },
+        400
+      );
+    }
+  }
+
+  const grantedScope = grantedScopes.join(' ');
+
+  // 5. Audience determination
+  const targetAudience = requestedAudience || typedClient.default_audience || c.env.ISSUER_URL;
+
+  // 6. Generate access token
+  let privateKey: CryptoKey;
+  let keyId: string;
+
+  try {
+    const signingKey = await getSigningKeyFromKeyManager(c.env);
+    privateKey = signingKey.privateKey;
+    keyId = signingKey.kid;
+  } catch (error) {
+    console.error('Failed to get signing key from KeyManager:', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to load signing key',
+      },
+      500
+    );
+  }
+
+  const configManager = createOAuthConfigManager(c.env);
+  const expiresIn = await configManager.getTokenExpiry();
+
+  // DPoP support
+  let dpopJkt: string | undefined;
+  const dpopProof = extractDPoPProof(c.req.raw.headers);
+  if (dpopProof) {
+    const dpopValidation = await validateDPoPProof(
+      dpopProof,
+      c.req.method,
+      c.req.url,
+      undefined,
+      c.env.DPOP_JTI_STORE,
+      client_id!
+    );
+    if (!dpopValidation.valid) {
+      return c.json(
+        {
+          error: 'invalid_dpop_proof',
+          error_description: dpopValidation.error_description || 'DPoP validation failed',
+        },
+        400
+      );
+    }
+    dpopJkt = dpopValidation.jkt;
+  }
+
+  // Build access token claims
+  // For M2M, subject is the client itself with "client:" prefix for namespace separation
+  const accessTokenClaims: Record<string, unknown> = {
+    iss: c.env.ISSUER_URL,
+    sub: `client:${client_id}`, // Namespace separation from user subjects
+    aud: targetAudience,
+    scope: grantedScope,
+    client_id: client_id,
+    // Add DPoP confirmation
+    ...(dpopJkt ? { cnf: { jkt: dpopJkt } } : {}),
+  };
+
+  let accessToken: string;
+  try {
+    const result = await createAccessToken(
+      accessTokenClaims as Parameters<typeof createAccessToken>[0],
+      privateKey,
+      keyId,
+      expiresIn
+    );
+    accessToken = result.token;
+  } catch (error) {
+    console.error('Failed to create access token:', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to create access token',
+      },
+      500
+    );
+  }
+
+  // Client Credentials does NOT issue refresh tokens (per RFC 6749)
+
+  // Set cache control headers
+  c.header('Cache-Control', 'no-store');
+  c.header('Pragma', 'no-cache');
+
+  return c.json({
+    access_token: accessToken,
+    token_type: dpopProof ? 'DPoP' : 'Bearer',
+    expires_in: expiresIn,
+    scope: grantedScope,
+  });
 }

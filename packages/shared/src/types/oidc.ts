@@ -337,6 +337,35 @@ export interface ClientMetadata extends ClientRegistrationResponse {
   backchannel_client_notification_endpoint?: string; // Callback URL for ping/push modes
   backchannel_authentication_request_signing_alg?: string; // Algorithm for signed auth requests
   backchannel_user_code_parameter?: boolean; // Whether client supports user_code parameter
+
+  // ==========================================================================
+  // RFC 8693: Token Exchange Settings
+  // ==========================================================================
+  /** Allow Token Exchange for this client */
+  token_exchange_allowed?: boolean;
+  /** Client IDs allowed as subject_token issuers */
+  allowed_subject_token_clients?: string[];
+  /** Allowed resource/audience values for Token Exchange */
+  allowed_token_exchange_resources?: string[];
+  /**
+   * Delegation mode for Token Exchange
+   * - 'none': Token Exchange disabled
+   * - 'delegation': Include act claim (default, recommended)
+   * - 'impersonation': Omit act claim (requires enhanced audit)
+   */
+  delegation_mode?: DelegationMode;
+
+  // ==========================================================================
+  // RFC 6749 Section 4.4: Client Credentials Settings
+  // ==========================================================================
+  /** Allow Client Credentials grant for this client */
+  client_credentials_allowed?: boolean;
+  /** Allowed scopes for M2M tokens */
+  allowed_scopes?: string[];
+  /** Default scope when scope parameter is omitted */
+  default_scope?: string;
+  /** Default audience when audience parameter is omitted */
+  default_audience?: string;
 }
 
 /**
@@ -364,6 +393,7 @@ export interface IntrospectionRequest {
 /**
  * Token Introspection Response
  * https://tools.ietf.org/html/rfc7662#section-2.2
+ * Extended for RFC 8693 Token Exchange (act claim)
  */
 export interface IntrospectionResponse {
   active: boolean;
@@ -378,6 +408,14 @@ export interface IntrospectionResponse {
   aud?: string;
   iss?: string;
   jti?: string;
+  // RFC 8693: Token Exchange - Actor claim for delegation chain
+  act?: {
+    sub: string;
+    client_id?: string;
+    act?: object; // Nested actor (max 2 levels)
+  };
+  // Resource server URI (if token was issued via Token Exchange)
+  resource?: string;
 }
 
 /**
@@ -547,4 +585,109 @@ export interface CIBARequestMetadata {
  */
 export interface CIBARequestRow extends Omit<CIBARequestMetadata, 'token_issued'> {
   token_issued: number; // SQLite boolean: 0 = false, 1 = true
+}
+
+// =============================================================================
+// RFC 8693: OAuth 2.0 Token Exchange
+// =============================================================================
+
+/**
+ * Token Type URN values for Token Exchange
+ * https://datatracker.ietf.org/doc/html/rfc8693#section-3
+ */
+export type TokenTypeURN =
+  | 'urn:ietf:params:oauth:token-type:access_token'
+  | 'urn:ietf:params:oauth:token-type:refresh_token'
+  | 'urn:ietf:params:oauth:token-type:id_token';
+
+/**
+ * Token Exchange Request Parameters
+ * https://datatracker.ietf.org/doc/html/rfc8693#section-2.1
+ */
+export interface TokenExchangeRequest {
+  grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange';
+  /** REQUIRED - The token to be exchanged */
+  subject_token: string;
+  /** REQUIRED - The type of the subject_token */
+  subject_token_type: TokenTypeURN;
+  /** OPTIONAL - Token representing the actor (for delegation) */
+  actor_token?: string;
+  /** OPTIONAL - The type of the actor_token */
+  actor_token_type?: TokenTypeURN;
+  /** OPTIONAL - URI of the target resource server */
+  resource?: string;
+  /** OPTIONAL - Intended audience of the token */
+  audience?: string;
+  /** OPTIONAL - Requested scope for the new token */
+  scope?: string;
+  /** OPTIONAL - Requested token type for the response */
+  requested_token_type?: TokenTypeURN;
+}
+
+/**
+ * Token Exchange Response
+ * https://datatracker.ietf.org/doc/html/rfc8693#section-2.2
+ */
+export interface TokenExchangeResponse {
+  /** The newly issued token */
+  access_token: string;
+  /** The type of token issued */
+  issued_token_type: TokenTypeURN;
+  /** Token type (Bearer or DPoP) */
+  token_type: 'Bearer' | 'DPoP';
+  /** Token expiration in seconds */
+  expires_in: number;
+  /** Granted scope (may be subset of requested) */
+  scope?: string;
+  /** Refresh token (only if requested and permitted) */
+  refresh_token?: string;
+}
+
+/**
+ * Actor Claim (act) for delegation chain
+ * https://datatracker.ietf.org/doc/html/rfc8693#section-4.1
+ */
+export interface ActClaim {
+  /** Subject of the actor */
+  sub: string;
+  /** Client ID of the actor (optional but recommended) */
+  client_id?: string;
+  /** Nested actor claim (for multi-hop delegation, max 2 levels in Authrim) */
+  act?: ActClaim;
+}
+
+/**
+ * Delegation Mode for Token Exchange
+ * - 'none': Token Exchange disabled
+ * - 'delegation': act claim included (default, recommended)
+ * - 'impersonation': act claim omitted (requires enhanced audit logging)
+ */
+export type DelegationMode = 'none' | 'delegation' | 'impersonation';
+
+// =============================================================================
+// RFC 6749 Section 4.4: Client Credentials Grant
+// =============================================================================
+
+/**
+ * Client Credentials Request Parameters
+ * https://datatracker.ietf.org/doc/html/rfc6749#section-4.4.2
+ */
+export interface ClientCredentialsRequest {
+  grant_type: 'client_credentials';
+  /** OPTIONAL - Requested scope */
+  scope?: string;
+  /** OPTIONAL - Target audience for the token */
+  audience?: string;
+}
+
+/**
+ * Client Credentials Response
+ * https://datatracker.ietf.org/doc/html/rfc6749#section-4.4.3
+ * Note: Does NOT include refresh_token (per RFC 6749)
+ */
+export interface ClientCredentialsResponse {
+  access_token: string;
+  token_type: 'Bearer' | 'DPoP';
+  expires_in: number;
+  scope?: string;
 }

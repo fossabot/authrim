@@ -147,6 +147,10 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
   const tokenClientId = tokenPayload.client_id as string;
   // V2: Extract version for refresh token validation
   const rtv = typeof tokenPayload.rtv === 'number' ? tokenPayload.rtv : 1;
+  // RFC 8693: Actor claim for delegation (Token Exchange)
+  const act = tokenPayload.act as IntrospectionResponse['act'];
+  // RFC 8693: Resource server URI (Token Exchange)
+  const resource = tokenPayload.resource as string | undefined;
 
   // Load public key for verification
   const publicJwkJson = c.env.PUBLIC_JWK_JSON;
@@ -182,7 +186,7 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
     // For refresh tokens, aud should be the client_id
     // Use the actual aud from the token to determine verification strategy
     const expectedAud = aud;
-    await verifyToken(token, publicKey, iss, expectedAud);
+    await verifyToken(token, publicKey, iss, { audience: expectedAud });
   } catch (error) {
     console.error('Token verification failed:', error);
     // Token signature verification failed, return inactive
@@ -231,6 +235,10 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
     aud,
     iss,
     jti,
+    // RFC 8693: Include actor claim if present (for Token Exchange delegated tokens)
+    ...(act && { act }),
+    // RFC 8693: Include resource if present (for Token Exchange with resource parameter)
+    ...(resource && { resource }),
   };
 
   return c.json(response);
