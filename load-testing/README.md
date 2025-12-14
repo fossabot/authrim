@@ -363,48 +363,77 @@ default() [Benchmark target - metrics collected]:
 
 ### VM Execution (for Fair Comparison with Mail OTP)
 
-k6 Cloud doesn't support custom extensions. To compare Passkey with Mail OTP benchmarks,
-run from a US region VM (same region as k6 Cloud's Portland load zone).
+k6 Cloud doesn't support custom extensions (xk6-passkeys). To compare Passkey with Mail OTP benchmarks fairly, run from a US region VM (same region as k6 Cloud's Portland load zone).
 
-#### VM Setup
+#### Why VM?
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Local (Mac)** | Easy setup | Japan→US latency adds ~150ms, unfair comparison |
+| **k6 Cloud** | Same infra as Mail OTP | Custom extensions not supported |
+| **US VM** | Same region as k6 Cloud, fair comparison | Requires VM setup |
+
+#### VM Setup (AWS us-west-2 or GCP us-west1)
 
 ```bash
-# On US VM (AWS us-west-2, GCP us-west1, etc.)
+# 1. Create VM in US West region
+#    - AWS: us-west-2 (Oregon) - closest to k6 Cloud Portland
+#    - GCP: us-west1 (Oregon)
+#    - Recommended: t3.medium / e2-medium or larger
 
-# 1. Install Go 1.23+
+# 2. SSH into VM and install Go 1.23+
 wget https://go.dev/dl/go1.23.0.linux-amd64.tar.gz
 sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
-export PATH=$PATH:/usr/local/go/bin
+echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+source ~/.bashrc
 
-# 2. Clone and build
+# Verify Go installation
+go version  # Should show go1.23.0 or later
+
+# 3. Clone repository and build custom k6
 git clone https://github.com/your-org/authrim.git
 cd authrim/load-testing
 ./scripts/build-k6-passkeys.sh
 
-# 3. Set environment variables
-export BASE_URL=https://conformance.authrim.com
-export ADMIN_API_SECRET=xxx
-export CLIENT_ID=xxx
-export CLIENT_SECRET=xxx
+# Verify build
+./bin/k6-passkeys version
+# Should show: k6-passkeys vX.X.X with extension k6/x/passkeys
+
+# 4. Create .env file with credentials
+cat > .env << 'EOF'
+BASE_URL=https://conformance.authrim.com
+ADMIN_API_SECRET=your-admin-secret
+CLIENT_ID=your-client-id
+CLIENT_SECRET=your-client-secret
+EOF
 ```
 
-#### Running from VM
+#### Quick Start (Recommended)
 
 ```bash
-# Step 1: Seed users (once per test session)
+# All-in-one: Seed users + Run benchmark
+./scripts/run-passkey-benchmark-vm.sh all rps50
+```
+
+#### Step-by-Step Execution
+
+```bash
+# Step 1: Seed passkey users (creates users and saves credentials)
+# This only needs to be done once per test session
 ./scripts/run-passkey-benchmark-vm.sh seed
 
-# Step 2: Run benchmark
+# Output: ./seeds/passkey_credentials_vm.json
+
+# Step 2: Run benchmark with desired preset
 ./scripts/run-passkey-benchmark-vm.sh benchmark rps50
 
-# Or run both
-./scripts/run-passkey-benchmark-vm.sh all rps125
+# Available presets: rps10, rps50, rps100, rps125, rps150, rps200
 ```
 
-#### Manual Execution
+#### Manual Execution (Advanced)
 
 ```bash
-# Seed mode - creates users and exports credentials
+# Seed mode - creates users and exports credentials to JSON
 ./bin/k6-passkeys run \
   --env MODE=seed \
   --env BASE_URL=https://conformance.authrim.com \
@@ -412,15 +441,56 @@ export CLIENT_SECRET=xxx
   --env PASSKEY_USER_COUNT=500 \
   scripts/test-passkey-full-login-benchmark-vm.js 2>&1 | ./scripts/extract-credentials.sh
 
-# Benchmark mode - uses pre-seeded credentials
+# Benchmark mode - uses pre-seeded credentials (pure login benchmark)
 ./bin/k6-passkeys run \
   --env MODE=benchmark \
   --env BASE_URL=https://conformance.authrim.com \
   --env CLIENT_ID=xxx \
   --env CLIENT_SECRET=xxx \
   --env PRESET=rps125 \
+  --env CREDENTIAL_FILE=./seeds/passkey_credentials_vm.json \
   scripts/test-passkey-full-login-benchmark-vm.js
 ```
+
+#### VM Presets (Matching Mail OTP)
+
+| Preset | Target RPS | Duration | Seed Users | Comparison Target |
+|--------|------------|----------|------------|-------------------|
+| `rps10` | 10 RPS | 30s | 100 | Smoke test |
+| `rps50` | 50 RPS | 2 min | 500 | Mail OTP 50 LPS |
+| `rps100` | 100 RPS | 2 min | 1000 | Mail OTP 100 LPS |
+| `rps125` | 125 RPS | 2 min | 1250 | Mail OTP 125 LPS |
+| `rps150` | 150 RPS | 2 min | 1500 | Mail OTP 150 LPS |
+| `rps200` | 200 RPS | 3 min | 2000 | Stress test |
+
+#### Two-Mode Design
+
+The VM script uses a two-mode design for accurate benchmarking:
+
+```
+MODE=seed (Preparation - not measured):
+  ┌─────────────────────────────────────────────────────┐
+  │ 1. Create user via Admin API                        │
+  │ 2. Generate ECDSA P-256 keypair (xk6-passkeys)      │
+  │ 3. Register passkey with server                     │
+  │ 4. Export credential to JSON                        │
+  └─────────────────────────────────────────────────────┘
+                          ↓
+            seeds/passkey_credentials_vm.json
+                          ↓
+MODE=benchmark (Measured - pure login flow):
+  ┌─────────────────────────────────────────────────────┐
+  │ 1. Import credential from JSON                      │
+  │ 2. GET /authorize (init)                            │
+  │ 3. POST /api/auth/passkey/login/options             │
+  │ 4. Generate WebAuthn assertion (signature)          │
+  │ 5. POST /api/auth/passkey/login/verify              │
+  │ 6. GET /authorize (get code)                        │
+  │ 7. POST /token                                      │
+  └─────────────────────────────────────────────────────┘
+```
+
+This matches the Mail OTP benchmark pattern where users are pre-seeded.
 
 ---
 
