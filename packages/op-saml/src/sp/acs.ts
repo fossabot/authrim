@@ -390,10 +390,15 @@ async function findOrCreateUser(
   userInfo: UserInfo,
   idpEntityId: string
 ): Promise<string> {
-  // Try to find user by email
+  // Use default tenant for SAML-authenticated users
+  const tenantId = 'default';
+
+  // Try to find user by email (use tenant_id + email for idx_users_tenant_email composite index)
   if (userInfo.email) {
-    const existingUser = await env.DB.prepare('SELECT id FROM users WHERE email = ?')
-      .bind(userInfo.email)
+    const existingUser = await env.DB.prepare(
+      'SELECT id FROM users WHERE tenant_id = ? AND email = ?'
+    )
+      .bind(tenantId, userInfo.email)
       .first();
 
     if (existingUser) {
@@ -406,11 +411,12 @@ async function findOrCreateUser(
   const now = Date.now();
 
   await env.DB.prepare(
-    `INSERT INTO users (id, email, name, email_verified, identity_provider_id, created_at, updated_at)
-     VALUES (?, ?, ?, 1, ?, ?, ?)`
+    `INSERT INTO users (id, tenant_id, email, name, email_verified, identity_provider_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 1, ?, ?, ?)`
   )
     .bind(
       userId,
+      tenantId,
       userInfo.email || `${userInfo.nameId}@saml.local`,
       userInfo.name || null,
       idpEntityId,

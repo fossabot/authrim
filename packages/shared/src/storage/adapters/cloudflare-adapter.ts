@@ -456,7 +456,13 @@ export class UserStore implements IUserStore {
   }
 
   async getByEmail(email: string): Promise<User | null> {
-    const results = await this.adapter.query<User>('SELECT * FROM users WHERE email = ?', [email]);
+    // Use tenant_id + email for idx_users_tenant_email composite index
+    // Default to 'default' tenant until multi-tenant support is added to interface
+    const tenantId = 'default';
+    const results = await this.adapter.query<User>(
+      'SELECT * FROM users WHERE tenant_id = ? AND email = ?',
+      [tenantId, email]
+    );
     return results[0] || null;
   }
 

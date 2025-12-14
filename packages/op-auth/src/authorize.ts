@@ -759,7 +759,9 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
           }
 
           // Verify the signature
-          const verified = await verifyToken(jwtRequest, publicKey, c.env.ISSUER_URL, client_id);
+          const verified = await verifyToken(jwtRequest, publicKey, c.env.ISSUER_URL, {
+            audience: client_id,
+          });
           requestObjectClaims = verified as Record<string, unknown>;
         }
       }
@@ -1503,12 +1505,9 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       }
 
       if (publicKey) {
-        const verified = await verifyToken(
-          id_token_hint,
-          publicKey,
-          c.env.ISSUER_URL,
-          client_id || ''
-        );
+        const verified = await verifyToken(id_token_hint, publicKey, c.env.ISSUER_URL, {
+          audience: client_id || '',
+        });
         const idTokenPayload = verified.payload as Record<string, unknown>;
 
         // Extract user identifier and auth_time from ID token

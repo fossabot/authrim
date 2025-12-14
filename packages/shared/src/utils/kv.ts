@@ -13,6 +13,7 @@ import type { Env } from '../types/env';
 import type { RefreshTokenData } from '../types/oidc';
 import { buildKVKey, buildDOInstanceName } from './tenant-context';
 import { createOAuthConfigManager } from './oauth-config';
+import { getRevocationStoreByJti } from './token-revocation-sharding';
 
 // ===== User Cache =====
 // Read-Through Cache for user metadata with invalidation hook support
@@ -472,6 +473,16 @@ export async function getClient(
       is_trusted: number | null;
       skip_consent: number | null;
       allow_claims_without_scope: number | null;
+      // RFC 8693: Token Exchange settings
+      token_exchange_allowed: number | null;
+      allowed_subject_token_clients: string | null;
+      allowed_token_exchange_resources: string | null;
+      delegation_mode: string | null;
+      // RFC 6749 Section 4.4: Client Credentials settings
+      client_credentials_allowed: number | null;
+      allowed_scopes: string | null;
+      default_scope: string | null;
+      default_audience: string | null;
       created_at: number;
       updated_at: number;
     }>();
@@ -505,6 +516,20 @@ export async function getClient(
     is_trusted: result.is_trusted === 1,
     skip_consent: result.skip_consent === 1,
     allow_claims_without_scope: result.allow_claims_without_scope === 1,
+    // RFC 8693: Token Exchange settings
+    token_exchange_allowed: result.token_exchange_allowed === 1,
+    allowed_subject_token_clients: result.allowed_subject_token_clients
+      ? JSON.parse(result.allowed_subject_token_clients)
+      : undefined,
+    allowed_token_exchange_resources: result.allowed_token_exchange_resources
+      ? JSON.parse(result.allowed_token_exchange_resources)
+      : undefined,
+    delegation_mode: result.delegation_mode || 'delegation',
+    // RFC 6749 Section 4.4: Client Credentials settings
+    client_credentials_allowed: result.client_credentials_allowed === 1,
+    allowed_scopes: result.allowed_scopes ? JSON.parse(result.allowed_scopes) : undefined,
+    default_scope: result.default_scope,
+    default_audience: result.default_audience,
     created_at: result.created_at,
     updated_at: result.updated_at,
   };
@@ -545,9 +570,8 @@ export async function revokeToken(
     throw new Error('TOKEN_REVOCATION_STORE Durable Object not available');
   }
 
-  // Use a tenant-scoped Durable Object instance for token revocations
-  const id = env.TOKEN_REVOCATION_STORE.idFromName(buildDOInstanceName('token-revocation'));
-  const stub = env.TOKEN_REVOCATION_STORE.get(id);
+  // Use sharded Durable Object instance for token revocations
+  const { stub } = await getRevocationStoreByJti(env, jti);
 
   const response = await stub.fetch('http://internal/revoke', {
     method: 'POST',
@@ -578,10 +602,10 @@ export async function isTokenRevoked(env: Env, jti: string): Promise<boolean> {
     return false;
   }
 
-  const id = env.TOKEN_REVOCATION_STORE.idFromName(buildDOInstanceName('token-revocation'));
-  const stub = env.TOKEN_REVOCATION_STORE.get(id);
-
   try {
+    // Use sharded Durable Object instance for token revocation checks
+    const { stub } = await getRevocationStoreByJti(env, jti);
+
     const response = await stub.fetch(`http://internal/check?jti=${encodeURIComponent(jti)}`, {
       method: 'GET',
     });

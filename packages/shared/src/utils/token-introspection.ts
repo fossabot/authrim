@@ -378,12 +378,9 @@ export async function introspectToken(
   // Verify JWT signature and expiration
   let tokenClaims: JWTPayload;
   try {
-    tokenClaims = await verifyToken(
-      accessToken,
-      publicKey,
-      issuerUrl,
-      issuerUrl // For MVP, access token audience is the issuer
-    );
+    tokenClaims = await verifyToken(accessToken, publicKey, issuerUrl, {
+      audience: issuerUrl, // For MVP, access token audience is the issuer
+    });
   } catch (error) {
     const wwwAuth = isDPoP ? 'DPoP error="invalid_token"' : 'Bearer error="invalid_token"';
     return {

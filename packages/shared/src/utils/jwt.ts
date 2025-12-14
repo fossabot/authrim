@@ -123,23 +123,51 @@ export async function createAccessToken(
 }
 
 /**
+ * Options for verifyToken function
+ */
+export interface VerifyTokenOptions {
+  /**
+   * Expected audience(s). Required unless skipAudienceCheck is true.
+   */
+  audience?: string | string[];
+
+  /**
+   * Explicitly skip audience verification.
+   * SECURITY: Only set to true when you validate audience separately (e.g., Token Exchange).
+   * Default: false
+   */
+  skipAudienceCheck?: boolean;
+}
+
+/**
  * Verify JWT token signature and claims
  *
  * @param token - JWT token to verify
  * @param publicKey - Public key for verification
  * @param issuer - Expected issuer
- * @param audience - Expected audience
+ * @param options - Verification options (audience, skipAudienceCheck)
  * @returns Promise<JWTPayload> - Decoded and verified claims
+ * @throws Error if audience is not provided and skipAudienceCheck is not true
  */
 export async function verifyToken(
   token: string,
   publicKey: CryptoKey,
   issuer: string,
-  audience: string
+  options: VerifyTokenOptions = {}
 ): Promise<JWTPayload> {
+  const { audience, skipAudienceCheck = false } = options;
+
+  // SECURITY: Require audience by default to prevent accidental skipping
+  if (!audience && !skipAudienceCheck) {
+    throw new Error(
+      'verifyToken: audience is required. If you intentionally want to skip audience verification, set skipAudienceCheck: true'
+    );
+  }
+
   const { payload } = await jwtVerify(token, publicKey, {
     issuer,
-    audience,
+    // Only include audience in options if provided and not skipping
+    ...(audience && !skipAudienceCheck && { audience }),
     algorithms: ['RS256'],
   });
 
@@ -173,6 +201,42 @@ export function parseToken(token: string): JWTPayload {
   const decoded = atob(base64);
 
   return JSON.parse(decoded) as JWTPayload;
+}
+
+/**
+ * JWT Header interface
+ */
+export interface JWTHeader {
+  alg: string;
+  typ?: string;
+  kid?: string;
+}
+
+/**
+ * Parse JWT header without verification
+ * Used to extract kid for key selection before signature verification
+ *
+ * @param token - JWT token to parse
+ * @returns Decoded header (unverified)
+ */
+export function parseTokenHeader(token: string): JWTHeader {
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    throw new Error('Invalid JWT format');
+  }
+
+  const header = parts[0];
+  if (!header) {
+    throw new Error('Invalid JWT header');
+  }
+
+  // Convert base64url to base64 (Workers-compatible)
+  const base64 = header.replace(/-/g, '+').replace(/_/g, '/');
+
+  // Decode using atob (available in Workers runtime)
+  const decoded = atob(base64);
+
+  return JSON.parse(decoded) as JWTHeader;
 }
 
 /**

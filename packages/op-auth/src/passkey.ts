@@ -9,8 +9,9 @@ import {
   isAllowedOrigin,
   parseAllowedOrigins,
   getSessionStoreForNewSession,
-  getChallengeStoreByEmail,
   getChallengeStoreByChallengeId,
+  getChallengeStoreByUserId,
+  getTenantIdFromContext,
 } from '@authrim/shared';
 import {
   generateRegistrationOptions,
@@ -114,15 +115,18 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
     const rpID = originUrl.hostname;
     const origin = originHeader;
 
-    // Check if user exists
+    // Check if user exists (use tenant_id + email for idx_users_tenant_email composite index)
+    const tenantId = getTenantIdFromContext(c);
     let user;
     if (userId) {
       user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE id = ?')
         .bind(userId)
         .first();
     } else {
-      user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE email = ?')
-        .bind(email)
+      user = await c.env.DB.prepare(
+        'SELECT id, email, name FROM users WHERE tenant_id = ? AND email = ?'
+      )
+        .bind(tenantId, email)
         .first();
     }
 
@@ -137,10 +141,10 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
 
       await c.env.DB.prepare(
         `INSERT INTO users (
-          id, email, name, preferred_username, email_verified, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 0, ?, ?)`
+          id, tenant_id, email, name, preferred_username, email_verified, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
       )
-        .bind(newUserId, email, defaultName, preferredUsername, now, now)
+        .bind(newUserId, tenantId, email, defaultName, preferredUsername, now, now)
         .run();
 
       user = { id: newUserId, email, name: name || email.split('@')[0] };
@@ -191,8 +195,8 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
     });
 
     // Store challenge in ChallengeStore DO for verification (TTL: 5 minutes) (RPC)
-    // Use email-based sharding for better scalability
-    const challengeStore = await getChallengeStoreByEmail(c.env, email);
+    // Use userId-based sharding (UUID, no PII in DO instance name)
+    const challengeStore = await getChallengeStoreByUserId(c.env, user.id as string);
 
     await challengeStore.storeChallengeRpc({
       id: `passkey_reg:${user.id}`,
@@ -243,25 +247,10 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
       );
     }
 
-    // Get user email for shard routing
-    const userForShard = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?')
-      .bind(userId)
-      .first();
-
-    if (!userForShard) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'User not found',
-        },
-        400
-      );
-    }
-
     // Consume challenge from ChallengeStore DO (atomic operation, RPC)
     // This prevents parallel replay attacks
-    // Use email-based sharding - must match the shard used during options generation
-    const challengeStore = await getChallengeStoreByEmail(c.env, userForShard.email as string);
+    // Use userId-based sharding (UUID, no PII) - must match the shard used during options generation
+    const challengeStore = await getChallengeStoreByUserId(c.env, userId);
 
     let challenge: string;
     try {
@@ -481,10 +470,11 @@ export async function passkeyLoginOptionsHandler(c: Context<{ Bindings: Env }>) 
       transports?: string[];
     }> = [];
 
-    // If email provided, get user's passkeys
+    // If email provided, get user's passkeys (use tenant_id + email for index)
     if (email) {
-      const user = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?')
-        .bind(email)
+      const tenantId = getTenantIdFromContext(c);
+      const user = await c.env.DB.prepare('SELECT id FROM users WHERE tenant_id = ? AND email = ?')
+        .bind(tenantId, email)
         .first();
 
       if (user) {

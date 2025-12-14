@@ -3171,9 +3171,17 @@ async function handleTokenExchangeGrant(
     );
   }
 
+  // Performance optimization: Fetch public key and check revocation in parallel
+  // These two DO calls are independent and can be executed concurrently
+  const subjectJti = subjectTokenPayload.jti as string | undefined;
+
+  const [publicKey, revoked] = await Promise.all([
+    getVerificationKeyFromJWKS(c.env, subjectTokenKid),
+    subjectJti ? isTokenRevoked(c.env, subjectJti) : Promise.resolve(false),
+  ]);
+
   // Verify subject_token signature (issuer only, aud validated separately)
   try {
-    const publicKey = await getVerificationKeyFromJWKS(c.env, subjectTokenKid);
     // Verify signature and issuer only; audience is validated in the authorization check below
     await verifyToken(subject_token, publicKey, c.env.ISSUER_URL, {
       skipAudienceCheck: true, // We validate audience ourselves in Token Exchange
@@ -3202,19 +3210,15 @@ async function handleTokenExchangeGrant(
     );
   }
 
-  // Check if subject_token is revoked
-  const subjectJti = subjectTokenPayload.jti as string | undefined;
-  if (subjectJti) {
-    const revoked = await isTokenRevoked(c.env, subjectJti);
-    if (revoked) {
-      return c.json(
-        {
-          error: 'invalid_grant',
-          error_description: 'Subject token has been revoked',
-        },
-        400
-      );
-    }
+  // Check if subject_token is revoked (result already fetched in parallel above)
+  if (revoked) {
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: 'Subject token has been revoked',
+      },
+      400
+    );
   }
 
   // 7. Audience validation (Cross-tenant escalation prevention)

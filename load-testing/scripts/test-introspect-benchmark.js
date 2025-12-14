@@ -1,17 +1,32 @@
 /**
- * Token Introspection Endpoint ベンチマークテスト
+ * Token Introspection Control Plane Test
  *
- * 目的:
- * - Token Introspection API (/introspect) の最大スループットを測定
- * - Valid/Expired/Invalid/Revoked トークンの混在環境でのパフォーマンス評価
- * - false positive/negative の検出
- * - Auth0/Keycloak/Ory との比較指標
+ * RFC 7662 Token Introspection エンドポイントのベンチマークテスト
  *
- * テスト仕様:
- * - ターゲット: POST /introspect
- * - 認証: HTTP Basic (client_id:client_secret)
- * - トークンミックス: Valid 70%, Expired 10%, Invalid 10%, Revoked 10%
- * - 成功判定: active フラグが期待値と一致
+ * ┌───────────────────────────────────────────────────────────────────────────────┐
+ * │ テスト設計 (RFC 7662 + 業界標準準拠)                                          │
+ * ├────────────────────┬───────┬─────────────┬─────────────────────────────────────┤
+ * │ 種別               │ 比率  │ 期待active  │ 検証項目                            │
+ * ├────────────────────┼───────┼─────────────┼─────────────────────────────────────┤
+ * │ Active (標準)      │ 60%   │ true        │ scope/sub整合性                     │
+ * │ Active (TE)        │ 5%    │ true        │ act/resource claim (RFC 8693)       │
+ * │ Expired            │ 12%   │ false       │ 即時反映                            │
+ * │ Revoked            │ 12%   │ false       │ 即時反映                            │
+ * │ Wrong audience     │ 6%    │ false       │ aud検証 (strictValidation=true時)   │
+ * │ Wrong client       │ 5%    │ false       │ client_id検証 (strictValidation時)  │
+ * └────────────────────┴───────┴─────────────┴─────────────────────────────────────┘
+ *
+ * 成功基準 (RFC 7662 + Keycloak/Auth0 benchmark):
+ * - 成功率: > 99%
+ * - p95: < 300ms, p99: < 400ms
+ * - False Positive/Negative: 0
+ * - Token Exchange act claim整合性: 100%
+ *
+ * 注意: テスト実行前に strictValidation=true を設定する必要あり
+ *   curl -X PUT https://conformance.authrim.com/api/admin/settings/introspection-validation \
+ *     -H "Authorization: Bearer $ADMIN_API_SECRET" \
+ *     -H "Content-Type: application/json" \
+ *     -d '{"strictValidation": true}'
  *
  * 使い方:
  * k6 run --env PRESET=rps300 scripts/test-introspect-benchmark.js
@@ -26,7 +41,7 @@ import encoding from 'k6/encoding';
 import exec from 'k6/execution';
 
 // テスト識別情報
-const TEST_NAME = 'Token Introspection Benchmark';
+const TEST_NAME = 'Token Introspection Control Plane Test';
 const TEST_ID = 'introspect-benchmark';
 
 // カスタムメトリクス
@@ -39,6 +54,17 @@ const clientAuthErrors = new Counter('client_auth_errors');
 const rateLimitErrors = new Counter('rate_limit_errors');
 const serverErrors = new Counter('server_errors');
 
+// 新しいカテゴリ用メトリクス
+const exchangedTokenCorrect = new Rate('exchanged_token_correct'); // Token Exchangeトークンのactive=true検証
+const wrongAudienceRejected = new Rate('wrong_audience_rejected'); // Wrong audienceの正しい拒否
+const wrongClientRejected = new Rate('wrong_client_rejected'); // Wrong clientの正しい拒否
+
+// 評価軸3: scope/aud/sub/iss の整合性検証
+const claimIntegrity = new Rate('claim_integrity'); // 基本クレームの整合性
+// 評価軸5: Token Exchange act/resource claim 検証
+const actClaimPresent = new Rate('act_claim_present'); // act claim存在確認
+const resourceClaimPresent = new Rate('resource_claim_present'); // resource claim存在確認
+
 // 環境変数
 const BASE_URL = __ENV.BASE_URL || 'https://conformance.authrim.com';
 const CLIENT_ID = __ENV.CLIENT_ID || 'test_client';
@@ -47,6 +73,20 @@ const PRESET = __ENV.PRESET || 'rps300';
 const TOKEN_PATH = __ENV.TOKEN_PATH || '../seeds/access_tokens.json';
 // K6 Cloud用: R2からシードをフェッチするURL
 const TOKEN_URL = __ENV.TOKEN_URL || '';
+
+/**
+ * トークン種別の比率 (RFC 7662 + 業界標準ベンチマーク準拠)
+ *
+ * シード生成スクリプトと一致させる
+ */
+const TOKEN_MIX = {
+  valid: 0.6, // 60% - 通常のアクセストークン
+  valid_exchanged: 0.05, // 5%  - Token Exchange (act claim付き)
+  expired: 0.12, // 12% - 期限切れ
+  revoked: 0.12, // 12% - 無効化済み
+  wrong_audience: 0.06, // 6%  - 署名OK, aud不一致
+  wrong_client: 0.05, // 5%  - 別client_idで発行
+};
 
 /**
  * プリセット設定
@@ -94,6 +134,14 @@ const PRESETS = {
       active_correct: ['rate>0.999'],
       false_positives: ['count<1'],
       false_negatives: ['count<1'],
+      exchanged_token_correct: ['rate>0.99'],
+      wrong_audience_rejected: ['rate>0.99'],
+      wrong_client_rejected: ['rate>0.99'],
+      // 評価軸3: scope/aud/sub/iss 整合性
+      claim_integrity: ['rate>0.99'],
+      // 評価軸5: Token Exchange act/resource claim
+      act_claim_present: ['rate>0.99'],
+      resource_claim_present: ['rate>0.99'],
     },
     preAllocatedVUs: 400,
     maxVUs: 500,
@@ -114,6 +162,12 @@ const PRESETS = {
       active_correct: ['rate>0.999'],
       false_positives: ['count<1'],
       false_negatives: ['count<1'],
+      exchanged_token_correct: ['rate>0.99'],
+      wrong_audience_rejected: ['rate>0.99'],
+      wrong_client_rejected: ['rate>0.99'],
+      claim_integrity: ['rate>0.99'],
+      act_claim_present: ['rate>0.99'],
+      resource_claim_present: ['rate>0.99'],
     },
     preAllocatedVUs: 700,
     maxVUs: 900,
@@ -134,6 +188,12 @@ const PRESETS = {
       active_correct: ['rate>0.999'],
       false_positives: ['count<1'],
       false_negatives: ['count<1'],
+      exchanged_token_correct: ['rate>0.99'],
+      wrong_audience_rejected: ['rate>0.99'],
+      wrong_client_rejected: ['rate>0.99'],
+      claim_integrity: ['rate>0.99'],
+      act_claim_present: ['rate>0.99'],
+      resource_claim_present: ['rate>0.99'],
     },
     preAllocatedVUs: 950,
     maxVUs: 1200,
@@ -154,6 +214,12 @@ const PRESETS = {
       active_correct: ['rate>0.999'],
       false_positives: ['count<1'],
       false_negatives: ['count<1'],
+      exchanged_token_correct: ['rate>0.99'],
+      wrong_audience_rejected: ['rate>0.99'],
+      wrong_client_rejected: ['rate>0.99'],
+      claim_integrity: ['rate>0.99'],
+      act_claim_present: ['rate>0.99'],
+      resource_claim_present: ['rate>0.99'],
     },
     preAllocatedVUs: 1200,
     maxVUs: 1500,
@@ -202,15 +268,19 @@ if (!TOKEN_URL) {
 
     // トークンをタイプ別に分類
     const validTokens = allTokens.filter((t) => t.type === 'valid');
+    const validExchangedTokens = allTokens.filter((t) => t.type === 'valid_exchanged');
     const expiredTokens = allTokens.filter((t) => t.type === 'expired');
-    const invalidTokens = allTokens.filter((t) => t.type === 'invalid');
     const revokedTokens = allTokens.filter((t) => t.type === 'revoked');
+    const wrongAudienceTokens = allTokens.filter((t) => t.type === 'wrong_audience');
+    const wrongClientTokens = allTokens.filter((t) => t.type === 'wrong_client');
 
     console.log(`📂 Loaded tokens from local file:`);
-    console.log(`   Valid:   ${validTokens.length}`);
-    console.log(`   Expired: ${expiredTokens.length}`);
-    console.log(`   Invalid: ${invalidTokens.length}`);
-    console.log(`   Revoked: ${revokedTokens.length}`);
+    console.log(`   Valid:           ${validTokens.length}`);
+    console.log(`   Valid (TE/act):  ${validExchangedTokens.length}`);
+    console.log(`   Expired:         ${expiredTokens.length}`);
+    console.log(`   Revoked:         ${revokedTokens.length}`);
+    console.log(`   Wrong audience:  ${wrongAudienceTokens.length}`);
+    console.log(`   Wrong client:    ${wrongClientTokens.length}`);
   } catch (e) {
     console.warn(`⚠️  Failed to load local tokens: ${e.message}`);
     console.warn('   Make sure to run: node scripts/seed-access-tokens.js first');
@@ -221,15 +291,37 @@ if (!TOKEN_URL) {
 }
 
 /**
+ * 期待されるactive値を取得
+ * valid, valid_exchanged → true
+ * それ以外 → false
+ */
+function getExpectedActive(tokenType) {
+  return tokenType === 'valid' || tokenType === 'valid_exchanged';
+}
+
+/**
  * 重み付けでトークンタイプを選択
- * Valid: 70%, Expired: 10%, Invalid: 10%, Revoked: 10%
  */
 function selectTokenType() {
-  const rand = Math.random() * 100;
-  if (rand < 70) return 'valid';
-  if (rand < 80) return 'expired';
-  if (rand < 90) return 'invalid';
-  return 'revoked';
+  const rand = Math.random();
+  let cumulative = 0;
+
+  cumulative += TOKEN_MIX.valid;
+  if (rand < cumulative) return 'valid';
+
+  cumulative += TOKEN_MIX.valid_exchanged;
+  if (rand < cumulative) return 'valid_exchanged';
+
+  cumulative += TOKEN_MIX.expired;
+  if (rand < cumulative) return 'expired';
+
+  cumulative += TOKEN_MIX.revoked;
+  if (rand < cumulative) return 'revoked';
+
+  cumulative += TOKEN_MIX.wrong_audience;
+  if (rand < cumulative) return 'wrong_audience';
+
+  return 'wrong_client';
 }
 
 /**
@@ -278,21 +370,19 @@ export function setup() {
   // トークン分布の確認
   const counts = {
     valid: tokens.filter((t) => t.type === 'valid').length,
+    valid_exchanged: tokens.filter((t) => t.type === 'valid_exchanged').length,
     expired: tokens.filter((t) => t.type === 'expired').length,
-    invalid: tokens.filter((t) => t.type === 'invalid').length,
     revoked: tokens.filter((t) => t.type === 'revoked').length,
+    wrong_audience: tokens.filter((t) => t.type === 'wrong_audience').length,
+    wrong_client: tokens.filter((t) => t.type === 'wrong_client').length,
   };
   console.log(`📊 Token distribution:`);
-  console.log(`   Valid:   ${counts.valid} (${((counts.valid / tokens.length) * 100).toFixed(1)}%)`);
-  console.log(
-    `   Expired: ${counts.expired} (${((counts.expired / tokens.length) * 100).toFixed(1)}%)`
-  );
-  console.log(
-    `   Invalid: ${counts.invalid} (${((counts.invalid / tokens.length) * 100).toFixed(1)}%)`
-  );
-  console.log(
-    `   Revoked: ${counts.revoked} (${((counts.revoked / tokens.length) * 100).toFixed(1)}%)`
-  );
+  console.log(`   Valid:           ${counts.valid} (${((counts.valid / tokens.length) * 100).toFixed(1)}%)`);
+  console.log(`   Valid (TE/act):  ${counts.valid_exchanged} (${((counts.valid_exchanged / tokens.length) * 100).toFixed(1)}%)`);
+  console.log(`   Expired:         ${counts.expired} (${((counts.expired / tokens.length) * 100).toFixed(1)}%)`);
+  console.log(`   Revoked:         ${counts.revoked} (${((counts.revoked / tokens.length) * 100).toFixed(1)}%)`);
+  console.log(`   Wrong audience:  ${counts.wrong_audience} (${((counts.wrong_audience / tokens.length) * 100).toFixed(1)}%)`);
+  console.log(`   Wrong client:    ${counts.wrong_client} (${((counts.wrong_client / tokens.length) * 100).toFixed(1)}%)`);
   console.log(``);
 
   // ウォームアップ: 最初の数リクエストでDOを初期化
@@ -334,7 +424,7 @@ export default function (data) {
   const tokenData = selectTokenByType(tokens, tokenType, __VU);
 
   // 期待される active フラグ
-  const expectedActive = tokenData.type === 'valid';
+  const expectedActive = getExpectedActive(tokenData.type);
 
   // /introspect リクエスト
   const payload = `token=${encodeURIComponent(tokenData.access_token)}`;
@@ -380,15 +470,68 @@ export default function (data) {
     const isCorrect = responseBody.active === expectedActive;
     activeCorrect.add(isCorrect ? 1 : 0);
 
+    // カテゴリ別メトリクス
+    if (tokenData.type === 'valid_exchanged') {
+      exchangedTokenCorrect.add(responseBody.active === true ? 1 : 0);
+
+      // 評価軸5: Token Exchange act/resource claim 検証 (RFC 8693)
+      if (responseBody.active === true) {
+        // act claim の存在確認
+        const hasActClaim =
+          responseBody.act !== undefined &&
+          responseBody.act !== null &&
+          typeof responseBody.act === 'object' &&
+          responseBody.act.sub !== undefined;
+        actClaimPresent.add(hasActClaim ? 1 : 0);
+
+        // resource claim の存在確認
+        const hasResourceClaim =
+          responseBody.resource !== undefined &&
+          typeof responseBody.resource === 'string' &&
+          responseBody.resource.length > 0;
+        resourceClaimPresent.add(hasResourceClaim ? 1 : 0);
+
+        if (!hasActClaim || !hasResourceClaim) {
+          console.warn(
+            `⚠️  Token Exchange claim missing: act=${hasActClaim}, resource=${hasResourceClaim} (VU ${__VU})`
+          );
+        }
+      }
+    }
+    if (tokenData.type === 'wrong_audience') {
+      wrongAudienceRejected.add(responseBody.active === false ? 1 : 0);
+    }
+    if (tokenData.type === 'wrong_client') {
+      wrongClientRejected.add(responseBody.active === false ? 1 : 0);
+    }
+
+    // 評価軸3: scope/aud/sub/iss の整合性検証 (active=true の場合のみ)
+    if (responseBody.active === true) {
+      const hasScope = responseBody.scope !== undefined && responseBody.scope !== null;
+      const hasAud = responseBody.aud !== undefined && responseBody.aud !== null;
+      const hasSub = responseBody.sub !== undefined && responseBody.sub !== null;
+      const hasIss = responseBody.iss !== undefined && responseBody.iss !== null;
+      const hasClientId = responseBody.client_id !== undefined && responseBody.client_id !== null;
+
+      const allClaimsPresent = hasScope && hasAud && hasSub && hasIss && hasClientId;
+      claimIntegrity.add(allClaimsPresent ? 1 : 0);
+
+      if (!allClaimsPresent) {
+        console.warn(
+          `⚠️  Claim integrity issue: scope=${hasScope}, aud=${hasAud}, sub=${hasSub}, iss=${hasIss}, client_id=${hasClientId} (VU ${__VU})`
+        );
+      }
+    }
+
     if (!isCorrect) {
       if (responseBody.active === true && !expectedActive) {
-        // False positive: active=true for expired/invalid/revoked
+        // False positive: active=true for expired/invalid/revoked/wrong_audience/wrong_client
         falsePositives.add(1);
         console.error(
           `⚠️  False Positive: Token type '${tokenData.type}' returned active=true (VU ${__VU})`
         );
       } else if (responseBody.active === false && expectedActive) {
-        // False negative: active=false for valid
+        // False negative: active=false for valid/valid_exchanged
         falseNegatives.add(1);
         console.error(
           `⚠️  False Negative: Token type '${tokenData.type}' returned active=false (VU ${__VU})`
@@ -495,17 +638,46 @@ function textSummary(data, options) {
   summary += `${indent}  False Positives: ${fp}\n`;
   summary += `${indent}  False Negatives: ${fn}\n\n`;
 
+  // カテゴリ別精度
+  const exchangedRate = ((metrics.exchanged_token_correct?.values?.rate || 0) * 100).toFixed(2);
+  const wrongAudRate = ((metrics.wrong_audience_rejected?.values?.rate || 0) * 100).toFixed(2);
+  const wrongClientRate = ((metrics.wrong_client_rejected?.values?.rate || 0) * 100).toFixed(2);
+
+  summary += `${indent}📋 カテゴリ別精度:\n`;
+  summary += `${indent}  Token Exchange (act) 正解: ${exchangedRate}%\n`;
+  summary += `${indent}  Wrong audience 拒否: ${wrongAudRate}%\n`;
+  summary += `${indent}  Wrong client 拒否: ${wrongClientRate}%\n\n`;
+
+  // 評価軸3: scope/aud/sub/iss 整合性
+  const claimIntegrityRate = ((metrics.claim_integrity?.values?.rate || 0) * 100).toFixed(2);
+  summary += `${indent}🔍 評価軸3 - クレーム整合性 (scope/aud/sub/iss):\n`;
+  summary += `${indent}  整合性率: ${claimIntegrityRate}%\n\n`;
+
+  // 評価軸5: Token Exchange act/resource claim
+  const actClaimRate = ((metrics.act_claim_present?.values?.rate || 0) * 100).toFixed(2);
+  const resourceClaimRate = ((metrics.resource_claim_present?.values?.rate || 0) * 100).toFixed(2);
+  summary += `${indent}🔄 評価軸5 - Token Exchange claim (RFC 8693):\n`;
+  summary += `${indent}  act claim 存在率: ${actClaimRate}%\n`;
+  summary += `${indent}  resource claim 存在率: ${resourceClaimRate}%\n\n`;
+
   // 仕様書準拠チェック
   const p95 = metrics.http_req_duration?.values?.['p(95)'] || 0;
   const p99 = metrics.http_req_duration?.values?.['p(99)'] || 0;
   const rate = metrics.introspect_success?.values?.rate || 0;
 
-  summary += `${indent}📋 仕様書準拠チェック:\n`;
+  const claimIntegrityRateNum = metrics.claim_integrity?.values?.rate || 0;
+  const actClaimRateNum = metrics.act_claim_present?.values?.rate || 0;
+  const resourceClaimRateNum = metrics.resource_claim_present?.values?.rate || 0;
+
+  summary += `${indent}📋 仕様書準拠チェック (RFC 7662 + Keycloak/Auth0):\n`;
   summary += `${indent}  成功率 > 99%: ${rate > 0.99 ? '✅ PASS' : '❌ FAIL'} (${successRate}%)\n`;
   summary += `${indent}  p95 < 300ms: ${p95 < 300 ? '✅ PASS' : '❌ FAIL'} (${p95.toFixed(2)}ms)\n`;
   summary += `${indent}  p99 < 400ms: ${p99 < 400 ? '✅ PASS' : '❌ FAIL'} (${p99.toFixed(2)}ms)\n`;
   summary += `${indent}  False Positive = 0: ${fp === 0 ? '✅ PASS' : '❌ FAIL'} (${fp})\n`;
-  summary += `${indent}  False Negative = 0: ${fn === 0 ? '✅ PASS' : '❌ FAIL'} (${fn})\n\n`;
+  summary += `${indent}  False Negative = 0: ${fn === 0 ? '✅ PASS' : '❌ FAIL'} (${fn})\n`;
+  summary += `${indent}  クレーム整合性 > 99%: ${claimIntegrityRateNum > 0.99 ? '✅ PASS' : '❌ FAIL'} (${claimIntegrityRate}%)\n`;
+  summary += `${indent}  Token Exchange act > 99%: ${actClaimRateNum > 0.99 ? '✅ PASS' : '❌ FAIL'} (${actClaimRate}%)\n`;
+  summary += `${indent}  Token Exchange resource > 99%: ${resourceClaimRateNum > 0.99 ? '✅ PASS' : '❌ FAIL'} (${resourceClaimRate}%)\n\n`;
 
   // エラー統計
   summary += `${indent}❌ エラー統計:\n`;

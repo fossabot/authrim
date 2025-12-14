@@ -12,7 +12,8 @@ import {
   getSessionStoreBySessionId,
   getSessionStoreForNewSession,
   isShardedSessionId,
-  getChallengeStoreByEmail,
+  getChallengeStoreByChallengeId,
+  getTenantIdFromContext,
 } from '@authrim/shared';
 
 /**
@@ -210,41 +211,58 @@ export async function serveAvatarHandler(c: Context<{ Bindings: Env }>) {
  */
 export async function adminStatsHandler(c: Context<{ Bindings: Env }>) {
   try {
-    // Count active users (logged in within last 30 days)
+    const tenantId = getTenantIdFromContext(c);
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const activeUsersResult = await c.env.DB.prepare(
-      'SELECT COUNT(*) as count FROM users WHERE last_login_at > ?'
-    )
-      .bind(thirtyDaysAgo)
-      .first();
-
-    // Count total users
-    const totalUsersResult = await c.env.DB.prepare('SELECT COUNT(*) as count FROM users').first();
-
-    // Count registered clients
-    const totalClientsResult = await c.env.DB.prepare(
-      'SELECT COUNT(*) as count FROM oauth_clients'
-    ).first();
-
-    // Count users created today
     const todayStart = new Date().setHours(0, 0, 0, 0);
-    const newUsersTodayResult = await c.env.DB.prepare(
-      'SELECT COUNT(*) as count FROM users WHERE created_at >= ?'
-    )
-      .bind(todayStart)
-      .first();
 
-    // Count logins today
-    const loginsTodayResult = await c.env.DB.prepare(
-      'SELECT COUNT(*) as count FROM users WHERE last_login_at >= ?'
-    )
-      .bind(todayStart)
-      .first();
+    // Run all COUNT queries in parallel for better performance
+    // Use tenant_id filter to leverage idx_users_tenant_id index
+    const [
+      activeUsersResult,
+      totalUsersResult,
+      totalClientsResult,
+      newUsersTodayResult,
+      loginsTodayResult,
+      recentUsers,
+    ] = await Promise.all([
+      // Count active users (logged in within last 30 days)
+      c.env.DB.prepare(
+        'SELECT COUNT(*) as count FROM users WHERE tenant_id = ? AND last_login_at > ?'
+      )
+        .bind(tenantId, thirtyDaysAgo)
+        .first(),
 
-    // Get recent activity (last 10 user registrations)
-    const recentUsers = await c.env.DB.prepare(
-      'SELECT id, email, name, created_at FROM users ORDER BY created_at DESC LIMIT 10'
-    ).all();
+      // Count total users for this tenant
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE tenant_id = ?')
+        .bind(tenantId)
+        .first(),
+
+      // Count registered clients for this tenant
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM oauth_clients WHERE tenant_id = ?')
+        .bind(tenantId)
+        .first(),
+
+      // Count users created today
+      c.env.DB.prepare(
+        'SELECT COUNT(*) as count FROM users WHERE tenant_id = ? AND created_at >= ?'
+      )
+        .bind(tenantId, todayStart)
+        .first(),
+
+      // Count logins today
+      c.env.DB.prepare(
+        'SELECT COUNT(*) as count FROM users WHERE tenant_id = ? AND last_login_at >= ?'
+      )
+        .bind(tenantId, todayStart)
+        .first(),
+
+      // Get recent activity (last 10 user registrations)
+      c.env.DB.prepare(
+        'SELECT id, email, name, created_at FROM users WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 10'
+      )
+        .bind(tenantId)
+        .all(),
+    ]);
 
     return c.json({
       stats: {
@@ -281,6 +299,7 @@ export async function adminStatsHandler(c: Context<{ Bindings: Env }>) {
  */
 export async function adminUsersListHandler(c: Context<{ Bindings: Env }>) {
   try {
+    const tenantId = getTenantIdFromContext(c);
     const page = parseInt(c.req.query('page') || '1');
     const limit = parseInt(c.req.query('limit') || '20');
     const search = c.req.query('search') || '';
@@ -288,44 +307,42 @@ export async function adminUsersListHandler(c: Context<{ Bindings: Env }>) {
 
     const offset = (page - 1) * limit;
 
-    // Build query
-    let query = 'SELECT * FROM users';
-    let countQuery = 'SELECT COUNT(*) as count FROM users';
-    const bindings: any[] = [];
-    const whereClauses: string[] = [];
+    // Build query with tenant_id filter for index optimization
+    let query = 'SELECT * FROM users WHERE tenant_id = ?';
+    let countQuery = 'SELECT COUNT(*) as count FROM users WHERE tenant_id = ?';
+    const bindings: any[] = [tenantId];
+    const countBindings: any[] = [tenantId];
 
     // Search filter
     if (search) {
-      whereClauses.push('(email LIKE ? OR name LIKE ?)');
+      query += ' AND (email LIKE ? OR name LIKE ?)';
+      countQuery += ' AND (email LIKE ? OR name LIKE ?)';
       bindings.push(`%${search}%`, `%${search}%`);
+      countBindings.push(`%${search}%`, `%${search}%`);
     }
 
     // Verified filter
     if (verified !== undefined) {
-      whereClauses.push('email_verified = ?');
-      bindings.push(verified === 'true' ? 1 : 0);
-    }
-
-    // Apply WHERE clauses
-    if (whereClauses.length > 0) {
-      const whereClause = ' WHERE ' + whereClauses.join(' AND ');
-      query += whereClause;
-      countQuery += whereClause;
+      query += ' AND email_verified = ?';
+      countQuery += ' AND email_verified = ?';
+      const verifiedValue = verified === 'true' ? 1 : 0;
+      bindings.push(verifiedValue);
+      countBindings.push(verifiedValue);
     }
 
     // Order and pagination
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     bindings.push(limit, offset);
 
-    // Execute queries
-    const countBindings = bindings.slice(0, bindings.length - 2);
-    const totalResult = await c.env.DB.prepare(countQuery)
-      .bind(...countBindings)
-      .first();
-
-    const users = await c.env.DB.prepare(query)
-      .bind(...bindings)
-      .all();
+    // Execute queries in parallel
+    const [totalResult, users] = await Promise.all([
+      c.env.DB.prepare(countQuery)
+        .bind(...countBindings)
+        .first(),
+      c.env.DB.prepare(query)
+        .bind(...bindings)
+        .all(),
+    ]);
 
     const total = (totalResult?.count as number) || 0;
     const totalPages = Math.ceil(total / limit);
@@ -460,9 +477,12 @@ export async function adminUserCreateHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
-    // Check if user already exists
-    const existingUser = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?')
-      .bind(email)
+    // Check if user already exists (use tenant_id + email for idx_users_tenant_email index)
+    const tenantId = getTenantIdFromContext(c);
+    const existingUser = await c.env.DB.prepare(
+      'SELECT id FROM users WHERE tenant_id = ? AND email = ?'
+    )
+      .bind(tenantId, email)
       .first();
 
     if (existingUser) {
@@ -478,15 +498,16 @@ export async function adminUserCreateHandler(c: Context<{ Bindings: Env }>) {
     const userId = crypto.randomUUID();
     const now = Date.now();
 
-    // Insert user
+    // Insert user with tenant_id for multi-tenant support
     await c.env.DB.prepare(
       `INSERT INTO users (
-        id, email, name, email_verified, phone_number, phone_number_verified,
+        id, tenant_id, email, name, email_verified, phone_number, phone_number_verified,
         created_at, updated_at, custom_attributes_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         userId,
+        tenantId,
         email,
         name || null,
         email_verified ? 1 : 0,
@@ -817,38 +838,40 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
  */
 export async function adminClientsListHandler(c: Context<{ Bindings: Env }>) {
   try {
+    const tenantId = getTenantIdFromContext(c);
     const page = parseInt(c.req.query('page') || '1');
     const limit = parseInt(c.req.query('limit') || '20');
     const search = c.req.query('search') || '';
 
     const offset = (page - 1) * limit;
 
-    // Build query
-    let query = 'SELECT * FROM oauth_clients';
-    let countQuery = 'SELECT COUNT(*) as count FROM oauth_clients';
-    const bindings: any[] = [];
+    // Build query with tenant_id filter for index optimization
+    let query = 'SELECT * FROM oauth_clients WHERE tenant_id = ?';
+    let countQuery = 'SELECT COUNT(*) as count FROM oauth_clients WHERE tenant_id = ?';
+    const bindings: any[] = [tenantId];
+    const countBindings: any[] = [tenantId];
 
     // Search filter
     if (search) {
-      const whereClause = ' WHERE client_name LIKE ? OR client_id LIKE ?';
-      query += whereClause;
-      countQuery += whereClause;
+      query += ' AND (client_name LIKE ? OR client_id LIKE ?)';
+      countQuery += ' AND (client_name LIKE ? OR client_id LIKE ?)';
       bindings.push(`%${search}%`, `%${search}%`);
+      countBindings.push(`%${search}%`, `%${search}%`);
     }
 
     // Order and pagination
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     bindings.push(limit, offset);
 
-    // Execute queries
-    const countBindings = bindings.slice(0, search ? 2 : 0);
-    const totalResult = await c.env.DB.prepare(countQuery)
-      .bind(...countBindings)
-      .first();
-
-    const clients = await c.env.DB.prepare(query)
-      .bind(...bindings)
-      .all();
+    // Execute queries in parallel
+    const [totalResult, clients] = await Promise.all([
+      c.env.DB.prepare(countQuery)
+        .bind(...countBindings)
+        .first(),
+      c.env.DB.prepare(query)
+        .bind(...bindings)
+        .all(),
+    ]);
 
     const total = (totalResult?.count as number) || 0;
     const totalPages = Math.ceil(total / limit);
@@ -1411,6 +1434,7 @@ export async function adminUserAvatarDeleteHandler(c: Context<{ Bindings: Env }>
  */
 export async function adminSessionsListHandler(c: Context<{ Bindings: Env }>) {
   try {
+    const tenantId = getTenantIdFromContext(c);
     const page = parseInt(c.req.query('page') || '1');
     const limit = parseInt(c.req.query('limit') || '20');
     const userId = c.req.query('user_id') || c.req.query('userId');
@@ -1420,47 +1444,47 @@ export async function adminSessionsListHandler(c: Context<{ Bindings: Env }>) {
     const offset = (page - 1) * limit;
     const now = Math.floor(Date.now() / 1000);
 
-    // Build query
-    let query = 'SELECT s.*, u.email, u.name FROM sessions s LEFT JOIN users u ON s.user_id = u.id';
-    let countQuery = 'SELECT COUNT(*) as count FROM sessions s';
-    const bindings: any[] = [];
-    const whereClauses: string[] = [];
+    // Build query with tenant_id filter for index optimization
+    let query =
+      'SELECT s.*, u.email, u.name FROM sessions s LEFT JOIN users u ON s.user_id = u.id WHERE s.tenant_id = ?';
+    let countQuery = 'SELECT COUNT(*) as count FROM sessions s WHERE s.tenant_id = ?';
+    const bindings: any[] = [tenantId];
+    const countBindings: any[] = [tenantId];
 
     // User filter
     if (userId) {
-      whereClauses.push('s.user_id = ?');
+      query += ' AND s.user_id = ?';
+      countQuery += ' AND s.user_id = ?';
       bindings.push(userId);
+      countBindings.push(userId);
     }
 
     // Status filter (support both 'status' and 'active' params)
     if (status === 'active' || active === 'true') {
-      whereClauses.push('s.expires_at > ?');
+      query += ' AND s.expires_at > ?';
+      countQuery += ' AND s.expires_at > ?';
       bindings.push(now);
+      countBindings.push(now);
     } else if (status === 'expired' || active === 'false') {
-      whereClauses.push('s.expires_at <= ?');
+      query += ' AND s.expires_at <= ?';
+      countQuery += ' AND s.expires_at <= ?';
       bindings.push(now);
-    }
-
-    // Apply WHERE clauses
-    if (whereClauses.length > 0) {
-      const whereClause = ' WHERE ' + whereClauses.join(' AND ');
-      query += whereClause;
-      countQuery += whereClause;
+      countBindings.push(now);
     }
 
     // Order and pagination
     query += ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?';
     bindings.push(limit, offset);
 
-    // Execute queries
-    const countBindings = bindings.slice(0, bindings.length - 2);
-    const totalResult = await c.env.DB.prepare(countQuery)
-      .bind(...countBindings)
-      .first();
-
-    const sessions = await c.env.DB.prepare(query)
-      .bind(...bindings)
-      .all();
+    // Execute queries in parallel
+    const [totalResult, sessions] = await Promise.all([
+      c.env.DB.prepare(countQuery)
+        .bind(...countBindings)
+        .first(),
+      c.env.DB.prepare(query)
+        .bind(...bindings)
+        .all(),
+    ]);
 
     const total = (totalResult?.count as number) || 0;
     const totalPages = Math.ceil(total / limit);
@@ -1710,6 +1734,7 @@ export async function adminUserRevokeAllSessionsHandler(c: Context<{ Bindings: E
 export async function adminAuditLogListHandler(c: Context<{ Bindings: Env }>) {
   try {
     const env = c.env as Env;
+    const tenantId = getTenantIdFromContext(c);
 
     // Get query parameters
     const page = parseInt(c.req.query('page') || '1', 10);
@@ -1724,9 +1749,9 @@ export async function adminAuditLogListHandler(c: Context<{ Bindings: Env }>) {
     const startDate = c.req.query('start_date'); // ISO 8601 format
     const endDate = c.req.query('end_date'); // ISO 8601 format
 
-    // Build WHERE clause
-    const conditions: string[] = [];
-    const params: any[] = [];
+    // Build WHERE clause - tenant_id is always first for index usage
+    const conditions: string[] = ['tenant_id = ?'];
+    const params: any[] = [tenantId];
 
     if (userId) {
       conditions.push('user_id = ?');
@@ -1760,7 +1785,7 @@ export async function adminAuditLogListHandler(c: Context<{ Bindings: Env }>) {
       params.push(endTimestamp);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
     // Get total count
     const countQuery = `SELECT COUNT(*) as total FROM audit_log ${whereClause}`;
@@ -2675,9 +2700,12 @@ export async function adminTestEmailCodeHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
-    // Check if user exists
-    let user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE email = ?')
-      .bind(email.toLowerCase())
+    // Check if user exists (use tenant_id + email for idx_users_tenant_email index)
+    const tenantId = getTenantIdFromContext(c);
+    let user = await c.env.DB.prepare(
+      'SELECT id, email, name FROM users WHERE tenant_id = ? AND email = ?'
+    )
+      .bind(tenantId, email.toLowerCase())
       .first();
 
     // create_user option: if false, don't create new user (for benchmarks with pre-seeded users)
@@ -2700,10 +2728,10 @@ export async function adminTestEmailCodeHandler(c: Context<{ Bindings: Env }>) {
 
       await c.env.DB.prepare(
         `INSERT INTO users (
-          id, email, name, preferred_username, email_verified, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 0, ?, ?)`
+          id, tenant_id, email, name, preferred_username, email_verified, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
       )
-        .bind(userId, email.toLowerCase(), null, preferredUsername, now, now)
+        .bind(userId, tenantId, email.toLowerCase(), null, preferredUsername, now, now)
         .run();
 
       user = { id: userId, email: email.toLowerCase(), name: email.split('@')[0] };
@@ -2720,19 +2748,12 @@ export async function adminTestEmailCodeHandler(c: Context<{ Bindings: Env }>) {
     // Get HMAC secret from environment
     const hmacSecret = c.env.OTP_HMAC_SECRET || c.env.ISSUER_URL;
 
-    // Hash the code for storage
-    const codeHash = await hashEmailCode(
-      code,
-      email.toLowerCase(),
-      otpSessionId,
-      issuedAt,
-      hmacSecret
-    );
-    const emailHash = await hashEmail(email.toLowerCase());
-
-    // Store in ChallengeStore DO with TTL (5 minutes) (RPC)
-    // Use email-based sharding for consistent routing with email-code.ts
-    const challengeStore = await getChallengeStoreByEmail(c.env, email.toLowerCase());
+    // Parallelize independent operations: hash computations + DO stub retrieval
+    const [codeHash, emailHash, challengeStore] = await Promise.all([
+      hashEmailCode(code, email.toLowerCase(), otpSessionId, issuedAt, hmacSecret),
+      hashEmail(email.toLowerCase()),
+      getChallengeStoreByChallengeId(c.env, otpSessionId),
+    ]);
 
     await challengeStore.storeChallengeRpc({
       id: `email_code:${otpSessionId}`,

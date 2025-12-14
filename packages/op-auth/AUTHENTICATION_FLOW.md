@@ -268,18 +268,18 @@ ChallengeStore supports the following challenge types (see `packages/shared/src/
 
 ### Storing a Challenge
 
-ChallengeStore uses sharded Durable Objects for scalability. Use the appropriate helper based on available context:
+ChallengeStore uses sharded Durable Objects for scalability. **Always use UUID-based sharding to avoid PII in DO instance names**:
 
 ```typescript
-import { getChallengeStoreByEmail, getChallengeStoreByChallengeId } from '@authrim/shared';
+import { getChallengeStoreByChallengeId, getChallengeStoreByUserId } from '@authrim/shared';
 
 const challengeId = crypto.randomUUID();
 
-// For email-based flows (OTP, passkey registration):
-const challengeStore = await getChallengeStoreByEmail(env, email);
-
-// For challengeId-based flows (consent, login-challenge consumption):
+// For UUID-based flows (OTP with otpSessionId, consent, login-challenge):
 const challengeStore = await getChallengeStoreByChallengeId(env, challengeId);
+
+// For userId-based flows (passkey registration where userId is known):
+const challengeStore = await getChallengeStoreByUserId(env, userId);
 
 // Store using RPC pattern
 await challengeStore.storeChallengeRpc({

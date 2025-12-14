@@ -139,7 +139,7 @@ describe('JWT Utilities', () => {
       };
 
       const token = await createIDToken(claims, privateKey, kid);
-      const verified = await verifyToken(token, publicKey, issuer, clientId);
+      const verified = await verifyToken(token, publicKey, issuer, { audience: clientId });
 
       expect(verified).toBeDefined();
       expect(verified.iss).toBe(issuer);
@@ -161,7 +161,7 @@ describe('JWT Utilities', () => {
       const differentKeySet = await generateKeySet('different-key');
 
       await expect(
-        verifyToken(tamperedToken, differentKeySet.publicKey, issuer, clientId)
+        verifyToken(tamperedToken, differentKeySet.publicKey, issuer, { audience: clientId })
       ).rejects.toThrow();
     });
 
@@ -175,7 +175,7 @@ describe('JWT Utilities', () => {
       const token = await createIDToken(claims, privateKey, kid);
 
       await expect(
-        verifyToken(token, publicKey, 'http://wrong-issuer.com', clientId)
+        verifyToken(token, publicKey, 'http://wrong-issuer.com', { audience: clientId })
       ).rejects.toThrow();
     });
 
@@ -188,7 +188,9 @@ describe('JWT Utilities', () => {
 
       const token = await createIDToken(claims, privateKey, kid);
 
-      await expect(verifyToken(token, publicKey, issuer, 'wrong-audience')).rejects.toThrow();
+      await expect(
+        verifyToken(token, publicKey, issuer, { audience: 'wrong-audience' })
+      ).rejects.toThrow();
     });
   });
 
@@ -247,7 +249,7 @@ describe('JWT Utilities', () => {
       };
 
       const token = await createIDToken(claims, privateKey, kid);
-      const verified = await verifyToken(token, imported, issuer, clientId);
+      const verified = await verifyToken(token, imported, issuer, { audience: clientId });
 
       expect(verified).toBeDefined();
     });
@@ -265,7 +267,7 @@ describe('JWT Utilities', () => {
       };
 
       const token = await createIDToken(claims, privateKey, kid);
-      const verified = await verifyToken(token, publicKey, issuer, clientId);
+      const verified = await verifyToken(token, publicKey, issuer, { audience: clientId });
 
       expect(verified.sub).toBe('user123');
       expect(verified.nonce).toBe('test-nonce');
@@ -282,7 +284,7 @@ describe('JWT Utilities', () => {
       };
 
       const result = await createAccessToken(claims, privateKey, kid);
-      const verified = await verifyToken(result.token, publicKey, issuer, clientId);
+      const verified = await verifyToken(result.token, publicKey, issuer, { audience: clientId });
 
       expect(verified.sub).toBe('user123');
       expect(verified.scope).toBe('openid profile email');

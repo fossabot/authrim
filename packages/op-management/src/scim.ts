@@ -23,7 +23,7 @@
 
 import { Hono } from 'hono';
 import type { Env } from '@authrim/shared/types/env';
-import { invalidateUserCache } from '@authrim/shared';
+import { invalidateUserCache, getTenantIdFromContext } from '@authrim/shared';
 import { generateId } from '@authrim/shared/utils/id';
 import { hashPassword } from '@authrim/shared/utils/crypto';
 import {
@@ -167,6 +167,7 @@ function parseQueryParams(c: any): ScimQueryParams {
  */
 app.get('/Users', async (c) => {
   try {
+    const tenantId = getTenantIdFromContext(c);
     const params = parseQueryParams(c);
     const baseUrl = getBaseUrl(c);
 
@@ -175,9 +176,9 @@ app.get('/Users', async (c) => {
     const count = Math.min(params.count || 100, 1000); // Max 1000 per page
     const offset = startIndex - 1;
 
-    // Build SQL query
-    let sql = 'SELECT * FROM users';
-    const sqlParams: any[] = [];
+    // Build SQL query - tenant_id is always first for index usage
+    let sql = 'SELECT * FROM users WHERE tenant_id = ?';
+    const sqlParams: any[] = [tenantId];
 
     // Apply filter if present
     if (params.filter) {
@@ -195,7 +196,7 @@ app.get('/Users', async (c) => {
         };
 
         const { sql: whereSql, params: whereParams } = filterToSql(filterAst, attributeMap);
-        sql += ` WHERE ${whereSql}`;
+        sql += ` AND ${whereSql}`;
         sqlParams.push(...whereParams);
       } catch (error) {
         return scimError(
@@ -311,13 +312,16 @@ app.post('/Users', async (c) => {
       return scimError(c, 400, validation.errors.join(', '), 'invalidValue');
     }
 
-    // Check for duplicate userName or email
+    // Check for duplicate userName or email (use tenant_id + email for idx_users_tenant_email index)
+    const tenantId = getTenantIdFromContext(c);
     const primaryEmail =
       scimUser.emails?.find((e) => e.primary)?.value || scimUser.emails?.[0]?.value;
 
     if (primaryEmail) {
-      const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?')
-        .bind(primaryEmail)
+      const existing = await c.env.DB.prepare(
+        'SELECT id FROM users WHERE tenant_id = ? AND email = ?'
+      )
+        .bind(tenantId, primaryEmail)
         .first();
 
       if (existing) {
@@ -345,18 +349,19 @@ app.post('/Users', async (c) => {
     if (!internalUser.email_verified) internalUser.email_verified = 0;
     if (internalUser.active === undefined) internalUser.active = 1;
 
-    // Insert user
+    // Insert user with tenant_id for multi-tenant support
     await c.env.DB.prepare(
       `INSERT INTO users (
-        id, email, email_verified, name, given_name, family_name, middle_name,
+        id, tenant_id, email, email_verified, name, given_name, family_name, middle_name,
         nickname, preferred_username, profile, picture, website, gender,
         birthdate, zoneinfo, locale, phone_number, phone_number_verified,
         address_json, password_hash, external_id, active, custom_attributes_json,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         userId,
+        tenantId,
         internalUser.email,
         internalUser.email_verified,
         internalUser.name,

@@ -4,6 +4,11 @@
  * Manages one-time challenges for Passkey and Email Code authentication
  * with atomic consume operations to prevent replay attacks.
  *
+ * Storage Architecture (v2):
+ * - Individual key storage: `challenge:${id}` for each challenge
+ * - O(1) reads/writes per challenge operation
+ * - Sharding support: Multiple DO instances distribute load
+ *
  * Security Features:
  * - Atomic consume (check + delete in single operation)
  * - TTL enforcement
@@ -91,17 +96,15 @@ export interface ConsumeChallengeResponse {
 }
 
 /**
- * Persistent state stored in Durable Storage
+ * Storage key prefix for challenges
  */
-interface ChallengeStoreState {
-  challenges: Record<string, Challenge>;
-  lastCleanup: number;
-}
+const CHALLENGE_KEY_PREFIX = 'challenge:';
 
 /**
  * ChallengeStore Durable Object
  *
  * Provides atomic one-time challenge management for authentication flows.
+ * Uses individual key storage for O(1) operations.
  *
  * RPC Support:
  * - Extends DurableObject base class for RPC method exposure
@@ -109,15 +112,24 @@ interface ChallengeStoreState {
  * - fetch() handler is maintained for backward compatibility
  */
 export class ChallengeStore extends DurableObject<Env> {
-  private challenges: Map<string, Challenge> = new Map();
+  private challengeCache: Map<string, Challenge> = new Map();
   private cleanupInterval: number | null = null;
-  private initialized: boolean = false;
 
   // Configuration
   private readonly CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+
+    // Start periodic cleanup
+    this.startCleanup();
+  }
+
+  /**
+   * Build storage key for a challenge
+   */
+  private buildChallengeKey(id: string): string {
+    return `${CHALLENGE_KEY_PREFIX}${id}`;
   }
 
   // ==========================================
@@ -163,11 +175,15 @@ export class ChallengeStore extends DurableObject<Env> {
     challenges: { total: number; active: number; consumed: number };
     timestamp: number;
   }> {
-    await this.initializeState();
     const now = Date.now();
-    let activeCount = 0;
 
-    for (const challenge of this.challenges.values()) {
+    // Count challenges from storage
+    const storedChallenges = await this.ctx.storage.list<Challenge>({
+      prefix: CHALLENGE_KEY_PREFIX,
+    });
+
+    let activeCount = 0;
+    for (const [, challenge] of storedChallenges) {
       if (!challenge.consumed && challenge.expiresAt > now) {
         activeCount++;
       }
@@ -176,9 +192,9 @@ export class ChallengeStore extends DurableObject<Env> {
     return {
       status: 'ok',
       challenges: {
-        total: this.challenges.size,
+        total: storedChallenges.size,
         active: activeCount,
-        consumed: this.challenges.size - activeCount,
+        consumed: storedChallenges.size - activeCount,
       },
       timestamp: now,
     };
@@ -189,44 +205,10 @@ export class ChallengeStore extends DurableObject<Env> {
   // ==========================================
 
   /**
-   * Initialize state from Durable Storage
+   * Check if challenge is expired
    */
-  private async initializeState(): Promise<void> {
-    if (this.initialized) {
-      return;
-    }
-
-    try {
-      const stored = await this.ctx.storage.get<ChallengeStoreState>('state');
-
-      if (stored) {
-        this.challenges = new Map(Object.entries(stored.challenges));
-        console.log(
-          `ChallengeStore: Restored ${this.challenges.size} challenges from Durable Storage`
-        );
-      }
-    } catch (error) {
-      console.error('ChallengeStore: Failed to initialize from Durable Storage:', error);
-    }
-
-    this.initialized = true;
-    this.startCleanup();
-  }
-
-  /**
-   * Save current state to Durable Storage
-   */
-  private async saveState(): Promise<void> {
-    try {
-      const stateToSave: ChallengeStoreState = {
-        challenges: Object.fromEntries(this.challenges),
-        lastCleanup: Date.now(),
-      };
-
-      await this.ctx.storage.put('state', stateToSave);
-    } catch (error) {
-      console.error('ChallengeStore: Failed to save to Durable Storage:', error);
-    }
+  private isExpired(challenge: Challenge): boolean {
+    return challenge.expiresAt <= Date.now();
   }
 
   /**
@@ -241,22 +223,36 @@ export class ChallengeStore extends DurableObject<Env> {
   }
 
   /**
-   * Cleanup expired challenges
+   * Cleanup expired challenges from memory cache and Durable Storage
    */
   private async cleanupExpiredChallenges(): Promise<void> {
     const now = Date.now();
     let cleaned = 0;
 
-    for (const [id, challenge] of this.challenges.entries()) {
+    // Clean memory cache
+    for (const [id, challenge] of this.challengeCache.entries()) {
       if (challenge.expiresAt <= now || challenge.consumed) {
-        this.challenges.delete(id);
+        this.challengeCache.delete(id);
+        // Delete from Durable Storage
+        await this.ctx.storage.delete(this.buildChallengeKey(id));
+        cleaned++;
+      }
+    }
+
+    // Also scan storage for expired challenges not in cache
+    const storedChallenges = await this.ctx.storage.list<Challenge>({
+      prefix: CHALLENGE_KEY_PREFIX,
+    });
+
+    for (const [key, challenge] of storedChallenges) {
+      if (challenge.expiresAt <= now || challenge.consumed) {
+        await this.ctx.storage.delete(key);
         cleaned++;
       }
     }
 
     if (cleaned > 0) {
       console.log(`ChallengeStore: Cleaned up ${cleaned} expired/consumed challenges`);
-      await this.saveState();
     }
   }
 
@@ -264,8 +260,6 @@ export class ChallengeStore extends DurableObject<Env> {
    * Store a new challenge
    */
   async storeChallenge(request: StoreChallengeRequest): Promise<void> {
-    await this.initializeState();
-
     const now = Date.now();
     const challenge: Challenge = {
       id: request.id,
@@ -280,8 +274,11 @@ export class ChallengeStore extends DurableObject<Env> {
       consumed: false,
     };
 
-    this.challenges.set(request.id, challenge);
-    await this.saveState();
+    // 1. Store in memory cache (hot)
+    this.challengeCache.set(request.id, challenge);
+
+    // 2. Persist to Durable Storage (individual key - O(1))
+    await this.ctx.storage.put(this.buildChallengeKey(request.id), challenge);
   }
 
   /**
@@ -297,9 +294,20 @@ export class ChallengeStore extends DurableObject<Env> {
    * If challenge parameter is provided, it must match the stored value.
    */
   async consumeChallenge(request: ConsumeChallengeRequest): Promise<ConsumeChallengeResponse> {
-    await this.initializeState();
+    // 1. Check in-memory cache (hot)
+    let challenge = this.challengeCache.get(request.id);
 
-    const challenge = this.challenges.get(request.id);
+    // 2. If not in cache, check Durable Storage
+    if (!challenge) {
+      const storedChallenge = await this.ctx.storage.get<Challenge>(
+        this.buildChallengeKey(request.id)
+      );
+      if (storedChallenge) {
+        challenge = storedChallenge;
+        // Promote to cache
+        this.challengeCache.set(request.id, challenge);
+      }
+    }
 
     // Challenge not found
     if (!challenge) {
@@ -317,9 +325,10 @@ export class ChallengeStore extends DurableObject<Env> {
     }
 
     // Expired
-    if (challenge.expiresAt <= Date.now()) {
-      this.challenges.delete(request.id);
-      await this.saveState();
+    if (this.isExpired(challenge)) {
+      // Cleanup expired challenge
+      this.challengeCache.delete(request.id);
+      await this.ctx.storage.delete(this.buildChallengeKey(request.id));
       throw new Error('Challenge expired');
     }
 
@@ -330,8 +339,8 @@ export class ChallengeStore extends DurableObject<Env> {
 
     // ATOMIC: Mark as consumed (prevents parallel replay)
     challenge.consumed = true;
-    this.challenges.set(request.id, challenge);
-    await this.saveState();
+    this.challengeCache.set(request.id, challenge);
+    await this.ctx.storage.put(this.buildChallengeKey(request.id), challenge);
 
     // Return challenge value and data
     return {
@@ -345,18 +354,20 @@ export class ChallengeStore extends DurableObject<Env> {
 
   /**
    * Delete a challenge (for cleanup or cancellation)
+   *
+   * Optimized: No read-before-delete pattern.
+   * storage.delete() is idempotent and works safely on non-existent keys.
    */
   async deleteChallenge(id: string): Promise<boolean> {
-    await this.initializeState();
+    // 1. Remove from memory cache
+    const hadInCache = this.challengeCache.has(id);
+    this.challengeCache.delete(id);
 
-    const had = this.challenges.has(id);
-    this.challenges.delete(id);
+    // 2. Delete from Durable Storage (individual key - O(1))
+    // No need to check existence first - delete() is idempotent
+    await this.ctx.storage.delete(this.buildChallengeKey(id));
 
-    if (had) {
-      await this.saveState();
-    }
-
-    return had;
+    return hadInCache;
   }
 
   /**
@@ -364,8 +375,32 @@ export class ChallengeStore extends DurableObject<Env> {
    * Used for validation before consumption
    */
   async getChallenge(id: string): Promise<Challenge | null> {
-    await this.initializeState();
-    return this.challenges.get(id) || null;
+    // 1. Check in-memory cache (hot)
+    let challenge = this.challengeCache.get(id);
+
+    // 2. If not in cache, check Durable Storage
+    if (!challenge) {
+      const storedChallenge = await this.ctx.storage.get<Challenge>(this.buildChallengeKey(id));
+      if (storedChallenge) {
+        challenge = storedChallenge;
+        // Promote to cache
+        this.challengeCache.set(id, challenge);
+      }
+    }
+
+    if (!challenge) {
+      return null;
+    }
+
+    // Check expiration
+    if (this.isExpired(challenge)) {
+      // Cleanup expired challenge
+      this.challengeCache.delete(id);
+      await this.ctx.storage.delete(this.buildChallengeKey(id));
+      return null;
+    }
+
+    return challenge;
   }
 
   /**
@@ -488,29 +523,11 @@ export class ChallengeStore extends DurableObject<Env> {
 
       // GET /status - Health check
       if (path === '/status' && request.method === 'GET') {
-        const now = Date.now();
-        let activeCount = 0;
+        const status = await this.getStatusRpc();
 
-        for (const challenge of this.challenges.values()) {
-          if (!challenge.consumed && challenge.expiresAt > now) {
-            activeCount++;
-          }
-        }
-
-        return new Response(
-          JSON.stringify({
-            status: 'ok',
-            challenges: {
-              total: this.challenges.size,
-              active: activeCount,
-              consumed: this.challenges.size - activeCount,
-            },
-            timestamp: now,
-          }),
-          {
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
+        return new Response(JSON.stringify(status), {
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
 
       return new Response('Not Found', { status: 404 });

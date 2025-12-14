@@ -14,7 +14,7 @@
  * Configuration:
  * - KV: AUTHRIM_CONFIG namespace, key: "challenge_shards"
  * - Environment variable: AUTHRIM_CHALLENGE_SHARDS
- * - Default: 16 shards
+ * - Default: 4 shards
  */
 
 import type { Env } from '../types/env';
@@ -25,7 +25,7 @@ import { fnv1a32, DEFAULT_TENANT_ID } from './tenant-context';
  * Default shard count for challenge store sharding.
  * Can be overridden via KV or AUTHRIM_CHALLENGE_SHARDS environment variable.
  */
-export const DEFAULT_CHALLENGE_SHARD_COUNT = 16;
+export const DEFAULT_CHALLENGE_SHARD_COUNT = 4;
 
 /**
  * Cache TTL for shard count (10 seconds).
@@ -45,7 +45,7 @@ let cachedChallengeShardAt = 0;
  * Priority:
  * 1. KV (AUTHRIM_CONFIG namespace, key: "challenge_shards")
  * 2. Environment variable (AUTHRIM_CHALLENGE_SHARDS)
- * 3. Default (DEFAULT_CHALLENGE_SHARD_COUNT = 16)
+ * 3. Default (DEFAULT_CHALLENGE_SHARD_COUNT = 4)
  *
  * @param env - Environment object with KV and variables
  * @returns Current challenge shard count
@@ -102,15 +102,13 @@ export async function getChallengeShardCount(env: Env): Promise<number> {
 
 /**
  * Calculate shard index from email address.
- * Uses FNV-1a hash for fast, synchronous calculation with good distribution.
+ *
+ * @deprecated Use getChallengeShardIndexByChallengeId or getChallengeShardIndexByUserId instead.
+ * Email-based sharding includes PII in DO instance names.
  *
  * @param email - Email address (will be lowercased)
  * @param shardCount - Number of shards
  * @returns Shard index (0 to shardCount - 1)
- *
- * @example
- * const shardIndex = getChallengeShardIndexByEmail("user@example.com", 16);
- * // Always returns same shard for same email
  */
 export function getChallengeShardIndexByEmail(email: string, shardCount: number): number {
   return fnv1a32(email.toLowerCase()) % shardCount;
@@ -145,15 +143,15 @@ export function buildChallengeShardInstanceName(shardIndex: number): string {
 /**
  * Get ChallengeStore Durable Object stub for an email address.
  *
+ * @deprecated Use getChallengeStoreByChallengeId or getChallengeStoreByUserId instead.
+ * Email-based sharding includes PII in DO instance names, which is not recommended.
+ * Use UUID-based sharding (challengeId, otpSessionId, userId) for better privacy.
+ *
  * Routes to the appropriate shard based on the email hash.
  *
  * @param env - Environment object with DO bindings
  * @param email - Email address for sharding
  * @returns Promise<DurableObjectStub<ChallengeStore>> for the challenge shard
- *
- * @example
- * const challengeStore = await getChallengeStoreByEmail(env, "user@example.com");
- * await challengeStore.storeChallengeRpc({ ... });
  */
 export async function getChallengeStoreByEmail(
   env: Env,

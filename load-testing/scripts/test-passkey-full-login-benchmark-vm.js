@@ -1,44 +1,59 @@
 /**
- * Passkey フルログイン ベンチマークテスト
+ * Passkey フルログイン ベンチマークテスト - VM版
  *
  * 目的:
- * - Authrim の最も重いログインフローを再現し、負荷ポイントを測定
+ * - Authrim の Passkey ログインフローを再現し、負荷ポイントを測定
  * - Passkey認証 → セッション発行 → 認可コード発行 → トークン発行の全フロー
- *
- * 実装方式:
- * - xk6-passkeys拡張（Authrimフォーク版）を使用してECDSA P-256署名を生成
- * - setup()でユーザー登録（ベンチマーク対象外）
- * - default()でログインベンチマーク（メトリクス計測対象）
- * - ExportCredential/ImportCredentialでsetup()とdefault()間のクレデンシャル共有
+ * - 事前シードされた既存ユーザーを使用
+ * - **US リージョンの VM から実行して k6 Cloud と同条件で比較**
  *
  * 必要環境:
  * - カスタムk6バイナリ (./bin/k6-passkeys)
  *   ビルド方法: ./scripts/build-k6-passkeys.sh
  *
- * 使い方:
- * ./bin/k6-passkeys run \
- *   --env BASE_URL=https://conformance.authrim.com \
- *   --env ADMIN_API_SECRET=xxx \
- *   --env CLIENT_ID=xxx \
- *   --env CLIENT_SECRET=xxx \
- *   --env PRESET=rps30 \
- *   scripts/test-passkey-full-login-benchmark.js
+ * 事前準備（シード）:
+ *   ./bin/k6-passkeys run \
+ *     --env MODE=seed \
+ *     --env BASE_URL=https://conformance.authrim.com \
+ *     --env ADMIN_API_SECRET=xxx \
+ *     --env PASSKEY_USER_COUNT=500 \
+ *     scripts/test-passkey-full-login-benchmark-vm.js
+ *
+ * ベンチマーク実行:
+ *   ./bin/k6-passkeys run \
+ *     --env MODE=benchmark \
+ *     --env BASE_URL=https://conformance.authrim.com \
+ *     --env CLIENT_ID=xxx \
+ *     --env CLIENT_SECRET=xxx \
+ *     --env PRESET=rps50 \
+ *     scripts/test-passkey-full-login-benchmark-vm.js
+ *
+ * テストフロー（5ステップ）:
+ * 1. GET /authorize - 認可リクエスト開始
+ * 2. POST /api/auth/passkey/login/options - チャレンジ取得
+ * 3. createAssertionResponse() - 署名生成（CPU処理）
+ * 4. POST /api/auth/passkey/login/verify - 署名検証 + セッション発行
+ * 5. GET /authorize (Cookie付き) - 認可コード発行
+ * 6. POST /token - トークン発行
  */
 
 import http from 'k6/http';
 import { check } from 'k6';
 import { Counter, Trend, Rate } from 'k6/metrics';
+import { SharedArray } from 'k6/data';
 import encoding from 'k6/encoding';
-import { randomBytes } from 'k6/crypto';
-import { sha256 } from 'k6/crypto';
+import { randomBytes, sha256 } from 'k6/crypto';
 import exec from 'k6/execution';
 import passkeys from 'k6/x/passkeys';
 
-// テスト識別情報
-const TEST_NAME = 'Passkey Full Login Benchmark';
-const TEST_ID = 'passkey-full-login-benchmark';
+// 実行モード
+const MODE = __ENV.MODE || 'benchmark'; // 'seed' or 'benchmark'
 
-// カスタムメトリクス - ステップ別レイテンシ
+// テスト識別情報
+const TEST_NAME = 'Passkey Full Login Benchmark [VM]';
+const TEST_ID = 'passkey-full-login-benchmark-vm';
+
+// カスタムメトリクス
 const authorizeInitLatency = new Trend('authorize_init_latency');
 const passkeyOptionsLatency = new Trend('passkey_options_latency');
 const passkeyVerifyLatency = new Trend('passkey_verify_latency');
@@ -59,18 +74,22 @@ const sessionErrors = new Counter('session_errors');
 const codeErrors = new Counter('code_errors');
 const rateLimitErrors = new Counter('rate_limit_errors');
 const serverErrors = new Counter('server_errors');
-const registrationErrors = new Counter('registration_errors');
 
 // 環境変数
 const BASE_URL = __ENV.BASE_URL || 'https://conformance.authrim.com';
-const CLIENT_ID = __ENV.CLIENT_ID || 'test_client';
+const CLIENT_ID = __ENV.CLIENT_ID || '';
 const CLIENT_SECRET = __ENV.CLIENT_SECRET || '';
 const REDIRECT_URI = __ENV.REDIRECT_URI || 'https://localhost:3000/callback';
 const ADMIN_API_SECRET = __ENV.ADMIN_API_SECRET || '';
-const PRESET = __ENV.PRESET || 'rps30';
-const USER_ID_PREFIX = __ENV.USER_ID_PREFIX || 'pk-bench';
+const PRESET = __ENV.PRESET || 'rps50';
+const USER_ID_PREFIX = __ENV.USER_ID_PREFIX || 'pk-vm';
 
-// RP ID（署名検証で使用）
+// シード設定
+const PASSKEY_USER_COUNT = Number.parseInt(__ENV.PASSKEY_USER_COUNT || '500', 10);
+const SEED_CONCURRENCY = Number.parseInt(__ENV.SEED_CONCURRENCY || '5', 10);
+const CREDENTIAL_FILE = __ENV.CREDENTIAL_FILE || './seeds/passkey_credentials_vm.json';
+
+// RP ID
 function extractHostname(url) {
   const match = url.match(/^https?:\/\/([^/:]+)/);
   return match ? match[1] : url;
@@ -79,9 +98,7 @@ const RP_ID = extractHostname(BASE_URL);
 const ORIGIN = BASE_URL.replace(/^http:/, 'https:');
 
 /**
- * プリセット設定
- *
- * フルログインフローは重いため、silent authより低いRPSを設定
+ * プリセット設計 - Mail OTP と同等の構成
  */
 const PRESETS = {
   // スモークテスト
@@ -93,114 +110,154 @@ const PRESETS = {
       { target: 0, duration: '10s' },
     ],
     thresholds: {
-      full_flow_latency: ['p(95)<6000', 'p(99)<8000'],
-      flow_success: ['rate>0.85'],
-    },
-    preAllocatedVUs: 30,
-    maxVUs: 50,
-    passkeyUserCount: 50,
-  },
-
-  // 標準ベンチマーク
-  rps30: {
-    description: '30 RPS - Standard benchmark (2 min)',
-    stages: [
-      { target: 15, duration: '15s' },
-      { target: 30, duration: '120s' },
-      { target: 0, duration: '15s' },
-    ],
-    thresholds: {
-      full_flow_latency: ['p(95)<5000', 'p(99)<7000'],
+      full_flow_latency: ['p(95)<5000'],
       flow_success: ['rate>0.90'],
     },
-    preAllocatedVUs: 80,
-    maxVUs: 120,
-    passkeyUserCount: 100,
+    preAllocatedVUs: 50,
+    maxVUs: 80,
+    userCount: 100,
   },
 
-  // 高スループット
+  // ベンチマーク: 50 RPS
   rps50: {
-    description: '50 RPS - High throughput (3 min)',
+    description: '50 RPS - Standard (2 min)',
     stages: [
       { target: 25, duration: '15s' },
-      { target: 50, duration: '180s' },
+      { target: 50, duration: '120s' },
       { target: 0, duration: '15s' },
     ],
     thresholds: {
-      full_flow_latency: ['p(95)<5000', 'p(99)<7000'],
-      flow_success: ['rate>0.90'],
+      full_flow_latency: ['p(95)<5000'],
+      flow_success: ['rate>0.95'],
     },
-    preAllocatedVUs: 150,
-    maxVUs: 200,
-    passkeyUserCount: 150,
+    preAllocatedVUs: 200,
+    maxVUs: 400,
+    userCount: 500,
   },
 
-  // ストレステスト
+  // ベンチマーク: 100 RPS
   rps100: {
-    description: '100 RPS - Stress test (3 min)',
+    description: '100 RPS - High throughput (2 min)',
     stages: [
       { target: 50, duration: '15s' },
-      { target: 100, duration: '180s' },
+      { target: 100, duration: '120s' },
       { target: 0, duration: '15s' },
     ],
     thresholds: {
-      full_flow_latency: ['p(95)<6000', 'p(99)<8000'],
-      flow_success: ['rate>0.85'],
+      full_flow_latency: ['p(95)<5000'],
+      flow_success: ['rate>0.95'],
     },
-    preAllocatedVUs: 300,
-    maxVUs: 400,
-    passkeyUserCount: 200,
+    preAllocatedVUs: 400,
+    maxVUs: 600,
+    userCount: 1000,
   },
 
-  // 限界テスト
+  // ベンチマーク: 125 RPS (Mail OTP比較用)
+  rps125: {
+    description: '125 RPS - Mail OTP comparison (2 min)',
+    stages: [
+      { target: 62, duration: '15s' },
+      { target: 125, duration: '120s' },
+      { target: 0, duration: '15s' },
+    ],
+    thresholds: {
+      full_flow_latency: ['p(95)<5000'],
+      flow_success: ['rate>0.95'],
+    },
+    preAllocatedVUs: 500,
+    maxVUs: 800,
+    userCount: 1250,
+  },
+
+  // ベンチマーク: 150 RPS
+  rps150: {
+    description: '150 RPS - Stress test (2 min)',
+    stages: [
+      { target: 75, duration: '15s' },
+      { target: 150, duration: '120s' },
+      { target: 0, duration: '15s' },
+    ],
+    thresholds: {
+      full_flow_latency: ['p(95)<5000'],
+      flow_success: ['rate>0.90'],
+    },
+    preAllocatedVUs: 600,
+    maxVUs: 1000,
+    userCount: 1500,
+  },
+
+  // ベンチマーク: 200 RPS
   rps200: {
-    description: '200 RPS - Maximum capacity (3 min)',
+    description: '200 RPS - High stress (3 min)',
     stages: [
       { target: 100, duration: '15s' },
       { target: 200, duration: '180s' },
       { target: 0, duration: '15s' },
     ],
     thresholds: {
-      full_flow_latency: ['p(95)<8000', 'p(99)<10000'],
-      flow_success: ['rate>0.80'],
+      full_flow_latency: ['p(95)<6000'],
+      flow_success: ['rate>0.90'],
     },
-    preAllocatedVUs: 500,
-    maxVUs: 700,
-    passkeyUserCount: 300,
+    preAllocatedVUs: 800,
+    maxVUs: 1200,
+    userCount: 2000,
   },
 };
 
 // プリセット検証
 const selectedPreset = PRESETS[PRESET];
-if (!selectedPreset) {
+if (!selectedPreset && MODE === 'benchmark') {
   throw new Error(`Unknown preset: ${PRESET}. Available: ${Object.keys(PRESETS).join(', ')}`);
 }
 
-// K6オプション
-export const options = {
-  scenarios: {
-    passkey_full_login: {
-      executor: 'ramping-arrival-rate',
-      startRate: 0,
-      timeUnit: '1s',
-      preAllocatedVUs: selectedPreset.preAllocatedVUs,
-      maxVUs: selectedPreset.maxVUs,
-      stages: selectedPreset.stages,
-    },
-  },
-  thresholds: selectedPreset.thresholds,
-  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)', 'p(99.9)'],
-  setupTimeout: '300s', // ユーザー登録に時間がかかる可能性
-};
+// K6オプション（モード別）
+export const options =
+  MODE === 'seed'
+    ? {
+        // シードモード: 順次登録
+        scenarios: {
+          seed: {
+            executor: 'shared-iterations',
+            vus: SEED_CONCURRENCY,
+            iterations: PASSKEY_USER_COUNT,
+            maxDuration: '30m',
+          },
+        },
+        setupTimeout: '60s',
+        teardownTimeout: '120s',
+      }
+    : {
+        // ベンチマークモード
+        scenarios: {
+          warmup: {
+            executor: 'constant-arrival-rate',
+            rate: 5,
+            timeUnit: '1s',
+            duration: '20s',
+            preAllocatedVUs: 20,
+            maxVUs: 30,
+            startTime: '0s',
+            gracefulStop: '5s',
+          },
+          passkey_full_login: {
+            executor: 'ramping-arrival-rate',
+            startRate: 0,
+            timeUnit: '1s',
+            preAllocatedVUs: selectedPreset?.preAllocatedVUs || 200,
+            maxVUs: selectedPreset?.maxVUs || 400,
+            stages: selectedPreset?.stages || [],
+            startTime: '25s',
+          },
+        },
+        thresholds: selectedPreset?.thresholds || {},
+        summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)', 'p(99.9)'],
+        setupTimeout: '300s',
+      };
 
 // ============================================================================
 // ユーティリティ関数
 // ============================================================================
 
-/**
- * ランダムなcode_verifierを生成（PKCE用）
- * RFC 7636準拠
- */
 function generateCodeVerifier() {
   const buffer = randomBytes(32);
   const bytes = new Uint8Array(buffer);
@@ -212,17 +269,10 @@ function generateCodeVerifier() {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/**
- * code_challengeを生成（S256方式）
- * k6のsha256を使用
- */
 function generateCodeChallenge(verifier) {
   return sha256(verifier, 'base64rawurl');
 }
 
-/**
- * ランダムなstate/nonceを生成
- */
 function generateRandomHex(numBytes) {
   const buffer = randomBytes(numBytes);
   const arr = new Uint8Array(buffer);
@@ -233,9 +283,13 @@ function generateRandomHex(numBytes) {
   return hex;
 }
 
-/**
- * Admin APIでユーザーを作成
- */
+// ============================================================================
+// シードモード用関数
+// ============================================================================
+
+// シード結果を保持（teardownで保存）
+const seedResults = [];
+
 function createUser(index, timestamp) {
   const email = `${USER_ID_PREFIX}-${timestamp}-${index}@test.authrim.internal`;
 
@@ -243,7 +297,7 @@ function createUser(index, timestamp) {
     `${BASE_URL}/api/admin/users`,
     JSON.stringify({
       email,
-      name: `Passkey Benchmark User ${index}`,
+      name: `Passkey VM User ${index}`,
       email_verified: true,
     }),
     {
@@ -251,7 +305,7 @@ function createUser(index, timestamp) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${ADMIN_API_SECRET}`,
       },
-      tags: { name: 'AdminCreateUser' },
+      tags: { name: 'SeedCreateUser' },
     }
   );
 
@@ -260,175 +314,174 @@ function createUser(index, timestamp) {
   }
 
   const data = JSON.parse(res.body);
-  return {
-    userId: data.user.id,
-    email,
-  };
+  return { userId: data.user.id, email };
 }
 
-// セットアップ - ユーザー登録（ベンチマーク対象外）
+function registerPasskey(userId, email, credential, rp) {
+  // 登録オプション取得
+  const optionsRes = http.post(
+    `${BASE_URL}/api/auth/passkey/register/options`,
+    JSON.stringify({ email, userId }),
+    {
+      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+      tags: { name: 'SeedRegisterOptions' },
+    }
+  );
+
+  if (optionsRes.status !== 200) {
+    throw new Error(`Register options failed: ${optionsRes.status} - ${optionsRes.body}`);
+  }
+
+  const optionsData = JSON.parse(optionsRes.body);
+  const attestation = passkeys.createAttestationResponse(rp, credential, JSON.stringify(optionsData.options));
+
+  // 登録完了
+  const verifyRes = http.post(
+    `${BASE_URL}/api/auth/passkey/register/verify`,
+    JSON.stringify({
+      userId,
+      credential: JSON.parse(attestation),
+      deviceName: `VM Device ${exec.vu.idInTest}`,
+    }),
+    {
+      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+      tags: { name: 'SeedRegisterVerify' },
+    }
+  );
+
+  if (verifyRes.status !== 200) {
+    throw new Error(`Register verify failed: ${verifyRes.status} - ${verifyRes.body}`);
+  }
+}
+
+// ============================================================================
+// セットアップ
+// ============================================================================
+
+let credentialData = null;
+
 export function setup() {
   console.log(``);
   console.log(`🚀 ${TEST_NAME}`);
-  console.log(`📋 Preset: ${PRESET} - ${selectedPreset.description}`);
+  console.log(`📋 Mode: ${MODE}`);
   console.log(`🎯 Target: ${BASE_URL}`);
-  console.log(`🔑 Client: ${CLIENT_ID}`);
   console.log(`🌐 RP ID: ${RP_ID}`);
-  console.log(`👥 User Count: ${selectedPreset.passkeyUserCount}`);
   console.log(``);
 
-  if (!CLIENT_SECRET) {
-    throw new Error('CLIENT_SECRET is required for token endpoint');
-  }
+  if (MODE === 'seed') {
+    // シードモード
+    if (!ADMIN_API_SECRET) {
+      throw new Error('ADMIN_API_SECRET is required for seeding');
+    }
+    console.log(`📝 Seeding ${PASSKEY_USER_COUNT} passkey users...`);
+    console.log(`   Concurrency: ${SEED_CONCURRENCY}`);
+    console.log(`   Output: ${CREDENTIAL_FILE}`);
+    console.log(``);
 
-  if (!ADMIN_API_SECRET) {
-    throw new Error('ADMIN_API_SECRET is required for user creation');
-  }
+    return {
+      mode: 'seed',
+      timestamp: Date.now(),
+      rpJson: passkeys.exportRelyingParty(passkeys.newRelyingParty('Authrim', RP_ID, ORIGIN)),
+    };
+  } else {
+    // ベンチマークモード
+    if (!CLIENT_ID || !CLIENT_SECRET) {
+      throw new Error('CLIENT_ID and CLIENT_SECRET are required');
+    }
 
-  console.log(`📝 Registering ${selectedPreset.passkeyUserCount} passkey users...`);
-  console.log(`   (This is setup phase, not included in benchmark)`);
-  console.log(``);
+    console.log(`📋 Preset: ${PRESET} - ${selectedPreset.description}`);
+    console.log(`🔑 Client: ${CLIENT_ID}`);
+    console.log(``);
 
-  const users = [];
-  const timestamp = Date.now();
-
-  // Relying Party設定
-  const rp = passkeys.newRelyingParty('Authrim', RP_ID, ORIGIN);
-  const rpJson = passkeys.exportRelyingParty(rp);
-
-  const startTime = Date.now();
-  let successCount = 0;
-  let errorCount = 0;
-
-  for (let i = 0; i < selectedPreset.passkeyUserCount; i++) {
+    // クレデンシャルファイル読み込み
+    let users = [];
     try {
-      // Step 1: Admin API でユーザー作成
-      const { userId, email } = createUser(i, timestamp);
+      const content = open(CREDENTIAL_FILE);
+      const data = JSON.parse(content);
+      users = data.users || [];
+      console.log(`📂 Loaded ${users.length} credentials from ${CREDENTIAL_FILE}`);
+    } catch (e) {
+      throw new Error(`Failed to load credentials from ${CREDENTIAL_FILE}: ${e.message}`);
+    }
 
-      // Step 2: passkeys.newCredential() でキーペア生成
+    if (users.length === 0) {
+      throw new Error('No users in credential file. Run with MODE=seed first.');
+    }
+
+    // ユーザー数をプリセットに合わせて制限
+    const userCount = Math.min(users.length, selectedPreset.userCount);
+    const selectedUsers = users.slice(0, userCount);
+    console.log(`📦 Using ${selectedUsers.length} users for benchmark`);
+    console.log(``);
+
+    // ウォームアップ
+    console.log(`🔥 Warming up...`);
+    for (let i = 0; i < Math.min(5, selectedUsers.length); i++) {
+      const user = selectedUsers[i];
+      http.get(`${BASE_URL}/authorize?response_type=code&client_id=${CLIENT_ID}&scope=openid`, {
+        redirects: 0,
+        tags: { name: 'Warmup' },
+      });
+      http.post(`${BASE_URL}/api/auth/passkey/login/options`, JSON.stringify({ email: user.email }), {
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+        tags: { name: 'Warmup' },
+      });
+    }
+    console.log(`   Warmup complete`);
+    console.log(``);
+
+    return {
+      mode: 'benchmark',
+      users: selectedUsers,
+      userCount: selectedUsers.length,
+      preset: PRESET,
+      baseUrl: BASE_URL,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+    };
+  }
+}
+
+// ============================================================================
+// メインテスト関数
+// ============================================================================
+
+export default function (data) {
+  if (data.mode === 'seed') {
+    // シードモード: ユーザー登録
+    const index = exec.vu.idInTest;
+    const rp = passkeys.importRelyingParty(data.rpJson);
+
+    try {
+      const { userId, email } = createUser(index, data.timestamp);
       const credential = passkeys.newCredential();
 
-      // Step 3: 登録オプション取得
-      const optionsRes = http.post(
-        `${BASE_URL}/api/auth/passkey/register/options`,
-        JSON.stringify({ email, userId }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Origin: ORIGIN,
-          },
-          tags: { name: 'SetupRegisterOptions' },
-        }
-      );
+      registerPasskey(userId, email, credential, rp);
 
-      if (optionsRes.status !== 200) {
-        throw new Error(`Register options failed: ${optionsRes.status} - ${optionsRes.body}`);
-      }
-
-      // Step 4: passkeys.createAttestationResponse() で登録レスポンス生成
-      // Authrimのレスポンスは { options: {...}, userId: "..." } 形式
-      // xk6-passkeyは直接WebAuthn形式を期待するため、options部分を抽出
-      const optionsData = JSON.parse(optionsRes.body);
-      const attestation = passkeys.createAttestationResponse(
-        rp,
-        credential,
-        JSON.stringify(optionsData.options)
-      );
-
-      // Step 5: 登録完了
-      const verifyRes = http.post(
-        `${BASE_URL}/api/auth/passkey/register/verify`,
-        JSON.stringify({
-          userId,
-          credential: JSON.parse(attestation),
-          deviceName: `Benchmark Device ${i}`,
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Origin: ORIGIN,
-          },
-          tags: { name: 'SetupRegisterVerify' },
-        }
-      );
-
-      if (verifyRes.status !== 200) {
-        throw new Error(`Register verify failed: ${verifyRes.status} - ${verifyRes.body}`);
-      }
-
-      // Step 6: クレデンシャルをJSON文字列で保存（VUへ渡すため）
-      // passkeys.exportCredential()を使用することで、Keyデータが正しくシリアライズされる
-      users.push({
+      // 結果を保存用配列に追加
+      seedResults.push({
         userId,
         email,
         credentialJson: passkeys.exportCredential(credential),
-        rpJson,
+        rpJson: data.rpJson,
       });
 
-      successCount++;
-
-      // 進捗表示（10ユーザーごと）
-      if ((i + 1) % 10 === 0 || i === selectedPreset.passkeyUserCount - 1) {
-        const elapsed = (Date.now() - startTime) / 1000;
-        const rate = successCount / elapsed;
-        console.log(
-          `   [${successCount}/${selectedPreset.passkeyUserCount}] ${rate.toFixed(1)}/s, errors: ${errorCount}`
-        );
+      if (index % 50 === 0 || index === PASSKEY_USER_COUNT) {
+        console.log(`   [${seedResults.length}/${PASSKEY_USER_COUNT}] registered`);
       }
     } catch (e) {
-      errorCount++;
-      console.error(`   ❌ User ${i}: ${e.message}`);
+      console.error(`❌ User ${index}: ${e.message}`);
     }
+    return;
   }
 
-  const totalTime = (Date.now() - startTime) / 1000;
-
-  if (users.length === 0) {
-    throw new Error('No users registered successfully. Aborting.');
-  }
-
-  console.log(``);
-  console.log(`✅ Setup complete: ${users.length} users registered in ${totalTime.toFixed(2)}s`);
-  console.log(`   Rate: ${(users.length / totalTime).toFixed(1)} users/sec`);
-  console.log(`   Errors: ${errorCount}`);
-  console.log(``);
-
-  // ウォームアップ
-  console.log(`🔥 Warming up...`);
-  for (let i = 0; i < Math.min(5, users.length); i++) {
-    const user = users[i];
-    http.get(`${BASE_URL}/authorize?response_type=code&client_id=${CLIENT_ID}&scope=openid`, {
-      redirects: 0,
-      tags: { name: 'Warmup' },
-    });
-    http.post(`${BASE_URL}/api/auth/passkey/login/options`, JSON.stringify({ email: user.email }), {
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-      tags: { name: 'Warmup' },
-    });
-  }
-  console.log(`   Warmup complete`);
-  console.log(``);
-
-  return {
-    users,
-    userCount: users.length,
-    preset: PRESET,
-    baseUrl: BASE_URL,
-    clientId: CLIENT_ID,
-    redirectUri: REDIRECT_URI,
-  };
-}
-
-// メインテスト関数 - ログインベンチマーク（メトリクス計測対象）
-export default function (data) {
+  // ベンチマークモード
   const { users, userCount, clientId, redirectUri, baseUrl } = data;
 
-  // VU IDベースでユーザーを選択
   const userIndex = (__VU - 1) % userCount;
   const user = users[userIndex];
 
   // クレデンシャル復元
-  // passkeys.importCredential()を使用することで、Key.signingKeyが正しく再構築される
   const credential = passkeys.importCredential(user.credentialJson);
   const rp = passkeys.importRelyingParty(user.rpJson);
 
@@ -437,15 +490,13 @@ export default function (data) {
   let sessionCookie = null;
   let authCode = null;
 
-  // PKCE パラメータ生成
+  // PKCE パラメータ
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = generateRandomHex(16);
   const nonce = generateRandomHex(16);
 
-  // ===============================
   // Step 1: GET /authorize (初期化)
-  // ===============================
   const authorizeInitUrl =
     `${baseUrl}/authorize?` +
     `response_type=code&` +
@@ -470,9 +521,7 @@ export default function (data) {
     if (step1Response.status === 429) rateLimitErrors.add(1);
   }
 
-  // ===============================
   // Step 2: POST /api/auth/passkey/login/options
-  // ===============================
   let challengeId = null;
 
   if (success) {
@@ -480,11 +529,7 @@ export default function (data) {
       `${baseUrl}/api/auth/passkey/login/options`,
       JSON.stringify({ email: user.email }),
       {
-        headers: {
-          'Content-Type': 'application/json',
-          Origin: ORIGIN,
-          Connection: 'keep-alive',
-        },
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN, Connection: 'keep-alive' },
         tags: { name: 'PasskeyOptions' },
       }
     );
@@ -500,14 +545,9 @@ export default function (data) {
         const optionsData = JSON.parse(step2Response.body);
         challengeId = optionsData.challengeId;
 
-        // ===============================
-        // Step 3: passkeys.createAssertionResponse() で認証レスポンス生成
-        // ===============================
-        // Authrimのレスポンスは { options: {...}, challengeId: "..." } 形式
-        // xk6-passkeyは直接WebAuthn形式を期待するため、options部分を抽出
+        // Step 3: 署名生成
         let assertion;
         try {
-          // 引数順序: rp, credential, userHandle, assertionOptions
           assertion = passkeys.createAssertionResponse(
             rp,
             credential,
@@ -518,26 +558,17 @@ export default function (data) {
           success = false;
           signatureErrors.add(1);
           if (exec.vu.iterationInInstance < 3) {
-            console.error(`❌ Assertion generation failed (VU ${__VU}): ${e.message}`);
+            console.error(`❌ Assertion failed (VU ${__VU}): ${e.message}`);
           }
         }
 
-        // ===============================
         // Step 4: POST /api/auth/passkey/login/verify
-        // ===============================
         if (success && assertion) {
           const step4Response = http.post(
             `${baseUrl}/api/auth/passkey/login/verify`,
-            JSON.stringify({
-              challengeId,
-              credential: JSON.parse(assertion),
-            }),
+            JSON.stringify({ challengeId, credential: JSON.parse(assertion) }),
             {
-              headers: {
-                'Content-Type': 'application/json',
-                Origin: ORIGIN,
-                Connection: 'keep-alive',
-              },
+              headers: { 'Content-Type': 'application/json', Origin: ORIGIN, Connection: 'keep-alive' },
               tags: { name: 'PasskeyVerify' },
             }
           );
@@ -553,39 +584,25 @@ export default function (data) {
             sessionErrors.add(1);
             if (step4Response.status >= 500) serverErrors.add(1);
             if (step4Response.status === 429) rateLimitErrors.add(1);
-
-            if (exec.vu.iterationInInstance < 3) {
-              console.error(
-                `❌ Passkey verify failed (VU ${__VU}): ${step4Response.status} - ${step4Response.body}`
-              );
-            }
           } else {
             try {
               const verifyData = JSON.parse(step4Response.body);
               sessionCookie = `authrim_session=${verifyData.sessionId}`;
             } catch (e) {
               success = false;
-              console.error(`❌ Failed to parse verify response (VU ${__VU})`);
             }
           }
         }
       } catch (e) {
         success = false;
-        console.error(`❌ Failed to parse options response (VU ${__VU}): ${e.message}`);
       }
     }
   }
 
-  // ===============================
   // Step 5: GET /authorize (認可コード発行)
-  // ===============================
   if (success && sessionCookie) {
     const step5Response = http.get(authorizeInitUrl, {
-      headers: {
-        Cookie: sessionCookie,
-        Accept: 'text/html',
-        Connection: 'keep-alive',
-      },
+      headers: { Cookie: sessionCookie, Accept: 'text/html', Connection: 'keep-alive' },
       redirects: 0,
       tags: { name: 'AuthorizeCode' },
     });
@@ -616,9 +633,7 @@ export default function (data) {
     }
   }
 
-  // ===============================
   // Step 6: POST /token
-  // ===============================
   if (success && authCode) {
     const tokenPayload =
       `grant_type=authorization_code&` +
@@ -642,8 +657,7 @@ export default function (data) {
       'token status 200': (r) => r.status === 200,
       'has access_token': (r) => {
         try {
-          const body = JSON.parse(r.body);
-          return body.access_token !== undefined;
+          return JSON.parse(r.body).access_token !== undefined;
         } catch {
           return false;
         }
@@ -658,28 +672,58 @@ export default function (data) {
     }
   }
 
-  // フロー全体のメトリクス記録
+  // フロー完了
   const flowDuration = Date.now() - flowStartTime;
   fullFlowLatency.add(flowDuration);
   flowSuccess.add(success);
+}
 
-  // デバッグ（最初の数回の失敗のみ）
-  if (!success && exec.vu.iterationInInstance < 3) {
-    console.error(`❌ Flow failed (VU ${__VU}, iter ${exec.vu.iterationInInstance})`);
+// ============================================================================
+// ティアダウン
+// ============================================================================
+
+export function teardown(data) {
+  if (data.mode === 'seed') {
+    // シード結果をファイルに保存
+    console.log(``);
+    console.log(`💾 Saving ${seedResults.length} credentials to ${CREDENTIAL_FILE}...`);
+
+    const output = {
+      metadata: {
+        generated_at: new Date().toISOString(),
+        base_url: BASE_URL,
+        rp_id: RP_ID,
+        total: seedResults.length,
+      },
+      users: seedResults,
+    };
+
+    // Note: k6ではファイル書き込みができないため、標準出力に出力
+    // VMでは出力をリダイレクトしてファイルに保存する
+    console.log('--- CREDENTIAL_DATA_START ---');
+    console.log(JSON.stringify(output));
+    console.log('--- CREDENTIAL_DATA_END ---');
+    console.log(``);
+    console.log(`✅ Seed complete. Save the JSON output above to ${CREDENTIAL_FILE}`);
+    console.log(`   Or run: ./bin/k6-passkeys run ... 2>&1 | ./scripts/extract-credentials.sh`);
+  } else {
+    console.log(``);
+    console.log(`✅ ${TEST_NAME} テスト完了`);
+    console.log(`📊 プリセット: ${data.preset}`);
+    console.log(`🎯 ターゲット: ${data.baseUrl}`);
+    console.log(`📈 ユーザー数: ${data.userCount}`);
   }
 }
 
-// ティアダウン
-export function teardown(data) {
-  console.log(``);
-  console.log(`✅ ${TEST_NAME} テスト完了`);
-  console.log(`📊 プリセット: ${data.preset}`);
-  console.log(`🎯 ターゲット: ${data.baseUrl}`);
-  console.log(`📈 ユーザー数: ${data.userCount}`);
-}
-
+// ============================================================================
 // サマリーハンドラー
+// ============================================================================
+
 export function handleSummary(data) {
+  if (MODE === 'seed') {
+    return {}; // シードモードではサマリー不要
+  }
+
   const preset = PRESET;
   const timestamp = new Date()
     .toISOString()
@@ -690,28 +734,23 @@ export function handleSummary(data) {
 
   return {
     [`${resultsDir}/${TEST_ID}-${preset}_${timestamp}.json`]: JSON.stringify(data, null, 2),
-    [`${resultsDir}/${TEST_ID}-${preset}_${timestamp}.log`]: textSummary(data, {
-      indent: ' ',
-      enableColors: false,
-    }),
+    [`${resultsDir}/${TEST_ID}-${preset}_${timestamp}.log`]: textSummary(data, { indent: ' ', enableColors: false }),
     stdout: textSummary(data, { indent: ' ', enableColors: true }),
   };
 }
 
-// テキストサマリー生成
 function textSummary(data, options) {
   const indent = options.indent || '';
+  const metrics = data.metrics;
 
   let summary = '\n';
   summary += `${indent}📊 ${TEST_NAME} - サマリー\n`;
   summary += `${indent}${'='.repeat(70)}\n\n`;
 
-  // テスト情報
   summary += `${indent}🎯 プリセット: ${PRESET}\n`;
-  summary += `${indent}📝 説明: ${selectedPreset.description}\n\n`;
+  summary += `${indent}📝 説明: ${selectedPreset.description}\n`;
+  summary += `${indent}🖥️  実行環境: VM\n\n`;
 
-  // 基本統計
-  const metrics = data.metrics;
   const totalIterations = metrics.iterations?.values?.count || 0;
   const flowSuccessRate = ((metrics.flow_success?.values?.rate || 0) * 100).toFixed(2);
 
@@ -719,7 +758,6 @@ function textSummary(data, options) {
   summary += `${indent}  総イテレーション数: ${totalIterations}\n`;
   summary += `${indent}  フロー成功率: ${flowSuccessRate}%\n\n`;
 
-  // ステップ別レイテンシ
   summary += `${indent}⏱️  ステップ別レイテンシ:\n`;
   summary += `${indent}  1. Authorize Init:\n`;
   summary += `${indent}     p50: ${metrics.authorize_init_latency?.values?.['p(50)']?.toFixed(2) || 0}ms\n`;
@@ -741,7 +779,6 @@ function textSummary(data, options) {
   summary += `${indent}     p95: ${metrics.full_flow_latency?.values?.['p(95)']?.toFixed(2) || 0}ms\n`;
   summary += `${indent}     p99: ${metrics.full_flow_latency?.values?.['p(99)']?.toFixed(2) || 0}ms\n\n`;
 
-  // 成功率
   const passkeyRate = ((metrics.passkey_success?.values?.rate || 0) * 100).toFixed(2);
   const authorizeRate = ((metrics.authorize_success?.values?.rate || 0) * 100).toFixed(2);
   const tokenRate = ((metrics.token_success?.values?.rate || 0) * 100).toFixed(2);
@@ -751,20 +788,16 @@ function textSummary(data, options) {
   summary += `${indent}  認可コード: ${authorizeRate}%\n`;
   summary += `${indent}  トークン発行: ${tokenRate}%\n\n`;
 
-  // エラー統計
   summary += `${indent}❌ エラー統計:\n`;
   summary += `${indent}  署名エラー: ${metrics.signature_errors?.values?.count || 0}\n`;
   summary += `${indent}  チャレンジエラー: ${metrics.challenge_errors?.values?.count || 0}\n`;
   summary += `${indent}  セッションエラー: ${metrics.session_errors?.values?.count || 0}\n`;
   summary += `${indent}  認可コードエラー: ${metrics.code_errors?.values?.count || 0}\n`;
   summary += `${indent}  レート制限 (429): ${metrics.rate_limit_errors?.values?.count || 0}\n`;
-  summary += `${indent}  サーバーエラー (5xx): ${metrics.server_errors?.values?.count || 0}\n`;
-  summary += `${indent}  登録エラー: ${metrics.registration_errors?.values?.count || 0}\n\n`;
+  summary += `${indent}  サーバーエラー (5xx): ${metrics.server_errors?.values?.count || 0}\n\n`;
 
-  // スループット
   const rps = metrics.iterations?.values?.rate || 0;
   summary += `${indent}🚀 スループット: ${rps.toFixed(2)} flows/s\n`;
-
   summary += `${indent}${'='.repeat(70)}\n`;
 
   return summary;

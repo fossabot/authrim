@@ -261,7 +261,11 @@ async function terminateSessionByNameId(
 
     // Without a valid sessionIndex, we cannot delete by userId in sharded SessionStore
     // Log warning for debugging
-    const user = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(nameId).first();
+    // Use tenant_id + email for idx_users_tenant_email composite index (default tenant for SAML)
+    const tenantId = 'default';
+    const user = await env.DB.prepare('SELECT id FROM users WHERE tenant_id = ? AND email = ?')
+      .bind(tenantId, nameId)
+      .first();
     if (user) {
       console.warn(
         `SAML IdP SLO: Cannot delete all sessions for user ${user.id as string} (NameID: ${nameId}) - ` +

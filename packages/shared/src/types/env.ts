@@ -65,9 +65,10 @@ export interface Env {
   MAX_CODES_PER_USER?: string; // Max authorization codes per user (default: 100, increase for load testing)
   AUTH_CODE_TTL?: string; // Authorization code TTL in seconds (default: 60, increase for load testing)
   AUTH_CODE_CLEANUP_INTERVAL?: string; // Auth code cleanup interval in seconds (default: 30, increase for load testing)
-  AUTHRIM_CODE_SHARDS?: string; // Number of auth code DO shards (default: 64, set to 0 to disable sharding)
-  AUTHRIM_SESSION_SHARDS?: string; // Number of session DO shards (default: 32)
-  AUTHRIM_CHALLENGE_SHARDS?: string; // Number of challenge DO shards (default: 16)
+  AUTHRIM_CODE_SHARDS?: string; // Number of auth code DO shards (default: 4)
+  AUTHRIM_SESSION_SHARDS?: string; // Number of session DO shards (default: 4)
+  AUTHRIM_CHALLENGE_SHARDS?: string; // Number of challenge DO shards (default: 4)
+  AUTHRIM_REVOCATION_SHARDS?: string; // Number of token revocation DO shards (default: 4)
 
   // Dynamic Client Registration settings
   OPEN_REGISTRATION?: string; // "true" to allow registration without Initial Access Token
@@ -189,4 +190,10 @@ export interface Env {
   IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL?: string; // "false" to allow unverified emails (not recommended)
   // Encryption key for storing external IdP tokens (32-byte hex string)
   RP_TOKEN_ENCRYPTION_KEY?: string;
+
+  // Token Introspection Strict Validation (RFC 7662 + enhanced security)
+  // When "true", enables additional audience and client_id validation
+  // Default: disabled (RFC 7662 standard behavior)
+  INTROSPECTION_STRICT_VALIDATION?: string; // "true" to enable strict validation
+  INTROSPECTION_EXPECTED_AUDIENCE?: string; // Expected audience value (null = use ISSUER_URL)
 }

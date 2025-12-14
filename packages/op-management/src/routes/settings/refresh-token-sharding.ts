@@ -7,6 +7,7 @@ import {
   parseRefreshTokenJti,
   buildRefreshTokenRotatorInstanceName,
   clearShardConfigCache,
+  getTenantIdFromContext,
   type RefreshTokenShardConfig,
 } from '@authrim/shared';
 
@@ -194,6 +195,7 @@ export async function getRefreshTokenShardingStats(c: Context<{ Bindings: Env }>
  */
 export async function cleanupRefreshTokenGeneration(c: Context<{ Bindings: Env }>) {
   try {
+    const tenantId = getTenantIdFromContext(c);
     const generation = parseInt(c.req.query('generation') || '', 10);
     const clientId = c.req.query('clientId') || null;
 
@@ -220,10 +222,10 @@ export async function cleanupRefreshTokenGeneration(c: Context<{ Bindings: Env }
     // Safety check: ensure no active tokens exist for this generation
     const activeResult = await c.env.DB.prepare(
       `SELECT COUNT(*) as count FROM user_token_families
-       WHERE generation = ? AND is_revoked = 0 AND expires_at > ?
+       WHERE tenant_id = ? AND generation = ? AND is_revoked = 0 AND expires_at > ?
        ${clientId ? 'AND client_id = ?' : ''}`
     )
-      .bind(generation, Date.now(), ...(clientId ? [clientId] : []))
+      .bind(tenantId, generation, Date.now(), ...(clientId ? [clientId] : []))
       .first<{ count: number }>();
 
     if (activeResult && activeResult.count > 0) {

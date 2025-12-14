@@ -381,36 +381,70 @@ export function getRateLimitProfile(
 }
 
 /**
+ * KV key for global profile override
+ * When set, all rate limiting uses this profile instead of endpoint-specific profiles
+ */
+const PROFILE_OVERRIDE_KV_KEY = 'rate_limit_profile_override';
+
+/**
  * Get rate limit profile with KV override support (async version)
  *
  * Priority:
  * 1. Cache (10s TTL)
- * 2. KV (AUTHRIM_CONFIG namespace) - rate_limit_{profile}_max_requests, rate_limit_{profile}_window_seconds
- * 3. Environment variable (RATE_LIMIT_PROFILE for profile selection)
- * 4. Default profile values
+ * 2. KV profile override (rate_limit_profile_override) - switches ALL endpoints to specified profile
+ * 3. KV per-profile settings (rate_limit_{profile}_max_requests, rate_limit_{profile}_window_seconds)
+ * 4. Environment variable (RATE_LIMIT_PROFILE for profile selection)
+ * 5. Default profile values
  *
  * @param env - Environment bindings with AUTHRIM_CONFIG KV
  * @param profileName - Profile name (strict, moderate, lenient, loadTest)
  * @returns Rate limit config with KV overrides applied
  *
  * @example
- * // Set via KV (no deployment required):
+ * // Set global profile override via KV (no deployment required):
+ * // npx wrangler kv key put "rate_limit_profile_override" "loadTest" --namespace-id=... --remote
+ * // Or via Admin API: PUT /api/admin/settings/rate-limit/profile-override {"profile": "loadTest"}
+ *
+ * // Set per-profile settings via KV:
  * // npx wrangler kv key put "rate_limit_loadtest_max_requests" "20000" --namespace-id=... --remote
  *
- * const config = await getRateLimitProfileAsync(env, 'loadTest');
- * // config.maxRequests = 20000 (from KV) instead of default 10000
+ * const config = await getRateLimitProfileAsync(env, 'strict');
+ * // If rate_limit_profile_override=loadTest, returns loadTest config instead of strict
  */
 export async function getRateLimitProfileAsync(
   env: Env,
   profileName: keyof typeof RateLimitProfiles
 ): Promise<RateLimitConfig> {
-  // Check if a different profile is selected via environment variable
-  const effectiveProfile =
-    env.RATE_LIMIT_PROFILE && env.RATE_LIMIT_PROFILE in RateLimitProfiles
-      ? (env.RATE_LIMIT_PROFILE as keyof typeof RateLimitProfiles)
-      : profileName;
+  let effectiveProfile: keyof typeof RateLimitProfiles = profileName;
+
+  // Priority 1: Check KV for global profile override
+  if (env.AUTHRIM_CONFIG) {
+    try {
+      const kvProfileOverride = await env.AUTHRIM_CONFIG.get(PROFILE_OVERRIDE_KV_KEY);
+      if (kvProfileOverride && kvProfileOverride in RateLimitProfiles) {
+        effectiveProfile = kvProfileOverride as keyof typeof RateLimitProfiles;
+      }
+    } catch {
+      // KV read error - continue with other sources
+    }
+  }
+
+  // Priority 2: Check environment variable (only if no KV override)
+  if (effectiveProfile === profileName) {
+    if (env.RATE_LIMIT_PROFILE && env.RATE_LIMIT_PROFILE in RateLimitProfiles) {
+      effectiveProfile = env.RATE_LIMIT_PROFILE as keyof typeof RateLimitProfiles;
+    }
+  }
 
   return await getRateLimitConfigFromKV(env, effectiveProfile);
+}
+
+/**
+ * Get the KV key for profile override
+ * Exported for use in Admin API
+ */
+export function getProfileOverrideKVKey(): string {
+  return PROFILE_OVERRIDE_KV_KEY;
 }
 
 /**

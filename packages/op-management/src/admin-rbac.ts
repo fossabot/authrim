@@ -12,6 +12,7 @@
 
 import { Context } from 'hono';
 import type { Env, AdminAuthContext } from '@authrim/shared';
+import { getTenantIdFromContext } from '@authrim/shared';
 
 /**
  * Convert timestamp to milliseconds for API response
@@ -43,6 +44,7 @@ function getAdminAuth(c: Context<{ Bindings: Env }>): AdminAuthContext | null {
  */
 export async function adminOrganizationsListHandler(c: Context<{ Bindings: Env }>) {
   try {
+    const tenantId = getTenantIdFromContext(c);
     const page = parseInt(c.req.query('page') || '1');
     const limit = parseInt(c.req.query('limit') || '20');
     const search = c.req.query('search') || '';
@@ -52,11 +54,9 @@ export async function adminOrganizationsListHandler(c: Context<{ Bindings: Env }
 
     const offset = (page - 1) * limit;
 
-    // Build query
-    let query = 'SELECT * FROM organizations';
-    let countQuery = 'SELECT COUNT(*) as count FROM organizations';
-    const bindings: unknown[] = [];
-    const whereClauses: string[] = [];
+    // Build query - tenant_id is always first for index usage
+    const whereClauses: string[] = ['tenant_id = ?'];
+    const bindings: unknown[] = [tenantId];
 
     // Search filter (name or display_name)
     if (search) {
@@ -82,26 +82,25 @@ export async function adminOrganizationsListHandler(c: Context<{ Bindings: Env }
       bindings.push(orgType);
     }
 
-    // Apply WHERE clauses
-    if (whereClauses.length > 0) {
-      const whereClause = ' WHERE ' + whereClauses.join(' AND ');
-      query += whereClause;
-      countQuery += whereClause;
-    }
+    const whereClause = ' WHERE ' + whereClauses.join(' AND ');
+    const countQuery = 'SELECT COUNT(*) as count FROM organizations' + whereClause;
+    let query = 'SELECT * FROM organizations' + whereClause;
 
     // Order and pagination
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    bindings.push(limit, offset);
 
-    // Execute queries
-    const countBindings = bindings.slice(0, bindings.length - 2);
-    const totalResult = await c.env.DB.prepare(countQuery)
-      .bind(...countBindings)
-      .first();
+    // Execute queries in parallel
+    const countBindings = [...bindings];
+    const queryBindings = [...bindings, limit, offset];
 
-    const organizations = await c.env.DB.prepare(query)
-      .bind(...bindings)
-      .all();
+    const [totalResult, organizations] = await Promise.all([
+      c.env.DB.prepare(countQuery)
+        .bind(...countBindings)
+        .first(),
+      c.env.DB.prepare(query)
+        .bind(...queryBindings)
+        .all(),
+    ]);
 
     const total = (totalResult?.count as number) || 0;
     const totalPages = Math.ceil(total / limit);
@@ -143,11 +142,20 @@ export async function adminOrganizationsListHandler(c: Context<{ Bindings: Env }
  */
 export async function adminOrganizationGetHandler(c: Context<{ Bindings: Env }>) {
   try {
+    const tenantId = getTenantIdFromContext(c);
     const orgId = c.req.param('id');
 
-    const org = await c.env.DB.prepare('SELECT * FROM organizations WHERE id = ?')
-      .bind(orgId)
-      .first();
+    // Execute queries in parallel
+    const [org, memberCount] = await Promise.all([
+      c.env.DB.prepare('SELECT * FROM organizations WHERE tenant_id = ? AND id = ?')
+        .bind(tenantId, orgId)
+        .first(),
+      c.env.DB.prepare(
+        'SELECT COUNT(*) as count FROM subject_org_membership WHERE tenant_id = ? AND org_id = ?'
+      )
+        .bind(tenantId, orgId)
+        .first(),
+    ]);
 
     if (!org) {
       return c.json(
@@ -158,13 +166,6 @@ export async function adminOrganizationGetHandler(c: Context<{ Bindings: Env }>)
         404
       );
     }
-
-    // Get member count
-    const memberCount = await c.env.DB.prepare(
-      'SELECT COUNT(*) as count FROM subject_org_membership WHERE org_id = ?'
-    )
-      .bind(orgId)
-      .first();
 
     // Format organization
     const formattedOrg = {
@@ -463,14 +464,17 @@ export async function adminOrganizationDeleteHandler(c: Context<{ Bindings: Env 
  */
 export async function adminOrganizationMembersListHandler(c: Context<{ Bindings: Env }>) {
   try {
+    const tenantId = getTenantIdFromContext(c);
     const orgId = c.req.param('id');
     const page = parseInt(c.req.query('page') || '1');
     const limit = parseInt(c.req.query('limit') || '20');
     const offset = (page - 1) * limit;
 
     // Check if organization exists
-    const org = await c.env.DB.prepare('SELECT id FROM organizations WHERE id = ?')
-      .bind(orgId)
+    const org = await c.env.DB.prepare(
+      'SELECT id FROM organizations WHERE tenant_id = ? AND id = ?'
+    )
+      .bind(tenantId, orgId)
       .first();
 
     if (!org) {
@@ -483,24 +487,24 @@ export async function adminOrganizationMembersListHandler(c: Context<{ Bindings:
       );
     }
 
-    // Get total count
-    const totalResult = await c.env.DB.prepare(
-      'SELECT COUNT(*) as count FROM subject_org_membership WHERE org_id = ?'
-    )
-      .bind(orgId)
-      .first();
-
-    // Get members with user info
-    const members = await c.env.DB.prepare(
-      `SELECT m.*, u.email, u.name as user_name
-       FROM subject_org_membership m
-       LEFT JOIN users u ON m.subject_id = u.id
-       WHERE m.org_id = ?
-       ORDER BY m.created_at DESC
-       LIMIT ? OFFSET ?`
-    )
-      .bind(orgId, limit, offset)
-      .all();
+    // Execute queries in parallel
+    const [totalResult, members] = await Promise.all([
+      c.env.DB.prepare(
+        'SELECT COUNT(*) as count FROM subject_org_membership WHERE tenant_id = ? AND org_id = ?'
+      )
+        .bind(tenantId, orgId)
+        .first(),
+      c.env.DB.prepare(
+        `SELECT m.*, u.email, u.name as user_name
+         FROM subject_org_membership m
+         LEFT JOIN users u ON m.subject_id = u.id
+         WHERE m.tenant_id = ? AND m.org_id = ?
+         ORDER BY m.created_at DESC
+         LIMIT ? OFFSET ?`
+      )
+        .bind(tenantId, orgId, limit, offset)
+        .all(),
+    ]);
 
     const total = (totalResult?.count as number) || 0;
     const totalPages = Math.ceil(total / limit);

@@ -1,15 +1,37 @@
 #!/usr/bin/env node
 
 /**
- * Access Token シード生成スクリプト
+ * Token Introspection Control Plane Test - シード生成スクリプト
  *
- * UserInfo/Introspectionベンチマークテスト用のアクセストークンを事前生成する。
+ * RFC 7662 Token Introspection の負荷テスト用トークンを生成
  *
- * トークン種別（混合比率）:
- *   - Valid:   70% - 正常なトークン（exp=30日後）
- *   - Expired: 10% - 期限切れトークン（exp=過去）
- *   - Invalid: 10% - 不正なJWT（ランダム文字列）
- *   - Revoked: 10% - 正常に発行後、POST /revokeで無効化
+ * ┌─────────────────────────────────────────────────────────────────────────────┐
+ * │ テスト設計根拠 (RFC 7662 + 業界標準ベンチマーク準拠)                        │
+ * ├────────────────────┬───────┬────────────────────────────────────────────────┤
+ * │ 種別               │ 比率  │ 説明                                           │
+ * ├────────────────────┼───────┼────────────────────────────────────────────────┤
+ * │ Active (標準)      │ 60%   │ 通常のアクセストークン                         │
+ * │ Active (TE)        │ 5%    │ Token Exchange後 (act claim付き, RFC 8693)     │
+ * │ Expired            │ 12%   │ 期限切れ (exp=過去)                            │
+ * │ Revoked            │ 12%   │ 無効化済み (POST /revoke)                      │
+ * │ Wrong audience     │ 6%    │ 署名OK, aud不一致 (strictValidation=true時検出)│
+ * │ Wrong client       │ 5%    │ 別client_idで発行 (strictValidation=true時検出)│
+ * └────────────────────┴───────┴────────────────────────────────────────────────┘
+ *
+ * 評価軸:
+ * 1. revoked/expired の即時反映 (active=false)
+ * 2. active=false の正確性 (False positive/negative = 0)
+ * 3. scope/aud/sub の整合性
+ * 4. キャッシュと即時性のトレードオフ (RFC 7662: expを超えたキャッシュ禁止)
+ * 5. Token Exchange後トークンの整合 (act/resource claim)
+ *
+ * 参考: Keycloak Benchmark, Auth0 Performance Testing
+ *
+ * 注意: テスト実行前に strictValidation=true を設定する必要あり
+ *   curl -X PUT https://conformance.authrim.com/api/admin/settings/introspection-validation \
+ *     -H "Authorization: Bearer $ADMIN_API_SECRET" \
+ *     -H "Content-Type: application/json" \
+ *     -d '{"strictValidation": true}'
  *
  * 環境変数:
  *   BASE_URL             対象の Authrim Worker URL (default: https://conformance.authrim.com)
@@ -38,18 +60,45 @@ const CLIENT_SECRET = process.env.CLIENT_SECRET || '';
 const ADMIN_API_SECRET = process.env.ADMIN_API_SECRET || '';
 const TOKEN_COUNT = Number.parseInt(process.env.TOKEN_COUNT || '1000', 10);
 const CONCURRENCY = Number.parseInt(process.env.CONCURRENCY || '20', 10);
+const REVOKE_CONCURRENCY = Number.parseInt(process.env.REVOKE_CONCURRENCY || '2', 10);
+const REVOKE_DELAY_MS = Number.parseInt(process.env.REVOKE_DELAY_MS || '500', 10);
 const USER_ID_PREFIX = process.env.USER_ID_PREFIX || 'user-bench';
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = process.env.OUTPUT_DIR || path.join(SCRIPT_DIR, '..', 'seeds');
-const TEST_USERS_PATH = process.env.TEST_USERS_PATH || path.join(SCRIPT_DIR, '..', 'seeds', 'test_users.json');
+const TEST_USERS_PATH =
+  process.env.TEST_USERS_PATH || path.join(SCRIPT_DIR, '..', 'seeds', 'test_users.json');
 
-// トークン種別の比率
+/**
+ * トークン種別の比率 (RFC 7662 + 業界標準ベンチマーク準拠)
+ *
+ * - Active tokens (65%): 実運用では70-80%が有効トークンへの検証
+ * - Expired (12%): クライアントのクロック差異、キャッシュによる期限切れ
+ * - Revoked (12%): 無効化済みトークンの検出テスト
+ * - Wrong audience (6%): aud検証テスト (strictValidation有効時)
+ * - Wrong client (5%): client_id検証テスト (strictValidation有効時)
+ */
 const TOKEN_MIX = {
-  valid: 0.7,
-  expired: 0.1,
-  invalid: 0.1,
-  revoked: 0.1,
+  valid: 0.6, // 60% - 通常のアクセストークン
+  valid_exchanged: 0.05, // 5%  - Token Exchange (act claim付き)
+  expired: 0.12, // 12% - 期限切れ
+  revoked: 0.12, // 12% - 無効化済み
+  wrong_audience: 0.06, // 6%  - 署名OK, aud不一致
+  wrong_client: 0.05, // 5%  - 別client_idで発行
 };
+
+// サービスクライアント (actor_token用)
+const SERVICE_CLIENTS = [
+  { id: 'service-gateway', name: 'API Gateway Service' },
+  { id: 'service-bff', name: 'Backend for Frontend' },
+  { id: 'service-worker', name: 'Background Worker' },
+];
+
+// リソースURI (Token Exchange用)
+const RESOURCE_URIS = [
+  'https://api.example.com/gateway',
+  'https://api.example.com/users',
+  'https://api.example.com/payments',
+];
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
   console.error('❌ CLIENT_ID と CLIENT_SECRET は必須です。環境変数を設定してください。');
@@ -75,6 +124,13 @@ function generateSecureRandomString(length = 32) {
  */
 function generateJti() {
   return `at_${generateSecureRandomString(32)}`;
+}
+
+/**
+ * Pick random item from array
+ */
+function randomPick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 /**
@@ -107,7 +163,7 @@ async function fetchSigningKey() {
  * @returns {Promise<{token: string, jti: string, exp: number}>}
  */
 async function createAccessToken(privateKey, kid, options) {
-  const { userId, scope, expiresIn, issuer } = options;
+  const { userId, scope, expiresIn, issuer, audience, clientId } = options;
   const now = Math.floor(Date.now() / 1000);
   const jti = generateJti();
   const exp = now + expiresIn;
@@ -115,8 +171,95 @@ async function createAccessToken(privateKey, kid, options) {
   const token = await new SignJWT({
     iss: issuer,
     sub: userId,
-    aud: issuer, // Access tokenのaudはissuerと同じ
+    aud: audience || issuer, // Access tokenのaudはissuerと同じ（デフォルト）
+    client_id: clientId || CLIENT_ID,
+    scope,
+    iat: now,
+    exp,
+    jti,
+  })
+    .setProtectedHeader({ alg: 'RS256', typ: 'at+jwt', kid })
+    .sign(privateKey);
+
+  return { token, jti, exp };
+}
+
+/**
+ * Create a Token Exchange token with act claim (RFC 8693)
+ */
+async function createExchangedToken(privateKey, kid, options) {
+  const { userId, scope, expiresIn, issuer } = options;
+  const now = Math.floor(Date.now() / 1000);
+  const jti = generateJti();
+  const exp = now + expiresIn;
+  const serviceClient = randomPick(SERVICE_CLIENTS);
+  const resource = randomPick(RESOURCE_URIS);
+
+  // Token Exchange後のトークン (RFC 8693)
+  const token = await new SignJWT({
+    iss: issuer,
+    sub: userId,
+    aud: issuer,
     client_id: CLIENT_ID,
+    scope,
+    iat: now,
+    exp,
+    jti,
+    // RFC 8693: Actor claim for delegation
+    act: {
+      sub: `client:${serviceClient.id}`,
+      client_id: serviceClient.id,
+    },
+    // RFC 8693: Resource server URI
+    resource,
+  })
+    .setProtectedHeader({ alg: 'RS256', typ: 'at+jwt', kid })
+    .sign(privateKey);
+
+  return { token, jti, exp, actorClientId: serviceClient.id, resource };
+}
+
+/**
+ * Create a Wrong Audience token (valid signature but wrong aud)
+ */
+async function createWrongAudienceToken(privateKey, kid, options) {
+  const { userId, scope, expiresIn, issuer } = options;
+  const now = Math.floor(Date.now() / 1000);
+  const jti = generateJti();
+  const exp = now + expiresIn;
+
+  // 署名は正しいが、audienceが別のサービス
+  const token = await new SignJWT({
+    iss: issuer,
+    sub: userId,
+    aud: 'https://other-service.example.com', // 不正なaudience
+    client_id: CLIENT_ID,
+    scope,
+    iat: now,
+    exp,
+    jti,
+  })
+    .setProtectedHeader({ alg: 'RS256', typ: 'at+jwt', kid })
+    .sign(privateKey);
+
+  return { token, jti, exp };
+}
+
+/**
+ * Create a Wrong Client token (valid signature but unknown client_id)
+ */
+async function createWrongClientToken(privateKey, kid, options) {
+  const { userId, scope, expiresIn, issuer } = options;
+  const now = Math.floor(Date.now() / 1000);
+  const jti = generateJti();
+  const exp = now + expiresIn;
+
+  // 署名は正しいが、client_idが別のクライアント（存在しない）
+  const token = await new SignJWT({
+    iss: issuer,
+    sub: userId,
+    aud: issuer,
+    client_id: 'non-existent-client-id', // 不正なclient_id
     scope,
     iat: now,
     exp,
@@ -165,14 +308,30 @@ async function revokeAccessToken(token) {
  */
 function determineTokenType(index, totalCount) {
   const validCount = Math.floor(totalCount * TOKEN_MIX.valid);
+  const validExchangedCount = Math.floor(totalCount * TOKEN_MIX.valid_exchanged);
   const expiredCount = Math.floor(totalCount * TOKEN_MIX.expired);
-  const invalidCount = Math.floor(totalCount * TOKEN_MIX.invalid);
-  // Remaining goes to revoked
+  const revokedCount = Math.floor(totalCount * TOKEN_MIX.revoked);
+  const wrongAudienceCount = Math.floor(totalCount * TOKEN_MIX.wrong_audience);
+  // Remaining goes to wrong_client
 
-  if (index < validCount) return 'valid';
-  if (index < validCount + expiredCount) return 'expired';
-  if (index < validCount + expiredCount + invalidCount) return 'invalid';
-  return 'revoked';
+  let cumulative = 0;
+
+  cumulative += validCount;
+  if (index < cumulative) return 'valid';
+
+  cumulative += validExchangedCount;
+  if (index < cumulative) return 'valid_exchanged';
+
+  cumulative += expiredCount;
+  if (index < cumulative) return 'expired';
+
+  cumulative += revokedCount;
+  if (index < cumulative) return 'revoked';
+
+  cumulative += wrongAudienceCount;
+  if (index < cumulative) return 'wrong_audience';
+
+  return 'wrong_client';
 }
 
 /**
@@ -211,37 +370,109 @@ function getUserId(index) {
  */
 async function generateSingleToken(privateKey, kid, issuer, scope, index, tokenType) {
   const userId = getUserId(index);
+  const baseOptions = { userId, scope, issuer };
 
-  if (tokenType === 'invalid') {
-    return {
-      access_token: createInvalidToken(),
-      type: 'invalid',
-      user_id: userId,
-      jti: null,
-      exp: null,
-    };
+  switch (tokenType) {
+    case 'valid': {
+      const { token, jti, exp } = await createAccessToken(privateKey, kid, {
+        ...baseOptions,
+        expiresIn: 30 * 24 * 3600, // 30 days
+      });
+      return {
+        access_token: token,
+        type: 'valid',
+        user_id: userId,
+        jti,
+        exp,
+      };
+    }
+
+    case 'valid_exchanged': {
+      const { token, jti, exp, actorClientId, resource } = await createExchangedToken(
+        privateKey,
+        kid,
+        {
+          ...baseOptions,
+          expiresIn: 30 * 24 * 3600, // 30 days
+        }
+      );
+      return {
+        access_token: token,
+        type: 'valid_exchanged',
+        user_id: userId,
+        jti,
+        exp,
+        actor_client_id: actorClientId,
+        resource,
+      };
+    }
+
+    case 'expired': {
+      const { token, jti, exp } = await createAccessToken(privateKey, kid, {
+        ...baseOptions,
+        expiresIn: -3600, // 1 hour ago (expired)
+      });
+      return {
+        access_token: token,
+        type: 'expired',
+        user_id: userId,
+        jti,
+        exp,
+      };
+    }
+
+    case 'revoked': {
+      const { token, jti, exp } = await createAccessToken(privateKey, kid, {
+        ...baseOptions,
+        expiresIn: 30 * 24 * 3600, // 30 days
+      });
+      return {
+        access_token: token,
+        type: 'revoked',
+        user_id: userId,
+        jti,
+        exp,
+      };
+    }
+
+    case 'wrong_audience': {
+      const { token, jti, exp } = await createWrongAudienceToken(privateKey, kid, {
+        ...baseOptions,
+        expiresIn: 30 * 24 * 3600, // 30 days
+      });
+      return {
+        access_token: token,
+        type: 'wrong_audience',
+        user_id: userId,
+        jti,
+        exp,
+      };
+    }
+
+    case 'wrong_client': {
+      const { token, jti, exp } = await createWrongClientToken(privateKey, kid, {
+        ...baseOptions,
+        expiresIn: 30 * 24 * 3600, // 30 days
+      });
+      return {
+        access_token: token,
+        type: 'wrong_client',
+        user_id: userId,
+        jti,
+        exp,
+      };
+    }
+
+    default:
+      // Fallback: create invalid token
+      return {
+        access_token: createInvalidToken(),
+        type: 'invalid',
+        user_id: userId,
+        jti: null,
+        exp: null,
+      };
   }
-
-  // For valid, expired, and revoked: create real signed token
-  const expiresIn =
-    tokenType === 'expired'
-      ? -3600 // 1 hour ago (expired)
-      : 30 * 24 * 3600; // 30 days (valid/revoked)
-
-  const { token, jti, exp } = await createAccessToken(privateKey, kid, {
-    userId,
-    scope,
-    expiresIn,
-    issuer,
-  });
-
-  return {
-    access_token: token,
-    type: tokenType,
-    user_id: userId,
-    jti,
-    exp,
-  };
 }
 
 /**
@@ -264,20 +495,29 @@ async function generateBatch(privateKey, kid, issuer, scope, batchSize, startInd
 }
 
 /**
- * Revoke tokens that should be revoked (in parallel)
+ * Sleep helper
  */
-async function revokeTokensBatch(tokens, concurrency) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Revoke tokens that should be revoked (with rate limit handling)
+ */
+async function revokeTokensBatch(tokens) {
   const revokedTokens = tokens.filter((t) => t.type === 'revoked' && t.access_token);
   if (revokedTokens.length === 0) return 0;
 
-  console.log(`\n🔐 Revoking ${revokedTokens.length} tokens...`);
+  console.log(
+    `\n🔐 Revoking ${revokedTokens.length} tokens (concurrency: ${REVOKE_CONCURRENCY}, delay: ${REVOKE_DELAY_MS}ms)...`
+  );
 
   let revokedCount = 0;
-  const totalBatches = Math.ceil(revokedTokens.length / concurrency);
+  const totalBatches = Math.ceil(revokedTokens.length / REVOKE_CONCURRENCY);
 
   for (let batch = 0; batch < totalBatches; batch++) {
-    const start = batch * concurrency;
-    const end = Math.min(start + concurrency, revokedTokens.length);
+    const start = batch * REVOKE_CONCURRENCY;
+    const end = Math.min(start + REVOKE_CONCURRENCY, revokedTokens.length);
     const batchTokens = revokedTokens.slice(start, end);
 
     const promises = batchTokens.map((t) =>
@@ -294,8 +534,13 @@ async function revokeTokensBatch(tokens, concurrency) {
 
     await Promise.all(promises);
 
-    if ((batch + 1) % 5 === 0 || batch === totalBatches - 1) {
+    if ((batch + 1) % 10 === 0 || batch === totalBatches - 1) {
       console.log(`   [${revokedCount}/${revokedTokens.length}] revoked`);
+    }
+
+    // Add delay between batches to avoid rate limiting
+    if (batch < totalBatches - 1) {
+      await sleep(REVOKE_DELAY_MS);
     }
   }
 
@@ -303,7 +548,7 @@ async function revokeTokensBatch(tokens, concurrency) {
 }
 
 async function main() {
-  console.log(`🚀 Access Token Seed Generator`);
+  console.log(`🚀 Token Introspection Control Plane Test - Seed Generator`);
   console.log(`   BASE_URL       : ${BASE_URL}`);
   console.log(`   CLIENT_ID      : ${CLIENT_ID}`);
   if (testUsers) {
@@ -315,17 +560,13 @@ async function main() {
   console.log(`   CONCURRENCY    : ${CONCURRENCY}`);
   console.log(`   OUTPUT_DIR     : ${OUTPUT_DIR}`);
   console.log('');
-  console.log(`📊 Token Distribution:`);
-  console.log(`   Valid:   ${Math.floor(TOKEN_COUNT * TOKEN_MIX.valid)} (${TOKEN_MIX.valid * 100}%)`);
-  console.log(
-    `   Expired: ${Math.floor(TOKEN_COUNT * TOKEN_MIX.expired)} (${TOKEN_MIX.expired * 100}%)`
-  );
-  console.log(
-    `   Invalid: ${Math.floor(TOKEN_COUNT * TOKEN_MIX.invalid)} (${TOKEN_MIX.invalid * 100}%)`
-  );
-  console.log(
-    `   Revoked: ${TOKEN_COUNT - Math.floor(TOKEN_COUNT * (TOKEN_MIX.valid + TOKEN_MIX.expired + TOKEN_MIX.invalid))} (${TOKEN_MIX.revoked * 100}%)`
-  );
+  console.log(`📊 Token Distribution (RFC 7662 + Keycloak/Auth0 benchmark):`);
+  console.log(`   Valid (標準):     ${Math.floor(TOKEN_COUNT * TOKEN_MIX.valid)} (${TOKEN_MIX.valid * 100}%)`);
+  console.log(`   Valid (TE/act):   ${Math.floor(TOKEN_COUNT * TOKEN_MIX.valid_exchanged)} (${TOKEN_MIX.valid_exchanged * 100}%)`);
+  console.log(`   Expired:          ${Math.floor(TOKEN_COUNT * TOKEN_MIX.expired)} (${TOKEN_MIX.expired * 100}%)`);
+  console.log(`   Revoked:          ${Math.floor(TOKEN_COUNT * TOKEN_MIX.revoked)} (${TOKEN_MIX.revoked * 100}%)`);
+  console.log(`   Wrong audience:   ${Math.floor(TOKEN_COUNT * TOKEN_MIX.wrong_audience)} (${TOKEN_MIX.wrong_audience * 100}%)`);
+  console.log(`   Wrong client:     ${Math.floor(TOKEN_COUNT * TOKEN_MIX.wrong_client)} (${TOKEN_MIX.wrong_client * 100}%)`);
   console.log('');
 
   // Step 1: Fetch signing key
@@ -381,7 +622,7 @@ async function main() {
   }
 
   // Step 2: Revoke tokens marked as 'revoked'
-  const revokedCount = await revokeTokensBatch(tokens, CONCURRENCY);
+  const revokedCount = await revokeTokensBatch(tokens);
 
   const totalTime = (Date.now() - startTime) / 1000;
 
@@ -392,21 +633,27 @@ async function main() {
   // Count by type
   const typeCounts = {
     valid: tokens.filter((t) => t.type === 'valid').length,
+    valid_exchanged: tokens.filter((t) => t.type === 'valid_exchanged').length,
     expired: tokens.filter((t) => t.type === 'expired').length,
-    invalid: tokens.filter((t) => t.type === 'invalid').length,
     revoked: tokens.filter((t) => t.type === 'revoked').length,
+    wrong_audience: tokens.filter((t) => t.type === 'wrong_audience').length,
+    wrong_client: tokens.filter((t) => t.type === 'wrong_client').length,
   };
 
   // Build output
   const output = {
     tokens,
     metadata: {
+      version: 2,
+      test_name: 'Token Introspection Control Plane Test',
       generated_at: new Date().toISOString(),
       base_url: BASE_URL,
       client_id: CLIENT_ID,
       scope,
       counts: typeCounts,
       total: tokens.length,
+      token_mix: TOKEN_MIX,
+      note: 'Run test with strictValidation=true for wrong_audience/wrong_client checks',
     },
   };
 
@@ -417,13 +664,22 @@ async function main() {
 
   console.log('');
   console.log(`✅ Generated ${tokens.length} access tokens in ${totalTime.toFixed(2)}s`);
-  console.log(`   Valid:   ${typeCounts.valid}`);
-  console.log(`   Expired: ${typeCounts.expired}`);
-  console.log(`   Invalid: ${typeCounts.invalid}`);
-  console.log(`   Revoked: ${typeCounts.revoked} (${revokedCount} actually revoked via API)`);
-  console.log(`   Rate: ${(tokens.length / totalTime).toFixed(1)} tokens/sec`);
-  console.log(`   Errors: ${errorCount}`);
+  console.log(`   Valid (標準):     ${typeCounts.valid}`);
+  console.log(`   Valid (TE/act):   ${typeCounts.valid_exchanged}`);
+  console.log(`   Expired:          ${typeCounts.expired}`);
+  console.log(`   Revoked:          ${typeCounts.revoked} (${revokedCount} actually revoked via API)`);
+  console.log(`   Wrong audience:   ${typeCounts.wrong_audience}`);
+  console.log(`   Wrong client:     ${typeCounts.wrong_client}`);
+  console.log(`   Rate:             ${(tokens.length / totalTime).toFixed(1)} tokens/sec`);
+  console.log(`   Errors:           ${errorCount}`);
   console.log(`📁 Saved to: ${outputPath}`);
+  console.log('');
+  console.log('⚠️  Remember to enable strictValidation before running the benchmark:');
+  console.log(`   curl -X PUT ${BASE_URL}/api/admin/settings/introspection-validation \\`);
+  console.log(`     -H "Authorization: Bearer \\$ADMIN_API_SECRET" \\`);
+  console.log(`     -H "Content-Type: application/json" \\`);
+  console.log(`     -d '{"strictValidation": true}'`);
+  console.log('');
   console.log('🎉 done');
 }
 

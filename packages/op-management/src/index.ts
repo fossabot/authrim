@@ -6,6 +6,7 @@ import type { Env } from '@authrim/shared';
 import {
   rateLimitMiddleware,
   RateLimitProfiles,
+  getRateLimitProfileAsync,
   initialAccessTokenMiddleware,
   adminAuthMiddleware,
   versionCheckMiddleware,
@@ -78,6 +79,11 @@ import {
 } from './admin-rbac';
 import { getCodeShards, updateCodeShards } from './routes/settings/code-shards';
 import {
+  getRevocationShards,
+  updateRevocationShards,
+  resetRevocationShards,
+} from './routes/settings/revocation-shards';
+import {
   getRefreshTokenShardingConfig,
   updateRefreshTokenShardingConfig,
   getRefreshTokenShardingStats,
@@ -95,12 +101,20 @@ import {
   getRateLimitProfile,
   updateRateLimitProfile,
   resetRateLimitProfile,
+  getProfileOverride,
+  setProfileOverride,
+  clearProfileOverride,
 } from './routes/settings/rate-limit';
 import {
   getTokenExchangeConfig,
   updateTokenExchangeConfig,
   clearTokenExchangeConfig,
 } from './routes/settings/token-exchange';
+import {
+  getIntrospectionValidationConfig,
+  updateIntrospectionValidationConfig,
+  clearIntrospectionValidationConfig,
+} from './routes/settings/introspection-validation';
 
 // Create Hono app with Cloudflare Workers types
 const app = new Hono<{ Bindings: Env }>();
@@ -182,34 +196,40 @@ app.use('*', async (c, next) => {
   })(c, next);
 });
 
-// Rate limiting and Initial Access Token for registration endpoint
-app.use(
-  '/register',
-  rateLimitMiddleware({
-    ...RateLimitProfiles.strict,
+// Rate limiting for registration endpoint
+// Configurable via KV (rate_limit_{profile}_max_requests, rate_limit_{profile}_window_seconds)
+app.use('/register', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'strict');
+  return rateLimitMiddleware({
+    ...profile,
     endpoints: ['/register'],
-  })
-);
+  })(c, next);
+});
 
 // Initial Access Token validation for Dynamic Client Registration (RFC 7591)
 // Can be disabled by setting OPEN_REGISTRATION=true in environment variables
 app.use('/register', initialAccessTokenMiddleware());
 
-app.use(
-  '/introspect',
-  rateLimitMiddleware({
-    ...RateLimitProfiles.strict,
+// Rate limiting for introspect endpoint
+// Configurable via KV (rate_limit_{profile}_max_requests, rate_limit_{profile}_window_seconds)
+app.use('/introspect', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'strict');
+  return rateLimitMiddleware({
+    ...profile,
     endpoints: ['/introspect'],
-  })
-);
+  })(c, next);
+});
 
-app.use(
-  '/revoke',
-  rateLimitMiddleware({
-    ...RateLimitProfiles.strict,
+// Rate limiting for revoke endpoint
+// Configurable via KV (rate_limit_{profile}_max_requests, rate_limit_{profile}_window_seconds)
+// or RATE_LIMIT_PROFILE env var for profile selection
+app.use('/revoke', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'strict');
+  return rateLimitMiddleware({
+    ...profile,
     endpoints: ['/revoke'],
-  })
-);
+  })(c, next);
+});
 
 // Health check endpoint
 app.get('/api/health', (c) => {
@@ -275,6 +295,11 @@ app.put('/api/admin/settings/profile/:profileName', adminApplyCertificationProfi
 app.get('/api/admin/settings/code-shards', getCodeShards);
 app.put('/api/admin/settings/code-shards', updateCodeShards);
 
+// Admin Token Revocation Shards Configuration endpoints
+app.get('/api/admin/settings/revocation-shards', getRevocationShards);
+app.put('/api/admin/settings/revocation-shards', updateRevocationShards);
+app.delete('/api/admin/settings/revocation-shards', resetRevocationShards);
+
 // Admin OAuth/OIDC Configuration endpoints
 app.get('/api/admin/settings/oauth-config', getOAuthConfig);
 app.put('/api/admin/settings/oauth-config/:name', updateOAuthConfig);
@@ -283,6 +308,9 @@ app.delete('/api/admin/settings/oauth-config', clearAllOAuthConfig);
 
 // Admin Rate Limit Configuration endpoints
 app.get('/api/admin/settings/rate-limit', getRateLimitSettings);
+app.get('/api/admin/settings/rate-limit/profile-override', getProfileOverride);
+app.put('/api/admin/settings/rate-limit/profile-override', setProfileOverride);
+app.delete('/api/admin/settings/rate-limit/profile-override', clearProfileOverride);
 app.get('/api/admin/settings/rate-limit/:profile', getRateLimitProfile);
 app.put('/api/admin/settings/rate-limit/:profile', updateRateLimitProfile);
 app.delete('/api/admin/settings/rate-limit/:profile', resetRateLimitProfile);
@@ -291,6 +319,12 @@ app.delete('/api/admin/settings/rate-limit/:profile', resetRateLimitProfile);
 app.get('/api/admin/settings/token-exchange', getTokenExchangeConfig);
 app.put('/api/admin/settings/token-exchange', updateTokenExchangeConfig);
 app.delete('/api/admin/settings/token-exchange', clearTokenExchangeConfig);
+
+// Admin Introspection Validation Configuration endpoints
+// RFC 7662 strict validation mode (aud/client_id checks)
+app.get('/api/admin/settings/introspection-validation', getIntrospectionValidationConfig);
+app.put('/api/admin/settings/introspection-validation', updateIntrospectionValidationConfig);
+app.delete('/api/admin/settings/introspection-validation', clearIntrospectionValidationConfig);
 
 // Admin Refresh Token Sharding Configuration endpoints
 app.get('/api/admin/settings/refresh-token-sharding', getRefreshTokenShardingConfig);

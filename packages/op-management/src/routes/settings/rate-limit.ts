@@ -1,6 +1,10 @@
 import type { Context } from 'hono';
 import type { Env } from '@authrim/shared';
-import { RateLimitProfiles, clearRateLimitConfigCache } from '@authrim/shared';
+import {
+  RateLimitProfiles,
+  clearRateLimitConfigCache,
+  getProfileOverrideKVKey,
+} from '@authrim/shared';
 
 /**
  * Rate Limit Settings API
@@ -311,5 +315,123 @@ export async function resetRateLimitProfile(c: Context<{ Bindings: Env }>) {
       windowSeconds: defaultConfig.windowSeconds,
     },
     note: 'Profile reset to default values. Changes will take effect within 10 seconds.',
+  });
+}
+
+/**
+ * GET /api/admin/settings/rate-limit/profile-override
+ * Get current global profile override setting
+ */
+export async function getProfileOverride(c: Context<{ Bindings: Env }>) {
+  const kvKey = getProfileOverrideKVKey();
+  let currentOverride: string | null = null;
+
+  if (c.env.AUTHRIM_CONFIG) {
+    try {
+      currentOverride = await c.env.AUTHRIM_CONFIG.get(kvKey);
+    } catch {
+      // KV read error
+    }
+  }
+
+  return c.json({
+    profile_override: currentOverride,
+    kv_key: kvKey,
+    valid_profiles: VALID_PROFILES,
+    note: currentOverride
+      ? `All endpoints currently using "${currentOverride}" profile instead of their defaults`
+      : 'No profile override set. Endpoints use their default profiles.',
+  });
+}
+
+/**
+ * PUT /api/admin/settings/rate-limit/profile-override
+ * Set global profile override (switches ALL endpoints to specified profile)
+ *
+ * This is useful for load testing - set to "loadTest" to bypass strict rate limits
+ */
+export async function setProfileOverride(c: Context<{ Bindings: Env }>) {
+  if (!c.env.AUTHRIM_CONFIG) {
+    return c.json(
+      {
+        error: 'kv_not_configured',
+        error_description: 'AUTHRIM_CONFIG KV namespace is not configured',
+      },
+      500
+    );
+  }
+
+  const body = await c.req.json<{ profile: string }>();
+  const { profile } = body;
+
+  if (!profile) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'profile is required',
+      },
+      400
+    );
+  }
+
+  if (!VALID_PROFILES.includes(profile as ProfileName)) {
+    return c.json(
+      {
+        error: 'invalid_profile',
+        error_description: `Invalid profile name. Valid profiles: ${VALID_PROFILES.join(', ')}`,
+      },
+      400
+    );
+  }
+
+  const kvKey = getProfileOverrideKVKey();
+  await c.env.AUTHRIM_CONFIG.put(kvKey, profile);
+
+  // Clear cache to apply immediately
+  clearRateLimitConfigCache();
+
+  const profileConfig = RateLimitProfiles[profile as ProfileName];
+
+  return c.json({
+    success: true,
+    profile_override: profile,
+    effective_config: {
+      maxRequests: profileConfig.maxRequests,
+      windowSeconds: profileConfig.windowSeconds,
+    },
+    kv_key: kvKey,
+    note: `All rate-limited endpoints now using "${profile}" profile. Changes take effect within 10 seconds.`,
+    warning:
+      profile === 'loadTest'
+        ? 'Load test profile is active. Remember to clear override after testing!'
+        : undefined,
+  });
+}
+
+/**
+ * DELETE /api/admin/settings/rate-limit/profile-override
+ * Clear global profile override (endpoints return to their default profiles)
+ */
+export async function clearProfileOverride(c: Context<{ Bindings: Env }>) {
+  if (!c.env.AUTHRIM_CONFIG) {
+    return c.json(
+      {
+        error: 'kv_not_configured',
+        error_description: 'AUTHRIM_CONFIG KV namespace is not configured',
+      },
+      500
+    );
+  }
+
+  const kvKey = getProfileOverrideKVKey();
+  await c.env.AUTHRIM_CONFIG.delete(kvKey);
+
+  // Clear cache
+  clearRateLimitConfigCache();
+
+  return c.json({
+    success: true,
+    profile_override: null,
+    note: 'Profile override cleared. Endpoints now use their default profiles.',
   });
 }

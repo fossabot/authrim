@@ -207,6 +207,16 @@ CREATE TABLE oauth_clients (
   subject_type TEXT DEFAULT 'public',
   sector_identifier_uri TEXT,
   token_endpoint_auth_method TEXT DEFAULT 'client_secret_basic',
+  -- RFC 8693: Token Exchange settings
+  token_exchange_allowed INTEGER DEFAULT 0,
+  allowed_subject_token_clients TEXT,  -- JSON array of client IDs
+  allowed_token_exchange_resources TEXT,  -- JSON array of resource URIs
+  delegation_mode TEXT DEFAULT 'delegation',  -- 'none' | 'delegation' | 'impersonation'
+  -- RFC 6749 Section 4.4: Client Credentials settings
+  client_credentials_allowed INTEGER DEFAULT 0,
+  allowed_scopes TEXT,  -- JSON array of allowed scopes
+  default_scope TEXT,  -- Default scope for Client Credentials
+  default_audience TEXT,  -- Default audience for Client Credentials
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );

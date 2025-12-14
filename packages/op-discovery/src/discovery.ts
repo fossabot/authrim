@@ -41,8 +41,18 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
   // request_uri is always supported (PAR), but HTTPS variant depends on config
   const requestUriSupported = true; // PAR always supported
 
-  // Check if cached metadata is still valid
-  const currentHash = `${issuer}:${currentSettingsJson}`;
+  // RFC 8693 Token Exchange feature flag
+  // Check SETTINGS KV first, then fall back to environment variable
+  const tokenExchangeEnabled =
+    oidcConfig.tokenExchange?.enabled ?? c.env.ENABLE_TOKEN_EXCHANGE === 'true';
+
+  // RFC 6749 Section 4.4 Client Credentials feature flag
+  // Check SETTINGS KV first, then fall back to environment variable
+  const clientCredentialsEnabled =
+    oidcConfig.clientCredentials?.enabled ?? c.env.ENABLE_CLIENT_CREDENTIALS === 'true';
+
+  // Check if cached metadata is still valid (include feature flags in cache key)
+  const currentHash = `${issuer}:${currentSettingsJson}:te=${tokenExchangeEnabled}:cc=${clientCredentialsEnabled}`;
   if (cachedMetadata && cachedSettingsHash === currentHash) {
     // Cache hit - return cached metadata
     c.header('Cache-Control', 'public, max-age=300');
@@ -92,6 +102,9 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
       'urn:ietf:params:oauth:grant-type:jwt-bearer', // RFC 7523: JWT Bearer Flow
       'urn:ietf:params:oauth:grant-type:device_code', // RFC 8628: Device Authorization Grant
       'urn:openid:params:grant-type:ciba', // OIDC CIBA: Client Initiated Backchannel Authentication
+      // Conditionally include optional grant types based on feature flags
+      ...(tokenExchangeEnabled ? ['urn:ietf:params:oauth:grant-type:token-exchange'] : []), // RFC 8693: Token Exchange
+      ...(clientCredentialsEnabled ? ['client_credentials'] : []), // RFC 6749 Section 4.4: Client Credentials
     ],
     id_token_signing_alg_values_supported: ['RS256'],
     // OIDC Core 8: Both public and pairwise subject identifiers are supported

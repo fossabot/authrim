@@ -100,7 +100,7 @@ export function buildKVKeyForTenant(tenantId: string, prefix: string, key: strin
  * Default shard count for authorization code sharding.
  * Can be overridden via AUTHRIM_CODE_SHARDS environment variable.
  */
-export const DEFAULT_CODE_SHARD_COUNT = 64;
+export const DEFAULT_CODE_SHARD_COUNT = 4;
 
 /**
  * FNV-1a 32-bit hash function.
@@ -219,7 +219,7 @@ export function remapShardIndex(parsedShardIndex: number, currentShardCount: num
  * Priority:
  * 1. KV (AUTHRIM_CONFIG namespace, key: "code_shards")
  * 2. Environment variable (AUTHRIM_CODE_SHARDS)
- * 3. Default (DEFAULT_CODE_SHARD_COUNT = 64)
+ * 3. Default (DEFAULT_CODE_SHARD_COUNT = 4)
  *
  * @param env - Environment object with KV and variables
  * @returns Current shard count
@@ -290,7 +290,7 @@ export async function getShardCount(env: Env): Promise<number> {
  * Default shard count for session store sharding.
  * Can be overridden via AUTHRIM_SESSION_SHARDS environment variable.
  */
-export const DEFAULT_SESSION_SHARD_COUNT = 32;
+export const DEFAULT_SESSION_SHARD_COUNT = 4;
 
 /**
  * Cached session shard count to avoid repeated KV lookups.
@@ -304,7 +304,7 @@ let cachedSessionShardAt = 0;
  * Priority:
  * 1. KV (AUTHRIM_CONFIG namespace, key: "session_shards")
  * 2. Environment variable (AUTHRIM_SESSION_SHARDS)
- * 3. Default (DEFAULT_SESSION_SHARD_COUNT = 32)
+ * 3. Default (DEFAULT_SESSION_SHARD_COUNT = 4)
  *
  * @param env - Environment object with KV and variables
  * @returns Current session shard count

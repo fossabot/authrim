@@ -5,6 +5,7 @@ import { validateClientId, timingSafeEqual } from '@authrim/shared';
 import { getRefreshToken, isTokenRevoked } from '@authrim/shared';
 import { parseToken, verifyToken } from '@authrim/shared';
 import { importJWK, type CryptoKey } from 'jose';
+import { getIntrospectionValidationSettings } from './routes/settings/introspection-validation';
 
 /**
  * Token Introspection Endpoint Handler
@@ -194,6 +195,37 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
       active: false,
     });
   }
+
+  // ========== Strict Validation Mode (KV-controlled) ==========
+  // RFC 7662 does not require aud/client_id validation, but strictValidation
+  // enables additional security checks for Token Introspection Control Plane Test
+  const { settings: validationSettings } = await getIntrospectionValidationSettings(c.env);
+
+  if (validationSettings.strictValidation) {
+    // 1. Audience validation
+    const expectedAudience = validationSettings.expectedAudience || c.env.ISSUER_URL || '';
+    if (expectedAudience && aud !== expectedAudience) {
+      // Token audience does not match expected audience
+      return c.json<IntrospectionResponse>({
+        active: false,
+      });
+    }
+
+    // 2. Client ID existence validation
+    if (tokenClientId) {
+      const clientExists = await c.env.DB.prepare('SELECT 1 FROM oauth_clients WHERE client_id = ?')
+        .bind(tokenClientId)
+        .first();
+
+      if (!clientExists) {
+        // Client ID in token does not exist in database
+        return c.json<IntrospectionResponse>({
+          active: false,
+        });
+      }
+    }
+  }
+  // ========== Strict Validation Mode END ==========
 
   // Check if token is expired
   const now = Math.floor(Date.now() / 1000);

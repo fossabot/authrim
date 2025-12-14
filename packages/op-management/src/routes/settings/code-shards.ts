@@ -7,7 +7,7 @@ import type { Context } from 'hono';
 export async function getCodeShards(c: Context) {
   const kvValue = await c.env.AUTHRIM_CONFIG?.get('code_shards');
   const envValue = c.env.AUTHRIM_CODE_SHARDS;
-  const current = kvValue || envValue || '64';
+  const current = kvValue || envValue || '4';
 
   return c.json({
     current: parseInt(current, 10),

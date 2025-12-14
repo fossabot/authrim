@@ -253,10 +253,11 @@ async function findUserByEmail(
   email: string,
   tenantId: string
 ): Promise<ExistingUser | null> {
+  // Use tenant_id first to leverage idx_users_tenant_email composite index
   const result = await env.DB.prepare(
-    `SELECT id, email, email_verified FROM users WHERE email = ? AND tenant_id = ?`
+    `SELECT id, email, email_verified FROM users WHERE tenant_id = ? AND email = ?`
   )
-    .bind(email, tenantId)
+    .bind(tenantId, email)
     .first<{ id: string; email: string; email_verified: number }>();
 
   if (!result) return null;

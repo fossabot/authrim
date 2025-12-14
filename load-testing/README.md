@@ -270,21 +270,184 @@ results/reports/
 
 ---
 
+## Passkey Full Login Benchmark
+
+Measures the full Passkey authentication flow including WebAuthn signature verification.
+
+### Why Custom k6 Binary?
+
+Standard k6 doesn't support ECDSA P-256 signature generation required for WebAuthn authentication.
+This test uses the [xk6-passkeys](https://github.com/corbado/xk6-passkeys) extension to generate
+valid WebAuthn assertion responses.
+
+### Prerequisites
+
+- **Go 1.23+** (required for building custom k6)
+- Standard k6 test environment (same as other tests)
+
+### Building Custom k6 Binary
+
+```bash
+cd load-testing
+
+# Build k6 with passkeys extension
+./scripts/build-k6-passkeys.sh
+
+# Verify build
+./bin/k6-passkeys version
+```
+
+### Running Passkey Benchmark
+
+```bash
+# Run with default preset (rps30)
+./bin/k6-passkeys run \
+  --env BASE_URL=https://conformance.authrim.com \
+  --env ADMIN_API_SECRET=xxx \
+  --env CLIENT_ID=xxx \
+  --env CLIENT_SECRET=xxx \
+  scripts/test-passkey-full-login-benchmark.js
+
+# Run with specific preset
+./bin/k6-passkeys run \
+  --env PRESET=rps50 \
+  --env BASE_URL=https://conformance.authrim.com \
+  --env ADMIN_API_SECRET=xxx \
+  --env CLIENT_ID=xxx \
+  --env CLIENT_SECRET=xxx \
+  scripts/test-passkey-full-login-benchmark.js
+```
+
+### Available Presets
+
+| Preset   | RPS     | Duration | Users | Description        |
+| -------- | ------- | -------- | ----- | ------------------ |
+| `rps10`  | 10 RPS  | 30s      | 50    | Smoke test         |
+| `rps30`  | 30 RPS  | 2 min    | 100   | Standard benchmark |
+| `rps50`  | 50 RPS  | 3 min    | 150   | High throughput    |
+| `rps100` | 100 RPS | 3 min    | 200   | Stress test        |
+| `rps200` | 200 RPS | 3 min    | 300   | Maximum capacity   |
+
+### Test Flow
+
+```
+setup() [Not included in benchmark metrics]:
+  1. Create users via Admin API
+  2. Generate passkey credentials (ECDSA P-256)
+  3. Register passkeys with server
+
+default() [Benchmark target - metrics collected]:
+  1. GET /authorize (init)
+  2. POST /api/auth/passkey/login/options (get challenge)
+  3. Generate WebAuthn assertion (with valid signature)
+  4. POST /api/auth/passkey/login/verify (authenticate)
+  5. GET /authorize (get authorization code)
+  6. POST /token (exchange code for tokens)
+```
+
+### Key Metrics
+
+| Metric                   | Description                          |
+| ------------------------ | ------------------------------------ |
+| `passkey_verify_latency` | Passkey authentication response time |
+| `authorize_code_latency` | Authorization code generation time   |
+| `token_latency`          | Token endpoint response time         |
+| `full_flow_latency`      | Complete login flow time             |
+| `flow_success`           | Overall success rate                 |
+
+### Important Notes
+
+- **Custom binary required**: Standard `k6` command will fail with import error
+- **Setup time**: User registration in setup() may take several seconds/minutes
+- **Admin API required**: ADMIN_API_SECRET is required for user creation
+
+### VM Execution (for Fair Comparison with Mail OTP)
+
+k6 Cloud doesn't support custom extensions. To compare Passkey with Mail OTP benchmarks,
+run from a US region VM (same region as k6 Cloud's Portland load zone).
+
+#### VM Setup
+
+```bash
+# On US VM (AWS us-west-2, GCP us-west1, etc.)
+
+# 1. Install Go 1.23+
+wget https://go.dev/dl/go1.23.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
+
+# 2. Clone and build
+git clone https://github.com/your-org/authrim.git
+cd authrim/load-testing
+./scripts/build-k6-passkeys.sh
+
+# 3. Set environment variables
+export BASE_URL=https://conformance.authrim.com
+export ADMIN_API_SECRET=xxx
+export CLIENT_ID=xxx
+export CLIENT_SECRET=xxx
+```
+
+#### Running from VM
+
+```bash
+# Step 1: Seed users (once per test session)
+./scripts/run-passkey-benchmark-vm.sh seed
+
+# Step 2: Run benchmark
+./scripts/run-passkey-benchmark-vm.sh benchmark rps50
+
+# Or run both
+./scripts/run-passkey-benchmark-vm.sh all rps125
+```
+
+#### Manual Execution
+
+```bash
+# Seed mode - creates users and exports credentials
+./bin/k6-passkeys run \
+  --env MODE=seed \
+  --env BASE_URL=https://conformance.authrim.com \
+  --env ADMIN_API_SECRET=xxx \
+  --env PASSKEY_USER_COUNT=500 \
+  scripts/test-passkey-full-login-benchmark-vm.js 2>&1 | ./scripts/extract-credentials.sh
+
+# Benchmark mode - uses pre-seeded credentials
+./bin/k6-passkeys run \
+  --env MODE=benchmark \
+  --env BASE_URL=https://conformance.authrim.com \
+  --env CLIENT_ID=xxx \
+  --env CLIENT_SECRET=xxx \
+  --env PRESET=rps125 \
+  scripts/test-passkey-full-login-benchmark-vm.js
+```
+
+---
+
 ## Directory Structure
 
 ```
 load-testing/
 ├── README.md                          # This file
+├── bin/                               # Custom binaries (gitignored)
+│   └── k6-passkeys                    # k6 with xk6-passkeys extension
 ├── docs/                              # Detailed documentation
 │   ├── architecture.md                # Test environment architecture
 │   ├── test-scenarios.md              # Test scenario details
 │   ├── endpoint-requirements.md       # Endpoint-specific requirements (VU state, rotation)
 │   └── metrics-collection.md          # Metrics collection procedures
+├── extensions/                        # Custom k6 extensions
+│   └── xk6-passkeys/                  # Forked xk6-passkeys with Import/Export
 ├── scripts/                           # Test scripts
 │   ├── test1-token-load.js            # TEST 1: /token endpoint
 │   ├── test2-refresh-storm.js         # TEST 2: Refresh Storm
 │   ├── test3-full-oidc.js             # TEST 3: Full OIDC
 │   ├── test4-distributed-load.js      # TEST 4: Distributed multi-client load
+│   ├── test-passkey-full-login-benchmark.js     # Passkey full login (local)
+│   ├── test-passkey-full-login-benchmark-vm.js  # Passkey full login (VM)
+│   ├── build-k6-passkeys.sh           # Build k6 with passkeys extension
+│   ├── run-passkey-benchmark-vm.sh    # Run passkey benchmark from VM
+│   ├── extract-credentials.sh         # Extract credentials from seed output
 │   ├── run-test.sh                    # Test execution helper
 │   ├── collect-metrics.sh             # Metrics collection script
 │   ├── generate-seeds.js              # Seed data generation script

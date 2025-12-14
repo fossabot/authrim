@@ -12,14 +12,14 @@
  * - 出力された otp_user_list.txt を R2/S3 等にアップロード
  * - USER_LIST_URL で取得可能にする
  *
- * テストフロー（5ステップ）:
- * 1. GET /authorize - 認可リクエスト開始（軽負荷）
- * 2. POST /api/admin/test/email-codes - OTPコード生成（ChallengeStore DO write）
- * 3. POST /api/auth/email-code/verify - OTP検証 + セッション発行（SessionStore DO write）
- * 4. GET /authorize (Cookie付き) - 認可コード生成（AuthCodeStore DO write）
- * 5. POST /token - トークン発行（RefreshTokenRotator write, JWT署名）
+ * テストフロー（6ステップ）:
+ * 1. GET /authorize - 認可リクエスト開始（ログインページへ）
+ * 2. POST /api/admin/test/email-codes - OTPコード生成（テスト用、メール送信なし）
+ * 3. POST /api/auth/email-code/verify - OTP検証 + セッション発行（Cookie設定）
+ * 4. GET /authorize (Cookie付き, prompt=none) - 認可コード生成（302リダイレクト）
+ * 5. POST /token - トークン発行（JWT署名）
  *
- * 負荷ポイント（D1書き込みなし - 既存ユーザー使用）:
+ * 負荷ポイント:
  * - ChallengeStore DO write (Step 2)
  * - ChallengeStore consume + SessionStore DO write (Step 3)
  * - AuthCodeStore DO write (Step 4)
@@ -105,6 +105,14 @@ const ORIGIN = BASE_URL.replace(/^http:/, 'https:');
  * - Full Flow p95: < 5000ms
  * - 5xx: < 1%
  */
+/**
+ * プリセット設計 - ramping-arrival-rate executor用
+ *
+ * stages.target = iterations per second (RPS)
+ * preAllocatedVUs/maxVUs = 並行実行に必要なVU数
+ *   計算: maxVUs ≈ targetRPS × 平均レスポンス時間(秒) × 1.5(バッファ)
+ *   フルログインは5ステップで約2-3秒かかるので、100 RPS → 300-450 VUs必要
+ */
 const PRESETS = {
   // 軽量テスト（確認用）
   rps50: {
@@ -138,6 +146,40 @@ const PRESETS = {
     preAllocatedVUs: 300,
     maxVUs: 500,
     userCount: 1000,
+  },
+
+  // ベンチマーク: 125 RPS (2分)
+  rps125: {
+    description: '125 RPS - Cloud intermediate (2 min)',
+    stages: [
+      { target: 62, duration: '15s' },
+      { target: 125, duration: '120s' },
+      { target: 0, duration: '15s' },
+    ],
+    thresholds: {
+      full_flow_latency: ['p(95)<5000'],
+      flow_success: ['rate>0.95'],
+    },
+    preAllocatedVUs: 500,
+    maxVUs: 800,
+    userCount: 1250,
+  },
+
+  // ベンチマーク: 150 RPS (2分)
+  rps150: {
+    description: '150 RPS - Cloud intermediate (2 min)',
+    stages: [
+      { target: 75, duration: '15s' },
+      { target: 150, duration: '120s' },
+      { target: 0, duration: '15s' },
+    ],
+    thresholds: {
+      full_flow_latency: ['p(95)<5000'],
+      flow_success: ['rate>0.95'],
+    },
+    preAllocatedVUs: 600,
+    maxVUs: 1000,
+    userCount: 1500,
   },
 
   // ベンチマーク: 200 RPS (3分)
@@ -548,21 +590,32 @@ export default function (data) {
       sessionErrors.add(1);
       if (step3Response.status >= 500) serverErrors.add(1);
       if (step3Response.status === 429) rateLimitErrors.add(1);
+      if (exec.vu.iterationInInstance < 3) {
+        console.error(`❌ OTP verify failed: ${step3Response.status} - ${step3Response.body}`);
+      }
     } else {
-      try {
-        const verifyData = JSON.parse(step3Response.body);
-        if (verifyData.sessionId) {
-          sessionCookie = verifyData.sessionId;
+      // Get session cookie from Set-Cookie header (k6 parses cookies automatically)
+      if (step3Response.cookies && step3Response.cookies['authrim_session']) {
+        sessionCookie = step3Response.cookies['authrim_session'][0].value;
+      }
+
+      // Fallback: try to get from JSON response body
+      if (!sessionCookie) {
+        try {
+          const verifyData = JSON.parse(step3Response.body);
+          if (verifyData.sessionId) {
+            sessionCookie = verifyData.sessionId;
+          }
+        } catch (e) {
+          // JSONパース失敗
         }
-      } catch (e) {
-        // JSONパース失敗
       }
 
       if (!sessionCookie) {
         success = false;
         sessionErrors.add(1);
         if (exec.vu.iterationInInstance < 3) {
-          console.error(`❌ No session ID returned from verify endpoint`);
+          console.error(`❌ No session cookie returned from verify endpoint`);
         }
       }
     }
@@ -613,6 +666,10 @@ export default function (data) {
       codeErrors.add(1);
       if (step4Response.status >= 500) serverErrors.add(1);
       if (step4Response.status === 429) rateLimitErrors.add(1);
+      if (exec.vu.iterationInInstance < 3) {
+        const location = step4Response.headers['Location'] || step4Response.headers['location'] || '';
+        console.error(`❌ Authorize code failed: status=${step4Response.status}, location=${location}`);
+      }
     }
   }
 
@@ -645,14 +702,23 @@ export default function (data) {
       success = false;
       if (step5Response.status >= 500) serverErrors.add(1);
       if (step5Response.status === 429) rateLimitErrors.add(1);
+      if (exec.vu.iterationInInstance < 3) {
+        console.error(`❌ Token failed: status=${step5Response.status}, body=${step5Response.body}`);
+      }
     } else {
       try {
         const tokenData = JSON.parse(step5Response.body);
         if (!tokenData.access_token) {
           success = false;
+          if (exec.vu.iterationInInstance < 3) {
+            console.error(`❌ Token response missing access_token: ${step5Response.body}`);
+          }
         }
       } catch (e) {
         success = false;
+        if (exec.vu.iterationInInstance < 3) {
+          console.error(`❌ Token response parse error: ${e.message}`);
+        }
       }
     }
   }

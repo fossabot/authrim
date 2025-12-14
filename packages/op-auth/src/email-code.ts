@@ -15,7 +15,11 @@
 import { Context } from 'hono';
 import { setCookie, getCookie } from 'hono/cookie';
 import type { Env, Session } from '@authrim/shared';
-import { getSessionStoreForNewSession, getChallengeStoreByEmail } from '@authrim/shared';
+import {
+  getSessionStoreForNewSession,
+  getChallengeStoreByChallengeId,
+  getTenantIdFromContext,
+} from '@authrim/shared';
 import { ResendEmailProvider } from './utils/email/resend-provider';
 import { getEmailCodeHtml, getEmailCodeText } from './utils/email/templates';
 import {
@@ -84,8 +88,12 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // Check if user exists, if not create a new user
-    let user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE email = ?')
-      .bind(email.toLowerCase())
+    // Use tenant_id + email for idx_users_tenant_email index optimization
+    const tenantId = getTenantIdFromContext(c);
+    let user = await c.env.DB.prepare(
+      'SELECT id, email, name FROM users WHERE tenant_id = ? AND email = ?'
+    )
+      .bind(tenantId, email.toLowerCase())
       .first();
 
     if (!user) {
@@ -98,10 +106,10 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
 
       await c.env.DB.prepare(
         `INSERT INTO users (
-          id, email, name, preferred_username, email_verified, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 0, ?, ?)`
+          id, tenant_id, email, name, preferred_username, email_verified, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
       )
-        .bind(userId, email.toLowerCase(), defaultName, preferredUsername, now, now)
+        .bind(userId, tenantId, email.toLowerCase(), defaultName, preferredUsername, now, now)
         .run();
 
       user = { id: userId, email: email.toLowerCase(), name: name || email.split('@')[0] };
@@ -117,19 +125,12 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
     // Get HMAC secret from environment (or generate one)
     const hmacSecret = c.env.OTP_HMAC_SECRET || c.env.ISSUER_URL;
 
-    // Hash the code for storage
-    const codeHash = await hashEmailCode(
-      code,
-      email.toLowerCase(),
-      otpSessionId,
-      issuedAt,
-      hmacSecret
-    );
-    const emailHash = await hashEmail(email.toLowerCase());
-
-    // Store in ChallengeStore DO with TTL (5 minutes) (RPC)
-    // Use email-based sharding for better scalability
-    const challengeStore = await getChallengeStoreByEmail(c.env, email);
+    // Hash the code and get ChallengeStore in parallel (independent operations)
+    const [codeHash, emailHash, challengeStore] = await Promise.all([
+      hashEmailCode(code, email.toLowerCase(), otpSessionId, issuedAt, hmacSecret),
+      hashEmail(email.toLowerCase()),
+      getChallengeStoreByChallengeId(c.env, otpSessionId),
+    ]);
 
     await challengeStore.storeChallengeRpc({
       id: `email_code:${otpSessionId}`,
@@ -274,8 +275,8 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // Get challenge from ChallengeStore (RPC)
-    // Use email-based sharding - same email always routes to same shard
-    const challengeStore = await getChallengeStoreByEmail(c.env, email);
+    // Use otpSessionId-based sharding - same UUID always routes to same shard
+    const challengeStore = await getChallengeStoreByChallengeId(c.env, otpSessionId);
 
     let challengeData: {
       challenge: string;
@@ -290,48 +291,29 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
     };
 
     try {
-      // Get challenge info first (without consuming) (RPC)
-      const challengeInfo = await challengeStore.getChallengeRpc(`email_code:${otpSessionId}`);
-
-      if (!challengeInfo) {
-        return c.json(
-          {
-            error: 'invalid_code',
-            error_description: 'Invalid or expired code',
-          },
-          400
-        );
-      }
-
-      // Type assertion for challengeInfo (Challenge type from ChallengeStore)
-      const typedChallengeInfo = challengeInfo as { consumed: boolean };
-      if (typedChallengeInfo.consumed) {
-        return c.json(
-          {
-            error: 'invalid_code',
-            error_description: 'Code has already been used',
-          },
-          400
-        );
-      }
-
-      // Now consume the challenge atomically (RPC)
+      // Consume challenge atomically (includes existence, expiry, and consumed checks)
+      // This replaces the previous getChallengeRpc + consumeChallengeRpc pattern
       challengeData = (await challengeStore.consumeChallengeRpc({
         id: `email_code:${otpSessionId}`,
         type: 'email_code',
       })) as typeof challengeData;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      // Map specific errors to appropriate responses
+      if (errorMessage.includes('not found') || errorMessage.includes('expired')) {
+        return c.json({ error: 'invalid_code', error_description: 'Invalid or expired code' }, 400);
+      }
+      if (errorMessage.includes('already consumed')) {
+        return c.json(
+          { error: 'invalid_code', error_description: 'Code has already been used' },
+          400
+        );
+      }
       console.error('Challenge store error:', error);
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to verify code',
-        },
-        500
-      );
+      return c.json({ error: 'server_error', error_description: 'Failed to verify code' }, 500);
     }
 
-    // Verify session binding
+    // Verify session binding and email match
     if (challengeData.metadata?.otp_session_id !== otpSessionId) {
       return c.json(
         {
@@ -341,52 +323,32 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
         400
       );
     }
-
-    // Verify email matches
     if (challengeData.email?.toLowerCase() !== email.toLowerCase()) {
-      return c.json(
-        {
-          error: 'invalid_code',
-          error_description: 'Invalid code',
-        },
-        400
-      );
+      return c.json({ error: 'invalid_code', error_description: 'Invalid code' }, 400);
     }
 
-    // Verify the code hash
+    // Parallel: Verify code hash AND fetch user details (independent operations)
     const hmacSecret = c.env.OTP_HMAC_SECRET || c.env.ISSUER_URL;
-    const isValidCode = await verifyEmailCodeHash(
-      code,
-      email.toLowerCase(),
-      otpSessionId,
-      challengeData.metadata?.issued_at || 0,
-      challengeData.challenge,
-      hmacSecret
-    );
+    const [isValidCode, user] = await Promise.all([
+      verifyEmailCodeHash(
+        code,
+        email.toLowerCase(),
+        otpSessionId,
+        challengeData.metadata?.issued_at || 0,
+        challengeData.challenge,
+        hmacSecret
+      ),
+      c.env.DB.prepare('SELECT id, email, name FROM users WHERE id = ?')
+        .bind(challengeData.userId)
+        .first(),
+    ]);
 
     if (!isValidCode) {
-      return c.json(
-        {
-          error: 'invalid_code',
-          error_description: 'Invalid or expired code',
-        },
-        400
-      );
+      return c.json({ error: 'invalid_code', error_description: 'Invalid or expired code' }, 400);
     }
 
-    // Get user details
-    const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?')
-      .bind(challengeData.userId)
-      .first();
-
     if (!user) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'User not found',
-        },
-        400
-      );
+      return c.json({ error: 'invalid_request', error_description: 'User not found' }, 400);
     }
 
     const now = Date.now();
@@ -421,12 +383,16 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
-    // Update user's email_verified and last_login_at
-    await c.env.DB.prepare(
+    // Update user's email_verified and last_login_at (fire-and-forget)
+    // This is non-critical for the login flow - session is already created
+    c.env.DB.prepare(
       'UPDATE users SET email_verified = 1, last_login_at = ?, updated_at = ? WHERE id = ?'
     )
       .bind(now, now, challengeData.userId)
-      .run();
+      .run()
+      .catch((error) => {
+        console.error('Failed to update user login timestamp:', error);
+      });
 
     // Clear OTP session cookie
     setCookie(c, OTP_SESSION_COOKIE, '', {
