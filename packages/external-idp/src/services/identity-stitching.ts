@@ -62,6 +62,15 @@ export async function handleIdentity(
 
   // 1. Explicit linking to existing account
   if (linkingUserId) {
+    // SECURITY: Check if provider requires verified email even for explicit linking
+    if (provider.requireEmailVerified && userInfo.email && !userInfo.email_verified) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.EMAIL_NOT_VERIFIED,
+        'The email from your external account is not verified. Please verify your email with the provider first.',
+        { providerName: provider.name }
+      );
+    }
+
     const linkedIdentityId = await createLinkedIdentity(env, {
       userId: linkingUserId,
       providerId: provider.id,
@@ -176,7 +185,10 @@ export async function handleIdentity(
   // 4. No existing user - try JIT Provisioning
   if (provider.jitProvisioning) {
     // Check if provider email is verified (if we require it)
-    if (stitchingConfig.requireVerifiedEmail && userInfo.email && !userInfo.email_verified) {
+    // SECURITY: Check both global setting AND per-provider setting
+    const requireVerified = stitchingConfig.requireVerifiedEmail || provider.requireEmailVerified;
+
+    if (requireVerified && userInfo.email && !userInfo.email_verified) {
       throw new ExternalIdPError(
         ExternalIdPErrorCode.EMAIL_NOT_VERIFIED,
         'The email from your external account is not verified. Please verify your email with the provider first.',

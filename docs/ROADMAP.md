@@ -119,7 +119,7 @@ timeline
 | **M4: Extensions**         | 2025-11-12 | ✅ Complete    | PAR, DPoP, Pairwise, Token Management                                 |
 | **M5: UI/UX**              | 2025-11-18 | ✅ Complete    | SvelteKit Frontend, Admin Dashboard, 15+ pages                        |
 | **M6: Enterprise**         | 2025-12-02 | ✅ Complete    | Device Flow, CIBA, SCIM, JWE, Hybrid, JAR, JARM, JWT Bearer, SAML 2.0 |
-| **M7: Identity Hub**       | 2026-Q1    | ⏳ In Progress | RP Module, Social Login, Identity Linking                             |
+| **M7: Identity Hub**       | 2026-Q1    | ⏳ ~85%        | RP Module ✅, Google ✅, Microsoft ✅, Identity Linking ✅, GitHub 🔜 |
 | **M8: Policy Integration** | 2026-Q2    | 🔜 Planned     | Unified AuthN + AuthZ, Token embedding, Check API                     |
 | **M9: Advanced Identity**  | 2026-Q3    | 🔜 Planned     | OpenID4VP/CI, DID Resolver, VC Issuance                               |
 | **M10: SDK & API**         | 2026-Q4    | 🔜 Planned     | WebSDK, CLI, API Documentation                                        |
@@ -232,49 +232,52 @@ timeline
 
 ---
 
-## Phase 7: Identity Hub Foundation ⏳ IN PROGRESS
+## Phase 7: Identity Hub Foundation ⏳ IN PROGRESS (~85% Complete)
 
 **Timeline:** 2025-12 to 2026-Q1
 
 **Goal:** Transform Authrim from IdP-only to Identity Hub with RP capabilities
 
-### 7.1 RP Module Foundation
+### 7.1 RP Module Foundation ✅ COMPLETE
 
-| Feature               | Description                                | Status     |
-| --------------------- | ------------------------------------------ | ---------- |
-| Upstream IdP Registry | Store external IdP configurations (D1)     | 🔜 Planned |
-| OIDC RP Client        | Connect to external OIDC providers         | 🔜 Planned |
-| OAuth 2.0 RP Client   | Generic OAuth 2.0 support                  | 🔜 Planned |
-| Session Linking       | Link upstream sessions to Authrim sessions | 🔜 Planned |
+| Feature               | Description                                | Status      |
+| --------------------- | ------------------------------------------ | ----------- |
+| Upstream IdP Registry | Store external IdP configurations (D1)     | ✅ Complete |
+| OIDC RP Client        | Connect to external OIDC providers         | ✅ Complete |
+| OAuth 2.0 RP Client   | Generic OAuth 2.0 support                  | ✅ Complete |
+| Session Linking       | Link upstream sessions to Authrim sessions | ✅ Complete |
 
 ### 7.2 Social Login Providers
 
-| Provider             | Protocol  | Priority | Status     |
-| -------------------- | --------- | -------- | ---------- |
-| Google               | OIDC      | High     | 🔜 Planned |
-| GitHub               | OAuth 2.0 | High     | 🔜 Planned |
-| Microsoft (Entra ID) | OIDC      | High     | 🔜 Planned |
-| Apple                | OIDC      | Medium   | 🔜 Planned |
-| Facebook             | OAuth 2.0 | Medium   | 🔜 Planned |
-| Twitter/X            | OAuth 2.0 | Low      | 🔜 Planned |
-| LinkedIn             | OAuth 2.0 | Low      | 🔜 Planned |
+| Provider             | Protocol  | Priority | Status      |
+| -------------------- | --------- | -------- | ----------- |
+| Google               | OIDC      | High     | ✅ Complete |
+| Microsoft (Entra ID) | OIDC      | High     | ✅ Complete |
+| GitHub               | OAuth 2.0 | High     | 🔜 Planned  |
+| Apple                | OIDC      | Medium   | 🔜 Planned  |
+| Facebook             | OAuth 2.0 | Medium   | 🔜 Planned  |
+| Twitter/X            | OAuth 2.0 | Low      | 🔜 Planned  |
+| LinkedIn             | OAuth 2.0 | Low      | 🔜 Planned  |
 
-### 7.3 Identity Linking
+> **Note:** Microsoft supports multi-tenant (common/organizations/consumers) with automatic issuer validation. Any OIDC/OAuth2 provider can be dynamically added via Admin API
 
-| Feature             | Description                                   | Status     |
-| ------------------- | --------------------------------------------- | ---------- |
-| Account Linking     | Link multiple external identities to one user | 🔜 Planned |
-| Attribute Mapping   | Map upstream claims to Authrim schema         | 🔜 Planned |
-| Conflict Resolution | Handle email conflicts across providers       | 🔜 Planned |
-| Linking UI          | User interface for managing linked accounts   | 🔜 Planned |
+### 7.3 Identity Linking ✅ COMPLETE
+
+| Feature             | Description                                   | Status      |
+| ------------------- | --------------------------------------------- | ----------- |
+| Account Linking     | Link multiple external identities to one user | ✅ Complete |
+| Identity Stitching  | Email-based automatic account linking         | ✅ Complete |
+| Attribute Mapping   | Map upstream claims to Authrim schema         | ✅ Complete |
+| Conflict Resolution | Handle email conflicts across providers       | ✅ Complete |
+| Linking UI          | User interface for managing linked accounts   | ✅ Complete |
 
 ### 7.4 Admin Console Enhancement
 
-| Feature              | Description                         | Status     |
-| -------------------- | ----------------------------------- | ---------- |
-| Provider Management  | Add/edit/delete upstream IdPs       | 🔜 Planned |
-| Attribute Mapping UI | Visual claim mapping editor         | 🔜 Planned |
-| Login Flow Designer  | Configure authentication flow order | 🔜 Planned |
+| Feature              | Description                         | Status      |
+| -------------------- | ----------------------------------- | ----------- |
+| Provider Management  | Add/edit/delete upstream IdPs       | ✅ Complete |
+| Attribute Mapping UI | Visual claim mapping editor         | ⚠️ Partial  |
+| Login Flow Designer  | Configure authentication flow order | 🔜 Planned  |
 
 ---
 
@@ -458,17 +461,19 @@ timeline
 | Durable Objects         | 10+    | 14 ✅                   |
 | Enterprise features     | 9      | 13/13 (100%) ✅         |
 
-### Phase 7-12 (Planned)
+### Phase 7-12 (In Progress / Planned)
 
-| Metric                   | Target      | Phase |
-| ------------------------ | ----------- | ----- |
-| Social login providers   | 7+          | P7    |
-| Identity linking tests   | 50+         | P7    |
-| Policy integration tests | 100+        | P8    |
-| VC credential types      | 5+          | P9    |
-| SDK downloads            | 1000+       | P10   |
-| Load test RPS            | 10,000+     | P11   |
-| OpenID Certification     | ✅ Obtained | P12   |
+| Metric                   | Target      | Current                       | Phase |
+| ------------------------ | ----------- | ----------------------------- | ----- |
+| Social login providers   | 7+          | 2 (Google, Microsoft)+dynamic | P7    |
+| OIDC RP Client tests     | 50+         | 14,756 lines ✅            | P7    |
+| Identity linking tests   | 50+         | 14,666 lines ✅            | P7    |
+| Provider Management UI   | Complete    | ✅ Complete                | P7    |
+| Policy integration tests | 100+        | -                          | P8    |
+| VC credential types      | 5+          | -                          | P9    |
+| SDK downloads            | 1000+       | -                          | P10   |
+| Load test RPS            | 10,000+     | -                          | P11   |
+| OpenID Certification     | ✅ Obtained | -                          | P12   |
 
 ---
 
@@ -522,11 +527,14 @@ By 2027, Authrim will be:
 | 2025-12-03 | Phase 8 redefined: Unified Policy Integration                                       |
 | 2025-12-03 | Phase 9 redefined: Advanced Identity (OpenID4VP/CI, DID)                            |
 | 2025-12-03 | Timeline compressed: Target completion 2027-Q2                                      |
+| 2025-12-15 | **Phase 7 ~80% complete**: RP Module, Google, Identity Linking/Stitching done       |
+| 2025-12-15 | Remaining P7 tasks: GitHub/Microsoft templates, Login Flow Designer                 |
+| 2025-12-15 | **Microsoft (Entra ID) complete**: Multi-tenant support (common/organizations/consumers), issuer pattern validation, comprehensive security tests |
 
 ---
 
-> **Last Update:** 2025-12-03
+> **Last Update:** 2025-12-15
 >
-> **Current Status:** Phase 6 Complete ✅ | Phase 7 Starting (Identity Hub)
+> **Current Status:** Phase 6 Complete ✅ | Phase 7 ~85% Complete (Identity Hub)
 >
 > **Authrim** - The Identity & Access Platform for the modern web.

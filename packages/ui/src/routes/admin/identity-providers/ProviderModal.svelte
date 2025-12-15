@@ -17,7 +17,34 @@
 		iconUrl?: string;
 		buttonColor?: string;
 		buttonText?: string;
+		providerQuirks?: Record<string, unknown>;
 	}
+
+	// Microsoft tenant types
+	type MicrosoftTenantType = 'common' | 'organizations' | 'consumers' | 'custom';
+
+	const microsoftTenantOptions = [
+		{
+			value: 'common',
+			label: 'All accounts',
+			description: 'Allow both personal Microsoft accounts and organizational accounts'
+		},
+		{
+			value: 'organizations',
+			label: 'Organizational accounts only',
+			description: 'Only allow Microsoft Entra ID (work/school) accounts'
+		},
+		{
+			value: 'consumers',
+			label: 'Personal accounts only',
+			description: 'Only allow personal Microsoft accounts (Xbox, OneDrive, Outlook.com)'
+		},
+		{
+			value: 'custom',
+			label: 'Specific tenant',
+			description: 'Only allow accounts from a specific organization (enter tenant ID)'
+		}
+	];
 
 	interface Props {
 		provider: Provider | null;
@@ -26,6 +53,21 @@
 	}
 
 	let { provider, onSave, onClose }: Props = $props();
+
+	// Extract Microsoft tenant type from existing provider
+	function extractMicrosoftTenantType(p: Provider | null): {
+		type: MicrosoftTenantType;
+		customTenant: string;
+	} {
+		const quirks = p?.providerQuirks as { tenantType?: string } | undefined;
+		const tenantType = quirks?.tenantType || 'common';
+
+		if (['common', 'organizations', 'consumers'].includes(tenantType)) {
+			return { type: tenantType as MicrosoftTenantType, customTenant: '' };
+		}
+		// Custom tenant ID
+		return { type: 'custom', customTenant: tenantType };
+	}
 
 	// Form state
 	let name = $state(provider?.name || '');
@@ -42,6 +84,25 @@
 	let buttonColor = $state(provider?.buttonColor || '');
 	let buttonText = $state(provider?.buttonText || '');
 	let template = $state<'google' | 'github' | 'microsoft' | ''>('');
+
+	// Microsoft-specific settings
+	const initialMsTenant = extractMicrosoftTenantType(provider);
+	let microsoftTenantType = $state<MicrosoftTenantType>(initialMsTenant.type);
+	let microsoftCustomTenant = $state(initialMsTenant.customTenant);
+
+	// Check if this is a Microsoft provider (for showing tenant settings)
+	const isMicrosoftProvider = $derived(
+		template === 'microsoft' ||
+			issuer.includes('login.microsoftonline.com') ||
+			name.toLowerCase().includes('microsoft') ||
+			name.toLowerCase().includes('entra')
+	);
+
+	// Build Microsoft issuer URL based on tenant type
+	function getMicrosoftIssuer(tenantType: MicrosoftTenantType, customTenant: string): string {
+		const tenant = tenantType === 'custom' ? customTenant : tenantType;
+		return `https://login.microsoftonline.com/${tenant || 'common'}/v2.0`;
+	}
 
 	let saving = $state(false);
 	let error = $state('');
@@ -86,7 +147,20 @@
 		buttonText = config.buttonText;
 		providerType = t === 'github' ? 'oauth2' : 'oidc';
 		template = t;
+
+		// Initialize Microsoft-specific settings
+		if (t === 'microsoft') {
+			microsoftTenantType = 'common';
+			microsoftCustomTenant = '';
+		}
 	}
+
+	// Auto-update issuer when Microsoft tenant settings change
+	$effect(() => {
+		if (isMicrosoftProvider) {
+			issuer = getMicrosoftIssuer(microsoftTenantType, microsoftCustomTenant);
+		}
+	});
 
 	async function handleSubmit() {
 		error = '';
@@ -109,7 +183,33 @@
 			return;
 		}
 
+		// Validate Microsoft custom tenant ID
+		if (isMicrosoftProvider && microsoftTenantType === 'custom') {
+			const customTenant = microsoftCustomTenant.trim();
+			if (!customTenant) {
+				error = 'Tenant ID or domain is required for specific tenant configuration';
+				return;
+			}
+			// Validate format: GUID or domain
+			const isValidGuid =
+				/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customTenant);
+			const isValidDomain = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(customTenant);
+			if (!isValidGuid && !isValidDomain) {
+				error =
+					'Invalid tenant format. Please enter a valid GUID (e.g., xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx) or domain (e.g., contoso.onmicrosoft.com)';
+				return;
+			}
+		}
+
 		saving = true;
+
+		// Build provider quirks for Microsoft
+		let providerQuirks: Record<string, unknown> | undefined;
+		if (isMicrosoftProvider) {
+			const effectiveTenant =
+				microsoftTenantType === 'custom' ? microsoftCustomTenant.trim() : microsoftTenantType;
+			providerQuirks = { tenantType: effectiveTenant };
+		}
 
 		try {
 			if (isEditing) {
@@ -126,7 +226,8 @@
 					require_email_verified: requireEmailVerified,
 					icon_url: iconUrl || undefined,
 					button_color: buttonColor || undefined,
-					button_text: buttonText || undefined
+					button_text: buttonText || undefined,
+					provider_quirks: providerQuirks
 				};
 
 				// Only include secret if changed
@@ -155,7 +256,8 @@
 					icon_url: iconUrl || undefined,
 					button_color: buttonColor || undefined,
 					button_text: buttonText || undefined,
-					template: template || undefined
+					template: template || undefined,
+					provider_quirks: providerQuirks
 				};
 
 				const { error: apiError } = await externalIdpAdminAPI.create(createData);
@@ -272,12 +374,78 @@
 
 		<!-- OIDC Settings -->
 		{#if providerType === 'oidc'}
-			<Input
-				label="Issuer URL"
-				bind:value={issuer}
-				placeholder="https://accounts.google.com"
-				required
-			/>
+			<!-- Microsoft Tenant Settings -->
+			{#if isMicrosoftProvider}
+				<div class="space-y-3">
+					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+						Account Types
+					</label>
+					<div class="space-y-2">
+						{#each microsoftTenantOptions as option (option.value)}
+							<label
+								class="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors {microsoftTenantType ===
+								option.value
+									? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+									: 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'}"
+							>
+								<input
+									type="radio"
+									name="microsoftTenant"
+									value={option.value}
+									checked={microsoftTenantType === option.value}
+									onchange={() => {
+										microsoftTenantType = option.value as MicrosoftTenantType;
+									}}
+									class="mt-0.5 h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500"
+								/>
+								<div>
+									<div class="text-sm font-medium text-gray-900 dark:text-white">
+										{option.label}
+									</div>
+									<div class="text-xs text-gray-500 dark:text-gray-400">
+										{option.description}
+									</div>
+								</div>
+							</label>
+						{/each}
+					</div>
+
+					<!-- Custom tenant ID input -->
+					{#if microsoftTenantType === 'custom'}
+						<div class="mt-3">
+							<Input
+								label="Tenant ID or Domain"
+								bind:value={microsoftCustomTenant}
+								placeholder="e.g., contoso.onmicrosoft.com or GUID"
+								required
+							/>
+							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								Enter the Azure AD tenant ID (GUID) or domain name
+							</p>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Show computed issuer (read-only for Microsoft) -->
+				<div>
+					<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+						Issuer URL (auto-generated)
+					</label>
+					<input
+						type="text"
+						value={issuer}
+						readonly
+						class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
+					/>
+				</div>
+			{:else}
+				<Input
+					label="Issuer URL"
+					bind:value={issuer}
+					placeholder="https://accounts.google.com"
+					required
+				/>
+			{/if}
 		{/if}
 
 		<Input label="Scopes" bind:value={scopes} placeholder="openid email profile" />

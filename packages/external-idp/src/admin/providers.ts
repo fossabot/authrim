@@ -13,6 +13,11 @@ import {
   deleteProvider,
 } from '../services/provider-store';
 import { GOOGLE_DEFAULT_CONFIG } from '../providers/google';
+import {
+  MICROSOFT_DEFAULT_CONFIG,
+  getMicrosoftIssuer,
+  validateMicrosoftConfig,
+} from '../providers/microsoft';
 import { encrypt, getEncryptionKey } from '../utils/crypto';
 
 /**
@@ -86,6 +91,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       userinfo_endpoint?: string;
       jwks_uri?: string;
       attribute_mapping?: Record<string, string>;
+      provider_quirks?: Record<string, unknown>;
       tenant_id?: string;
       template?: 'google' | 'github' | 'microsoft';
     }>();
@@ -99,14 +105,46 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
     }
 
     // Apply template defaults if specified
-    let defaults = {};
+    let defaults: Record<string, unknown> = {};
     if (body.template === 'google') {
-      defaults = GOOGLE_DEFAULT_CONFIG;
+      defaults = { ...GOOGLE_DEFAULT_CONFIG };
+    } else if (body.template === 'microsoft') {
+      // Apply Microsoft defaults with tenant type from quirks
+      const quirks = body.provider_quirks as { tenantType?: string } | undefined;
+      const tenantType = quirks?.tenantType || 'common';
+
+      // Validate tenant type before using it in URL construction
+      const validationErrors = validateMicrosoftConfig({
+        clientId: body.client_id,
+        clientSecretEncrypted: 'placeholder', // Will be set later
+        scopes: body.scopes || 'openid email profile',
+        providerQuirks: { tenantType },
+      });
+      if (validationErrors.length > 0) {
+        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+      }
+
+      defaults = {
+        ...MICROSOFT_DEFAULT_CONFIG,
+        issuer: getMicrosoftIssuer(tenantType),
+        providerQuirks: { tenantType },
+      };
     }
 
     // Encrypt client secret (required)
     const encryptionKey = getEncryptionKey(c.env);
     const clientSecretEncrypted = await encrypt(body.client_secret, encryptionKey);
+
+    // Merge defaults with explicit body values (body values take precedence)
+    const defaultIssuer = (defaults.issuer as string | undefined) || undefined;
+    const defaultScopes = (defaults.scopes as string | undefined) || 'openid email profile';
+    const defaultAttributeMapping =
+      (defaults.attributeMapping as Record<string, string> | undefined) || {};
+    const defaultProviderQuirks =
+      (defaults.providerQuirks as Record<string, unknown> | undefined) || {};
+    const defaultIconUrl = (defaults.iconUrl as string | undefined) || undefined;
+    const defaultButtonColor = (defaults.buttonColor as string | undefined) || undefined;
+    const defaultButtonText = (defaults.buttonText as string | undefined) || undefined;
 
     const provider = await createProvider(c.env, {
       tenantId: body.tenant_id || 'default',
@@ -115,23 +153,22 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       providerType: body.provider_type || 'oidc',
       enabled: body.enabled !== false,
       priority: body.priority || 0,
-      issuer: body.issuer,
+      issuer: body.issuer || defaultIssuer,
       clientId: body.client_id,
       clientSecretEncrypted,
       authorizationEndpoint: body.authorization_endpoint,
       tokenEndpoint: body.token_endpoint,
       userinfoEndpoint: body.userinfo_endpoint,
       jwksUri: body.jwks_uri,
-      scopes: body.scopes || 'openid email profile',
-      attributeMapping: body.attribute_mapping || {},
+      scopes: body.scopes || defaultScopes,
+      attributeMapping: body.attribute_mapping || defaultAttributeMapping,
       autoLinkEmail: body.auto_link_email !== false,
       jitProvisioning: body.jit_provisioning !== false,
       requireEmailVerified: body.require_email_verified !== false,
-      providerQuirks: {},
-      iconUrl: body.icon_url,
-      buttonColor: body.button_color,
-      buttonText: body.button_text,
-      ...defaults,
+      providerQuirks: body.provider_quirks || defaultProviderQuirks,
+      iconUrl: body.icon_url || defaultIconUrl,
+      buttonColor: body.button_color || defaultButtonColor,
+      buttonText: body.button_text || defaultButtonText,
     });
 
     // Remove secret from response
@@ -212,6 +249,7 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
       userinfo_endpoint?: string;
       jwks_uri?: string;
       attribute_mapping?: Record<string, string>;
+      provider_quirks?: Record<string, unknown>;
     }>();
 
     // Build updates object
@@ -243,6 +281,30 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
     if (body.userinfo_endpoint !== undefined) updates.userinfoEndpoint = body.userinfo_endpoint;
     if (body.jwks_uri !== undefined) updates.jwksUri = body.jwks_uri;
     if (body.attribute_mapping !== undefined) updates.attributeMapping = body.attribute_mapping;
+    if (body.provider_quirks !== undefined) {
+      // Validate Microsoft tenant type if present
+      const quirks = body.provider_quirks as { tenantType?: string } | undefined;
+      if (quirks?.tenantType) {
+        const validTenantTypes = ['common', 'organizations', 'consumers'];
+        const isValidBuiltIn = validTenantTypes.includes(quirks.tenantType);
+        const isValidGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          quirks.tenantType
+        );
+        const isValidDomain = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(quirks.tenantType);
+
+        if (!isValidBuiltIn && !isValidGuid && !isValidDomain) {
+          return c.json(
+            {
+              error: 'invalid_request',
+              message:
+                'tenantType must be "common", "organizations", "consumers", a valid tenant ID (GUID), or domain',
+            },
+            400
+          );
+        }
+      }
+      updates.providerQuirks = body.provider_quirks;
+    }
 
     const provider = await updateProvider(c.env, id, updates);
     if (!provider) {

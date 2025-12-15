@@ -18,9 +18,11 @@
 		scopes: string;
 		autoLinkEmail: boolean;
 		jitProvisioning: boolean;
+		requireEmailVerified?: boolean;
 		iconUrl?: string;
 		buttonColor?: string;
 		buttonText?: string;
+		providerQuirks?: Record<string, unknown>;
 		createdAt: number;
 		updatedAt: number;
 	}

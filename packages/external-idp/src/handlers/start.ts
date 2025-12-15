@@ -24,11 +24,14 @@ import { decrypt, getEncryptionKeyOrUndefined } from '../utils/crypto';
 export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promise<Response> {
   try {
     const providerIdOrName = c.req.param('provider');
-    const redirectUri = c.req.query('redirect_uri') || `${c.env.UI_BASE_URL || c.env.ISSUER_URL}/`;
+    const requestedRedirectUri = c.req.query('redirect_uri');
     const isLinking = c.req.query('link') === 'true';
     const prompt = c.req.query('prompt');
     const loginHint = c.req.query('login_hint');
     const tenantId = c.req.query('tenant_id') || 'default';
+
+    // Validate and sanitize redirect_uri to prevent Open Redirect attacks
+    const redirectUri = validateRedirectUri(requestedRedirectUri, c.env);
 
     // 1. Get provider configuration (by slug or ID)
     const provider = await getProviderByIdOrSlug(c.env, providerIdOrName, tenantId);
@@ -173,4 +176,58 @@ async function decryptClientSecret(env: Env, encrypted: string): Promise<string>
   }
 
   return decrypt(encrypted, encryptionKey);
+}
+
+/**
+ * Validate redirect_uri to prevent Open Redirect attacks
+ *
+ * Only allows redirects to:
+ * 1. Same origin as UI_BASE_URL
+ * 2. Same origin as ISSUER_URL
+ * 3. Relative paths (converted to absolute using UI_BASE_URL)
+ *
+ * Falls back to UI_BASE_URL if redirect_uri is invalid or not provided
+ */
+function validateRedirectUri(
+  requestedUri: string | undefined,
+  env: { UI_BASE_URL?: string; ISSUER_URL: string }
+): string {
+  const baseUrl = env.UI_BASE_URL || env.ISSUER_URL;
+  const defaultRedirect = `${baseUrl}/`;
+
+  if (!requestedUri) {
+    return defaultRedirect;
+  }
+
+  try {
+    // Handle relative paths
+    if (requestedUri.startsWith('/')) {
+      return new URL(requestedUri, baseUrl).toString();
+    }
+
+    // Parse the requested URI
+    const requestedUrl = new URL(requestedUri);
+    const baseUrlParsed = new URL(baseUrl);
+    const issuerUrlParsed = new URL(env.ISSUER_URL);
+
+    // Extract allowed origins
+    const allowedOrigins = new Set([baseUrlParsed.origin, issuerUrlParsed.origin]);
+
+    // Check if the requested origin is allowed
+    if (allowedOrigins.has(requestedUrl.origin)) {
+      return requestedUri;
+    }
+
+    // Log blocked redirect attempt for security monitoring
+    console.warn(
+      `Blocked redirect to unauthorized origin: ${requestedUrl.origin}. ` +
+        `Allowed: ${Array.from(allowedOrigins).join(', ')}`
+    );
+
+    return defaultRedirect;
+  } catch {
+    // Invalid URL format - use default
+    console.warn(`Invalid redirect_uri format: ${requestedUri}`);
+    return defaultRedirect;
+  }
 }

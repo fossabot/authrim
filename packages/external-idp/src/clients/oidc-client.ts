@@ -18,6 +18,8 @@ export interface OIDCRPClientConfig {
   tokenEndpoint?: string;
   userinfoEndpoint?: string;
   jwksUri?: string;
+  // Provider-specific quirks
+  providerQuirks?: Record<string, unknown>;
 }
 
 /**
@@ -51,6 +53,7 @@ export class OIDCRPClient {
       tokenEndpoint: provider.tokenEndpoint,
       userinfoEndpoint: provider.userinfoEndpoint,
       jwksUri: provider.jwksUri,
+      providerQuirks: provider.providerQuirks,
     });
   }
 
@@ -211,10 +214,19 @@ export class OIDCRPClient {
     const JWKS = jose.createLocalJWKSet(jwks);
 
     try {
+      // Check if we need pattern-based issuer validation (e.g., Microsoft multi-tenant)
+      const usePatternValidation = this.requiresPatternIssuerValidation();
+
       const { payload } = await jose.jwtVerify(idToken, JWKS, {
-        issuer: this.config.issuer,
+        // Skip issuer validation here if using pattern-based validation
+        issuer: usePatternValidation ? undefined : this.config.issuer,
         audience: this.config.clientId,
       });
+
+      // Perform pattern-based issuer validation for Microsoft multi-tenant
+      if (usePatternValidation) {
+        this.validateMicrosoftIssuer(payload.iss);
+      }
 
       // Validate nonce
       if (payload.nonce !== nonce) {
@@ -249,6 +261,44 @@ export class OIDCRPClient {
         throw new Error(`ID token validation failed: ${error.message}`);
       }
       throw error;
+    }
+  }
+
+  /**
+   * Check if pattern-based issuer validation is needed
+   *
+   * Microsoft "common", "consumers", and "organizations" endpoints return tokens
+   * with tenant-specific issuers, not the generic endpoint issuer.
+   */
+  private requiresPatternIssuerValidation(): boolean {
+    const quirks = this.config.providerQuirks as { tenantType?: string } | undefined;
+    const tenantType = quirks?.tenantType;
+
+    // SECURITY: Use startsWith to prevent subdomain/path attacks
+    // e.g., "https://evil.com/login.microsoftonline.com/..." would fail
+    const isMicrosoftIssuer = this.config.issuer.startsWith('https://login.microsoftonline.com/');
+
+    return (
+      isMicrosoftIssuer &&
+      (tenantType === 'common' || tenantType === 'consumers' || tenantType === 'organizations')
+    );
+  }
+
+  /**
+   * Validate Microsoft issuer pattern
+   * For multi-tenant endpoints, the token issuer contains the actual tenant ID
+   */
+  private validateMicrosoftIssuer(issuer: string | undefined): void {
+    if (!issuer) {
+      throw new Error('Missing issuer claim in ID token');
+    }
+
+    // Token issuer must be a valid Microsoft issuer URL
+    // Pattern: https://login.microsoftonline.com/{tenant-id}/v2.0
+    const microsoftIssuerPattern = /^https:\/\/login\.microsoftonline\.com\/[a-f0-9-]+\/v2\.0$/i;
+
+    if (!microsoftIssuerPattern.test(issuer)) {
+      throw new Error(`Invalid Microsoft issuer: ${issuer}`);
     }
   }
 

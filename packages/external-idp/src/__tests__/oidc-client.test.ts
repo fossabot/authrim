@@ -7,6 +7,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { OIDCRPClient } from '../clients/oidc-client';
 import type { UpstreamProvider } from '../types';
 
+// Mock jose module for ID token validation tests
+const mockJwtVerify = vi.fn();
+const mockCreateLocalJWKSet = vi.fn();
+
+vi.mock('jose', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('jose')>();
+  return {
+    ...actual,
+    jwtVerify: (...args: unknown[]) => mockJwtVerify(...args),
+    createLocalJWKSet: (...args: unknown[]) => mockCreateLocalJWKSet(...args),
+  };
+});
+
 // Mock fetch globally
 const mockFetch = vi.fn();
 
@@ -479,6 +492,473 @@ describe('OIDCRPClient', () => {
       expect(mockFetch).not.toHaveBeenCalledWith(
         expect.stringContaining('.well-known/openid-configuration')
       );
+    });
+  });
+
+  describe('Microsoft multi-tenant issuer validation', () => {
+    const microsoftDiscoveryDoc = {
+      issuer: 'https://login.microsoftonline.com/common/v2.0',
+      authorization_endpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+      token_endpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+      userinfo_endpoint: 'https://graph.microsoft.com/oidc/userinfo',
+      jwks_uri: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
+      response_types_supported: ['code'],
+      subject_types_supported: ['pairwise'],
+      id_token_signing_alg_values_supported: ['RS256'],
+    };
+
+    const microsoftConfig = {
+      issuer: 'https://login.microsoftonline.com/common/v2.0',
+      clientId: 'test-microsoft-client-id',
+      clientSecret: 'test-microsoft-secret',
+      redirectUri: 'https://example.com/callback',
+      scopes: ['openid', 'email', 'profile'],
+      providerQuirks: { tenantType: 'common' },
+    };
+
+    const createMicrosoftProvider = (tenantType: string): UpstreamProvider => ({
+      id: 'microsoft-provider-id',
+      tenantId: 'default',
+      name: 'Microsoft',
+      providerType: 'oidc',
+      enabled: true,
+      priority: 0,
+      issuer: `https://login.microsoftonline.com/${tenantType}/v2.0`,
+      clientId: 'test-microsoft-client-id',
+      clientSecretEncrypted: 'encrypted-secret',
+      scopes: 'openid email profile',
+      attributeMapping: {},
+      autoLinkEmail: true,
+      jitProvisioning: true,
+      requireEmailVerified: true,
+      providerQuirks: { tenantType },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    it('should create client from Microsoft provider with tenantType quirk', () => {
+      const provider = createMicrosoftProvider('common');
+      const client = OIDCRPClient.fromProvider(
+        provider,
+        'https://example.com/callback',
+        'decrypted-secret'
+      );
+
+      expect(client).toBeInstanceOf(OIDCRPClient);
+    });
+
+    it('should create client from Microsoft provider with organizations tenantType', () => {
+      const provider = createMicrosoftProvider('organizations');
+      const client = OIDCRPClient.fromProvider(
+        provider,
+        'https://example.com/callback',
+        'decrypted-secret'
+      );
+
+      expect(client).toBeInstanceOf(OIDCRPClient);
+    });
+
+    it('should create client from Microsoft provider with consumers tenantType', () => {
+      const provider = createMicrosoftProvider('consumers');
+      const client = OIDCRPClient.fromProvider(
+        provider,
+        'https://example.com/callback',
+        'decrypted-secret'
+      );
+
+      expect(client).toBeInstanceOf(OIDCRPClient);
+    });
+
+    it('should create client from Microsoft provider with specific tenant GUID', () => {
+      const provider = createMicrosoftProvider('12345678-1234-1234-1234-123456789012');
+      const client = OIDCRPClient.fromProvider(
+        provider,
+        'https://example.com/callback',
+        'decrypted-secret'
+      );
+
+      expect(client).toBeInstanceOf(OIDCRPClient);
+    });
+
+    it('should generate valid Microsoft authorization URL', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => microsoftDiscoveryDoc,
+      });
+
+      const client = new OIDCRPClient(microsoftConfig);
+      const url = await client.createAuthorizationUrl({
+        state: 'test-state',
+        nonce: 'test-nonce',
+        codeVerifier: 'test-verifier-1234567890123456789012345678901234567890',
+      });
+
+      expect(url).toContain('login.microsoftonline.com');
+      expect(url).toContain('response_type=code');
+      expect(url).toContain('code_challenge=');
+      expect(url).toContain('code_challenge_method=S256');
+    });
+  });
+
+  describe('validateIdToken', () => {
+    const mockJwks = {
+      keys: [
+        {
+          kty: 'RSA',
+          kid: 'test-key-id',
+          n: 'test-n',
+          e: 'AQAB',
+        },
+      ],
+    };
+
+    const now = Math.floor(Date.now() / 1000);
+
+    const createMockPayload = (overrides: Record<string, unknown> = {}) => ({
+      iss: 'https://accounts.google.com',
+      sub: 'user-123',
+      aud: 'test-client-id',
+      exp: now + 3600,
+      iat: now - 60,
+      nonce: 'test-nonce',
+      email: 'user@example.com',
+      email_verified: true,
+      name: 'Test User',
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.stubGlobal('fetch', mockFetch);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('should validate Google ID token successfully', async () => {
+      // Mock JWKS fetch
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockJwks,
+      });
+
+      const mockPayload = createMockPayload();
+
+      // Mock jose functions
+      mockJwtVerify.mockResolvedValueOnce({
+        payload: mockPayload,
+        protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+      });
+      mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+      const client = new OIDCRPClient({
+        issuer: 'https://accounts.google.com',
+        clientId: 'test-client-id',
+        clientSecret: 'test-secret',
+        redirectUri: 'https://example.com/callback',
+        scopes: ['openid', 'email', 'profile'],
+        jwksUri: 'https://www.googleapis.com/oauth2/v3/certs',
+      });
+
+      const userInfo = await client.validateIdToken('mock-id-token', 'test-nonce');
+
+      expect(userInfo.sub).toBe('user-123');
+      expect(userInfo.email).toBe('user@example.com');
+      expect(userInfo.email_verified).toBe(true);
+    });
+
+    it('should reject ID token with nonce mismatch', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockJwks,
+      });
+
+      const mockPayload = createMockPayload({ nonce: 'different-nonce' });
+
+      mockJwtVerify.mockResolvedValueOnce({
+        payload: mockPayload,
+        protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+      });
+      mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+      const client = new OIDCRPClient({
+        issuer: 'https://accounts.google.com',
+        clientId: 'test-client-id',
+        clientSecret: 'test-secret',
+        redirectUri: 'https://example.com/callback',
+        scopes: ['openid'],
+        jwksUri: 'https://www.googleapis.com/oauth2/v3/certs',
+      });
+
+      await expect(client.validateIdToken('mock-id-token', 'test-nonce')).rejects.toThrow(
+        'nonce mismatch'
+      );
+    });
+
+    it('should reject expired ID token', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockJwks,
+      });
+
+      const mockPayload = createMockPayload({
+        nonce: 'test-nonce',
+        exp: now - 3600, // Expired 1 hour ago
+      });
+
+      mockJwtVerify.mockResolvedValueOnce({
+        payload: mockPayload,
+        protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+      });
+      mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+      const client = new OIDCRPClient({
+        issuer: 'https://accounts.google.com',
+        clientId: 'test-client-id',
+        clientSecret: 'test-secret',
+        redirectUri: 'https://example.com/callback',
+        scopes: ['openid'],
+        jwksUri: 'https://www.googleapis.com/oauth2/v3/certs',
+      });
+
+      await expect(client.validateIdToken('mock-id-token', 'test-nonce')).rejects.toThrow(
+        'expired'
+      );
+    });
+
+    it('should reject ID token issued in the future', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockJwks,
+      });
+
+      const mockPayload = createMockPayload({
+        nonce: 'test-nonce',
+        iat: now + 3600, // Issued 1 hour in the future (beyond 60s clock skew)
+      });
+
+      mockJwtVerify.mockResolvedValueOnce({
+        payload: mockPayload,
+        protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+      });
+      mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+      const client = new OIDCRPClient({
+        issuer: 'https://accounts.google.com',
+        clientId: 'test-client-id',
+        clientSecret: 'test-secret',
+        redirectUri: 'https://example.com/callback',
+        scopes: ['openid'],
+        jwksUri: 'https://www.googleapis.com/oauth2/v3/certs',
+      });
+
+      await expect(client.validateIdToken('mock-id-token', 'test-nonce')).rejects.toThrow(
+        'issued in the future'
+      );
+    });
+
+    describe('Microsoft multi-tenant issuer validation', () => {
+      it('should accept valid Microsoft issuer with tenant-specific GUID', async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockJwks,
+        });
+
+        // Microsoft returns a tenant-specific issuer in the token
+        const mockPayload = createMockPayload({
+          iss: 'https://login.microsoftonline.com/12345678-1234-1234-1234-123456789012/v2.0',
+          aud: 'microsoft-client-id',
+          nonce: 'test-nonce',
+        });
+
+        mockJwtVerify.mockResolvedValueOnce({
+          payload: mockPayload,
+          protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+        });
+        mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+        // Client configured with "common" endpoint
+        const client = new OIDCRPClient({
+          issuer: 'https://login.microsoftonline.com/common/v2.0',
+          clientId: 'microsoft-client-id',
+          clientSecret: 'test-secret',
+          redirectUri: 'https://example.com/callback',
+          scopes: ['openid'],
+          jwksUri: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
+          providerQuirks: { tenantType: 'common' },
+        });
+
+        const userInfo = await client.validateIdToken('mock-id-token', 'test-nonce');
+        expect(userInfo.sub).toBe('user-123');
+      });
+
+      it('should accept valid Microsoft issuer with organizations tenantType', async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockJwks,
+        });
+
+        const mockPayload = createMockPayload({
+          iss: 'https://login.microsoftonline.com/abcdef01-1234-1234-1234-123456789012/v2.0',
+          aud: 'microsoft-client-id',
+          nonce: 'test-nonce',
+        });
+
+        mockJwtVerify.mockResolvedValueOnce({
+          payload: mockPayload,
+          protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+        });
+        mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+        const client = new OIDCRPClient({
+          issuer: 'https://login.microsoftonline.com/organizations/v2.0',
+          clientId: 'microsoft-client-id',
+          clientSecret: 'test-secret',
+          redirectUri: 'https://example.com/callback',
+          scopes: ['openid'],
+          jwksUri: 'https://login.microsoftonline.com/organizations/discovery/v2.0/keys',
+          providerQuirks: { tenantType: 'organizations' },
+        });
+
+        const userInfo = await client.validateIdToken('mock-id-token', 'test-nonce');
+        expect(userInfo.sub).toBe('user-123');
+      });
+
+      it('should reject invalid Microsoft issuer (non-Microsoft domain)', async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockJwks,
+        });
+
+        // Attacker tries to use a fake issuer
+        const mockPayload = createMockPayload({
+          iss: 'https://evil.com/12345678-1234-1234-1234-123456789012/v2.0',
+          aud: 'microsoft-client-id',
+          nonce: 'test-nonce',
+        });
+
+        mockJwtVerify.mockResolvedValueOnce({
+          payload: mockPayload,
+          protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+        });
+        mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+        const client = new OIDCRPClient({
+          issuer: 'https://login.microsoftonline.com/common/v2.0',
+          clientId: 'microsoft-client-id',
+          clientSecret: 'test-secret',
+          redirectUri: 'https://example.com/callback',
+          scopes: ['openid'],
+          jwksUri: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
+          providerQuirks: { tenantType: 'common' },
+        });
+
+        await expect(client.validateIdToken('mock-id-token', 'test-nonce')).rejects.toThrow(
+          'Invalid Microsoft issuer'
+        );
+      });
+
+      it('should reject Microsoft issuer with subdomain attack', async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockJwks,
+        });
+
+        // Attacker tries subdomain attack
+        const mockPayload = createMockPayload({
+          iss: 'https://evil.login.microsoftonline.com/12345678-1234-1234-1234-123456789012/v2.0',
+          aud: 'microsoft-client-id',
+          nonce: 'test-nonce',
+        });
+
+        mockJwtVerify.mockResolvedValueOnce({
+          payload: mockPayload,
+          protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+        });
+        mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+        const client = new OIDCRPClient({
+          issuer: 'https://login.microsoftonline.com/common/v2.0',
+          clientId: 'microsoft-client-id',
+          clientSecret: 'test-secret',
+          redirectUri: 'https://example.com/callback',
+          scopes: ['openid'],
+          jwksUri: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
+          providerQuirks: { tenantType: 'common' },
+        });
+
+        await expect(client.validateIdToken('mock-id-token', 'test-nonce')).rejects.toThrow(
+          'Invalid Microsoft issuer'
+        );
+      });
+
+      it('should reject Microsoft issuer with missing issuer claim', async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockJwks,
+        });
+
+        const mockPayload = createMockPayload({
+          iss: undefined, // Missing issuer
+          aud: 'microsoft-client-id',
+          nonce: 'test-nonce',
+        });
+
+        mockJwtVerify.mockResolvedValueOnce({
+          payload: mockPayload,
+          protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+        });
+        mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+        const client = new OIDCRPClient({
+          issuer: 'https://login.microsoftonline.com/common/v2.0',
+          clientId: 'microsoft-client-id',
+          clientSecret: 'test-secret',
+          redirectUri: 'https://example.com/callback',
+          scopes: ['openid'],
+          jwksUri: 'https://login.microsoftonline.com/common/discovery/v2.0/keys',
+          providerQuirks: { tenantType: 'common' },
+        });
+
+        await expect(client.validateIdToken('mock-id-token', 'test-nonce')).rejects.toThrow(
+          'Missing issuer claim'
+        );
+      });
+
+      it('should use standard issuer validation for specific tenant (not common/organizations/consumers)', async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockJwks,
+        });
+
+        const tenantId = '12345678-1234-1234-1234-123456789012';
+        const mockPayload = createMockPayload({
+          iss: `https://login.microsoftonline.com/${tenantId}/v2.0`,
+          aud: 'microsoft-client-id',
+          nonce: 'test-nonce',
+        });
+
+        mockJwtVerify.mockResolvedValueOnce({
+          payload: mockPayload,
+          protectedHeader: { alg: 'RS256', kid: 'test-key-id' },
+        });
+        mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
+
+        // When a specific tenant ID is used, standard issuer validation should apply
+        const client = new OIDCRPClient({
+          issuer: `https://login.microsoftonline.com/${tenantId}/v2.0`,
+          clientId: 'microsoft-client-id',
+          clientSecret: 'test-secret',
+          redirectUri: 'https://example.com/callback',
+          scopes: ['openid'],
+          jwksUri: `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`,
+          providerQuirks: { tenantType: tenantId }, // Specific tenant, not common/organizations/consumers
+        });
+
+        const userInfo = await client.validateIdToken('mock-id-token', 'test-nonce');
+        expect(userInfo.sub).toBe('user-123');
+      });
     });
   });
 });
