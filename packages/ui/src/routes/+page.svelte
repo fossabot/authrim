@@ -6,9 +6,15 @@
 	import { LL } from '$i18n/i18n-svelte';
 	import { auth, isAuthenticated, currentUser } from '$lib/stores/auth';
 
-	onMount(() => {
-		// Refresh auth state on mount
+	onMount(async () => {
+		// First try to refresh from localStorage
 		auth.refresh();
+
+		// If no email in localStorage, try to fetch from session cookie
+		const user = $currentUser;
+		if (!user?.email || user.email === '') {
+			await auth.refreshFromSession();
+		}
 	});
 
 	function handleLogout() {

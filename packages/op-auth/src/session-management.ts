@@ -281,10 +281,33 @@ export async function sessionStatusHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
+    // Fetch user email from PII database if available
+    let userEmail: string | undefined;
+    let userName: string | undefined;
+
+    if (c.env.DB_PII) {
+      try {
+        const userPII = await c.env.DB_PII.prepare(
+          'SELECT email, name FROM users_pii WHERE id = ?'
+        )
+          .bind(session.userId)
+          .first<{ email: string; name: string | null }>();
+
+        if (userPII) {
+          userEmail = userPII.email;
+          userName = userPII.name ?? undefined;
+        }
+      } catch (error) {
+        console.warn('Failed to fetch user PII for session status:', error);
+      }
+    }
+
     return c.json({
       active: true,
       session_id: session.id,
       user_id: session.userId,
+      email: userEmail,
+      name: userName,
       expires_at: session.expiresAt,
       created_at: session.createdAt,
     });

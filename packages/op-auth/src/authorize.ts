@@ -2703,13 +2703,15 @@ function escapeHtml(unsafe: string): string {
  * In production, this would redirect to UI_URL/login or show a proper login UI.
  */
 export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
-  // Parse challenge_id from request
+  // Parse challenge_id and username from request
   let challenge_id: string | undefined;
+  let loginUsername: string | undefined;
 
   if (c.req.method === 'POST') {
     try {
       const body = await c.req.parseBody();
       challenge_id = typeof body.challenge_id === 'string' ? body.challenge_id : undefined;
+      loginUsername = typeof body.username === 'string' ? body.username : undefined;
     } catch {
       return c.json(
         {
@@ -2949,6 +2951,9 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
     // Normal client: create new random user
     userId = 'user-' + crypto.randomUUID();
 
+    // Use the email from login form, or fall back to a dummy email
+    const userEmail = loginUsername || `${userId}@example.com`;
+
     // Create user in both Core and PII databases
     const now = Math.floor(Date.now() / 1000);
 
@@ -2971,7 +2976,7 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
           id, tenant_id, email, created_at, updated_at
         ) VALUES (?, 'default', ?, ?, ?)`
       )
-        .bind(userId, `${userId}@example.com`, now, now)
+        .bind(userId, userEmail, now, now)
         .run()
         .catch((error: unknown) => {
           console.error('Failed to create user in PII DB:', error);
