@@ -8,7 +8,6 @@ A lightweight, serverless **Identity Hub** that combines authentication, authori
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange?logo=cloudflare)](https://workers.cloudflare.com/)
 
----
 
 ## 🚧 Authrim is not production-ready (yet)
 
@@ -35,6 +34,8 @@ npx create-authrim my-identity-provider
 
 **Result:** A production-ready Identity & Access Platform with login screens, admin dashboard, policy engine, and global edge deployment—all in under 5 minutes.
 
+---
+
 Authrim is a **Unified Identity & Access Platform** that integrates:
 
 - **Authentication (AuthN)** — OIDC Provider, Social Login, Passkey, SAML
@@ -52,7 +53,6 @@ Authrim is designed to be practical, adaptable, and straightforward for both use
 
 [Read the full vision](./docs/VISION.md)
 
----
 
 ## What is Authrim?
 
@@ -63,62 +63,57 @@ Authrim is an **enterprise-grade Identity & Access Platform** built for:
 - **Global apps** - <50ms latency worldwide via edge deployment
 - **Startups** - Generous free tier, no hidden costs
 
-### Why Authrim?
+## Performance
 
-#### vs. Enterprise IAM Products
+K6 Cloud distributed load testing (December 2025) demonstrated **zero-error operation** across all endpoints within capacity limits.  
 
-| Feature                         | Authrim              | Auth0        | Ping Identity | Keycloak          |
-| ------------------------------- | -------------------- | ------------ | ------------- | ----------------- |
-| **Setup Time**                  | 5 min (goal)         | 30 min       | 2+ hours      | 2+ hours          |
-| **AuthN + AuthZ Unified**       | ✅                   | ⚠️ Basic     | ⚠️ Basic      | ⚠️ Basic          |
-| **RBAC/ABAC/ReBAC**             | ✅ All three         | ✅ RBAC only | ✅ RBAC/ABAC  | ✅ RBAC/ABAC      |
-| **Global Edge**                 | ✅                   | ✅           | ✅            | ⚠️ Clustering     |
-| **Self-Hosted**                 | ✅                   | ❌           | ⚠️ Optional   | ✅                |
-| **Open Source**                 | ✅ Apache 2.0        | ❌           | ❌            | ✅ Apache         |
-| **Data Residency**              | ⚠️ EU/Automatic      | ❌ Limited   | ❌ Limited    | ✅ Any            |
-| **Compliance (SOC2/ISO 27001)** | ⚠️ Self-managed      | ✅ Certified | ✅ Certified  | ⚠️ Self-managed   |
-| **Social Login**                | ⏳ Phase 7           | ✅           | ✅            | ✅                |
-| **Customizability**             | ✅ Full code         | ⚠️ Limited   | ⚠️ Limited    | ✅ Full           |
-| **Admin Dashboard**             | ✅ Built-in          | ✅ Advanced  | ✅ Advanced   | ✅                |
-| **Pricing**                     | Free (edge)          | $$$$         | $$$$$         | Free              |
+Token operations sustain **2,500–3,500 RPS**,  
+full 5-step OAuth login flows handle **150 logins/sec** (P95 756ms),  
+and token validation maintains **100% accuracy** even under peak load.  
 
-#### vs. Application Auth Solutions
+CPU time stays constant at 1–4ms —  
+**horizontal scaling via Durable Object sharding** is the proven strategy.  
+  
 
-| Feature                   | Authrim                | AWS Cognito     | Firebase Auth    | Supabase Auth  | Clerk           |
-| ------------------------- | ---------------------- | --------------- | ---------------- | -------------- | --------------- |
-| **Setup Time**            | 5 min (goal)           | 1+ hour         | 15 min           | 10 min         | 10 min          |
-| **AuthN + AuthZ Unified** | ✅                     | ❌ Separate     | ❌ Basic only    | ⚠️ Basic       | ❌ Limited      |
-| **RBAC/ABAC/ReBAC**       | ✅ All three           | ❌ External     | ❌ External      | ⚠️ Basic RBAC  | ⚠️ Basic RBAC   |
-| **Global Edge**           | ✅                     | ⚠️ Regional     | ✅               | ✅             | ✅              |
-| **Self-Hosted**           | ✅                     | ❌              | ❌               | ✅             | ❌              |
-| **Open Source**           | ✅ Apache 2.0          | ❌              | ❌               | ✅ Apache      | ❌              |
-| **Social Login**          | ⏳ Phase 7             | ✅              | ✅               | ✅             | ✅              |
-| **MFA/Passkeys**          | ✅                     | ✅ MFA only     | ✅ MFA only      | ✅ MFA only    | ✅              |
-| **Custom Domains**        | ✅                     | ✅              | ⚠️ Paid          | ✅             | ⚠️ Paid         |
-| **Admin Dashboard**       | ✅ Built-in            | ✅ Basic        | ✅ Basic         | ✅ Good        | ✅ Excellent    |
-| **Pricing (1M MAU/mo)**   | ~$50 (infra)           | ~$4,600         | ~$14,200         | ~$3,100        | ~$19,800        |
+Authrim scales horizontally by design.  
+In practice, capacity can be increased by adjusting a single scaling parameter —  
+globally, without migrations or downtime.  
+
+[View detailed reports](./load-testing/reports/Dec2025/)
+
+
+## Approximate Cloudflare Cost (Reference Only)
+
+⚠️ The following table is a **rough reference only**.  
+Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
+
+| Product Scale                   | Users (Total) | Est. CF Cost | Notes                                |
+| ------------------------------- | ------------: | -----------: | ------------------------------------ |
+| Side project / Portfolio        |           ~1K |         Free | Workers Free tier (limited requests) |
+| Internal tool / Small community |          ~10K |       ~$5/mo | Paid plan base                       |
+| Startup SaaS / Small e-commerce |          ~50K |    ~$5–10/mo | Light API usage                      |
+| Growing B2B SaaS                |         ~100K |   ~$10–20/mo | ~1¢ / 100 users                     |
+| Mid-size consumer app           |         ~500K |   ~$20–40/mo | Optimized flows                      |
+| Enterprise SaaS                 |           ~1M |   ~$40–80/mo | Cached / sharded                     |
+| High-traffic consumer service   |           ~5M | ~$300–500/mo | Heavy auth traffic                   |
+| Large-scale platform            |          ~15M |     ~$1K+/mo | 150 login/sec tested (Authrim)       |
+
+“Est.” = estimate under optimized / typical usage.
+
+### Assumptions
+
+- Workers Paid plan ($5/month)
+- Optimized request patterns (caching, batching)
+- Typical authentication flows (OIDC, token refresh)
+- Excludes large R2 storage and excessive KV/D1 writes
+- Assumes ~20% DAU with weekly logins
+- Authrim scales primarily with **requests and CPU time**, not with user count
+
+> Infrastructure cost only (self-hosted). No vendor fees. See Cloudflare pricing for details.
 
 ---
 
 ## Current Status
-
-### Phase 6: Enterprise Features ✅ COMPLETE
-
-**Achievements (Nov-Dec 2025):**
-
-- ✅ **Device Flow (RFC 8628)** - Smart TV, CLI, IoT authentication
-- ✅ **JWT Bearer Flow (RFC 7523)** - Service-to-service authentication
-- ✅ **JWE (RFC 7516)** - ID Token and UserInfo encryption
-- ✅ **Hybrid Flow (OIDC Core 3.3)** - All three response types
-- ✅ **CIBA** - Backchannel authentication with poll/ping/push modes
-- ✅ **SCIM 2.0 (RFC 7643/7644)** - User/Group provisioning
-- ✅ **JAR (RFC 9101)** - JWT-Secured Authorization Requests
-- ✅ **JARM** - JWT-Secured Authorization Response Mode
-- ✅ **SAML 2.0** - IdP & SP with SSO/SLO, HTTP-POST/Redirect bindings
-- ✅ **Policy Service** - RBAC/ABAC/ReBAC engine with Feature Flags
-- ✅ **SD-JWT (RFC 9901)** - Selective Disclosure for JWTs
-
-### Phase Overview
 
 | Phase | Name                           | Timeline          | Status      |
 | ----- | ------------------------------ | ----------------- | ----------- |
@@ -128,16 +123,8 @@ Authrim is an **enterprise-grade Identity & Access Platform** built for:
 | 8     | **Unified Policy Integration** | 2026-Q2           | 🔜 Planned  |
 | 9     | **Advanced Identity (VC/DID)** | 2026-Q3           | 🔜 Planned  |
 | 10    | SDK & API                      | 2026-Q4           | 🔜 Planned  |
-| 11    | Security & QA                  | 2027-Q1           | 🔜 Planned  |
+| 11    | Security & QA                  | 2025-12 ~         | ⏳ ~15%     |
 | 12    | Certification & Release        | 2027-Q2           | 🔜 Final    |
-
-### Conformance Test Results
-
-| Profile         | Pass Rate      | Status                          |
-| --------------- | -------------- | ------------------------------- |
-| Basic OP        | 78.95% (30/38) | ✅ Passed (4 intentional skips) |
-| Config OP       | 100%           | ✅ Passed                       |
-| Form Post Basic | 84.21%         | ✅ Passed                       |
 
 [View detailed roadmap](./docs/ROADMAP.md)
 
@@ -147,23 +134,48 @@ Authrim is an **enterprise-grade Identity & Access Platform** built for:
 
 ### Backend (API)
 
-| Layer         | Technology                | Purpose                            |
-| ------------- | ------------------------- | ---------------------------------- |
-| **Runtime**   | Cloudflare Workers        | Global edge deployment             |
-| **Framework** | Hono                      | Fast, lightweight web framework    |
-| **Build**     | Turborepo + pnpm          | Monorepo, parallel builds, caching |
-| **Storage**   | KV / D1 / Durable Objects | Flexible data persistence          |
-| **Crypto**    | JOSE                      | JWT/JWK standards (RS256)          |
+| Layer         | Technology                      | Version | Purpose                            |
+| ------------- | ------------------------------- | ------- | ---------------------------------- |
+| **Runtime**   | Cloudflare Workers              | -       | Global edge deployment             |
+| **Framework** | Hono                            | 4.x     | Fast, lightweight web framework    |
+| **Build**     | Turborepo + pnpm                | 9.x     | Monorepo, parallel builds, caching |
+| **Storage**   | KV / D1 / Durable Objects       | -       | Flexible data persistence          |
+| **Crypto**    | JOSE                            | 6.x     | JWT/JWS/JWE/JWK (RS256, ES256)     |
+| **WebAuthn**  | SimpleWebAuthn                  | 13.x    | Passkey authentication             |
+| **SAML**      | xmldom + pako                   | -       | SAML 2.0 XML processing            |
+| **Email**     | Resend                          | 6.x     | Magic Link, OTP delivery           |
+| **Testing**   | Vitest                          | 2.x     | Unit & integration tests           |
 
 ### Frontend (UI)
 
-| Layer          | Technology      | Purpose                        |
-| -------------- | --------------- | ------------------------------ |
-| **Framework**  | SvelteKit 2.x   | Modern reactive framework      |
-| **Deployment** | Cloudflare Pages| Global CDN                     |
-| **CSS**        | UnoCSS          | Lightweight utility-first      |
-| **Components** | Melt UI         | Headless, accessible           |
-| **i18n**       | typesafe-i18n   | Type-safe internationalization |
+| Layer          | Technology              | Version | Purpose                        |
+| -------------- | ----------------------- | ------- | ------------------------------ |
+| **Framework**  | SvelteKit + Svelte      | 2.x / 5.x | Modern reactive framework    |
+| **Deployment** | Cloudflare Pages        | -       | Global CDN                     |
+| **CSS**        | UnoCSS                  | 66.x    | Utility-first CSS              |
+| **Components** | Melt UI                 | 0.86.x  | Headless, accessible           |
+| **i18n**       | typesafe-i18n           | 5.x     | Type-safe internationalization |
+| **WebAuthn**   | SimpleWebAuthn Browser  | 13.x    | Client-side passkey support    |
+| **Testing**    | Vitest + Testing Library| 4.x     | Component & E2E tests          |
+
+### Packages (14 total)
+
+| Package | Type | Purpose |
+| ------- | ---- | ------- |
+| `shared` | Library | Common utilities, types, Durable Objects |
+| `policy-core` | Library | RBAC/ABAC/ReBAC policy engine core |
+| `op-auth` | Worker | Authorization endpoint, login flows |
+| `op-token` | Worker | Token endpoint (all grant types) |
+| `op-userinfo` | Worker | UserInfo endpoint |
+| `op-management` | Worker | Admin API, introspection, revocation |
+| `op-discovery` | Worker | Discovery & JWKS endpoints |
+| `op-async` | Worker | Device Flow, CIBA polling |
+| `op-saml` | Worker | SAML 2.0 IdP & SP |
+| `external-idp` | Worker | Social login (Google, Microsoft, GitHub) |
+| `policy-service` | Worker | Policy evaluation API |
+| `scim` | Worker | SCIM 2.0 user provisioning |
+| `router` | Worker | Request routing & load balancing |
+| `ui` | SvelteKit | Authentication & admin UI |
 
 ### Durable Objects (14 total)
 
@@ -184,7 +196,6 @@ Authrim is an **enterprise-grade Identity & Access Platform** built for:
 | UserCodeRateLimiter    | User code rate limiting          |
 | VersionManager         | Version management               |
 
----
 
 ## Features
 
@@ -257,113 +268,6 @@ Authrim is an **enterprise-grade Identity & Access Platform** built for:
 
 ---
 
-## Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- pnpm
-- Cloudflare account (free tier works)
-
-### Development Setup
-
-```bash
-# Clone repository
-git clone https://github.com/sgrastar/authrim.git
-cd authrim
-
-# Install dependencies
-pnpm install
-
-# Generate RSA keys
-./scripts/setup-keys.sh
-
-# Set up local environment
-./scripts/setup-local-wrangler.sh --env=dev
-./scripts/setup-kv.sh --env=dev
-./scripts/setup-d1.sh --env=dev
-
-# Build and start
-pnpm run build
-pnpm run dev
-
-# Workers start at:
-# - op-discovery: http://localhost:8787
-# - op-auth: http://localhost:8788
-# - op-token: http://localhost:8789
-# - op-userinfo: http://localhost:8790
-# - op-management: http://localhost:8791
-```
-
-### Test the API
-
-```bash
-# Discovery endpoint
-curl http://localhost:8787/.well-known/openid-configuration | jq
-
-# JWKS endpoint
-curl http://localhost:8787/.well-known/jwks.json | jq
-```
-
-For production deployment, see [DEPLOYMENT.md](./DEPLOYMENT.md).
-
----
-
-## Documentation
-
-| Category            | Documents                                                                                                                                                |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Getting Started** | [Vision](./docs/VISION.md), [Roadmap](./docs/ROADMAP.md), [Development](./DEVELOPMENT.md)                                                                |
-| **Architecture**    | [Technical Specs](./docs/architecture/technical-specs.md), [Durable Objects](./docs/architecture/durable-objects.md)                                     |
-| **Features**        | [Device Flow](./docs/features/device-flow.md), [CIBA](./docs/features/ciba.md), [SCIM](./docs/features/scim.md), [JAR/JARM](./docs/features/jar-jarm.md) |
-| **API Reference**   | [API Overview](./docs/api/README.md), [Admin API](./docs/api/admin/)                                                                                     |
-| **Project**         | [Tasks](./docs/project-management/TASKS.md), [Schedule](./docs/project-management/SCHEDULE.md)                                                           |
-
-Full documentation: [docs/README.md](./docs/README.md)
-
----
-
-## Specification Compliance
-
-| Specification                          | Status         |
-| -------------------------------------- | -------------- |
-| OpenID Connect Core 1.0                | ✅ Implemented |
-| OpenID Connect Discovery 1.0           | ✅ Implemented |
-| OAuth 2.0 (RFC 6749)                   | ✅ Implemented |
-| PKCE (RFC 7636)                        | ✅ Implemented |
-| JWT (RFC 7519) / JWK (RFC 7517)        | ✅ Implemented |
-| JWE (RFC 7516)                         | ✅ Implemented |
-| Dynamic Client Registration (RFC 7591) | ✅ Implemented |
-| Token Introspection (RFC 7662)         | ✅ Implemented |
-| Token Revocation (RFC 7009)            | ✅ Implemented |
-| PAR (RFC 9126)                         | ✅ Implemented |
-| DPoP (RFC 9449)                        | ✅ Implemented |
-| JAR (RFC 9101)                         | ✅ Implemented |
-| Device Flow (RFC 8628)                 | ✅ Implemented |
-| JWT Bearer (RFC 7523)                  | ✅ Implemented |
-| SCIM 2.0 (RFC 7643/7644)               | ✅ Implemented |
-| CIBA (OpenID Connect)                  | ✅ Implemented |
-
----
-
-## Security
-
-Authrim implements security best practices:
-
-- ✅ PKCE (Proof Key for Code Exchange)
-- ✅ Single-use authorization codes
-- ✅ JWT signature verification (RS256)
-- ✅ Token expiration with configurable TTL
-- ✅ HTTPS-only in production
-- ✅ CSRF protection (state parameter)
-- ✅ Rate limiting (configurable profiles)
-- ✅ DPoP token binding
-- ✅ Security headers (CSP, HSTS, XSS protection)
-
-**Reporting vulnerabilities:** See [SECURITY.md](./SECURITY.md)
-
----
-
 ## Contributing
 
 Authrim is primarily a solo development project. See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
@@ -397,6 +301,6 @@ See [LICENSE](./LICENSE) for details.
 
 > **Authrim** — _Identity & Access at the edge of everywhere_
 >
-> **Status:** Phase 6 Complete ✅ | Phase 7 ~90% Complete (Identity Hub Foundation)
+> **Status:** Phase 6 ✅ | Phase 7 ~90% (Identity Hub) | Phase 11 ~15% (Load Testing ✅)
 >
 > _From zero to production-ready Identity & Access Platform in under 5 minutes._ (Goal: 2027-Q2)
