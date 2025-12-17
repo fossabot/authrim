@@ -10,13 +10,14 @@ This folder contains comprehensive load test reports for the Authrim OIDC Provid
 | [UserInfo](./userinfo.md) | `GET /userinfo` | 2,000-3,000 RPS | JWT validation stable at 1-4ms CPU |
 | [Token Exchange](./token-exchange.md) | `POST /token` (RFC 8693) | 2,500 RPS | 100% token validation accuracy |
 | [Token Introspection](./token-introspection.md) | `POST /introspect` (RFC 7662) | 300-750 RPS | Region-aware JTI sharding effective |
+| [Refresh Token Rotation](./refresh-token.md) | `POST /token` (refresh_token) | 2,000-3,000 RPS | Linear shard scaling: 1.5x shards → 1.5x capacity |
 | [Full Login (Mail OTP)](./full-login-otp.md) | 5-step OAuth flow | 150 LPS | 32 shards: 91% P95 latency reduction |
 
 ## Infrastructure
 
 All tests were conducted against:
 - **Platform**: Cloudflare Workers + Durable Objects + D1
-- **Load Generator**: K6 Cloud (Amazon US regions)
+- **Load Generator**: K6 Cloud (Amazon US/JP regions)
 - **Monitoring**: Cloudflare Analytics API
 
 ## Key Metrics Across Tests
@@ -26,6 +27,7 @@ All tests were conducted against:
 | Endpoint | Recommended | Peak | Hard Limit |
 |----------|-------------|------|------------|
 | Silent Auth (128 shards) | 2,500 RPS | 3,500 RPS | 4,500 RPS |
+| Refresh Token (48 shards) | 2,500 RPS | 3,000 RPS | 3,500 RPS |
 | UserInfo | 2,000 RPS | 2,500 RPS | 3,000 RPS |
 | Token Exchange | 1,500 RPS | 2,500 RPS | 2,700 RPS |
 | Token Introspection (32 shards) | 300 RPS | 500 RPS | 750 RPS |

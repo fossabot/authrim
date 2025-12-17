@@ -243,60 +243,74 @@ CONFORMANCE_SUITE_URL=https://www.certification.openid.net
 
 ## Load Testing
 
-Test Authrim's performance under realistic load using k6.
+Test Authrim's performance under realistic load using K6.
+
+> **Full documentation**: See [load-testing/README.md](../../load-testing/README.md) for complete setup and benchmark guides.
 
 ### Quick Start
 
 ```bash
 cd load-testing
 
-# 1. Setup test environment
-node scripts/setup-test-clients.js
+# 1. Seed test data (example: access tokens)
+BASE_URL=https://your-authrim.example.com \
+CLIENT_ID=xxx CLIENT_SECRET=yyy ADMIN_API_SECRET=zzz \
+TOKEN_COUNT=1000 \
+node scripts/seeds/seed-access-tokens.js
 
-# 2. Seed test data
-node scripts/seed-authcodes.js
-
-# 3. Run load test
-k6 run test2-light-10vu.js
+# 2. Run benchmark
+k6 run \
+  --env BASE_URL=https://your-authrim.example.com \
+  --env CLIENT_ID=xxx --env CLIENT_SECRET=yyy \
+  --env PRESET=rps100 \
+  scripts/benchmarks/test-introspect-benchmark.js
 ```
 
-### Test Scenarios
+### Available Benchmarks
 
-| Scenario | Description | VUs | Duration |
-|----------|-------------|-----|----------|
-| Light | Basic functionality | 10 | 1min |
-| Medium | Moderate load | 50 | 5min |
-| Heavy | Stress testing | 100+ | 10min |
-| Distributed | Multi-client simulation | 30+ | 15min |
+| Benchmark | Endpoint | Seed Script |
+|-----------|----------|-------------|
+| Token Introspection | `POST /introspect` | `seed-access-tokens.js` |
+| Token Exchange | `POST /token` | `seed-access-tokens.js` |
+| UserInfo | `GET /userinfo` | `seed-access-tokens.js` |
+| Silent Auth | `GET /authorize?prompt=none` | `seed-otp-users.js` |
+| Mail OTP Login | 5-step OAuth flow | `seed-otp-users.js` |
+| Passkey Login | 6-step OAuth flow | `seed-passkey-users.js` |
 
-### Key Metrics
+### Performance Highlights
 
-| Metric | Target |
-|--------|--------|
-| p95 Latency | < 500ms |
-| p99 Latency | < 1000ms |
-| Success Rate | > 99.9% |
-| Token Rotation | > 99% |
+| Endpoint | Recommended RPS | Peak RPS |
+|----------|-----------------|----------|
+| Silent Auth (128 shards) | 2,500 | 3,500 |
+| Refresh Token (48 shards) | 2,500 | 3,000 |
+| UserInfo | 2,000 | 2,500 |
+| Token Introspection (32 shards) | 300 | 500 |
 
 ### Scripts
 
 ```
 load-testing/scripts/
-├── setup-test-clients.js     # Create OAuth test clients
-├── seed-authcodes.js         # Generate auth codes
-├── seed-refresh-tokens.js    # Generate refresh tokens
-├── test-refresh.js           # Token rotation test
-├── report-cf-analytics.js    # Cloudflare metrics
-└── report-generate.js        # Generate reports
+├── benchmarks/               # K6 benchmark scripts
+│   ├── test-introspect-benchmark.js
+│   ├── test-userinfo-benchmark.js
+│   └── ...
+├── seeds/                    # Seed data generation
+│   ├── seed-access-tokens.js
+│   ├── seed-otp-users.js
+│   └── ...
+└── utils/
+    └── report-cf-analytics.js  # Cloudflare metrics
 ```
 
 ### Cloudflare Analytics
 
 ```bash
-# Get performance metrics after load test
-CF_API_TOKEN="your_token" node scripts/report-cf-analytics.js \
-  --start "2025-01-01T00:00:00Z" \
-  --end "2025-01-01T01:00:00Z"
+# Fetch metrics for last 10 minutes
+CF_API_TOKEN=xxx node scripts/utils/report-cf-analytics.js --minutes 10
+
+# Fetch metrics for specific time range
+CF_API_TOKEN=xxx node scripts/utils/report-cf-analytics.js \
+  --start "2025-12-17T10:00:00Z" --end "2025-12-17T10:30:00Z"
 ```
 
 ---
