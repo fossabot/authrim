@@ -166,24 +166,6 @@ describe('SCIM 2.0 Endpoints', () => {
                     updated_at: user.updated_at,
                   };
                 }
-                // Legacy: SELECT * FROM users WHERE id = ?
-                if (sql.includes('SELECT * FROM users WHERE id = ?')) {
-                  return mockUsers.get(args[0]) || null;
-                }
-                if (sql.includes('SELECT * FROM users WHERE email = ?')) {
-                  for (const user of mockUsers.values()) {
-                    if (user.email === args[0]) return user;
-                  }
-                  return null;
-                }
-                if (sql.includes('SELECT id FROM users WHERE') && sql.includes('email')) {
-                  // Handle both "WHERE email = ?" and "WHERE tenant_id = ? AND email = ?"
-                  const emailArg = sql.includes('tenant_id') ? args[1] : args[0];
-                  for (const user of mockUsers.values()) {
-                    if (user.email === emailArg) return { id: user.id };
-                  }
-                  return null;
-                }
                 if (sql.includes('SELECT COUNT(*) as total')) {
                   if (sql.includes('users') || sql.includes('users_core'))
                     return { total: mockUsers.size };
@@ -218,9 +200,6 @@ describe('SCIM 2.0 Endpoints', () => {
                   }));
                   return { results };
                 }
-                if (sql.includes('SELECT * FROM users')) {
-                  return { results: Array.from(mockUsers.values()) };
-                }
                 if (sql.includes('SELECT * FROM roles')) {
                   return { results: Array.from(mockGroups.values()) };
                 }
@@ -250,29 +229,6 @@ describe('SCIM 2.0 Endpoints', () => {
                   });
                   return { success: true };
                 }
-                // Legacy: INSERT INTO users
-                if (sql.includes('INSERT INTO users')) {
-                  // bind() order: userId, tenantId, email, email_verified, name, given_name, family_name,
-                  // middle_name, nickname, preferred_username, profile, picture, website, gender,
-                  // birthdate, zoneinfo, locale, phone_number, phone_number_verified, address_json,
-                  // password_hash, external_id, active, custom_attributes_json, created_at, updated_at
-                  const userId = args[0];
-                  mockUsers.set(userId, {
-                    id: userId,
-                    tenant_id: args[1],
-                    email: args[2],
-                    email_verified: args[3],
-                    name: args[4],
-                    given_name: args[5],
-                    family_name: args[6],
-                    preferred_username: args[9],
-                    active: args[22],
-                    external_id: args[21],
-                    created_at: args[24],
-                    updated_at: args[25],
-                  });
-                  return { success: true };
-                }
                 // Handle UPDATE users_core SET (PII/Non-PII separation)
                 if (sql.includes('UPDATE users_core SET')) {
                   const userId = args[args.length - 1];
@@ -284,21 +240,6 @@ describe('SCIM 2.0 Endpoints', () => {
                       user.active = 0;
                     }
                   }
-                  return { success: true };
-                }
-                // Legacy: UPDATE users SET
-                if (sql.includes('UPDATE users SET')) {
-                  const userId = args[args.length - 1];
-                  const user = mockUsers.get(userId);
-                  if (user) {
-                    user.email = args[0];
-                    user.updated_at = new Date().toISOString();
-                  }
-                  return { success: true };
-                }
-                // DELETE FROM users (now soft delete via UPDATE users_core)
-                if (sql.includes('DELETE FROM users')) {
-                  mockUsers.delete(args[0]);
                   return { success: true };
                 }
                 if (sql.includes('INSERT INTO roles')) {

@@ -61,9 +61,6 @@ function createMockDB(queryResults: Record<string, unknown>) {
                   (queryResults['user'] as { id: string })?.id,
               }
             : null;
-      } else if (sql.includes('FROM users WHERE id')) {
-        // Legacy query pattern - kept for backward compatibility
-        result = queryResults['user'] ?? null;
       }
 
       return {

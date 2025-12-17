@@ -287,9 +287,7 @@ export async function sessionStatusHandler(c: Context<{ Bindings: Env }>) {
 
     if (c.env.DB_PII) {
       try {
-        const userPII = await c.env.DB_PII.prepare(
-          'SELECT email, name FROM users_pii WHERE id = ?'
-        )
+        const userPII = await c.env.DB_PII.prepare('SELECT email, name FROM users_pii WHERE id = ?')
           .bind(session.userId)
           .first<{ email: string; name: string | null }>();
 

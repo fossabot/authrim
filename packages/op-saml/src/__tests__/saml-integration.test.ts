@@ -197,11 +197,28 @@ describe('SAML Integration', () => {
         prepare: vi.fn().mockImplementation((sql: string) => ({
           bind: vi.fn().mockReturnThis(),
           first: vi.fn().mockImplementation(async () => {
-            if (sql.includes('SELECT id FROM users WHERE email')) {
+            // PII/Non-PII separation: users_core (non-PII)
+            if (sql.includes('SELECT id FROM users_core WHERE id')) {
               return { id: 'user-001' };
             }
-            if (sql.includes('SELECT email FROM users WHERE id')) {
+            return null;
+          }),
+          run: vi.fn().mockResolvedValue({ success: true }),
+        })),
+      } as any,
+      DB_PII: {
+        prepare: vi.fn().mockImplementation((sql: string) => ({
+          bind: vi.fn().mockReturnThis(),
+          first: vi.fn().mockImplementation(async () => {
+            // PII/Non-PII separation: users_pii (PII)
+            if (sql.includes('SELECT id FROM users_pii WHERE')) {
+              return { id: 'user-001' };
+            }
+            if (sql.includes('SELECT email FROM users_pii WHERE id')) {
               return { email: 'user@example.com' };
+            }
+            if (sql.includes('SELECT email, name FROM users_pii WHERE id')) {
+              return { email: 'user@example.com', name: 'Test User' };
             }
             return null;
           }),

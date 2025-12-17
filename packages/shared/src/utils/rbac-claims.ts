@@ -486,7 +486,7 @@ export async function resolveOrganizationInfo(
 }
 
 /**
- * Get user's user_type from users table
+ * Get user's user_type from users_core table (non-PII)
  *
  * @param db - D1 database
  * @param subjectId - User ID

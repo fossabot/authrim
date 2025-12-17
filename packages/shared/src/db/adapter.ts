@@ -109,8 +109,8 @@ export interface DatabaseAdapter {
    *
    * @example
    * ```typescript
-   * const users = await adapter.query<User>(
-   *   'SELECT * FROM users WHERE tenant_id = ?',
+   * const users = await adapter.query<UserCore>(
+   *   'SELECT * FROM users_core WHERE tenant_id = ?',
    *   [tenantId]
    * );
    * ```
@@ -126,8 +126,8 @@ export interface DatabaseAdapter {
    *
    * @example
    * ```typescript
-   * const user = await adapter.queryOne<User>(
-   *   'SELECT * FROM users WHERE id = ?',
+   * const user = await adapter.queryOne<UserCore>(
+   *   'SELECT * FROM users_core WHERE id = ?',
    *   [userId]
    * );
    * ```
@@ -144,8 +144,8 @@ export interface DatabaseAdapter {
    * @example
    * ```typescript
    * const result = await adapter.execute(
-   *   'INSERT INTO users (id, email) VALUES (?, ?)',
-   *   [userId, email]
+   *   'INSERT INTO users_core (id, tenant_id) VALUES (?, ?)',
+   *   [userId, tenantId]
    * );
    * console.log(`Inserted ${result.rowsAffected} rows`);
    * ```
@@ -164,8 +164,8 @@ export interface DatabaseAdapter {
    * @example
    * ```typescript
    * const result = await adapter.transaction(async (tx) => {
-   *   await tx.execute('INSERT INTO users (id) VALUES (?)', [userId]);
-   *   await tx.execute('INSERT INTO profiles (user_id) VALUES (?)', [userId]);
+   *   await tx.execute('INSERT INTO users_core (id, tenant_id) VALUES (?, ?)', [userId, tenantId]);
+   *   await tx.execute('INSERT INTO passkeys (id, user_id) VALUES (?, ?)', [passkeyId, userId]);
    *   return { userId };
    * });
    * ```
@@ -184,8 +184,8 @@ export interface DatabaseAdapter {
    * @example
    * ```typescript
    * const results = await adapter.batch([
-   *   { sql: 'INSERT INTO users (id) VALUES (?)', params: [userId1] },
-   *   { sql: 'INSERT INTO users (id) VALUES (?)', params: [userId2] },
+   *   { sql: 'INSERT INTO users_core (id, tenant_id) VALUES (?, ?)', params: [userId1, tenantId] },
+   *   { sql: 'INSERT INTO users_core (id, tenant_id) VALUES (?, ?)', params: [userId2, tenantId] },
    * ]);
    * ```
    */

@@ -102,8 +102,8 @@ const value = await adapter.get('client:test-client');
 await adapter.set('custom:key', 'value', 3600); // TTL: 1 hour
 await adapter.delete('session:abc123');
 
-// D1 SQL queries
-const users = await adapter.query<User>('SELECT * FROM users WHERE email = ?', ['user@example.com']);
+// D1 SQL queries (PII/Non-PII separation: users_core for non-PII, users_pii for PII)
+const users = await adapter.query<UserPII>('SELECT * FROM users_pii WHERE email = ?', ['user@example.com']);
 await adapter.execute('DELETE FROM sessions WHERE expires_at < ?', [Date.now()]);
 ```
 
