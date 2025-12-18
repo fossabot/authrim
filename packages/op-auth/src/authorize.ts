@@ -587,7 +587,27 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         const alg = header.alg;
 
         if (alg === 'none') {
+          // SECURITY: Block alg=none in production environment regardless of settings
+          // This is a critical security measure to prevent unsigned JWT attacks
+          const isProduction =
+            c.env.ENVIRONMENT === 'production' || c.env.NODE_ENV === 'production';
+
+          if (isProduction) {
+            console.error(
+              '[SECURITY CRITICAL] Blocked unsigned request object (alg=none) in production environment'
+            );
+            return c.json(
+              {
+                error: 'invalid_request_object',
+                error_description:
+                  'Unsigned request objects (alg=none) are not permitted in production',
+              },
+              400
+            );
+          }
+
           // Check if 'none' algorithm is allowed (read from KV settings)
+          // Only applies to non-production environments
           const settingsJson = await c.env.SETTINGS?.get('system_settings');
           const settings = settingsJson ? JSON.parse(settingsJson) : {};
           const allowNoneAlgorithm = settings.oidc?.allowNoneAlgorithm ?? false;
@@ -607,9 +627,9 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
           }
 
           // Unsigned request object - just parse without verification
-          // Note: This should only be allowed in development/testing
+          // Note: This is ONLY allowed in development/testing environments
           console.warn(
-            '[SECURITY] Using unsigned request object (alg=none) - should only be used in development'
+            '[SECURITY] Using unsigned request object (alg=none) - development/testing only'
           );
           requestObjectClaims = parseToken(jwtRequest) as Record<string, unknown>;
         } else {
@@ -894,6 +914,19 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       {
         error: 'invalid_client',
         error_description: 'Client not found',
+      },
+      400
+    );
+  }
+
+  // VG-006: Validate response_type against client's allowed response_types
+  // RFC 7591 Section 2: response_types defaults to ["code"] if not specified
+  const clientResponseTypes = (clientMetadata.response_types as string[] | undefined) || ['code'];
+  if (!clientResponseTypes.includes(response_type!)) {
+    return c.json(
+      {
+        error: 'unauthorized_client',
+        error_description: `Response type '${response_type}' is not allowed for this client. Allowed: ${clientResponseTypes.join(', ')}`,
       },
       400
     );
@@ -1863,12 +1896,45 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   );
 
   // Handle acr_values parameter (Authentication Context Class Reference)
+  // OIDC Core 3.1.2.1: acr_values is a space-separated string of ACR values in order of preference
   let selectedAcr = sessionAcr;
   if (acr_values && !selectedAcr) {
-    // Select first ACR value from the list
-    // In production, this should match against supported ACR values
-    const acrList = acr_values.split(' ');
-    selectedAcr = acrList[0];
+    // Load supported ACR values from settings (KV > env > default)
+    // Default ACR values per OIDC Core specification
+    const defaultSupportedAcr = [
+      'urn:mace:incommon:iap:silver', // Basic authentication
+      'urn:mace:incommon:iap:bronze', // Minimal authentication
+      'urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport', // Password over TLS
+      'urn:oasis:names:tc:SAML:2.0:ac:classes:Password', // Simple password
+      '0', // No authentication context (fallback)
+    ];
+
+    let supportedAcrValues: string[] = defaultSupportedAcr;
+
+    // Try to load custom ACR values from FAPI/OIDC config (already loaded earlier)
+    if (oidcConfig.supportedAcrValues && Array.isArray(oidcConfig.supportedAcrValues)) {
+      supportedAcrValues = oidcConfig.supportedAcrValues;
+    } else if (c.env.SUPPORTED_ACR_VALUES) {
+      // Fallback to environment variable (comma-separated)
+      supportedAcrValues = c.env.SUPPORTED_ACR_VALUES.split(',').map((v: string) => v.trim());
+    }
+
+    // Match requested ACR values against supported values (in order of client preference)
+    const requestedAcrList = acr_values.split(' ');
+    const matchedAcr = requestedAcrList.find((acr) => supportedAcrValues.includes(acr));
+
+    if (matchedAcr) {
+      selectedAcr = matchedAcr;
+      console.log(`[ACR] Selected ACR from client request: ${selectedAcr}`);
+    } else {
+      // No match found - use the first supported ACR as default
+      // Per OIDC Core: The OP SHOULD process the request, but MAY return a different acr
+      selectedAcr = supportedAcrValues[0];
+      console.log(
+        `[ACR] No matching ACR found. Requested: [${requestedAcrList.join(', ')}], ` +
+          `Supported: [${supportedAcrValues.join(', ')}], Using default: ${selectedAcr}`
+      );
+    }
   }
 
   // Type narrowing: scope is guaranteed to be a string at this point
@@ -1885,8 +1951,17 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   const includesToken = responseTypes.includes('token');
 
   // Extract and validate DPoP proof (if present) for authorization code binding
+  // FAPI 2.0: DPoP validation is strict when DPoP header is provided
   let dpopJkt: string | undefined;
   const dpopProof = extractDPoPProof(c.req.raw.headers);
+
+  // Determine if strict DPoP validation is required
+  // - FAPI 2.0 mode with strictDPoP enabled: Always strict when DPoP header is present
+  // - Client metadata dpop_bound_access_tokens: Client requires DPoP
+  const isStrictDPoPMode =
+    (fapiConfig.enabled && fapiConfig.strictDPoP !== false) ||
+    (clientMetadata && clientMetadata.dpop_bound_access_tokens === true);
+
   if (dpopProof) {
     // Validate DPoP proof
     const dpopValidation = await validateDPoPProof(
@@ -1902,6 +1977,19 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       dpopJkt = dpopValidation.jkt; // Store JWK thumbprint for code binding
       console.log('[DPoP] Authorization code will be bound to DPoP key:', dpopJkt);
     } else {
+      // FAPI 2.0 / Strict DPoP mode: Reject invalid DPoP proofs
+      if (isStrictDPoPMode) {
+        console.error(
+          '[DPoP STRICT] Rejected invalid DPoP proof in FAPI 2.0/strict mode:',
+          dpopValidation.error_description
+        );
+        return sendError(
+          'invalid_dpop_proof',
+          dpopValidation.error_description || 'Invalid DPoP proof'
+        );
+      }
+
+      // Non-strict mode: Log warning but continue without binding
       console.warn(
         '[DPoP] Invalid DPoP proof provided, continuing without binding:',
         dpopValidation.error_description
@@ -1909,6 +1997,10 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       // Note: We don't fail the request if DPoP is invalid, just don't bind the code
       // This allows flexibility for clients that may have optional DPoP support
     }
+  } else if (isStrictDPoPMode && clientMetadata?.dpop_bound_access_tokens === true) {
+    // Client requires DPoP but no DPoP header provided
+    console.error('[DPoP STRICT] Client requires DPoP but no DPoP header provided');
+    return sendError('invalid_dpop_proof', 'DPoP proof is required for this client');
   }
 
   // Generate authorization code if needed (for code flow and hybrid flows)
@@ -2699,11 +2791,19 @@ function escapeHtml(unsafe: string): string {
 }
 
 /**
- * Handle login screen
+ * Handle login screen (TEST/STUB ONLY)
  * GET/POST /authorize/login
  *
- * Shows a simple login form (username + password) for testing.
- * In production, this would redirect to UI_URL/login or show a proper login UI.
+ * ⚠️ PII/Non-PII SEPARATION NOTE:
+ * This is a STUB implementation for OIDC Conformance Testing.
+ * It creates test users with PII data, which requires PIIContext.
+ *
+ * In production:
+ * - Real login flows use /api/auth/passkey, /api/auth/email-code, etc.
+ * - Users are created through proper signup flows
+ * - This endpoint is only used for OIDC certification tests
+ *
+ * Non-certification test clients require ENABLE_TEST_ENDPOINTS=true
  */
 export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
   // Parse challenge_id and username from request
@@ -2895,7 +2995,11 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
           pii_status: 'pending',
         })
         .catch((error: unknown) => {
-          console.error('Failed to create test user in Core DB:', error);
+          // PII Protection: Don't log full error
+          console.error(
+            'Failed to create test user in Core DB:',
+            error instanceof Error ? error.name : 'Unknown error'
+          );
         });
 
       // Step 2: Insert into users_pii (if DB_PII is configured)
@@ -2927,19 +3031,50 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
             address_country: 'USA',
           })
           .catch((error: unknown) => {
-            console.error('Failed to create test user in PII DB:', error);
+            // PII Protection: Don't log full error
+            console.error(
+              'Failed to create test user in PII DB:',
+              error instanceof Error ? error.name : 'Unknown error'
+            );
           });
 
         // Step 3: Update pii_status to 'active'
         await authCtx.repositories.userCore
           .updatePIIStatus(userId, 'active')
           .catch((error: unknown) => {
-            console.error('Failed to update pii_status:', error);
+            // PII Protection: Don't log full error
+            console.error(
+              'Failed to update pii_status:',
+              error instanceof Error ? error.name : 'Unknown error'
+            );
           });
       }
     }
   } else {
     // Normal client: create new random user
+    // ⚠️ PII/Non-PII SEPARATION NOTE:
+    // This is a STUB implementation for testing purposes only.
+    // Requires ENABLE_TEST_ENDPOINTS=true for non-certification test clients.
+    //
+    // In production, users should be created through proper flows:
+    // - /api/auth/passkey (WebAuthn registration)
+    // - /api/auth/email-code (Passwordless OTP)
+    // - External IdP (SAML/OIDC federation)
+    if (c.env.ENABLE_TEST_ENDPOINTS !== 'true') {
+      console.warn(
+        '[LOGIN] Non-certification client attempted stub login without ENABLE_TEST_ENDPOINTS'
+      );
+      return c.json(
+        {
+          error: 'access_denied',
+          error_description:
+            'Stub login is only available for OIDC certification tests or when ENABLE_TEST_ENDPOINTS is enabled',
+        },
+        403
+      );
+    }
+
+    console.log('[LOGIN] Creating stub user (ENABLE_TEST_ENDPOINTS=true)');
     userId = 'user-' + crypto.randomUUID();
 
     // Use the email from login form, or fall back to a dummy email
@@ -2956,28 +3091,44 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
         pii_status: 'pending',
       })
       .catch((error: unknown) => {
-        console.error('Failed to create user in Core DB:', error);
+        // PII Protection: Don't log full error
+        console.error(
+          'Failed to create user in Core DB:',
+          error instanceof Error ? error.name : 'Unknown error'
+        );
       });
 
     // Step 2: Insert into users_pii (if DB_PII is configured)
     if (c.env.DB_PII) {
       const piiCtx = createPIIContextFromHono(c, tenantId);
-      await piiCtx.piiRepositories.userPII
-        .createPII({
+      try {
+        await piiCtx.piiRepositories.userPII.createPII({
           id: userId,
           tenant_id: tenantId,
           email: userEmail,
-        })
-        .catch((error: unknown) => {
-          console.error('Failed to create user in PII DB:', error);
         });
 
-      // Step 3: Update pii_status to 'active'
-      await authCtx.repositories.userCore
-        .updatePIIStatus(userId, 'active')
-        .catch((error: unknown) => {
-          console.error('Failed to update pii_status:', error);
-        });
+        // Step 3: Update pii_status to 'active' (only on successful PII DB write)
+        await authCtx.repositories.userCore.updatePIIStatus(userId, 'active');
+      } catch (error: unknown) {
+        // PII Protection: Don't log full error
+        console.error(
+          'Failed to create user in PII DB:',
+          error instanceof Error ? error.name : 'Unknown error'
+        );
+        // Update pii_status to 'failed' to indicate PII DB write failure
+        await authCtx.repositories.userCore
+          .updatePIIStatus(userId, 'failed')
+          .catch((statusError: unknown) => {
+            // PII Protection: Don't log full error
+            console.error(
+              'Failed to update pii_status to failed:',
+              statusError instanceof Error ? statusError.name : 'Unknown error'
+            );
+          });
+      }
+    } else {
+      console.warn('[LOGIN] DB_PII not configured - user created with pii_status=pending');
     }
   }
 

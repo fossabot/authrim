@@ -144,6 +144,69 @@ import {
   cleanupTombstones,
   deleteTombstone,
 } from './routes/settings/tombstones';
+import {
+  getFapiSecurityConfig,
+  updateFapiSecurityConfig,
+  clearFapiSecurityConfig,
+} from './routes/settings/fapi-security';
+import {
+  createRoleAssignmentRule,
+  listRoleAssignmentRules,
+  getRoleAssignmentRule,
+  updateRoleAssignmentRule,
+  deleteRoleAssignmentRule,
+  testRoleAssignmentRule,
+  evaluateRoleAssignmentRules,
+} from './routes/settings/role-assignment-rules';
+import {
+  createOrgDomainMapping,
+  listOrgDomainMappings,
+  getOrgDomainMapping,
+  updateOrgDomainMapping,
+  deleteOrgDomainMapping,
+  listOrgDomainMappingsByOrg,
+  verifyDomainOwnership,
+} from './routes/settings/org-domain-mappings';
+import {
+  getJITProvisioningConfig,
+  updateJITProvisioningConfig,
+  resetJITProvisioningConfig,
+} from './routes/settings/jit-provisioning';
+import {
+  getDomainHashKeysConfig,
+  rotateDomainHashKey,
+  completeDomainHashKeyRotation,
+  getDomainHashKeyStatus,
+  deleteDomainHashKeyVersion,
+} from './routes/settings/domain-hash-keys';
+import {
+  createTokenClaimRule,
+  listTokenClaimRules,
+  getTokenClaimRule,
+  updateTokenClaimRule,
+  deleteTokenClaimRule,
+  testTokenClaimRuleHandler,
+  evaluateTokenClaimRules,
+} from './routes/settings/token-claim-rules';
+import {
+  createResourcePermission,
+  listResourcePermissions,
+  deleteResourcePermission,
+  getPermissionsBySubject,
+  getPermissionsByResource,
+  checkResourcePermission,
+} from './routes/settings/resource-permissions';
+import {
+  getTokenEmbeddingSettings,
+  updateTokenEmbeddingSettings,
+} from './routes/settings/token-embedding';
+import {
+  createCheckApiKey,
+  listCheckApiKeys,
+  getCheckApiKey,
+  deleteCheckApiKey,
+  rotateCheckApiKey,
+} from './routes/settings/check-api-keys';
 
 // Create Hono app with Cloudflare Workers types
 const app = new Hono<{ Bindings: Env }>();
@@ -396,6 +459,12 @@ app.get('/api/admin/settings/introspection-cache', getIntrospectionCacheConfigHa
 app.put('/api/admin/settings/introspection-cache', updateIntrospectionCacheConfigHandler);
 app.delete('/api/admin/settings/introspection-cache', clearIntrospectionCacheConfigHandler);
 
+// Admin FAPI/Security Configuration endpoints
+// FAPI 2.0 Security Profile and OIDC ACR settings
+app.get('/api/admin/settings/fapi-security', getFapiSecurityConfig);
+app.put('/api/admin/settings/fapi-security', updateFapiSecurityConfig);
+app.delete('/api/admin/settings/fapi-security', clearFapiSecurityConfig);
+
 // Admin Refresh Token Sharding Configuration endpoints
 app.get('/api/admin/settings/refresh-token-sharding', getRefreshTokenShardingConfig);
 app.put('/api/admin/settings/refresh-token-sharding', updateRefreshTokenShardingConfig);
@@ -452,6 +521,72 @@ app.delete(
   '/api/admin/users/:id/relationships/:relationshipId',
   adminUserRelationshipDeleteHandler
 );
+
+// =============================================================================
+// Policy ↔ Identity Integration (Phase 8.1)
+// =============================================================================
+
+// Role Assignment Rules endpoints
+app.post('/api/admin/role-assignment-rules', createRoleAssignmentRule);
+app.get('/api/admin/role-assignment-rules', listRoleAssignmentRules);
+app.post('/api/admin/role-assignment-rules/evaluate', evaluateRoleAssignmentRules);
+app.get('/api/admin/role-assignment-rules/:id', getRoleAssignmentRule);
+app.put('/api/admin/role-assignment-rules/:id', updateRoleAssignmentRule);
+app.delete('/api/admin/role-assignment-rules/:id', deleteRoleAssignmentRule);
+app.post('/api/admin/role-assignment-rules/:id/test', testRoleAssignmentRule);
+
+// Organization Domain Mappings endpoints
+app.post('/api/admin/org-domain-mappings', createOrgDomainMapping);
+app.get('/api/admin/org-domain-mappings', listOrgDomainMappings);
+app.post('/api/admin/org-domain-mappings/verify', verifyDomainOwnership);
+app.get('/api/admin/org-domain-mappings/:id', getOrgDomainMapping);
+app.put('/api/admin/org-domain-mappings/:id', updateOrgDomainMapping);
+app.delete('/api/admin/org-domain-mappings/:id', deleteOrgDomainMapping);
+app.get('/api/admin/organizations/:org_id/domain-mappings', listOrgDomainMappingsByOrg);
+
+// JIT Provisioning Configuration endpoints
+app.get('/api/admin/settings/jit-provisioning', getJITProvisioningConfig);
+app.put('/api/admin/settings/jit-provisioning', updateJITProvisioningConfig);
+app.delete('/api/admin/settings/jit-provisioning', resetJITProvisioningConfig);
+
+// Domain Hash Key Rotation endpoints
+app.get('/api/admin/settings/domain-hash-keys', getDomainHashKeysConfig);
+app.post('/api/admin/settings/domain-hash-keys/rotate', rotateDomainHashKey);
+app.put('/api/admin/settings/domain-hash-keys/complete', completeDomainHashKeyRotation);
+app.get('/api/admin/settings/domain-hash-keys/status', getDomainHashKeyStatus);
+app.delete('/api/admin/settings/domain-hash-keys/:version', deleteDomainHashKeyVersion);
+
+// =============================================================================
+// Token Embedding Model (Phase 8.2)
+// =============================================================================
+
+// Token Claim Rules endpoints
+app.post('/api/admin/token-claim-rules', createTokenClaimRule);
+app.get('/api/admin/token-claim-rules', listTokenClaimRules);
+app.post('/api/admin/token-claim-rules/evaluate', evaluateTokenClaimRules);
+app.get('/api/admin/token-claim-rules/:id', getTokenClaimRule);
+app.put('/api/admin/token-claim-rules/:id', updateTokenClaimRule);
+app.delete('/api/admin/token-claim-rules/:id', deleteTokenClaimRule);
+app.post('/api/admin/token-claim-rules/:id/test', testTokenClaimRuleHandler);
+
+// Resource Permissions endpoints (ID-level permissions)
+app.post('/api/admin/resource-permissions', createResourcePermission);
+app.get('/api/admin/resource-permissions', listResourcePermissions);
+app.post('/api/admin/resource-permissions/check', checkResourcePermission);
+app.get('/api/admin/resource-permissions/subject/:id', getPermissionsBySubject);
+app.get('/api/admin/resource-permissions/resource/:type/:id', getPermissionsByResource);
+app.delete('/api/admin/resource-permissions/:id', deleteResourcePermission);
+
+// Token Embedding Settings endpoints
+app.get('/api/admin/settings/token-embedding', getTokenEmbeddingSettings);
+app.put('/api/admin/settings/token-embedding', updateTokenEmbeddingSettings);
+
+// Check API Key Management endpoints (Phase 8.3)
+app.post('/api/admin/check-api-keys', createCheckApiKey);
+app.get('/api/admin/check-api-keys', listCheckApiKeys);
+app.get('/api/admin/check-api-keys/:id', getCheckApiKey);
+app.delete('/api/admin/check-api-keys/:id', deleteCheckApiKey);
+app.post('/api/admin/check-api-keys/:id/rotate', rotateCheckApiKey);
 
 // SCIM 2.0 endpoints - RFC 7643, 7644
 app.route('/scim/v2', scimApp);

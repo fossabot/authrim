@@ -169,6 +169,19 @@ export interface HandleIdentityResult {
   isNewUser: boolean;
   linkedIdentityId: string;
   stitchedFromExisting: boolean;
+  /** Roles assigned during JIT provisioning */
+  roles_assigned?: Array<{
+    role_id: string;
+    scope_type: string;
+    scope_target: string;
+  }>;
+  /** Organizations joined during JIT provisioning */
+  orgs_joined?: string[];
+  /** Attributes set during JIT provisioning */
+  attributes_set?: Array<{
+    name: string;
+    value: string;
+  }>;
 }
 
 // =============================================================================
@@ -265,6 +278,27 @@ export const ExternalIdPErrorCode = {
    * The identity was unlinked locally but tokens may still be valid at the provider.
    */
   TOKEN_REVOCATION_FAILED: 'token_revocation_failed',
+
+  /**
+   * Access denied by policy rule evaluation.
+   * The user's attributes did not meet the required conditions.
+   * Maps to OIDC error: access_denied
+   */
+  POLICY_ACCESS_DENIED: 'policy_access_denied',
+
+  /**
+   * User interaction required by policy rule.
+   * The user may need to complete additional steps.
+   * Maps to OIDC error: interaction_required
+   */
+  POLICY_INTERACTION_REQUIRED: 'policy_interaction_required',
+
+  /**
+   * Re-authentication required by policy rule.
+   * The user may need to authenticate again with stronger credentials.
+   * Maps to OIDC error: login_required
+   */
+  POLICY_LOGIN_REQUIRED: 'policy_login_required',
 } as const;
 
 export type ExternalIdPErrorCode = (typeof ExternalIdPErrorCode)[keyof typeof ExternalIdPErrorCode];

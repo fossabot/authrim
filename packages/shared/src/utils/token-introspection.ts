@@ -135,7 +135,11 @@ async function getKeysFromKeyManager(env: Env): Promise<Array<JWK & { kid?: stri
 
     return null;
   } catch (error) {
-    console.warn('Failed to fetch keys from KeyManager DO:', error);
+    // PII Protection: Don't log full error object
+    console.warn(
+      'Failed to fetch keys from KeyManager DO:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
     return null;
   }
 }
@@ -296,7 +300,11 @@ export async function introspectToken(
       kid = headerJson.kid;
     }
   } catch (error) {
-    console.warn('Failed to extract kid from JWT header:', error);
+    // PII Protection: Don't log full error object
+    console.warn(
+      'Failed to extract kid from JWT header:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
   }
 
   let publicKey: CryptoKey | null = null;
@@ -311,7 +319,11 @@ export async function introspectToken(
       try {
         publicKey = (await importJWK(jwk, 'RS256')) as CryptoKey;
       } catch (importError) {
-        console.warn('Failed to import JWK from KeyManager:', importError);
+        // PII Protection: Don't log full error object
+        console.warn(
+          'Failed to import JWK from KeyManager:',
+          importError instanceof Error ? importError.name : 'Unknown error'
+        );
       }
     }
   }
@@ -336,7 +348,11 @@ export async function introspectToken(
     try {
       publicKey = await getPublicKey(publicJWKJson, keyId);
     } catch (error) {
-      console.error('Failed to load verification key:', error);
+      // PII Protection: Don't log full error object
+      console.error(
+        'Failed to load verification key:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
       return {
         valid: false,
         error: {
@@ -537,7 +553,11 @@ export async function introspectTokenFromContext(
           }
         }
       } catch (error) {
-        console.warn('Failed to parse request body:', error);
+        // PII Protection: Don't log full error object (may contain request body data)
+        console.warn(
+          'Failed to parse request body:',
+          error instanceof Error ? error.name : 'Unknown error'
+        );
       }
     }
   }

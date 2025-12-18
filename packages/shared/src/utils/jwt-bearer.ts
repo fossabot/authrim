@@ -225,7 +225,11 @@ export async function validateJWTBearerAssertion(
       claims: payload as JWTBearerAssertion,
     };
   } catch (error) {
-    console.error('JWT Bearer assertion validation error:', error);
+    // PII Protection: Don't log full error object (may contain assertion claims in stack)
+    console.error(
+      'JWT Bearer assertion validation error:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
     return {
       valid: false,
       error: 'invalid_grant',

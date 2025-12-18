@@ -249,7 +249,11 @@ export async function getCompositeRBACCache(
         // Version mismatch → treat as cache miss (will be refreshed)
       }
     } catch (error) {
-      console.warn('Composite RBAC cache read error:', error);
+      // PII Protection: Don't log full error object
+      console.warn(
+        'Composite RBAC cache read error:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
     }
   }
 
@@ -292,7 +296,11 @@ export async function getCompositeRBACCache(
         const ttl = env ? await getRBACCacheTTL(env) : DEFAULT_RBAC_CACHE_TTL;
         await cache.put(cacheKey, JSON.stringify(compositeCache), { expirationTtl: ttl });
       } catch (err) {
-        console.warn('Composite RBAC cache write error:', err);
+        // PII Protection: Don't log full error object
+        console.warn(
+          'Composite RBAC cache write error:',
+          err instanceof Error ? err.name : 'Unknown error'
+        );
       }
     };
     void storeCacheAsync();
@@ -596,7 +604,11 @@ export async function getIDTokenRBACClaims(
         return JSON.parse(cached) as Partial<RBACTokenClaims>;
       }
     } catch (error) {
-      console.warn('RBAC cache read error (ID token):', error);
+      // PII Protection: Don't log full error object
+      console.warn(
+        'RBAC cache read error (ID token):',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
     }
   }
 
@@ -617,7 +629,11 @@ export async function getIDTokenRBACClaims(
         const ttl = options.env ? await getRBACCacheTTL(options.env) : DEFAULT_RBAC_CACHE_TTL;
         await cache.put(cacheKey, JSON.stringify(claims), { expirationTtl: ttl });
       } catch (err) {
-        console.warn('RBAC cache write error (ID token):', err);
+        // PII Protection: Don't log full error object
+        console.warn(
+          'RBAC cache write error (ID token):',
+          err instanceof Error ? err.name : 'Unknown error'
+        );
       }
     };
     void storeCacheAsync();
@@ -666,7 +682,11 @@ export async function getAccessTokenRBACClaims(
         return JSON.parse(cached) as Partial<RBACTokenClaims>;
       }
     } catch (error) {
-      console.warn('RBAC cache read error (access token):', error);
+      // PII Protection: Don't log full error object
+      console.warn(
+        'RBAC cache read error (access token):',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
     }
   }
 
@@ -681,7 +701,11 @@ export async function getAccessTokenRBACClaims(
         const ttl = options.env ? await getRBACCacheTTL(options.env) : DEFAULT_RBAC_CACHE_TTL;
         await cache.put(cacheKey, JSON.stringify(claims), { expirationTtl: ttl });
       } catch (err) {
-        console.warn('RBAC cache write error (access token):', err);
+        // PII Protection: Don't log full error object
+        console.warn(
+          'RBAC cache write error (access token):',
+          err instanceof Error ? err.name : 'Unknown error'
+        );
       }
     };
     void storeCacheAsync();

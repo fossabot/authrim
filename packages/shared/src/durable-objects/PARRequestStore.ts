@@ -36,13 +36,17 @@ export interface PARRequestData {
   code_challenge?: string;
   code_challenge_method?: string;
   response_type?: string;
+  response_mode?: string;
   prompt?: string;
+  display?: string;
   max_age?: number;
   ui_locales?: string;
   id_token_hint?: string;
   login_hint?: string;
   acr_values?: string;
   claims?: string;
+  // RFC 9449: DPoP key thumbprint for binding
+  dpop_jkt?: string;
   createdAt?: number;
   expiresAt?: number;
   consumed?: boolean;

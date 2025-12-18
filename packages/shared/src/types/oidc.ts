@@ -379,6 +379,7 @@ export interface RefreshTokenData {
   scope: string;
   iat: number; // Issued at timestamp
   exp: number; // Expiration timestamp
+  familyId?: string; // Refresh token family ID for token rotation
 }
 
 /**
@@ -400,7 +401,7 @@ export interface IntrospectionResponse {
   scope?: string;
   client_id?: string;
   username?: string;
-  token_type?: string;
+  token_type?: string; // "Bearer" or "DPoP" (RFC 9449)
   exp?: number;
   iat?: number;
   nbf?: number;
@@ -408,6 +409,10 @@ export interface IntrospectionResponse {
   aud?: string;
   iss?: string;
   jti?: string;
+  // RFC 9449: DPoP confirmation claim for sender-constrained tokens
+  cnf?: {
+    jkt: string; // JWK SHA-256 Thumbprint
+  };
   // RFC 8693: Token Exchange - Actor claim for delegation chain
   act?: {
     sub: string;

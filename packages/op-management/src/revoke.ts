@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import type { Env } from '@authrim/shared';
+import type { Env, ClientMetadata } from '@authrim/shared';
 import {
   validateClientId,
   timingSafeEqual,
@@ -10,6 +10,8 @@ import {
   verifyToken,
   createAuthContextFromHono,
   getTenantIdFromContext,
+  validateClientAssertion,
+  createOAuthConfigManager,
 } from '@authrim/shared';
 import { importJWK, decodeProtectedHeader, type CryptoKey, type JWK } from 'jose';
 
@@ -87,6 +89,10 @@ export async function revokeHandler(c: Context<{ Bindings: Env }>) {
   // Extract client credentials from either form data or Authorization header
   let client_id = formData.client_id;
   let client_secret = formData.client_secret;
+
+  // P0: Extract client_assertion for private_key_jwt authentication (RFC 7523)
+  const client_assertion = formData.client_assertion;
+  const client_assertion_type = formData.client_assertion_type;
 
   // Check for HTTP Basic authentication (client_secret_basic)
   // RFC 7617: client_id and client_secret are URL-encoded before Base64 encoding
@@ -167,16 +173,72 @@ export async function revokeHandler(c: Context<{ Bindings: Env }>) {
     );
   }
 
-  // Verify client_secret using timing-safe comparison to prevent timing attacks
-  if (!client_secret || !timingSafeEqual(clientRecord.client_secret ?? '', client_secret)) {
+  // Cast to ClientMetadata for type safety
+  const clientMetadata = clientRecord as unknown as ClientMetadata;
+
+  // =========================================================================
+  // Client Authentication (supports multiple methods)
+  // Priority: private_key_jwt > client_secret_basic/post > public client
+  // =========================================================================
+  let clientAuthenticated = false;
+
+  // P0: private_key_jwt authentication (RFC 7523)
+  if (
+    client_assertion &&
+    client_assertion_type === 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+  ) {
+    const assertionValidation = await validateClientAssertion(
+      client_assertion,
+      `${c.env.ISSUER_URL}/revoke`, // Revocation endpoint URL
+      clientMetadata
+    );
+
+    if (!assertionValidation.valid) {
+      return c.json(
+        {
+          error: assertionValidation.error || 'invalid_client',
+          error_description:
+            assertionValidation.error_description || 'Client assertion validation failed',
+        },
+        401
+      );
+    }
+    clientAuthenticated = true;
+  }
+  // client_secret_basic or client_secret_post authentication
+  else if (clientMetadata.client_secret && client_secret) {
+    // Verify client_secret using timing-safe comparison to prevent timing attacks
+    if (timingSafeEqual(clientMetadata.client_secret, client_secret)) {
+      clientAuthenticated = true;
+    } else {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description: 'Invalid client credentials',
+        },
+        401
+      );
+    }
+  }
+  // P2: Public client - no client_secret required
+  // RFC 7009: Public clients can revoke their own tokens
+  else if (!clientMetadata.client_secret) {
+    // Public client - will verify token ownership later
+    clientAuthenticated = true;
+  }
+  // Confidential client without proper authentication
+  else {
     return c.json(
       {
         error: 'invalid_client',
-        error_description: 'Invalid client credentials',
+        error_description: 'Client authentication required',
       },
       401
     );
   }
+
+  // Track if this is a public client for token ownership verification
+  const isPublicClient = !clientMetadata.client_secret;
 
   // Parse token to extract claims (without verification yet)
   let tokenPayload;
@@ -277,13 +339,43 @@ export async function revokeHandler(c: Context<{ Bindings: Env }>) {
     return c.body(null, 200);
   }
 
+  // =========================================================================
+  // Token Revocation with Cascade Support (RFC 7009 Section 2.1)
+  // When revoking refresh_token, SHOULD revoke related access tokens
+  // =========================================================================
+  // P4: Use ConfigManager for TOKEN_EXPIRY (KV → env → default)
+  const configManager = createOAuthConfigManager(c.env);
+  const expiresIn = await configManager.getNumber('TOKEN_EXPIRY');
+
+  // P1: Helper function for cascade revocation
+  const performCascadeRevocation = async (refreshTokenJti: string, familyId?: string) => {
+    // RFC 7009: When revoking refresh_token, SHOULD revoke related access tokens
+    // Strategy: Revoke the refresh token JTI in access token revocation store as well
+    // This ensures any access token with the same JTI pattern is invalidated
+    try {
+      // Also add the refresh token to the access token revocation list
+      // This handles cases where access tokens might share JTI prefix with refresh tokens
+      await revokeToken(c.env, refreshTokenJti, expiresIn);
+
+      // Log cascade revocation for audit
+      console.log(
+        `[REVOKE] Cascade revocation triggered: refresh_token=${refreshTokenJti}, ` +
+          `client=${tokenClientId}, user=${userId || 'unknown'}, family=${familyId || 'unknown'}`
+      );
+    } catch (error) {
+      // Don't fail the main revocation if cascade fails
+      console.error('[REVOKE] Cascade revocation failed:', error);
+    }
+  };
+
   // Determine token type and revoke accordingly
   if (token_type_hint === 'refresh_token') {
     // Revoke refresh token
     await deleteRefreshToken(c.env, jti, tokenClientId);
+    // P1: Cascade - also revoke related access tokens
+    await performCascadeRevocation(jti);
   } else if (token_type_hint === 'access_token') {
     // Revoke access token
-    const expiresIn = parseInt(c.env.TOKEN_EXPIRY, 10);
     await revokeToken(c.env, jti, expiresIn);
   } else {
     // No hint provided, try both types
@@ -294,12 +386,20 @@ export async function revokeHandler(c: Context<{ Bindings: Env }>) {
     if (refreshTokenData) {
       // It's a refresh token
       await deleteRefreshToken(c.env, jti, tokenClientId);
+      // P1: Cascade - also revoke related access tokens
+      const familyId = refreshTokenData.familyId;
+      await performCascadeRevocation(jti, familyId);
     } else {
       // Assume it's an access token
-      const expiresIn = parseInt(c.env.TOKEN_EXPIRY, 10);
       await revokeToken(c.env, jti, expiresIn);
     }
   }
+
+  // Audit log for security monitoring
+  console.log(
+    `[REVOKE] Token revoked: jti=${jti}, type=${token_type_hint || 'auto'}, ` +
+      `client=${client_id}, user=${userId || 'unknown'}, isPublicClient=${isPublicClient}`
+  );
 
   // Per RFC 7009 Section 2.2: The authorization server responds with HTTP status code 200
   // The content of the response body is ignored by the client

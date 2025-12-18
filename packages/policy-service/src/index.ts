@@ -6,10 +6,12 @@
  *
  * Phase 1: Role-based access control with scoped roles.
  * Phase 2: ReBAC (Relationship-Based Access Control) with Zanzibar-style check API.
+ * Phase 8.3: Unified Check API (Real-time permission checking)
  *
  * Routes handled by this worker (via Cloudflare custom domain routes):
  * - /policy/* - Policy evaluation endpoints
  * - /api/rebac/* - ReBAC relationship endpoints
+ * - /api/check/* - Unified Check API endpoints (Phase 8.3)
  *
  * Endpoints:
  * - POST /policy/evaluate - Evaluate policy for a given context
@@ -26,6 +28,9 @@
  * - POST /api/rebac/write - Write relationship tuple
  * - DELETE /api/rebac/tuple - Delete relationship tuple
  * - GET /api/rebac/health - ReBAC health check
+ * - POST /api/check - Unified permission check (Phase 8.3)
+ * - POST /api/check/batch - Batch permission check (Phase 8.3)
+ * - GET /api/check/health - Check API health (Phase 8.3)
  */
 
 import { Hono } from 'hono';
@@ -38,6 +43,8 @@ import {
   createReBACService,
   timingSafeEqual,
   D1Adapter,
+  createPermissionChangeNotifier,
+  createPermissionChangeEvent,
   type DatabaseAdapter,
   type ReBACService,
   type CheckRequest,
@@ -45,6 +52,7 @@ import {
   type ListObjectsRequest,
   type ListUsersRequest,
   type ReBACConfig,
+  type PermissionChangeNotifier,
 } from '@authrim/shared';
 import {
   createDefaultPolicyEngine,
@@ -60,6 +68,8 @@ import {
   type FeatureFlagsManager,
   type KVNamespace,
 } from '@authrim/policy-core';
+import { checkRoutes } from './routes/check';
+import { subscribeRoutes } from './routes/subscribe';
 
 /**
  * Environment bindings for Policy Service
@@ -80,9 +90,6 @@ interface Env extends SharedEnv {
   ENABLE_POLICY_LOGGING?: string;
   ENABLE_VERIFIED_ATTRIBUTES?: string;
   ENABLE_CUSTOM_RULES?: string;
-
-  /** Default tenant ID for ReBAC operations */
-  DEFAULT_TENANT_ID?: string;
 }
 
 // Create main Hono app
@@ -683,6 +690,20 @@ function getReBACService(env: Env): ReBACService | null {
 }
 
 /**
+ * Get or create PermissionChangeNotifier instance for request
+ * Phase 8.3: Used to publish permission change events
+ */
+function getPermissionChangeNotifier(env: Env): PermissionChangeNotifier {
+  return createPermissionChangeNotifier({
+    db: env.DB,
+    // Cast to satisfy type compatibility between policy-core KVNamespace and Cloudflare Workers KVNamespace
+    cache: env.REBAC_CACHE_KV as unknown as globalThis.KVNamespace | undefined,
+    permissionChangeHub: env.PERMISSION_CHANGE_HUB,
+    debug: false,
+  });
+}
+
+/**
  * ReBAC health check
  * GET /api/rebac/health
  */
@@ -1165,6 +1186,20 @@ rebacRoutes.post('/write', async (c) => {
       await rebacService.invalidateCache(tenantId, body.object_type, body.object_id, body.relation);
     }
 
+    // Phase 8.3: Publish permission change event
+    try {
+      const notifier = getPermissionChangeNotifier(c.env);
+      await notifier.publish(
+        createPermissionChangeEvent('grant', tenantId, body.subject_id, {
+          resource: `${body.object_type}:${body.object_id}`,
+          relation: body.relation,
+        })
+      );
+    } catch (notifyError) {
+      // Log but don't fail the request if notification fails
+      console.warn('[ReBAC write] Permission change notification failed:', notifyError);
+    }
+
     return c.json({
       success: true,
       tuple: {
@@ -1294,9 +1329,26 @@ rebacRoutes.delete('/tuple', async (c) => {
       await rebacService.invalidateCache(tenantId, body.object_type, body.object_id, body.relation);
     }
 
+    // Phase 8.3: Publish permission change event (only if something was deleted)
+    const deleted = (result.rowsAffected ?? 0) > 0;
+    if (deleted) {
+      try {
+        const notifier = getPermissionChangeNotifier(c.env);
+        await notifier.publish(
+          createPermissionChangeEvent('revoke', tenantId, body.subject_id, {
+            resource: `${body.object_type}:${body.object_id}`,
+            relation: body.relation,
+          })
+        );
+      } catch (notifyError) {
+        // Log but don't fail the request if notification fails
+        console.warn('[ReBAC delete] Permission change notification failed:', notifyError);
+      }
+    }
+
     return c.json({
       success: true,
-      deleted: (result.rowsAffected ?? 0) > 0,
+      deleted,
     });
   } catch (error) {
     console.error('ReBAC delete error:', error);
@@ -1410,6 +1462,13 @@ app.route('/policy', policyRoutes);
 
 // Mount ReBAC routes at /api/rebac/* (for custom domain routes)
 app.route('/api/rebac', rebacRoutes);
+
+// Mount Check API routes at /api/check/* (Phase 8.3)
+app.route('/api/check', checkRoutes);
+
+// Mount WebSocket Subscribe routes at /api/check/* (Phase 8.3)
+// These routes are under /api/check to share the same base path
+app.route('/api/check', subscribeRoutes);
 
 // Also mount at root for workers.dev access via router (Service Bindings)
 // When accessed via router, the path comes without /policy prefix

@@ -69,11 +69,10 @@ export class OIDCError extends Error {
  * Handle OIDC error and return JSON response
  */
 export function handleOIDCError(_c: Context, error: OIDCError): Response {
-  // Log error for debugging
+  // Log error for debugging (PII-safe: only error code and type, no stack trace)
   console.error(`OIDC Error [${error.statusCode}]:`, {
     error: error.error,
     description: error.error_description,
-    stack: error.stack,
   });
 
   // Use Response constructor directly to avoid type issues with c.json()
@@ -90,11 +89,10 @@ export function handleOIDCError(_c: Context, error: OIDCError): Response {
  * Includes no-cache headers as per OAuth 2.0 spec
  */
 export function handleTokenError(_c: Context, error: OIDCError): Response {
-  // Log error for debugging
+  // Log error for debugging (PII-safe: only error code and type, no stack trace)
   console.error(`OIDC Error [${error.statusCode}]:`, {
     error: error.error,
     description: error.error_description,
-    stack: error.stack,
   });
 
   return new Response(JSON.stringify(error.toJSON()), {
@@ -112,11 +110,10 @@ export function handleTokenError(_c: Context, error: OIDCError): Response {
  * Includes WWW-Authenticate header as per OAuth 2.0 Bearer Token spec
  */
 export function handleUserInfoError(_c: Context, error: OIDCError): Response {
-  // Log error for debugging
+  // Log error for debugging (PII-safe: only error code and type, no stack trace)
   console.error(`OIDC Error [${error.statusCode}]:`, {
     error: error.error,
     description: error.error_description,
-    stack: error.stack,
   });
 
   const headers: Record<string, string> = {
@@ -303,7 +300,8 @@ export function withErrorHandling<T extends Context>(
       }
 
       // Convert unknown errors to server errors
-      console.error('Unexpected error:', error);
+      // PII Protection: Don't log full error object (may contain user data in stack)
+      console.error('Unexpected error:', error instanceof Error ? error.name : 'Unknown error');
       return errorHandler(
         c,
         ErrorFactory.serverError(

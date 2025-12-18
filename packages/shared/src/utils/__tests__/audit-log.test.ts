@@ -140,7 +140,7 @@ describe('createAuditLog', () => {
     expect(id1).not.toBe(id2);
   });
 
-  it('should log critical operations to console', async () => {
+  it('should log critical operations to console (PII-safe)', async () => {
     await createAuditLog(mockEnv, {
       userId: 'admin-user',
       action: 'signing_keys.rotate.emergency',
@@ -152,13 +152,19 @@ describe('createAuditLog', () => {
       severity: 'critical',
     });
 
+    // PII Protection: userId and metadata are intentionally omitted from console output
     expect(consoleSpy).toHaveBeenCalledWith(
       '[CRITICAL AUDIT]',
       expect.objectContaining({
         action: 'signing_keys.rotate.emergency',
-        userId: 'admin-user',
+        resource: 'signing_keys',
+        resourceId: 'key-compromised',
       })
     );
+    // Verify userId is NOT in the output (PII protection)
+    const loggedObject = consoleSpy.mock.calls[0][1];
+    expect(loggedObject.userId).toBeUndefined();
+    expect(loggedObject.metadata).toBeUndefined();
   });
 
   it('should not log to console for non-critical operations', async () => {
@@ -194,14 +200,14 @@ describe('createAuditLog', () => {
         })
       ).resolves.not.toThrow();
 
-      // Should log the error
+      // Should log the error (PII-safe: only error name, not full error or audit data)
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         'Failed to create audit log:',
-        expect.any(Error)
+        'Error' // Only error.name is logged for PII protection
       );
     });
 
-    it('should log the audit data when DB fails', async () => {
+    it('should NOT log the audit data when DB fails (PII protection)', async () => {
       const failingEnv = createMockEnv({ shouldFail: true });
 
       const auditData = {
@@ -217,7 +223,17 @@ describe('createAuditLog', () => {
 
       await createAuditLog(failingEnv, auditData);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Audit log data:', auditData);
+      // PII Protection: Audit data should NOT be logged (may contain PII in metadata)
+      // Only the sanitized error message should be logged
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to create audit log:', 'Error');
+      // Verify audit data is NOT logged (old behavior would log the full entry)
+      const allCalls = consoleErrorSpy.mock.calls;
+      const hasAuditDataCall = allCalls.some(
+        (call) =>
+          call[0] === 'Audit log data:' ||
+          (call[1] && typeof call[1] === 'object' && call[1].userId)
+      );
+      expect(hasAuditDataCall).toBe(false);
     });
   });
 });

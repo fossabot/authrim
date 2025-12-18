@@ -6,6 +6,10 @@ export * from './types/admin';
 export * from './types/rbac';
 export * from './types/consent';
 export * from './types/saml';
+export * from './types/policy-rules';
+export * from './types/jit-config';
+export * from './types/token-claim-rules';
+export * from './types/check-api';
 
 // Utils
 export * from './utils/audit-log';
@@ -35,6 +39,7 @@ export * from './utils/validation';
 export * from './utils/logout-validation';
 export * from './utils/rbac-claims';
 export * from './utils/policy-embedding';
+export * from './utils/resource-permissions';
 export * from './utils/consent-rbac';
 export * from './utils/refresh-token-sharding';
 export * from './utils/oauth-config';
@@ -43,6 +48,15 @@ export * from './utils/token-revocation-sharding';
 export * from './utils/region-sharding';
 export * from './utils/do-retry';
 export * from './utils/url-security';
+export * from './utils/email-domain-hash';
+export * from './utils/claim-normalizer';
+
+// Services
+export * from './services/rule-evaluator';
+export * from './services/org-domain-resolver';
+export * from './services/token-claim-evaluator';
+export * from './services/unified-check-service';
+export * from './services/permission-change-notifier';
 
 // Middleware
 export * from './middleware/admin-auth';
@@ -79,6 +93,7 @@ export { RefreshTokenRotator } from './durable-objects/RefreshTokenRotator';
 export { RateLimiterCounter } from './durable-objects/RateLimiterCounter';
 export { PARRequestStore } from './durable-objects/PARRequestStore';
 export type { PARRequestData } from './durable-objects/PARRequestStore';
+export { PermissionChangeHub } from './durable-objects/PermissionChangeHub';
 
 // ReBAC (Relationship-Based Access Control)
 export {

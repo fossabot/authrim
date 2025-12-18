@@ -8,6 +8,7 @@ import {
   isUserInfoEncryptionRequired,
   getClientPublicKey,
   validateJWEOptions,
+  createOAuthConfigManager,
   type JWEAlgorithm,
   type JWEEncryption,
 } from '@authrim/shared';
@@ -93,6 +94,25 @@ export async function userinfoHandler(c: Context<{ Bindings: Env }>) {
   const sub = tokenClaims.sub as string;
   const scope = (tokenClaims.scope as string) || '';
   const claimsParam = (tokenClaims.claims as string) || undefined;
+  const scopes = scope.split(' ');
+
+  // OIDC Core 5.3.1: Check if openid scope is required
+  // Configurable via KV (USERINFO_REQUIRE_OPENID_SCOPE) for OAuth 2.0 compatibility
+  const configManager = createOAuthConfigManager(c.env);
+  const requireOpenidScope = await configManager.isUserInfoRequireOpenidScope();
+
+  if (requireOpenidScope && !scopes.includes('openid')) {
+    c.header('WWW-Authenticate', 'Bearer error="insufficient_scope", scope="openid"');
+    c.header('Cache-Control', 'no-store');
+    c.header('Pragma', 'no-cache');
+    return c.json(
+      {
+        error: 'insufficient_scope',
+        error_description: 'Access token must have openid scope for UserInfo endpoint',
+      },
+      403
+    );
+  }
 
   if (!sub) {
     return c.json(
@@ -128,7 +148,6 @@ export async function userinfoHandler(c: Context<{ Bindings: Env }>) {
   }
 
   // Build user claims based on scope
-  const scopes = scope.split(' ');
   const userClaims: Record<string, unknown> = {
     sub,
   };
@@ -288,6 +307,9 @@ export async function userinfoHandler(c: Context<{ Bindings: Env }>) {
   // JWE: Check if client requires UserInfo encryption (RFC 7516)
   if (!client_id || !clientMetadata) {
     // If no client_id in token or metadata not found, return unencrypted response
+    // OIDC Security: Set cache control headers to prevent caching of user data
+    c.header('Cache-Control', 'no-store');
+    c.header('Pragma', 'no-cache');
     return c.json(userClaims);
   }
 
@@ -349,6 +371,8 @@ export async function userinfoHandler(c: Context<{ Bindings: Env }>) {
       // Return encrypted UserInfo as JWT (not JSON)
       // OIDC Core 5.3.4: The response MUST be a JWT
       c.header('Content-Type', 'application/jwt');
+      c.header('Cache-Control', 'no-store');
+      c.header('Pragma', 'no-cache');
       return c.body(encryptedUserInfo);
     } catch (encryptError) {
       console.error('Failed to encrypt UserInfo response:', encryptError);
@@ -382,6 +406,8 @@ export async function userinfoHandler(c: Context<{ Bindings: Env }>) {
 
       // Return signed UserInfo as JWT
       c.header('Content-Type', 'application/jwt');
+      c.header('Cache-Control', 'no-store');
+      c.header('Pragma', 'no-cache');
       return c.body(signedUserInfo);
     } catch (signError) {
       console.error('Failed to sign UserInfo response:', signError);
@@ -396,5 +422,8 @@ export async function userinfoHandler(c: Context<{ Bindings: Env }>) {
   }
 
   // No signing or encryption required, return JSON response
+  // OIDC Security: Set cache control headers to prevent caching of user data
+  c.header('Cache-Control', 'no-store');
+  c.header('Pragma', 'no-cache');
   return c.json(userClaims);
 }

@@ -1,10 +1,27 @@
 /**
  * Identity Stitching Service
  * Handles automatic linking of external identities to existing users
+ * with JIT Provisioning, policy evaluation, and organization auto-join
  */
 
 import type { Env } from '@authrim/shared';
-import { D1Adapter, type DatabaseAdapter } from '@authrim/shared';
+import {
+  D1Adapter,
+  type DatabaseAdapter,
+  type JITProvisioningConfig,
+  type RuleEvaluationContext,
+  type RuleEvaluationResult,
+  type DenyErrorCode,
+  DEFAULT_JIT_CONFIG,
+  createRuleEvaluator,
+  resolveOrgByDomainHash,
+  resolveAllOrgsByDomainHash,
+  joinOrganization,
+  assignRoleToUser,
+  generateEmailDomainHashWithVersion,
+  getEmailDomainHashConfig,
+  type ResolvedOrganization,
+} from '@authrim/shared';
 import {
   ExternalIdPError,
   ExternalIdPErrorCode,
@@ -43,6 +60,25 @@ export async function getStitchingConfig(env: Env): Promise<StitchingConfig> {
     enabled: env.IDENTITY_STITCHING_ENABLED === 'true',
     requireVerifiedEmail: env.IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL !== 'false',
   };
+}
+
+/**
+ * Get JIT Provisioning configuration
+ * Priority: KV → Default
+ */
+export async function getJITConfig(env: Env): Promise<JITProvisioningConfig> {
+  if (env.SETTINGS) {
+    try {
+      const kvConfig = await env.SETTINGS.get('jit_provisioning_config');
+      if (kvConfig) {
+        return JSON.parse(kvConfig);
+      }
+    } catch {
+      // Ignore KV errors, fall through to default
+    }
+  }
+
+  return DEFAULT_JIT_CONFIG;
 }
 
 /**
@@ -197,7 +233,42 @@ export async function handleIdentity(
       );
     }
 
-    const newUser = await createUserFromExternalIdentity(env, {
+    // Get JIT provisioning configuration
+    const jitConfig = await getJITConfig(env);
+
+    // Check if JIT is enabled
+    if (!jitConfig.enabled) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.JIT_PROVISIONING_DISABLED,
+        'JIT Provisioning is currently disabled. Please contact your administrator.',
+        { providerName: provider.name }
+      );
+    }
+
+    // Check if provider is allowed
+    if (
+      jitConfig.allowed_provider_ids &&
+      jitConfig.allowed_provider_ids.length > 0 &&
+      !jitConfig.allowed_provider_ids.includes(provider.id)
+    ) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.JIT_PROVISIONING_DISABLED,
+        'This provider is not allowed for automatic account creation.',
+        { providerName: provider.name, providerId: provider.id }
+      );
+    }
+
+    // Check verified email requirement from JIT config
+    if (jitConfig.require_verified_email && userInfo.email && !userInfo.email_verified) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.EMAIL_NOT_VERIFIED,
+        'A verified email is required for automatic account creation.',
+        { providerName: provider.name }
+      );
+    }
+
+    // Create user with extended JIT provisioning
+    const jitResult = await createUserWithJITProvisioning(env, {
       email: userInfo.email,
       emailVerified: userInfo.email_verified || false,
       name: userInfo.name,
@@ -207,10 +278,25 @@ export async function handleIdentity(
       locale: userInfo.locale,
       identityProviderId: provider.id,
       tenantId,
+      rawClaims: userInfo,
+      jitConfig,
     });
 
+    // Check if access was denied by policy
+    if (jitResult.denied) {
+      const errorCode = mapDenyCodeToErrorCode(jitResult.deny_code);
+      throw new ExternalIdPError(
+        errorCode,
+        jitResult.deny_description || 'Access denied by policy.',
+        {
+          providerName: provider.name,
+          deny_code: jitResult.deny_code,
+        }
+      );
+    }
+
     const linkedIdentityId = await createLinkedIdentity(env, {
-      userId: newUser.id,
+      userId: jitResult.userId,
       providerId: provider.id,
       providerUserId: userInfo.sub,
       providerEmail: userInfo.email,
@@ -222,21 +308,27 @@ export async function handleIdentity(
 
     // Log audit event for JIT provisioning
     await logAuditEvent(env, {
-      userId: newUser.id,
+      userId: jitResult.userId,
       action: 'user_jit_provisioned',
       resourceType: 'user',
-      resourceId: newUser.id,
+      resourceId: jitResult.userId,
       metadata: {
         providerId: provider.id,
         providerEmail: userInfo.email,
+        roles_assigned: jitResult.roles_assigned,
+        orgs_joined: jitResult.orgs_joined,
+        matched_rules: jitResult.matched_rules,
       },
     });
 
     return {
-      userId: newUser.id,
+      userId: jitResult.userId,
       isNewUser: true,
       linkedIdentityId,
       stitchedFromExisting: false,
+      roles_assigned: jitResult.roles_assigned,
+      orgs_joined: jitResult.orgs_joined,
+      attributes_set: jitResult.attributes_set,
     };
   }
 
@@ -390,7 +482,11 @@ async function logAuditEvent(env: Env, params: AuditEventParams): Promise<void> 
     );
   } catch (error) {
     // Don't fail the main operation if audit logging fails
-    console.error('Failed to log audit event:', error);
+    // PII Protection: Don't log full error (may contain DB details)
+    console.error(
+      'Failed to log audit event:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
   }
 }
 
@@ -405,4 +501,379 @@ export async function hasPasskeyCredential(env: Env, userId: string): Promise<bo
   );
 
   return (result?.count || 0) > 0;
+}
+
+// =============================================================================
+// JIT Provisioning with Policy Evaluation
+// =============================================================================
+
+interface JITProvisioningParams extends CreateUserParams {
+  rawClaims: Record<string, unknown>;
+  jitConfig: JITProvisioningConfig;
+}
+
+interface JITProvisioningResult {
+  userId: string;
+  denied: boolean;
+  deny_code?: DenyErrorCode;
+  deny_description?: string;
+  matched_rules: string[];
+  roles_assigned: Array<{
+    role_id: string;
+    scope_type: string;
+    scope_target: string;
+  }>;
+  orgs_joined: string[];
+  attributes_set: Array<{
+    name: string;
+    value: string;
+  }>;
+}
+
+/**
+ * Create user with JIT Provisioning
+ *
+ * This function:
+ * 1. Generates email_domain_hash for the user
+ * 2. Creates the user in Core/PII databases
+ * 3. Evaluates policy rules
+ * 4. Resolves and joins organizations based on domain mapping
+ * 5. Assigns roles based on rule evaluation
+ *
+ * @param env - Environment bindings
+ * @param params - User creation parameters with JIT config
+ * @returns JIT provisioning result
+ */
+async function createUserWithJITProvisioning(
+  env: Env,
+  params: JITProvisioningParams
+): Promise<JITProvisioningResult> {
+  const result: JITProvisioningResult = {
+    userId: '',
+    denied: false,
+    matched_rules: [],
+    roles_assigned: [],
+    orgs_joined: [],
+    attributes_set: [],
+  };
+
+  const id = crypto.randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  const email = params.email || `${id}@external.authrim.local`;
+
+  // Step 1: Generate email_domain_hash
+  let emailDomainHash: string | undefined;
+  let emailDomainHashVersion: number | undefined;
+
+  if (params.email && params.email.includes('@')) {
+    try {
+      const hashConfig = await getEmailDomainHashConfig(env);
+      const hashResult = await generateEmailDomainHashWithVersion(params.email, hashConfig);
+      emailDomainHash = hashResult.hash;
+      emailDomainHashVersion = hashResult.version;
+    } catch (error) {
+      // If hash generation fails (no secret configured), continue without hash
+      // PII Protection: Don't log full error (may contain email or config details)
+      console.warn(
+        'Failed to generate email_domain_hash:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
+    }
+  }
+
+  // Step 2: Create user in Core DB
+  const coreAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB });
+
+  await coreAdapter.execute(
+    `INSERT INTO users_core (
+      id, tenant_id, email_verified, email_domain_hash, email_domain_hash_version,
+      user_type, pii_partition, pii_status, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, 'end_user', 'default', 'pending', ?, ?)`,
+    [
+      id,
+      params.tenantId,
+      params.emailVerified ? 1 : 0,
+      emailDomainHash || null,
+      emailDomainHashVersion || null,
+      now,
+      now,
+    ]
+  );
+
+  // Step 3: Create user in PII DB
+  if (env.DB_PII) {
+    const piiAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB_PII });
+    await piiAdapter.execute(
+      `INSERT INTO users_pii (
+        id, tenant_id, email, name, given_name, family_name, picture, locale, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        params.tenantId,
+        email.toLowerCase(),
+        params.name || null,
+        params.givenName || null,
+        params.familyName || null,
+        params.picture || null,
+        params.locale || null,
+        now,
+        now,
+      ]
+    );
+
+    // Update pii_status to 'active'
+    await coreAdapter.execute('UPDATE users_core SET pii_status = ? WHERE id = ?', ['active', id]);
+  }
+
+  result.userId = id;
+
+  // Step 4: Evaluate policy rules
+  const ruleEvaluator = createRuleEvaluator(env.DB, env.SETTINGS);
+
+  const evaluationContext: RuleEvaluationContext = {
+    email_domain_hash: emailDomainHash,
+    email_domain_hash_version: emailDomainHashVersion,
+    email_verified: params.emailVerified,
+    idp_claims: params.rawClaims,
+    provider_id: params.identityProviderId,
+    user_type: 'end_user',
+    tenant_id: params.tenantId,
+  };
+
+  const ruleResult = await ruleEvaluator.evaluate(evaluationContext);
+
+  // Check if access was denied
+  if (ruleResult.denied) {
+    result.denied = true;
+    result.deny_code = ruleResult.deny_code;
+    result.deny_description = ruleResult.deny_description;
+    result.matched_rules = ruleResult.matched_rules;
+
+    // Clean up: delete the user we just created
+    try {
+      if (env.DB_PII) {
+        const piiAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB_PII });
+        await piiAdapter.execute('DELETE FROM users_pii WHERE id = ?', [id]);
+      }
+      await coreAdapter.execute('DELETE FROM users_core WHERE id = ?', [id]);
+    } catch (cleanupError) {
+      // PII Protection: Don't log full error (may contain DB details)
+      console.error(
+        'Failed to cleanup user after policy denial:',
+        cleanupError instanceof Error ? cleanupError.name : 'Unknown error'
+      );
+    }
+
+    return result;
+  }
+
+  result.matched_rules = ruleResult.matched_rules;
+  result.attributes_set = ruleResult.attributes_to_set;
+
+  // Step 5: Resolve and join organizations
+  const orgsToJoin: string[] = [];
+
+  // Organizations from rule evaluation
+  for (const orgId of ruleResult.orgs_to_join) {
+    if (orgId === 'auto') {
+      // 'auto' means use domain hash mapping
+      continue;
+    }
+    orgsToJoin.push(orgId);
+  }
+
+  // Organizations from domain hash mapping
+  if (emailDomainHash) {
+    if (params.jitConfig.join_all_matching_orgs) {
+      // Join all matching orgs
+      const matchedOrgs = await resolveAllOrgsByDomainHash(
+        env.DB,
+        emailDomainHash,
+        params.tenantId,
+        params.jitConfig
+      );
+      for (const org of matchedOrgs) {
+        if (!orgsToJoin.includes(org.org_id)) {
+          orgsToJoin.push(org.org_id);
+        }
+      }
+    } else {
+      // Join first matching org only
+      const matchedOrg = await resolveOrgByDomainHash(
+        env.DB,
+        emailDomainHash,
+        params.tenantId,
+        params.jitConfig
+      );
+      if (matchedOrg && !orgsToJoin.includes(matchedOrg.org_id)) {
+        orgsToJoin.push(matchedOrg.org_id);
+      }
+    }
+  }
+
+  // Check if user needs org but no org found
+  if (orgsToJoin.length === 0 && !params.jitConfig.allow_user_without_org) {
+    result.denied = true;
+    result.deny_code = 'access_denied';
+    result.deny_description =
+      'No organization found for this user and standalone users are not allowed.';
+
+    // Clean up
+    try {
+      if (env.DB_PII) {
+        const piiAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB_PII });
+        await piiAdapter.execute('DELETE FROM users_pii WHERE id = ?', [id]);
+      }
+      await coreAdapter.execute('DELETE FROM users_core WHERE id = ?', [id]);
+    } catch (cleanupError) {
+      // PII Protection: Don't log full error (may contain DB details)
+      console.error(
+        'Failed to cleanup user after no-org denial:',
+        cleanupError instanceof Error ? cleanupError.name : 'Unknown error'
+      );
+    }
+
+    return result;
+  }
+
+  // Actually join the organizations
+  for (const orgId of orgsToJoin) {
+    const joinResult = await joinOrganization(
+      env.DB,
+      id,
+      orgId,
+      params.tenantId,
+      'member' // Default membership type
+    );
+    if (joinResult.success) {
+      result.orgs_joined.push(orgId);
+    }
+  }
+
+  // Step 6: Assign roles from rule evaluation
+  for (const roleAssignment of ruleResult.roles_to_assign) {
+    let scopeTarget = roleAssignment.scope_target;
+
+    // Resolve 'auto' scope target to first joined org
+    if (scopeTarget === 'auto' && result.orgs_joined.length > 0) {
+      scopeTarget = `org:${result.orgs_joined[0]}`;
+    }
+
+    // Skip if scope is 'auto' but no org was joined
+    if (scopeTarget === 'auto') {
+      continue;
+    }
+
+    const assignResult = await assignRoleToUserInternal(
+      env.DB,
+      id,
+      roleAssignment.role_id,
+      roleAssignment.scope_type,
+      scopeTarget,
+      params.tenantId
+    );
+
+    if (assignResult.success) {
+      result.roles_assigned.push({
+        role_id: roleAssignment.role_id,
+        scope_type: roleAssignment.scope_type,
+        scope_target: scopeTarget,
+      });
+    }
+  }
+
+  // Step 7: Assign default role if no roles were assigned
+  if (result.roles_assigned.length === 0 && params.jitConfig.default_role_id) {
+    const defaultScopeTarget =
+      result.orgs_joined.length > 0 ? `org:${result.orgs_joined[0]}` : 'global';
+    const defaultScopeType = result.orgs_joined.length > 0 ? 'org' : 'global';
+
+    const assignResult = await assignRoleToUserInternal(
+      env.DB,
+      id,
+      params.jitConfig.default_role_id,
+      defaultScopeType,
+      defaultScopeTarget,
+      params.tenantId
+    );
+
+    if (assignResult.success) {
+      result.roles_assigned.push({
+        role_id: params.jitConfig.default_role_id,
+        scope_type: defaultScopeType,
+        scope_target: defaultScopeTarget,
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Assign role to user (internal helper)
+ */
+async function assignRoleToUserInternal(
+  db: D1Database,
+  userId: string,
+  roleId: string,
+  scopeType: string,
+  scopeTarget: string,
+  tenantId: string
+): Promise<{ success: boolean; assignment_id?: string; error?: string }> {
+  const assignmentId = `ra_${crypto.randomUUID().replace(/-/g, '')}`;
+  const now = Math.floor(Date.now() / 1000);
+
+  try {
+    const coreAdapter: DatabaseAdapter = new D1Adapter({ db });
+
+    // Check if role exists
+    const roleCheck = await coreAdapter.queryOne<{ id: string }>(
+      `SELECT id FROM roles WHERE id = ? AND tenant_id = ?`,
+      [roleId, tenantId]
+    );
+
+    if (!roleCheck) {
+      return { success: false, error: `Role ${roleId} not found` };
+    }
+
+    // Check if already assigned
+    const existing = await coreAdapter.queryOne<{ id: string }>(
+      `SELECT id FROM role_assignments
+       WHERE user_id = ? AND role_id = ? AND scope_type = ? AND scope_target = ? AND tenant_id = ?`,
+      [userId, roleId, scopeType, scopeTarget, tenantId]
+    );
+
+    if (existing) {
+      return { success: true, assignment_id: existing.id, error: 'Already assigned' };
+    }
+
+    // Create assignment
+    await coreAdapter.execute(
+      `INSERT INTO role_assignments (id, tenant_id, user_id, role_id, scope_type, scope_target, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [assignmentId, tenantId, userId, roleId, scopeType, scopeTarget, now, now]
+    );
+
+    return { success: true, assignment_id: assignmentId };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Map deny_code to ExternalIdPErrorCode
+ */
+function mapDenyCodeToErrorCode(denyCode?: DenyErrorCode): ExternalIdPErrorCode {
+  switch (denyCode) {
+    case 'interaction_required':
+      return ExternalIdPErrorCode.POLICY_INTERACTION_REQUIRED;
+    case 'login_required':
+      return ExternalIdPErrorCode.POLICY_LOGIN_REQUIRED;
+    case 'access_denied':
+    default:
+      return ExternalIdPErrorCode.POLICY_ACCESS_DENIED;
+  }
 }

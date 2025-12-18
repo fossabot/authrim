@@ -65,6 +65,36 @@ const { mockCoreQueryOne, mockCoreExecute, mockPiiQueryOne, MockD1Adapter, sqlTr
 // Mock @authrim/shared to prevent Cloudflare Workers imports
 vi.mock('@authrim/shared', () => ({
   D1Adapter: MockD1Adapter,
+  createRuleEvaluator: vi.fn(() => ({
+    evaluate: vi.fn().mockResolvedValue({
+      matched_rules: [],
+      roles_to_assign: [],
+      orgs_to_join: [],
+      denied: false,
+    }),
+  })),
+  resolveOrgByDomainHash: vi.fn().mockResolvedValue(null),
+  resolveAllOrgsByDomainHash: vi.fn().mockResolvedValue([]),
+  joinOrganization: vi.fn().mockResolvedValue({ success: true }),
+  assignRoleToUser: vi.fn().mockResolvedValue(undefined),
+  generateEmailDomainHashWithVersion: vi.fn().mockResolvedValue({
+    hash: 'mock-domain-hash',
+    version: 1,
+  }),
+  getEmailDomainHashConfig: vi.fn().mockResolvedValue({
+    current_version: 1,
+    secrets: { 1: 'test-secret-key-16+' },
+    migration_in_progress: false,
+    deprecated_versions: [],
+  }),
+  DEFAULT_JIT_CONFIG: {
+    enabled: true,
+    auto_create_org_on_domain_match: false,
+    join_all_matching_orgs: false,
+    allow_user_without_org: true,
+    default_role_id: 'role_end_user',
+    allow_unverified_domain_mappings: false,
+  },
 }));
 
 // Mock the linked identity store

@@ -236,22 +236,171 @@ Update authorization code shard count.
 
 ## OAuth Configuration Settings
 
+Centralized configuration for OAuth/OIDC parameters. All settings follow the **KV > env > default** priority.
+
 ### GET /api/admin/settings/oauth-config
 
-Get all OAuth/OIDC configuration values.
+Get all OAuth/OIDC configuration values with their sources.
+
+**Response**:
+
+```json
+{
+  "configs": {
+    "TOKEN_EXPIRY": {
+      "value": 3600,
+      "source": "default",
+      "default": 3600,
+      "metadata": {
+        "type": "number",
+        "label": "Access Token TTL",
+        "description": "Access token lifetime in seconds",
+        "min": 60,
+        "max": 86400,
+        "unit": "seconds"
+      }
+    },
+    "USER_CACHE_TTL": {
+      "value": 3600,
+      "source": "kv",
+      "default": 3600,
+      "metadata": {
+        "type": "number",
+        "label": "User Cache TTL",
+        "description": "User cache (includes PII) TTL in seconds. Lower values provide fresher data but more DB load. Set shorter for stricter PII handling.",
+        "min": 60,
+        "max": 86400,
+        "unit": "seconds"
+      }
+    }
+  }
+}
+```
 
 ### PUT /api/admin/settings/oauth-config/:name
 
-Update specific OAuth configuration value.
+Update specific OAuth configuration value (stored in KV).
 
 **Path Parameters**:
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| name | string | Configuration key name |
+| name | string | Configuration key name (see table below) |
+
+**Request Body**:
+
+```json
+{
+  "value": 1800
+}
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "config": "USER_CACHE_TTL",
+  "value": 1800,
+  "note": "Config updated. Cache will refresh within 10 seconds."
+}
+```
 
 ### DELETE /api/admin/settings/oauth-config/:name
 
-Reset specific OAuth configuration to default.
+Reset specific OAuth configuration to default (removes KV override).
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "config": "USER_CACHE_TTL",
+  "note": "Config override cleared. Will use env/default value. Cache will refresh within 10 seconds."
+}
+```
+
+### DELETE /api/admin/settings/oauth-config
+
+Reset all OAuth configuration overrides (revert all to env/default).
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "note": "All config overrides cleared. Will use env/default values. Cache will refresh within 10 seconds."
+}
+```
+
+### Available Configuration Keys
+
+| Key | Type | Default | Min | Max | Description |
+|-----|------|---------|-----|-----|-------------|
+| `TOKEN_EXPIRY` | number | 3600 | 60 | 86400 | Access token TTL in seconds |
+| `AUTH_CODE_TTL` | number | 60 | 10 | 86400 | Authorization code TTL in seconds |
+| `STATE_EXPIRY` | number | 300 | 60 | 3600 | OAuth state parameter TTL in seconds |
+| `NONCE_EXPIRY` | number | 300 | 60 | 3600 | OIDC nonce TTL in seconds |
+| `REFRESH_TOKEN_EXPIRY` | number | 7776000 | 3600 | 31536000 | Refresh token TTL in seconds (90 days default) |
+| `REFRESH_TOKEN_ROTATION_ENABLED` | boolean | true | - | - | Enable refresh token rotation |
+| `MAX_CODES_PER_USER` | number | 100 | 10 | 1000000 | Max auth codes per user (DDoS protection) |
+| `CODE_SHARDS` | number | 64 | 1 | 256 | Number of auth code DO shards |
+| `STATE_REQUIRED` | boolean | false | - | - | Require state parameter (CSRF protection) |
+| `USERINFO_REQUIRE_OPENID_SCOPE` | boolean | true | - | - | Require openid scope for UserInfo endpoint |
+| `USER_CACHE_TTL` | number | 3600 | 60 | 86400 | User cache TTL in seconds (includes PII) |
+| `CONSENT_CACHE_TTL` | number | 86400 | 60 | 604800 | Consent cache TTL in seconds |
+
+### Environment Variable Override
+
+Each configuration can also be set via environment variable (requires redeployment):
+
+```bash
+# Example environment variables
+TOKEN_EXPIRY=3600
+AUTH_CODE_TTL=60
+USER_CACHE_TTL=3600
+CONSENT_CACHE_TTL=86400
+```
+
+### CLI Examples
+
+```bash
+# Get all OAuth config values
+curl -X GET https://your-domain.com/api/admin/settings/oauth-config \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET"
+
+# Set USER_CACHE_TTL to 5 minutes (stricter PII handling)
+curl -X PUT https://your-domain.com/api/admin/settings/oauth-config/USER_CACHE_TTL \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"value": 300}'
+
+# Set CONSENT_CACHE_TTL to 1 hour
+curl -X PUT https://your-domain.com/api/admin/settings/oauth-config/CONSENT_CACHE_TTL \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"value": 3600}'
+
+# Reset USER_CACHE_TTL to default
+curl -X DELETE https://your-domain.com/api/admin/settings/oauth-config/USER_CACHE_TTL \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET"
+
+# Reset all OAuth config to defaults
+curl -X DELETE https://your-domain.com/api/admin/settings/oauth-config \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET"
+```
+
+### Cache TTL Considerations
+
+**USER_CACHE_TTL** contains PII (email, name, phone, address). Consider these trade-offs:
+
+| TTL Setting | Performance | Data Freshness | PII Exposure Window |
+|-------------|-------------|----------------|---------------------|
+| 60s (1 min) | More DB load | Very fresh | Minimal |
+| 300s (5 min) | Moderate | Fresh | Short |
+| 3600s (1 hour) | Optimal | Good | Standard |
+| 86400s (24 hours) | Minimal DB load | May be stale | Extended |
+
+**Recommendation**: For stricter PII handling (e.g., healthcare, finance), consider setting `USER_CACHE_TTL` to 300-600 seconds.
 
 ---
 
@@ -944,25 +1093,825 @@ Check email_blind_index in all tombstones
 
 ---
 
+## JIT Provisioning Settings
+
+Just-In-Time (JIT) Provisioning は、外部IdPからの初回ログイン時にユーザーを自動作成する機能です。ドメインベースの組織自動参加や、IdPクレームに基づく自動ロール割り当てをサポートします。
+
+### GET /api/admin/settings/jit-provisioning
+
+Get current JIT provisioning configuration.
+
+**Response**:
+
+```json
+{
+  "enabled": true,
+  "auto_create_org_on_domain_match": false,
+  "join_all_matching_orgs": false,
+  "allow_user_without_org": true,
+  "default_role_id": "role_end_user",
+  "allow_unverified_domain_mappings": false,
+  "version": "1"
+}
+```
+
+| Field                            | Type    | Default         | Description                              |
+| -------------------------------- | ------- | --------------- | ---------------------------------------- |
+| enabled                          | boolean | true            | JIT Provisioning の有効/無効             |
+| auto_create_org_on_domain_match  | boolean | false           | ドメインマッチ時に組織を自動作成         |
+| join_all_matching_orgs           | boolean | false           | 複数の組織にマッチした場合、全組織に参加 |
+| allow_user_without_org           | boolean | true            | 組織に属さないユーザーを許可             |
+| default_role_id                  | string  | "role_end_user" | デフォルトで割り当てるロールID           |
+| allow_unverified_domain_mappings | boolean | false           | 未検証のドメインマッピングを許可         |
+
+### PUT /api/admin/settings/jit-provisioning
+
+Update JIT provisioning settings.
+
+**Request Body**:
+
+```json
+{
+  "enabled": true,
+  "auto_create_org_on_domain_match": false,
+  "join_all_matching_orgs": false,
+  "allow_user_without_org": true,
+  "default_role_id": "role_end_user",
+  "allow_unverified_domain_mappings": false
+}
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "settings": {
+    "enabled": true,
+    "auto_create_org_on_domain_match": false,
+    "join_all_matching_orgs": false,
+    "allow_user_without_org": true,
+    "default_role_id": "role_end_user",
+    "allow_unverified_domain_mappings": false,
+    "version": "2"
+  },
+  "note": "JIT provisioning settings updated successfully."
+}
+```
+
+### DELETE /api/admin/settings/jit-provisioning
+
+Reset JIT provisioning settings to defaults.
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "settings": {
+    "enabled": true,
+    "auto_create_org_on_domain_match": false,
+    "join_all_matching_orgs": false,
+    "allow_user_without_org": true,
+    "default_role_id": "role_end_user",
+    "allow_unverified_domain_mappings": false
+  },
+  "note": "JIT provisioning settings reset to defaults."
+}
+```
+
+### JIT Provisioning Flow
+
+```
+External IdP Login
+         ↓
+┌────────────────────────────────────────────┐
+│  1. Identity Resolution                     │
+│     - Check existing linked_identity        │
+│     - Attempt identity stitching by email   │
+└────────────────────────────────────────────┘
+         ↓ (New User)
+┌────────────────────────────────────────────┐
+│  2. Generate email_domain_hash              │
+│     - HMAC-SHA256(lowercase(domain), secret)│
+│     - Store hash (not email) in users_core  │
+└────────────────────────────────────────────┘
+         ↓
+┌────────────────────────────────────────────┐
+│  3. Resolve Organization                    │
+│     - Match domain_hash → org_domain_mapping│
+│     - Apply verified > priority > created   │
+│     - Optionally join multiple orgs         │
+└────────────────────────────────────────────┘
+         ↓
+┌────────────────────────────────────────────┐
+│  4. Evaluate Role Assignment Rules          │
+│     - Sort by priority DESC                 │
+│     - Evaluate conditions in order          │
+│     - Apply matching actions                │
+│     - Stop if stop_processing = true        │
+└────────────────────────────────────────────┘
+         ↓
+┌────────────────────────────────────────────┐
+│  5. Create User                             │
+│     - users_core (Non-PII)                  │
+│     - users_pii (PII partition)             │
+│     - linked_identity                       │
+│     - role_assignments                      │
+│     - org_memberships                       │
+└────────────────────────────────────────────┘
+```
+
+---
+
+## Domain Hash Keys Settings (Key Rotation)
+
+email_domain_hash の生成に使用するHMAC秘密鍵を管理します。キーローテーションをサポートし、ダウンタイムなしで秘密鍵を更新できます。
+
+### アルゴリズム仕様
+
+```
+Algorithm: HMAC-SHA256
+Input: lowercase(email_domain)
+Output: 64-character hex string
+
+Example: "user@Example.COM" → "example.com" → HMAC-SHA256(secret, "example.com") → "a1b2c3..."
+```
+
+### GET /api/admin/settings/domain-hash-keys
+
+Get domain hash key configuration (secrets are masked).
+
+**Response**:
+
+```json
+{
+  "current_version": 2,
+  "secrets": {
+    "1": "***masked***",
+    "2": "***masked***"
+  },
+  "migration_in_progress": true,
+  "deprecated_versions": [],
+  "version": "3"
+}
+```
+
+| Field                 | Type     | Description                                    |
+| --------------------- | -------- | ---------------------------------------------- |
+| current_version       | number   | 新規ユーザーに使用するバージョン               |
+| secrets               | object   | バージョン → 秘密鍵（APIレスポンスではマスク） |
+| migration_in_progress | boolean  | マイグレーション中フラグ                       |
+| deprecated_versions   | number[] | 廃止予定のバージョンリスト                     |
+
+### POST /api/admin/settings/domain-hash-keys/rotate
+
+Start key rotation by adding a new secret version.
+
+**Request Body**:
+
+```json
+{
+  "new_secret": "new-secret-key-at-least-16-characters"
+}
+```
+
+| Field      | Type   | Required | Constraints    | Description  |
+| ---------- | ------ | -------- | -------------- | ------------ |
+| new_secret | string | Yes      | 16+ characters | 新しい秘密鍵 |
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "new_version": 2,
+  "migration_in_progress": true,
+  "message": "Key rotation started. New logins will use version 2.",
+  "note": "Existing users will be migrated on their next login."
+}
+```
+
+### PUT /api/admin/settings/domain-hash-keys/complete
+
+Complete key rotation and deprecate old versions.
+
+**Request Body** (optional):
+
+```json
+{
+  "deprecate_versions": [1]
+}
+```
+
+| Field              | Type     | Required | Description              |
+| ------------------ | -------- | -------- | ------------------------ |
+| deprecate_versions | number[] | No       | 廃止するバージョンリスト |
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "current_version": 2,
+  "migration_in_progress": false,
+  "deprecated_versions": [1],
+  "message": "Key rotation completed. Version 1 is now deprecated."
+}
+```
+
+### GET /api/admin/settings/domain-hash-keys/status
+
+Get key rotation migration status.
+
+**Response**:
+
+```json
+{
+  "current_version": 2,
+  "migration_in_progress": true,
+  "users_by_version": {
+    "1": 1234,
+    "2": 5678
+  },
+  "org_mappings_by_version": {
+    "1": 10,
+    "2": 25
+  },
+  "migration_progress_percent": 82.1,
+  "estimated_completion": "2025-01-15T00:00:00Z"
+}
+```
+
+### DELETE /api/admin/settings/domain-hash-keys/:version
+
+Delete a deprecated secret version.
+
+**Path Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| version | number | 削除するバージョン番号 |
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "deleted_version": 1,
+  "remaining_versions": [2],
+  "note": "Secret version 1 has been permanently deleted."
+}
+```
+
+**Error (400)**:
+
+```json
+{
+  "error": "cannot_delete_current_version",
+  "error_description": "Cannot delete current_version. Rotate to a new version first."
+}
+```
+
+```json
+{
+  "error": "cannot_delete_active_version",
+  "error_description": "Cannot delete version with active users. Complete migration first."
+}
+```
+
+### Key Rotation Flow
+
+```
+                    Time →
+├─────────────────┼─────────────────┼─────────────────┤
+│    Phase 1      │    Phase 2      │    Phase 3      │
+│   Normal Ops    │   Migration     │   Completed     │
+├─────────────────┼─────────────────┼─────────────────┤
+│                 │                 │                 │
+│  Version 1      │  Version 1 + 2  │  Version 2      │
+│  (current)      │  (migration)    │  (current)      │
+│                 │                 │                 │
+│  All users      │  New → v2       │  All users      │
+│  use v1         │  Existing → v1  │  use v2         │
+│                 │  (auto-migrate) │                 │
+│                 │                 │  v1 deprecated  │
+└─────────────────┴─────────────────┴─────────────────┘
+
+Steps:
+1. POST /rotate → Add v2, start migration
+2. Users auto-migrate on next login
+3. GET /status → Monitor progress
+4. PUT /complete → Finish migration, deprecate v1
+5. DELETE /:version → Remove old secret (optional)
+```
+
+---
+
+## Role Assignment Rules
+
+外部IdPのクレームやメールドメインに基づいて、ログイン時にロールを自動割り当てするルールを管理します。
+
+### POST /api/admin/role-assignment-rules
+
+Create a new role assignment rule.
+
+**Request Body**:
+
+```json
+{
+  "name": "google-workspace-admin",
+  "description": "Assign org_admin role to Google Workspace admins",
+  "role_id": "role_org_admin",
+  "scope_type": "organization",
+  "scope_target": "auto",
+  "condition": {
+    "type": "and",
+    "conditions": [
+      {
+        "field": "provider_id",
+        "operator": "eq",
+        "value": "google"
+      },
+      {
+        "field": "idp_claim",
+        "claim_path": "hd",
+        "operator": "eq",
+        "value": "company.com"
+      },
+      {
+        "field": "idp_claim",
+        "claim_path": "groups",
+        "operator": "contains",
+        "value": "admins@company.com"
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "assign_role",
+      "role_id": "role_org_admin",
+      "scope_type": "organization",
+      "scope_target": "auto"
+    },
+    {
+      "type": "join_org",
+      "org_id": "auto"
+    }
+  ],
+  "priority": 100,
+  "stop_processing": true,
+  "is_active": true
+}
+```
+
+**Condition Fields**:
+
+| Field             | claim_path | Description                            | Example                                                                                           |
+| ----------------- | ---------- | -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| email_domain_hash | -          | メールドメインのブラインドインデックス | `{ "field": "email_domain_hash", "operator": "eq", "value": "a1b2c3..." }`                        |
+| email_verified    | -          | メール検証状態                         | `{ "field": "email_verified", "operator": "eq", "value": true }`                                  |
+| provider_id       | -          | IdPプロバイダーID                      | `{ "field": "provider_id", "operator": "in", "value": ["google", "azure-ad"] }`                   |
+| idp_claim         | groups     | IdPグループ                            | `{ "field": "idp_claim", "claim_path": "groups", "operator": "contains", "value": "admin" }`      |
+| idp_claim         | hd         | Google Workspace ドメイン              | `{ "field": "idp_claim", "claim_path": "hd", "operator": "eq", "value": "company.com" }`          |
+| idp_claim         | roles      | Azure AD ロール                        | `{ "field": "idp_claim", "claim_path": "roles", "operator": "contains", "value": "GlobalAdmin" }` |
+| idp_claim         | acr        | 認証コンテキストクラス                 | `{ "field": "idp_claim", "claim_path": "acr", "operator": "eq", "value": "urn:..." }`             |
+
+**Condition Operators**:
+
+| Operator   | Description                      | Expected Value          |
+| ---------- | -------------------------------- | ----------------------- |
+| eq         | Equal                            | string, number, boolean |
+| ne         | Not equal                        | string, number, boolean |
+| in         | Value in array                   | string[]                |
+| not_in     | Value not in array               | string[]                |
+| contains   | Array contains / String includes | string                  |
+| exists     | Field exists                     | true                    |
+| not_exists | Field does not exist             | true                    |
+| regex      | Regex match                      | string (pattern)        |
+
+**Actions**:
+
+| Type          | Fields                            | Description                           |
+| ------------- | --------------------------------- | ------------------------------------- |
+| assign_role   | role_id, scope_type, scope_target | ロールを割り当て                      |
+| join_org      | org_id                            | 組織に参加（"auto" でドメインマッチ） |
+| set_attribute | -                                 | (将来拡張用)                          |
+| deny          | deny_code, deny_description       | 認証を拒否                            |
+
+**deny_code to OIDC Error Mapping**:
+
+| deny_code            | OIDC error           | Description                   |
+| -------------------- | -------------------- | ----------------------------- |
+| access_denied        | access_denied        | アクセス拒否（RFC 6749）      |
+| interaction_required | interaction_required | 追加の対話が必要（OIDC Core） |
+| login_required       | login_required       | 再ログインが必要（OIDC Core） |
+
+**Response**:
+
+```json
+{
+  "id": "rule_abc123",
+  "name": "google-workspace-admin",
+  "tenant_id": "default",
+  "created_at": 1702644000000,
+  "updated_at": 1702644000000
+}
+```
+
+### GET /api/admin/role-assignment-rules
+
+List all role assignment rules.
+
+**Query Parameters**:
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| limit | number | 20 | Maximum records per page |
+| offset | number | 0 | Records to skip |
+| is_active | boolean | - | Filter by active status |
+
+**Response**:
+
+```json
+{
+  "rules": [
+    {
+      "id": "rule_abc123",
+      "name": "google-workspace-admin",
+      "description": "Assign org_admin role to Google Workspace admins",
+      "role_id": "role_org_admin",
+      "scope_type": "organization",
+      "scope_target": "auto",
+      "condition": { ... },
+      "actions": [ ... ],
+      "priority": 100,
+      "stop_processing": true,
+      "is_active": true,
+      "valid_from": null,
+      "valid_until": null,
+      "created_at": 1702644000000,
+      "updated_at": 1702644000000
+    }
+  ],
+  "pagination": {
+    "total": 5,
+    "limit": 20,
+    "offset": 0,
+    "has_more": false
+  }
+}
+```
+
+### GET /api/admin/role-assignment-rules/:id
+
+Get specific rule details.
+
+### PUT /api/admin/role-assignment-rules/:id
+
+Update an existing rule.
+
+### DELETE /api/admin/role-assignment-rules/:id
+
+Delete a rule.
+
+### POST /api/admin/role-assignment-rules/:id/test
+
+Test a single rule against sample context.
+
+**Request Body**:
+
+```json
+{
+  "context": {
+    "email": "user@company.com",
+    "email_verified": true,
+    "provider_id": "google",
+    "idp_claims": {
+      "hd": "company.com",
+      "groups": ["admins@company.com", "developers@company.com"],
+      "acr": "urn:mace:incommon:iap:silver"
+    }
+  }
+}
+```
+
+**Response**:
+
+```json
+{
+  "matched": true,
+  "condition_results": [
+    {
+      "field": "provider_id",
+      "matched": true,
+      "actual": "google",
+      "expected": "google"
+    },
+    {
+      "field": "idp_claim.hd",
+      "matched": true,
+      "actual": "company.com",
+      "expected": "company.com"
+    },
+    {
+      "field": "idp_claim.groups",
+      "matched": true,
+      "actual": ["admins@company.com", "developers@company.com"],
+      "expected": "admins@company.com"
+    }
+  ],
+  "would_apply_actions": [
+    {
+      "type": "assign_role",
+      "role_id": "role_org_admin",
+      "resolved_scope_target": "org_xyz789"
+    },
+    {
+      "type": "join_org",
+      "resolved_org_id": "org_xyz789"
+    }
+  ]
+}
+```
+
+### POST /api/admin/role-assignment-rules/evaluate
+
+Evaluate all rules against sample context.
+
+**Request Body**:
+
+```json
+{
+  "context": {
+    "email": "user@company.com",
+    "email_verified": true,
+    "provider_id": "google",
+    "idp_claims": {
+      "hd": "company.com",
+      "groups": ["developers@company.com"]
+    }
+  }
+}
+```
+
+**Response**:
+
+```json
+{
+  "matched_rules": ["rule_abc123", "rule_def456"],
+  "stopped_at_rule": "rule_abc123",
+  "final_roles": [
+    {
+      "role_id": "role_org_admin",
+      "scope_type": "organization",
+      "scope_target": "org_xyz789"
+    }
+  ],
+  "final_orgs": ["org_xyz789"],
+  "denied": false
+}
+```
+
+**Error Response (deny rule matched)**:
+
+```json
+{
+  "matched_rules": ["rule_block_external"],
+  "denied": true,
+  "deny_code": "access_denied",
+  "deny_description": "External users from this domain are not allowed",
+  "oidc_error": {
+    "error": "access_denied",
+    "error_description": "External users from this domain are not allowed"
+  }
+}
+```
+
+### Rule Evaluation Order
+
+```
+1. Filter: tenant_id, is_active=true
+2. Filter: valid_from <= now <= valid_until (null = no limit)
+3. Sort: priority DESC (higher priority first)
+4. Evaluate conditions in order
+5. Apply actions from matched rules
+6. If stop_processing=true matched, stop evaluation
+7. If deny action found, stop and return OIDC error
+```
+
+---
+
+## Organization Domain Mappings
+
+メールドメインと組織をマッピングし、JIT Provisioning時の組織自動参加を設定します。
+
+### POST /api/admin/org-domain-mappings
+
+Create a new domain-to-organization mapping.
+
+**Request Body**:
+
+```json
+{
+  "domain": "company.com",
+  "org_id": "org_xyz789",
+  "auto_join_enabled": true,
+  "membership_type": "member",
+  "auto_assign_role_id": null,
+  "priority": 0
+}
+```
+
+| Field               | Type    | Required | Default  | Description                               |
+| ------------------- | ------- | -------- | -------- | ----------------------------------------- |
+| domain              | string  | Yes      | -        | メールドメイン（内部でハッシュ化）        |
+| org_id              | string  | Yes      | -        | マッピング先の組織ID                      |
+| auto_join_enabled   | boolean | No       | true     | 自動参加の有効/無効                       |
+| membership_type     | string  | No       | "member" | メンバーシップタイプ: "member" or "admin" |
+| auto_assign_role_id | string  | No       | null     | 組織参加時に自動割り当てするロール        |
+| priority            | number  | No       | 0        | 複数マッチ時の優先度（大きいほど優先）    |
+
+**Note**: `domain` フィールドはAPIで受け取った後、`email_domain_hash` に変換されてDBに保存されます。元のドメイン文字列は保存されません（PII保護）。
+
+**Response**:
+
+```json
+{
+  "id": "odm_abc123",
+  "tenant_id": "default",
+  "domain_hash": "a1b2c3d4e5f6...",
+  "domain_hash_version": 2,
+  "org_id": "org_xyz789",
+  "auto_join_enabled": true,
+  "membership_type": "member",
+  "auto_assign_role_id": null,
+  "verified": false,
+  "priority": 0,
+  "is_active": true,
+  "created_at": 1702644000000,
+  "updated_at": 1702644000000
+}
+```
+
+### GET /api/admin/org-domain-mappings
+
+List all domain mappings.
+
+**Query Parameters**:
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| limit | number | 20 | Maximum records per page |
+| offset | number | 0 | Records to skip |
+| org_id | string | - | Filter by organization ID |
+| verified | boolean | - | Filter by verification status |
+| is_active | boolean | - | Filter by active status |
+
+**Response**:
+
+```json
+{
+  "mappings": [
+    {
+      "id": "odm_abc123",
+      "tenant_id": "default",
+      "domain_hash": "a1b2c3d4e5f6...",
+      "domain_hash_version": 2,
+      "org_id": "org_xyz789",
+      "org_name": "Company Inc.",
+      "auto_join_enabled": true,
+      "membership_type": "member",
+      "auto_assign_role_id": null,
+      "verified": true,
+      "priority": 0,
+      "is_active": true,
+      "created_at": 1702644000000,
+      "updated_at": 1702644000000
+    }
+  ],
+  "pagination": {
+    "total": 10,
+    "limit": 20,
+    "offset": 0,
+    "has_more": false
+  }
+}
+```
+
+### GET /api/admin/org-domain-mappings/:id
+
+Get specific mapping details.
+
+### PUT /api/admin/org-domain-mappings/:id
+
+Update an existing mapping.
+
+**Request Body**:
+
+```json
+{
+  "auto_join_enabled": true,
+  "membership_type": "admin",
+  "auto_assign_role_id": "role_org_admin",
+  "priority": 10,
+  "is_active": true
+}
+```
+
+**Note**: `domain` と `org_id` は変更できません。変更が必要な場合は削除して再作成してください。
+
+### DELETE /api/admin/org-domain-mappings/:id
+
+Delete a domain mapping.
+
+### GET /api/admin/organizations/:org_id/domain-mappings
+
+List domain mappings for a specific organization.
+
+### POST /api/admin/org-domain-mappings/verify
+
+Verify domain ownership (DNS TXT record check).
+
+**Request Body**:
+
+```json
+{
+  "mapping_id": "odm_abc123"
+}
+```
+
+**Response (Success)**:
+
+```json
+{
+  "success": true,
+  "mapping_id": "odm_abc123",
+  "verified": true,
+  "verification_method": "dns_txt",
+  "verified_at": 1702644000000
+}
+```
+
+**Response (Failed)**:
+
+```json
+{
+  "success": false,
+  "mapping_id": "odm_abc123",
+  "verified": false,
+  "error": "dns_txt_not_found",
+  "expected_txt_record": "_authrim-verify.company.com",
+  "expected_txt_value": "authrim-verify=abc123xyz",
+  "note": "Add a DNS TXT record with the expected value to verify ownership."
+}
+```
+
+### Domain Mapping Resolution
+
+複数のマッピングが同じドメインにマッチする場合の解決順序:
+
+```sql
+SELECT * FROM org_domain_mappings
+WHERE tenant_id = ?
+  AND domain_hash = ?
+  AND auto_join_enabled = 1
+  AND is_active = 1
+ORDER BY
+  verified DESC,      -- 検証済みを優先
+  priority DESC,      -- 優先度順
+  created_at ASC      -- 同優先度なら古いものを優先
+LIMIT 1
+```
+
+**JIT Config による挙動**:
+
+- `allow_unverified_domain_mappings = false` → `verified = 0` のマッピングはスキップ
+- `join_all_matching_orgs = true` → LIMIT を外して全マッチ組織に参加
+
+---
+
 ## KV Key Reference
 
 All settings are stored in the `AUTHRIM_CONFIG` KV namespace with the following keys:
 
-| Setting                             | KV Key                               | Type   | Default   |
-| ----------------------------------- | ------------------------------------ | ------ | --------- |
-| Code Shards                         | `code_shards`                        | number | 64        |
-| Session Shards                      | `session_shards`                     | number | 32        |
-| Rate Limit (strict) maxRequests     | `rate_limit_strict_max_requests`     | number | 10        |
-| Rate Limit (strict) windowSeconds   | `rate_limit_strict_window_seconds`   | number | 60        |
-| Rate Limit (moderate) maxRequests   | `rate_limit_moderate_max_requests`   | number | 60        |
-| Rate Limit (moderate) windowSeconds | `rate_limit_moderate_window_seconds` | number | 60        |
-| Rate Limit (lenient) maxRequests    | `rate_limit_lenient_max_requests`    | number | 300       |
-| Rate Limit (lenient) windowSeconds  | `rate_limit_lenient_window_seconds`  | number | 60        |
-| Rate Limit (loadTest) maxRequests   | `rate_limit_loadtest_max_requests`   | number | 10,000    |
-| Rate Limit (loadTest) windowSeconds | `rate_limit_loadtest_window_seconds` | number | 60        |
-| RBAC Cache TTL                      | `rbac_cache_ttl`                     | number | 600       |
-| Region Shard Config                 | `region_shard_config:default`        | JSON   | See below |
-| PII Partition Config                | `pii_partition_config:{tenantId}`    | JSON   | See below |
+| Setting                             | KV Key                                   | Type   | Default   |
+| ----------------------------------- | ---------------------------------------- | ------ | --------- |
+| Code Shards                         | `code_shards`                            | number | 64        |
+| Session Shards                      | `session_shards`                         | number | 32        |
+| Rate Limit (strict) maxRequests     | `rate_limit_strict_max_requests`         | number | 10        |
+| Rate Limit (strict) windowSeconds   | `rate_limit_strict_window_seconds`       | number | 60        |
+| Rate Limit (moderate) maxRequests   | `rate_limit_moderate_max_requests`       | number | 60        |
+| Rate Limit (moderate) windowSeconds | `rate_limit_moderate_window_seconds`     | number | 60        |
+| Rate Limit (lenient) maxRequests    | `rate_limit_lenient_max_requests`        | number | 300       |
+| Rate Limit (lenient) windowSeconds  | `rate_limit_lenient_window_seconds`      | number | 60        |
+| Rate Limit (loadTest) maxRequests   | `rate_limit_loadtest_max_requests`       | number | 10,000    |
+| Rate Limit (loadTest) windowSeconds | `rate_limit_loadtest_window_seconds`     | number | 60        |
+| RBAC Cache TTL                      | `rbac_cache_ttl`                         | number | 600       |
+| User Cache TTL                      | `oauth_config:USER_CACHE_TTL`            | number | 3600      |
+| Consent Cache TTL                   | `oauth_config:CONSENT_CACHE_TTL`         | number | 86400     |
+| Region Shard Config                 | `region_shard_config:default`            | JSON   | See below |
+| PII Partition Config                | `pii_partition_config:{tenantId}`        | JSON   | See below |
+| JIT Provisioning Config             | `jit_provisioning_config`                | JSON   | See below |
+| Domain Hash Config                  | `email_domain_hash_config`               | JSON   | See below |
+| Role Assignment Rules Cache         | `role_assignment_rules_cache:{tenantId}` | JSON   | TTL 300s  |
 
 ### Region Shard Config Default
 
@@ -991,6 +1940,32 @@ All settings are stored in the `AUTHRIM_CONFIG` KV namespace with the following 
   "partitionRules": []
 }
 ```
+
+### JIT Provisioning Config Default
+
+```json
+{
+  "enabled": true,
+  "auto_create_org_on_domain_match": false,
+  "join_all_matching_orgs": false,
+  "allow_user_without_org": true,
+  "default_role_id": "role_end_user",
+  "allow_unverified_domain_mappings": false
+}
+```
+
+### Domain Hash Config Default
+
+```json
+{
+  "current_version": 1,
+  "secrets": { "1": "${EMAIL_DOMAIN_HASH_SECRET}" },
+  "migration_in_progress": false,
+  "deprecated_versions": []
+}
+```
+
+**Note**: `secrets` の値は環境変数 `EMAIL_DOMAIN_HASH_SECRET` から初期化されます。KVに保存された後は、API経由でのみ更新できます。
 
 ---
 

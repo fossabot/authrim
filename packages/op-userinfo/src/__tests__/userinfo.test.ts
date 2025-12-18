@@ -22,6 +22,9 @@ vi.mock('@authrim/shared', async () => {
     getClientPublicKey: vi.fn(),
     validateJWEOptions: vi.fn(),
     getCachedUser: vi.fn(), // Mock getCachedUser for PII/Non-PII DB separation
+    createOAuthConfigManager: vi.fn(() => ({
+      isUserInfoRequireOpenidScope: vi.fn().mockResolvedValue(false), // Default: allow without openid scope for existing tests
+    })),
   };
 });
 

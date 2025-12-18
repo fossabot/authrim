@@ -289,13 +289,14 @@ async function terminateSessionByNameId(
       }
     }
     if (user) {
+      // PII Protection: Do not log NameID (may contain email/PII)
       console.warn(
-        `SAML SP SLO: Cannot delete all sessions for user ${user.id} (NameID: ${nameId}) - ` +
-          'sharded SessionStore requires sessionId (sessionIndex). ' +
+        `SAML SP SLO: Cannot delete all sessions for user (sharded SessionStore requires sessionIndex). ` +
           'Ensure the IdP includes sessionIndex in LogoutRequest.'
       );
     } else {
-      console.warn('SAML SP SLO: No user found for NameID:', nameId);
+      // PII Protection: Do not log NameID (may contain email/PII)
+      console.warn('SAML SP SLO: No user found for logout request');
     }
   } catch (error) {
     console.error('Error terminating session:', error);

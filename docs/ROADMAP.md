@@ -236,7 +236,7 @@ timeline
 
 **Timeline:** 2025-12 to 2026-Q1
 
-**Goal:** Transform Authrim from IdP-only to Identity Hub with RP capabilities + GDPR/CCPA対応
+**Goal:** Transform Authrim from IdP-only to Identity Hub with RP capabilities + GDPR/CCPA compliance
 
 ### 7.1 RP Module Foundation ✅ COMPLETE
 
@@ -281,17 +281,17 @@ timeline
 
 ### 7.5 PII/Non-PII Database Separation ✅ COMPLETE (Dec 18, 2025)
 
-GDPR/CCPA対応のためのデータ分離アーキテクチャ:
+Data separation architecture for GDPR/CCPA compliance:
 
-| Feature               | Description                                | Status      |
-| --------------------- | ------------------------------------------ | ----------- |
-| DatabaseAdapter       | D1抽象化、将来Postgres/DynamoDB対応可能    | ✅ Complete |
-| Repository Pattern    | UserCore, UserPII, Cache リポジトリ        | ✅ Complete |
-| PIIPartitionRouter    | テナント/属性/地域ベースルーティング       | ✅ Complete |
-| AuthContext/PIIContext| 型安全なPIIアクセス制御                    | ✅ Complete |
-| Schema Migration      | users_core, users_pii, tombstones          | ✅ Complete |
-| 全パッケージ移行      | 47ファイル、4255行追加                     | ✅ Complete |
-| Admin API             | retry-pii, delete-pii, partitions, tombstones | ✅ Complete |
+| Feature               | Description                                      | Status      |
+| --------------------- | ------------------------------------------------ | ----------- |
+| DatabaseAdapter       | D1 abstraction, future Postgres/DynamoDB support | ✅ Complete |
+| Repository Pattern    | UserCore, UserPII, Cache repositories            | ✅ Complete |
+| PIIPartitionRouter    | Tenant/attribute/geo-based routing               | ✅ Complete |
+| AuthContext/PIIContext| Type-safe PII access control                     | ✅ Complete |
+| Schema Migration      | users_core, users_pii, tombstones                | ✅ Complete |
+| Full Package Migration| 47 files, 4255 lines added                       | ✅ Complete |
+| Admin API             | retry-pii, delete-pii, partitions, tombstones    | ✅ Complete |
 
 ---
 
@@ -301,13 +301,13 @@ GDPR/CCPA対応のためのデータ分離アーキテクチャ:
 
 **Goal:** Integrate authentication and authorization into unified flow
 
-### 8.1 Policy ↔ Identity Integration
+### 8.1 Policy ↔ Identity Integration ✅ Complete
 
-| Feature                   | Description                                    | Status     |
-| ------------------------- | ---------------------------------------------- | ---------- |
-| Attribute Injection       | Inject upstream attributes into policy context | 🔜 Planned |
-| Dynamic Role Assignment   | Assign roles based on upstream attributes      | 🔜 Planned |
-| Just-in-Time Provisioning | Create users/roles on first login              | 🔜 Planned |
+| Feature                   | Description                                    | Status      |
+| ------------------------- | ---------------------------------------------- | ----------- |
+| Attribute Injection       | Inject upstream attributes into policy context | ✅ Complete |
+| Dynamic Role Assignment   | Assign roles based on upstream attributes      | ✅ Complete |
+| Just-in-Time Provisioning | Create users/roles on first login              | ✅ Complete |
 
 ### 8.2 Token Embedding Model
 
@@ -327,14 +327,10 @@ GDPR/CCPA対応のためのデータ分離アーキテクチャ:
 | WebSocket Push        | Real-time permission change notifications | 🔜 Planned |
 | SDK Integration       | Client SDK for check API                  | 🔜 Planned |
 
-### 8.4 Policy Admin Console
+### 8.4 Policy Admin Console → Moved to Phase 10
 
-| Feature             | Description                 | Status     |
-| ------------------- | --------------------------- | ---------- |
-| Role Editor         | Visual RBAC role management | 🔜 Planned |
-| Policy Editor       | ABAC policy builder         | 🔜 Planned |
-| Relationship Viewer | ReBAC graph visualization   | 🔜 Planned |
-| Audit Log Viewer    | Permission check history    | 🔜 Planned |
+> Policy Admin Console (Role Editor, Policy Editor, Relationship Viewer, Audit Log Viewer) has been
+> moved to Phase 10 (SDK & API). Developing it alongside the SDK provides a consistent developer experience.
 
 ---
 
@@ -405,14 +401,16 @@ GDPR/CCPA対応のためのデータ分離アーキテクチャ:
 
 ### Key Features
 
-| Feature            | Description                               | Status     |
-| ------------------ | ----------------------------------------- | ---------- |
-| @authrim/sdk-core  | Headless OIDC/PKCE client                 | 🔜 Planned |
-| @authrim/sdk-web   | Web Components (Lit/Stencil)              | 🔜 Planned |
-| @authrim/sdk-react | React hooks and components                | 🔜 Planned |
-| CDN Bundle         | `authrim-sdk.min.js` for `<script>` usage | 🔜 Planned |
-| OpenAPI Spec       | Complete API specification                | 🔜 Planned |
-| API Portal         | Interactive documentation                 | 🔜 Planned |
+| Feature              | Description                               | Status     |
+| -------------------- | ----------------------------------------- | ---------- |
+| @authrim/sdk-core    | Headless OIDC/PKCE client                 | 🔜 Planned |
+| @authrim/sdk-web     | Web Components (Lit/Stencil)              | 🔜 Planned |
+| @authrim/sdk-react   | React hooks and components                | 🔜 Planned |
+| CDN Bundle           | `authrim-sdk.min.js` for `<script>` usage | 🔜 Planned |
+| OpenAPI Spec         | Complete API specification                | 🔜 Planned |
+| API Portal           | Interactive documentation                 | 🔜 Planned |
+| Login Flow Designer  | Visual login page configuration           | 🔜 Planned |
+| Policy Admin Console | Role Editor, Policy Editor, ReBAC Graph   | 🔜 Planned |
 
 ---
 
@@ -560,8 +558,10 @@ By 2027, Authrim will be:
 | 2025-12-17 | External IdP documentation added, other social providers deferred to Phase 8+ |
 | 2025-12-17 | **Phase 11 Load Testing ✅ Complete**: 6 benchmark reports (Silent Auth, UserInfo, Token Exchange, Token Introspection, Refresh Token, Full Login), K6 Cloud distributed testing, DO sharding optimization |
 | 2025-12-17 | **MTLS (RFC 8705) removed from scope**: Cloudflare Workers architecture limitation |
-| 2025-12-18 | **PII/Non-PII Database Separation ✅ Complete**: DatabaseAdapter, Repository pattern, PIIPartitionRouter, AuthContext/PIIContext, 47ファイル移行 |
-| 2025-12-18 | **Phase 7 ~95% Complete**: GDPR/CCPA対応アーキテクチャ完成、Phase 8への準備完了 |
+| 2025-12-18 | **PII/Non-PII Database Separation ✅ Complete**: DatabaseAdapter, Repository pattern, PIIPartitionRouter, AuthContext/PIIContext, 47 files migrated |
+| 2025-12-18 | **Phase 7 ~95% Complete**: GDPR/CCPA compliant architecture complete, ready for Phase 8 |
+| 2025-12-18 | **8.4 Policy Admin Console → Moved to Phase 10**: Develop alongside SDK for consistent developer experience |
+| 2025-12-18 | **8.1 Policy ↔ Identity Integration ✅ Complete**: Rule Evaluator, JIT Provisioning with dynamic role assignment, org auto-join, email domain hash with key rotation, Admin APIs |
 
 ---
 
@@ -578,6 +578,6 @@ The following features are intentionally **not supported** due to architectural 
 
 > **Last Update:** 2025-12-18
 >
-> **Current Status:** Phase 6 ✅ | Phase 7 ~95% (Identity Hub + PII分離 ✅) | Phase 11 ~15% (Load Testing ✅)
+> **Current Status:** Phase 6 ✅ | Phase 7 ~95% (Identity Hub + PII Separation ✅) | Phase 11 ~15% (Load Testing ✅)
 >
 > **Authrim** - The Identity & Access Platform for the modern web.

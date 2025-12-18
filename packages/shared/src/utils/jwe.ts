@@ -219,7 +219,11 @@ export async function getClientPublicKey(
       const key = kid ? jwks.keys.find((k) => k.kid === kid) : jwks.keys[0];
       return key || null;
     } catch (error) {
-      console.error('Error fetching client JWKS:', error);
+      // PII Protection: Don't log full error object (may contain client JWKS URI)
+      console.error(
+        'Error fetching client JWKS:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
       return null;
     }
   }

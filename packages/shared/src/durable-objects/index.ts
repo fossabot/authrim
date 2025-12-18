@@ -26,6 +26,8 @@ export { DeviceCodeStore } from './DeviceCodeStore';
 export { CIBARequestStore } from './CIBARequestStore';
 export { VersionManager } from './VersionManager';
 export { SAMLRequestStore } from './SAMLRequestStore';
+export { PermissionChangeHub } from './PermissionChangeHub';
+export { UserCodeRateLimiter } from './UserCodeRateLimiter';
 
 // Export types for external use
 export type { Session, SessionData, CreateSessionRequest, SessionResponse } from './SessionStore';

@@ -31,6 +31,7 @@ import {
   deleteRefreshToken,
   getClient,
   getCachedUser,
+  getCachedUserCore,
 } from '@authrim/shared';
 import {
   createIDToken,
@@ -56,6 +57,13 @@ import {
   isPolicyEmbeddingEnabled,
   isTokenRevoked,
   timingSafeEqual,
+  // Phase 8.2: Token Embedding Model
+  createTokenClaimEvaluator,
+  evaluateIdLevelPermissions,
+  isCustomClaimsEnabled,
+  isIdLevelPermissionsEnabled,
+  getEmbeddingLimits,
+  type TokenClaimEvaluationContext,
   type JWEAlgorithm,
   type JWEEncryption,
   type IDTokenClaims,
@@ -893,6 +901,71 @@ async function handleAuthorizationCodeGrant(
     console.warn('Failed to evaluate policy permissions:', policyError);
   }
 
+  // Phase 8.2: ID-level Resource Permissions
+  let idLevelPermissions: string[] = [];
+  try {
+    const idLevelEnabled = await isIdLevelPermissionsEnabled(c.env);
+    if (idLevelEnabled) {
+      const limits = await getEmbeddingLimits(c.env);
+      const allIdPerms = await evaluateIdLevelPermissions(
+        c.env.DB,
+        authCodeData.sub,
+        'default', // tenant_id
+        { cache: c.env.REBAC_CACHE }
+      );
+      // Apply limits to prevent token bloat
+      if (allIdPerms.length > limits.max_resource_permissions) {
+        console.warn(
+          `[TOKEN_BLOAT] ID-level permissions truncated: ${allIdPerms.length} -> ${limits.max_resource_permissions}`
+        );
+        idLevelPermissions = allIdPerms.slice(0, limits.max_resource_permissions);
+      } else {
+        idLevelPermissions = allIdPerms;
+      }
+    }
+  } catch (idLevelError) {
+    // Log but don't fail - ID-level permissions are optional
+    console.warn('Failed to evaluate ID-level permissions:', idLevelError);
+  }
+
+  // Phase 8.2: Custom Claims Evaluation
+  let customClaims: Record<string, unknown> = {};
+  try {
+    const customClaimsEnabled = await isCustomClaimsEnabled(c.env);
+    if (customClaimsEnabled) {
+      const limits = await getEmbeddingLimits(c.env);
+      const evaluator = createTokenClaimEvaluator(c.env.DB, c.env.REBAC_CACHE, {
+        maxCustomClaims: limits.max_custom_claims,
+      });
+
+      // Build evaluation context
+      const claimContext: TokenClaimEvaluationContext = {
+        tenant_id: 'default',
+        subject_id: authCodeData.sub,
+        client_id: client_id,
+        scope: authCodeData.scope || '',
+        roles: accessTokenRBACClaims.authrim_roles || [],
+        permissions: policyEmbeddingPermissions,
+        org_id: accessTokenRBACClaims.authrim_org_id,
+        org_type: accessTokenRBACClaims.authrim_org_type,
+      };
+
+      // Evaluate for access token
+      const result = await evaluator.evaluate(claimContext, 'access');
+      customClaims = result.claims_to_add;
+
+      // Log overrides for audit
+      if (result.claim_overrides.length > 0) {
+        console.log(
+          `[CUSTOM_CLAIMS] ${result.claim_overrides.length} claim overrides occurred for user=${authCodeData.sub}`
+        );
+      }
+    }
+  } catch (customClaimsError) {
+    // Log but don't fail - custom claims are optional
+    console.warn('Failed to evaluate custom claims:', customClaimsError);
+  }
+
   // Generate Access Token FIRST (needed for at_hash in ID token)
   const accessTokenClaims: {
     iss: string;
@@ -906,8 +979,12 @@ async function handleAuthorizationCodeGrant(
     authrim_roles?: string[];
     authrim_org_id?: string;
     authrim_org_type?: string;
-    // Phase 2 Policy Embedding
+    // Phase 2 Policy Embedding (type-level permissions)
     authrim_permissions?: string[];
+    // Phase 8.2: ID-level Resource Permissions
+    authrim_resource_permissions?: string[];
+    // Phase 8.2: Custom Claims (dynamic via [key: string]: unknown)
+    [key: string]: unknown;
   } = {
     iss: c.env.ISSUER_URL,
     sub: authCodeData.sub,
@@ -916,11 +993,18 @@ async function handleAuthorizationCodeGrant(
     client_id: client_id,
     // Phase 1 RBAC: Add RBAC claims to access token
     ...accessTokenRBACClaims,
+    // Phase 8.2: Add custom claims from rule evaluation
+    ...customClaims,
   };
 
   // Phase 2 Policy Embedding: Add evaluated permissions
   if (policyEmbeddingPermissions.length > 0) {
     accessTokenClaims.authrim_permissions = policyEmbeddingPermissions;
+  }
+
+  // Phase 8.2: Add ID-level resource permissions
+  if (idLevelPermissions.length > 0) {
+    accessTokenClaims.authrim_resource_permissions = idLevelPermissions;
   }
 
   // Add claims parameter if it was requested during authorization
@@ -1353,6 +1437,9 @@ async function handleRefreshTokenGrant(
     );
   }
 
+  // Cast to ClientMetadata for type safety
+  const typedClient = clientMetadata as unknown as ClientMetadata;
+
   // Client authentication verification
   // Supports: client_secret_basic, client_secret_post, client_secret_jwt, private_key_jwt
   if (
@@ -1363,7 +1450,7 @@ async function handleRefreshTokenGrant(
     const assertionValidation = await validateClientAssertion(
       client_assertion,
       `${c.env.ISSUER_URL}/token`,
-      clientMetadata as unknown as import('@authrim/shared').ClientMetadata
+      typedClient
     );
 
     if (!assertionValidation.valid) {
@@ -1378,9 +1465,10 @@ async function handleRefreshTokenGrant(
         401
       );
     }
-  } else if (clientMetadata.client_secret) {
+  } else if (typedClient.client_secret) {
     // client_secret_basic or client_secret_post authentication
-    if (!client_secret || client_secret !== clientMetadata.client_secret) {
+    // SV-015: Use timing-safe comparison to prevent timing attacks
+    if (!client_secret || !timingSafeEqual(typedClient.client_secret, client_secret)) {
       c.header('Cache-Control', 'no-store');
       c.header('Pragma', 'no-cache');
       return c.json(
@@ -2600,11 +2688,12 @@ async function handleCIBAGrant(c: Context<{ Bindings: Env }>, formData: Record<s
     }
   }
 
-  // Get user data for token claims (using cache for performance)
+  // Verify user exists in Core DB (PII/Non-PII separation: NO PII DB access in token endpoint)
   // Note: metadata.sub is guaranteed to exist due to the check at line 2340
-  const user = await getCachedUser(c.env, metadata.sub);
+  // Use getCachedUserCore() instead of getCachedUser() to avoid unnecessary PII DB access
+  const userCore = await getCachedUserCore(c.env, metadata.sub);
 
-  if (!user) {
+  if (!userCore) {
     return c.json(
       {
         error: 'server_error',

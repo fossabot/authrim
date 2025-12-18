@@ -8,10 +8,16 @@
  * - Preventing request parameter tampering
  * - Reducing URL length limitations
  * - Providing better privacy for request parameters
+ *
+ * Security Features:
+ * - Client authentication (RFC 9126 Section 2.1)
+ * - DPoP binding (RFC 9449)
+ * - FAPI 2.0 compliance
+ * - JAR support (RFC 9101)
  */
 
 import type { Context } from 'hono';
-import type { Env } from '@authrim/shared';
+import type { Env, ClientMetadata } from '@authrim/shared';
 import { OIDCError } from '@authrim/shared';
 import { ERROR_CODES, HTTP_STATUS } from '@authrim/shared';
 import {
@@ -20,8 +26,15 @@ import {
   validateScope,
   isRedirectUriRegistered,
   createOAuthConfigManager,
+  validateClientAssertion,
+  validateDPoPProof,
+  timingSafeEqual,
+  getTokenFormat,
+  parseToken,
+  isInternalUrl,
 } from '@authrim/shared';
 import { generateSecureRandomString, getClient } from '@authrim/shared';
+import { jwtVerify, compactDecrypt, importJWK, createRemoteJWKSet } from 'jose';
 
 /**
  * PAR request parameters interface
@@ -130,6 +143,11 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
 
     const formData = await c.req.parseBody();
 
+    // Extract client authentication parameters
+    const client_secret = formData.client_secret as string | undefined;
+    const client_assertion = formData.client_assertion as string | undefined;
+    const client_assertion_type = formData.client_assertion_type as string | undefined;
+
     // Validate request parameters
     const params = validatePARParams(formData as Record<string, unknown>);
 
@@ -147,6 +165,365 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
     if (!clientData) {
       throw new OIDCError(ERROR_CODES.INVALID_CLIENT, 'Client not found');
     }
+
+    // Cast to ClientMetadata for type safety
+    const clientMetadata = clientData as unknown as ClientMetadata;
+
+    // =========================================================================
+    // Load FAPI 2.0 / OIDC configuration from SETTINGS KV
+    // =========================================================================
+    let fapiConfig: {
+      enabled?: boolean;
+      requirePrivateKeyJwt?: boolean;
+      maxRequestUriExpiry?: number;
+    } = {};
+    let oidcConfig: {
+      parExpiry?: number;
+      allowNoneAlgorithm?: boolean;
+    } = {};
+
+    try {
+      const settingsJson = await c.env.SETTINGS?.get('system_settings');
+      if (settingsJson) {
+        const settings = JSON.parse(settingsJson);
+        fapiConfig = settings.fapi || {};
+        oidcConfig = settings.oidc || {};
+      }
+    } catch (error) {
+      console.error('Failed to load settings from KV:', error);
+      // Continue with default values
+    }
+
+    // =========================================================================
+    // P0: Client Authentication (RFC 9126 Section 2.1)
+    // The authorization server MUST authenticate the client.
+    // =========================================================================
+    if (
+      client_assertion &&
+      client_assertion_type === 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+    ) {
+      // private_key_jwt or client_secret_jwt authentication
+      const assertionValidation = await validateClientAssertion(
+        client_assertion,
+        `${c.env.ISSUER_URL}/as/par`, // PAR endpoint URL
+        clientMetadata
+      );
+
+      if (!assertionValidation.valid) {
+        return c.json(
+          {
+            error: assertionValidation.error || 'invalid_client',
+            error_description:
+              assertionValidation.error_description || 'Client assertion validation failed',
+          },
+          401
+        );
+      }
+    } else if (clientMetadata.client_secret) {
+      // client_secret_basic or client_secret_post authentication
+      // SV-015: Use timing-safe comparison to prevent timing attacks
+      if (!client_secret || !timingSafeEqual(clientMetadata.client_secret, client_secret)) {
+        return c.json(
+          {
+            error: 'invalid_client',
+            error_description: 'Client authentication failed',
+          },
+          401
+        );
+      }
+    }
+    // Public clients (no client_secret and no client_assertion) are allowed for non-FAPI mode
+
+    // =========================================================================
+    // P3: FAPI 2.0 Specific Requirements
+    // =========================================================================
+    if (fapiConfig.enabled) {
+      // FAPI 2.0: Require private_key_jwt authentication
+      if (fapiConfig.requirePrivateKeyJwt !== false) {
+        if (
+          !client_assertion ||
+          client_assertion_type !== 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+        ) {
+          return c.json(
+            {
+              error: 'invalid_client',
+              error_description: 'FAPI 2.0 requires private_key_jwt authentication for PAR',
+            },
+            401
+          );
+        }
+      }
+
+      // FAPI 2.0: Require PKCE with S256
+      if (!params.code_challenge || params.code_challenge_method !== 'S256') {
+        throw new OIDCError(ERROR_CODES.INVALID_REQUEST, 'FAPI 2.0 requires PKCE with S256 method');
+      }
+    }
+
+    // =========================================================================
+    // P4: JAR Support (RFC 9101 - JWT-Secured Authorization Request)
+    // If 'request' parameter is present, parse JWT request object
+    // =========================================================================
+    const requestParam = formData.request as string | undefined;
+
+    if (requestParam) {
+      try {
+        let requestObjectClaims: Record<string, unknown> | undefined;
+        let requestProcessed = false;
+
+        // Check if request is JWE (encrypted) or JWT (signed)
+        let tokenFormat = getTokenFormat(requestParam);
+
+        if (tokenFormat === 'unknown') {
+          return c.json(
+            {
+              error: 'invalid_request_object',
+              error_description: 'Invalid request object format',
+            },
+            400
+          );
+        }
+
+        let jwtRequest = requestParam;
+
+        // Handle JWE-encrypted request objects (nested JWT: JWE containing JWS)
+        if (tokenFormat === 'jwe') {
+          try {
+            // Get private key for decryption from KeyManager
+            const keyManagerId = c.env.KEY_MANAGER.idFromName('default-v3');
+            const keyManager = c.env.KEY_MANAGER.get(keyManagerId);
+            const keyData = await keyManager.getActiveKeyWithPrivateRpc();
+
+            if (!keyData?.privatePEM) {
+              return c.json(
+                {
+                  error: 'server_error',
+                  error_description: 'Decryption key not available',
+                },
+                500
+              );
+            }
+
+            const { importPKCS8 } = await import('jose');
+            const privateKey = await importPKCS8(keyData.privatePEM, 'RSA-OAEP');
+
+            const { plaintext } = await compactDecrypt(requestParam, privateKey);
+            jwtRequest = new TextDecoder().decode(plaintext);
+
+            // Check inner format
+            tokenFormat = getTokenFormat(jwtRequest);
+            if (tokenFormat === 'jwe') {
+              // Try to parse as plain JSON (unsecured request object inside JWE)
+              requestObjectClaims = JSON.parse(jwtRequest) as Record<string, unknown>;
+              requestProcessed = true;
+            }
+          } catch (decryptError) {
+            console.error('[PAR] Failed to decrypt JWE request object:', decryptError);
+            return c.json(
+              {
+                error: 'invalid_request_object',
+                error_description: 'Failed to decrypt request object',
+              },
+              400
+            );
+          }
+        }
+
+        // Process JWT/JWS if not already processed
+        if (!requestProcessed) {
+          const parsed = parseToken(jwtRequest);
+          const header = parsed?.header as { alg?: string } | undefined;
+          const alg = header?.alg;
+
+          // Handle unsigned request objects (alg=none)
+          if (alg === 'none') {
+            // SECURITY: Block alg=none in production
+            const environment = c.env.ENVIRONMENT || c.env.NODE_ENV || 'production';
+            const isProduction = environment === 'production';
+
+            if (isProduction) {
+              console.error(
+                '[PAR][SECURITY CRITICAL] Blocked unsigned request object (alg=none) in production'
+              );
+              return c.json(
+                {
+                  error: 'invalid_request_object',
+                  error_description:
+                    'Unsigned request objects (alg=none) are not permitted in production',
+                },
+                400
+              );
+            }
+
+            // Non-production: Check SETTINGS KV for allowNoneAlgorithm (same pattern as authorize.ts)
+            const allowNoneAlgorithm = oidcConfig.allowNoneAlgorithm ?? false;
+
+            if (!allowNoneAlgorithm) {
+              console.error(
+                '[PAR][SECURITY] Rejected unsigned request object (alg=none) - not allowed in settings'
+              );
+              return c.json(
+                {
+                  error: 'invalid_request_object',
+                  error_description:
+                    'Unsigned request objects (alg=none) are not allowed in this environment',
+                },
+                400
+              );
+            }
+
+            console.log(
+              '[PAR][SECURITY] Using unsigned request object (alg=none) - dev/testing only'
+            );
+            requestObjectClaims = parseToken(jwtRequest) as Record<string, unknown>;
+          } else {
+            // Signed request object - verify using client's public key
+            // Get client's public key from JWKS or jwks_uri
+            let cryptoKey: CryptoKey | undefined;
+            let jwksKeyGetter: ReturnType<typeof createRemoteJWKSet> | undefined;
+
+            if (clientMetadata.jwks) {
+              // Use embedded JWKS
+              const jwks =
+                typeof clientMetadata.jwks === 'string'
+                  ? JSON.parse(clientMetadata.jwks)
+                  : clientMetadata.jwks;
+              const key = jwks.keys?.[0];
+              if (key) {
+                const imported = await importJWK(key, alg);
+                if (imported instanceof Uint8Array) {
+                  return c.json(
+                    {
+                      error: 'invalid_request_object',
+                      error_description: 'Invalid key format in client JWKS',
+                    },
+                    400
+                  );
+                }
+                cryptoKey = imported as CryptoKey;
+              }
+            } else if (clientMetadata.jwks_uri) {
+              // Fetch from jwks_uri
+              const jwksUri = new URL(clientMetadata.jwks_uri);
+
+              // SSRF protection: Block internal addresses
+              if (isInternalUrl(jwksUri)) {
+                return c.json(
+                  {
+                    error: 'invalid_request_object',
+                    error_description: 'jwks_uri cannot point to internal addresses',
+                  },
+                  400
+                );
+              }
+
+              jwksKeyGetter = createRemoteJWKSet(jwksUri);
+            }
+
+            if (!cryptoKey && !jwksKeyGetter) {
+              return c.json(
+                {
+                  error: 'invalid_request_object',
+                  error_description:
+                    'Cannot verify request object: client has no public key (jwks or jwks_uri)',
+                },
+                400
+              );
+            }
+
+            try {
+              // jwtVerify has two overloads: one for CryptoKey, one for getKey function
+              // We need to call them separately to satisfy TypeScript
+              const verifyOptions = {
+                issuer: params.client_id, // RFC 9101: iss MUST be client_id
+                audience: c.env.ISSUER_URL, // RFC 9101: aud MUST be OP issuer
+              };
+
+              let payload: Record<string, unknown>;
+              if (cryptoKey) {
+                const result = await jwtVerify(jwtRequest, cryptoKey, verifyOptions);
+                payload = result.payload as Record<string, unknown>;
+              } else {
+                const result = await jwtVerify(jwtRequest, jwksKeyGetter!, verifyOptions);
+                payload = result.payload as Record<string, unknown>;
+              }
+              requestObjectClaims = payload;
+            } catch (verifyError) {
+              console.error('[PAR] JWT verification failed:', verifyError);
+              return c.json(
+                {
+                  error: 'invalid_request_object',
+                  error_description: 'Request object signature verification failed',
+                },
+                400
+              );
+            }
+          }
+        }
+
+        // Merge request object claims into params (request object takes precedence)
+        if (requestObjectClaims) {
+          // RFC 9101: Certain parameters in the request object override query/form params
+          if (requestObjectClaims.response_type)
+            params.response_type = requestObjectClaims.response_type as string;
+          if (requestObjectClaims.redirect_uri)
+            params.redirect_uri = requestObjectClaims.redirect_uri as string;
+          if (requestObjectClaims.scope) params.scope = requestObjectClaims.scope as string;
+          if (requestObjectClaims.state) params.state = requestObjectClaims.state as string;
+          if (requestObjectClaims.nonce) params.nonce = requestObjectClaims.nonce as string;
+          if (requestObjectClaims.code_challenge)
+            params.code_challenge = requestObjectClaims.code_challenge as string;
+          if (requestObjectClaims.code_challenge_method)
+            params.code_challenge_method = requestObjectClaims.code_challenge_method as string;
+          if (requestObjectClaims.response_mode)
+            params.response_mode = requestObjectClaims.response_mode as string;
+          if (requestObjectClaims.prompt) params.prompt = requestObjectClaims.prompt as string;
+          if (requestObjectClaims.display) params.display = requestObjectClaims.display as string;
+          if (requestObjectClaims.max_age)
+            params.max_age = String(requestObjectClaims.max_age) as string;
+          if (requestObjectClaims.ui_locales)
+            params.ui_locales = requestObjectClaims.ui_locales as string;
+          if (requestObjectClaims.id_token_hint)
+            params.id_token_hint = requestObjectClaims.id_token_hint as string;
+          if (requestObjectClaims.login_hint)
+            params.login_hint = requestObjectClaims.login_hint as string;
+          if (requestObjectClaims.acr_values)
+            params.acr_values = requestObjectClaims.acr_values as string;
+          if (requestObjectClaims.claims)
+            params.claims =
+              typeof requestObjectClaims.claims === 'string'
+                ? requestObjectClaims.claims
+                : JSON.stringify(requestObjectClaims.claims);
+
+          // client_id in request object must match client_id from request
+          if (requestObjectClaims.client_id && requestObjectClaims.client_id !== params.client_id) {
+            return c.json(
+              {
+                error: 'invalid_request',
+                error_description:
+                  'client_id mismatch between request parameter and request object',
+              },
+              400
+            );
+          }
+
+          console.log('[PAR] Request object processed successfully');
+        }
+      } catch (error) {
+        console.error('[PAR] Failed to process request object:', error);
+        return c.json(
+          {
+            error: 'invalid_request_object',
+            error_description: 'Failed to parse or verify request object',
+          },
+          400
+        );
+      }
+    }
+
+    // =========================================================================
+    // Standard Validations
+    // =========================================================================
 
     // Validate redirect_uri against registered URIs
     const redirectValidation = validateRedirectUri(params.redirect_uri);
@@ -198,12 +575,60 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
       }
     }
 
+    // =========================================================================
+    // P2: DPoP Handling (RFC 9449)
+    // If DPoP header present, validate proof and store dpop_jkt for binding
+    // =========================================================================
+    let dpopJkt: string | undefined;
+    const dpopHeader = c.req.header('DPoP');
+
+    if (dpopHeader) {
+      const parEndpointUrl = `${c.env.ISSUER_URL}/as/par`;
+      const dpopValidation = await validateDPoPProof(
+        dpopHeader,
+        'POST',
+        parEndpointUrl,
+        undefined, // No access token at PAR stage
+        c.env.DPOP_JTI_STORE,
+        params.client_id
+      );
+
+      if (!dpopValidation.valid) {
+        return c.json(
+          {
+            error: dpopValidation.error || 'invalid_dpop_proof',
+            error_description: dpopValidation.error_description || 'DPoP proof validation failed',
+          },
+          400
+        );
+      }
+
+      // Store dpop_jkt for authorization code binding
+      dpopJkt = dpopValidation.jkt;
+      console.log('[PAR] DPoP proof validated, jkt:', dpopJkt?.substring(0, 16) + '...');
+    }
+
     // Generate request_uri
     const requestUri = generateRequestUri();
 
-    // RFC 9126: Recommended lifetime is short (e.g., 10 minutes)
-    const REQUEST_URI_EXPIRY = 600; // 10 minutes
+    // =========================================================================
+    // P1: Use ConfigManager for expiration (KV → env → default)
+    // =========================================================================
+    const configManager = createOAuthConfigManager(c.env);
 
+    // Priority: FAPI max limit → KV config → OIDC config → default
+    let requestUriExpiry: number;
+    if (fapiConfig.enabled && fapiConfig.maxRequestUriExpiry) {
+      // FAPI 2.0: request_uri expires in ≤ 60 seconds (configurable)
+      requestUriExpiry = Math.min(fapiConfig.maxRequestUriExpiry, 60);
+    } else if (oidcConfig.parExpiry) {
+      requestUriExpiry = oidcConfig.parExpiry;
+    } else {
+      // Default: 600 seconds (10 minutes) per RFC 9126
+      requestUriExpiry = 600;
+    }
+
+    // Build request data with optional dpop_jkt
     const requestData = {
       client_id: params.client_id,
       response_type: params.response_type,
@@ -222,6 +647,8 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
       login_hint: params.login_hint,
       acr_values: params.acr_values,
       claims: params.claims,
+      // P2: Store DPoP key thumbprint for binding
+      dpop_jkt: dpopJkt,
     };
 
     // Store in PARRequestStore DO (issue #11: single-use guarantee)
@@ -243,7 +670,7 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
       await stub.storeRequestRpc({
         requestUri,
         data: requestData,
-        ttl: REQUEST_URI_EXPIRY,
+        ttl: requestUriExpiry,
       });
     } catch (error) {
       console.error('PAR store error:', error);
@@ -260,7 +687,7 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
     return c.json(
       {
         request_uri: requestUri,
-        expires_in: REQUEST_URI_EXPIRY,
+        expires_in: requestUriExpiry,
       },
       201
     );

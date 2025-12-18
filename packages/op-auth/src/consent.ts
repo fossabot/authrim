@@ -551,7 +551,8 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
     // Invalidate consent cache so next check reflects updated consent
     await invalidateConsentCache(c.env, userId, client_id);
 
-    console.log(`Consent granted: user=${userId}, client=${client_id}, scope=${scope}`);
+    // PII Protection: Don't log userId (can be used for user tracking)
+    console.log(`Consent granted: scope=${scope}`);
 
     // Build query string for internal redirect to /authorize
     const params = new URLSearchParams();

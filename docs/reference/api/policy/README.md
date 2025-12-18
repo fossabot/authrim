@@ -16,7 +16,10 @@ It provides flexible policy evaluation that integrates RBAC (Role-Based Access C
 |---------|--------|-------------|
 | **RBAC (Role-Based)** | Implemented | Role-based access control |
 | **ABAC (Attribute-Based)** | Implemented | Attribute-based access control |
-| **ReBAC (Relationship-Based)** | Placeholder | Zanzibar-style relationship-based control (future implementation) |
+| **ReBAC (Relationship-Based)** | Implemented | Zanzibar-style relationship-based control |
+| **Check API (Phase 8.3)** | Implemented | Unified real-time permission checking API |
+
+> **New:** See [Check API Reference](./CHECK_API.md) for the unified permission checking API with WebSocket push notifications.
 
 ---
 
@@ -514,10 +517,12 @@ Policy Service supports the following two access patterns:
 
 ## Related Documents
 
+- [Check API Reference](./CHECK_API.md) - Unified real-time permission checking API (Phase 8.3)
+- [Token Embedding API](./TOKEN_EMBEDDING.md) - Token-embedded permissions (Phase 8.2)
 - [API Inventory](../../project-management/API_INVENTORY.md)
 - [RBAC Implementation Plan](../../project-management/RBAC_IMPLEMENTATION_PLAN.md)
 - [Database Schema](../../architecture/database-schema.md)
 
 ---
 
-> **Last Updated**: 2025-12-01
+> **Last Updated**: 2025-12-19

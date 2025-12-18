@@ -20,6 +20,7 @@ const {
   mockVerifyToken,
   mockGetTenantIdFromContext,
   mockCreateAuthContextFromHono,
+  mockValidateClientAssertion,
 } = vi.hoisted(() => {
   const clientRepo = {
     findByClientId: vi.fn(),
@@ -38,6 +39,7 @@ const {
         client: clientRepo,
       },
     }),
+    mockValidateClientAssertion: vi.fn().mockResolvedValue({ valid: true }),
   };
 });
 
@@ -51,6 +53,7 @@ vi.mock('@authrim/shared', () => ({
   verifyToken: mockVerifyToken,
   getTenantIdFromContext: mockGetTenantIdFromContext,
   createAuthContextFromHono: mockCreateAuthContextFromHono,
+  validateClientAssertion: mockValidateClientAssertion,
 }));
 
 // Mock the introspection cache settings module

@@ -42,7 +42,8 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
 
   // Handle provider errors
   if (error) {
-    console.error('Provider error:', error, errorDescription);
+    // PII Protection: Do not log errorDescription (may contain user info from provider)
+    console.error('External IdP returned error:', error);
     return redirectWithError(c, error, errorDescription);
   }
 
@@ -456,7 +457,8 @@ async function fetchGitHubPrimaryEmail(
     });
 
     if (!response.ok) {
-      console.warn(`GitHub /user/emails failed: ${response.status}`);
+      // Security: Only log HTTP status code (safe), not response body (may contain user data)
+      console.warn('GitHub /user/emails failed with status:', response.status);
       return null;
     }
 

@@ -52,6 +52,7 @@ export interface Env {
   CIBA_REQUEST_STORE: DurableObjectNamespace; // OpenID Connect CIBA Flow
   VERSION_MANAGER: DurableObjectNamespace; // Worker bundle version management
   SAML_REQUEST_STORE: DurableObjectNamespace; // SAML 2.0 request/artifact store
+  PERMISSION_CHANGE_HUB?: DurableObjectNamespace; // Phase 8.3: Real-time permission change notifications
 
   // Environment Variables
   ISSUER_URL: string;
@@ -65,6 +66,7 @@ export interface Env {
   ALLOW_HTTP_REDIRECT?: string; // Allow http:// redirect URIs for development
   MAX_CODES_PER_USER?: string; // Max authorization codes per user (default: 100, increase for load testing)
   STATE_REQUIRED?: string; // "true" to require state parameter (CSRF protection, default: false for backwards compatibility)
+  USERINFO_REQUIRE_OPENID_SCOPE?: string; // "false" to allow UserInfo without openid scope (OAuth 2.0 compatibility, default: true for OIDC compliance)
   AUTH_CODE_TTL?: string; // Authorization code TTL in seconds (default: 60, increase for load testing)
   AUTH_CODE_CLEANUP_INTERVAL?: string; // Auth code cleanup interval in seconds (default: 30, increase for load testing)
   AUTHRIM_CODE_SHARDS?: string; // Number of auth code DO shards (default: 4)
@@ -131,6 +133,10 @@ export interface Env {
   RBAC_CACHE_TTL?: string; // Cache TTL in seconds (KV overrides this, default: 600)
   RBAC_CACHE_VERSION?: string; // Cache version for invalidation (KV overrides this, default: 1)
 
+  // User & Consent Cache TTL (KV overrides these)
+  USER_CACHE_TTL?: string; // User cache TTL in seconds (default: 3600 = 1 hour)
+  CONSENT_CACHE_TTL?: string; // Consent cache TTL in seconds (default: 86400 = 24 hours)
+
   // RBAC Consent Screen Configuration (Phase 2-B)
   // Feature flags to control consent screen RBAC features
   RBAC_CONSENT_ORG_SELECTOR?: string; // "true" to show organization selector for multi-org users
@@ -193,6 +199,23 @@ export interface Env {
   // Encryption key for storing external IdP tokens (32-byte hex string)
   RP_TOKEN_ENCRYPTION_KEY?: string;
 
+  // Policy ↔ Identity Integration (Phase 8.1)
+  // HMAC secret for email domain blind index (minimum 16 characters)
+  // Used to generate email_domain_hash for policy rule evaluation
+  EMAIL_DOMAIN_HASH_SECRET?: string;
+
+  // Token Embedding Model (Phase 8.2)
+  // Custom claim rules and ID-level resource permissions
+  // Default: all disabled (to avoid OIDC certification test interference)
+  ENABLE_CUSTOM_CLAIMS?: string; // "true" to enable custom claim rules
+  ENABLE_ID_LEVEL_PERMISSIONS?: string; // "true" to enable ID-level resource permissions
+
+  // Token Bloat Protection (Phase 8.2)
+  // Maximum items to embed in tokens (KV overrides these)
+  MAX_EMBEDDED_PERMISSIONS?: string; // Max type-level permissions (default: 50)
+  MAX_RESOURCE_PERMISSIONS?: string; // Max ID-level permissions (default: 100)
+  MAX_CUSTOM_CLAIMS?: string; // Max custom claims (default: 20)
+
   // Token Introspection Strict Validation (RFC 7662 + enhanced security)
   // When "true", enables additional audience and client_id validation
   // Default: disabled (RFC 7662 standard behavior)
@@ -204,4 +227,27 @@ export interface Env {
   // Default: enabled with 60 second TTL
   INTROSPECTION_CACHE_ENABLED?: string; // "true" or "false" (default: "true")
   INTROSPECTION_CACHE_TTL_SECONDS?: string; // Cache TTL in seconds (default: "60")
+
+  // Environment Detection
+  // Used for security-sensitive feature flags (e.g., blocking alg=none in production)
+  ENVIRONMENT?: string; // "production", "staging", "development"
+  NODE_ENV?: string; // "production", "development" (fallback for ENVIRONMENT)
+
+  // OIDC ACR (Authentication Context Class Reference) Configuration
+  // Comma-separated list of supported ACR values for authentication level negotiation
+  // Default: SAML 2.0 standard ACR values + "0" (no context)
+  SUPPORTED_ACR_VALUES?: string;
+
+  // Check API (Phase 8.3: Real-time Check API Model)
+  // Feature flags for unified permission checking
+  ENABLE_CHECK_API?: string; // "true" to enable Check API endpoints (default: disabled)
+  CHECK_API_DEBUG_MODE?: string; // "true" to include debug info in responses (default: disabled)
+  CHECK_API_WEBSOCKET_ENABLED?: string; // "true" to enable WebSocket Push (default: disabled)
+  CHECK_API_AUDIT_ENABLED?: string; // "true" to enable audit logging (default: enabled)
+
+  // Check API KV Cache
+  CHECK_CACHE_KV?: KVNamespace; // Cache for permission check results
+
+  // Default tenant ID for multi-tenant deployments
+  DEFAULT_TENANT_ID?: string; // Default: "default"
 }

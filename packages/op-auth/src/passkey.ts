@@ -185,16 +185,36 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
       // Step 2: Create user in PII DB (if DB_PII is configured)
       if (c.env.DB_PII) {
         const piiCtx = createPIIContextFromHono(c, tenantId);
-        await piiCtx.piiRepositories.userPII.createPII({
-          id: newUserId,
-          tenant_id: tenantId,
-          email,
-          name: defaultName,
-          preferred_username: preferredUsername,
-        });
+        try {
+          await piiCtx.piiRepositories.userPII.createPII({
+            id: newUserId,
+            tenant_id: tenantId,
+            email,
+            name: defaultName,
+            preferred_username: preferredUsername,
+          });
 
-        // Step 3: Update pii_status to 'active'
-        await authCtx.repositories.userCore.updatePIIStatus(newUserId, 'active');
+          // Step 3: Update pii_status to 'active' (only on successful PII DB write)
+          await authCtx.repositories.userCore.updatePIIStatus(newUserId, 'active');
+        } catch (piiError: unknown) {
+          // PII Protection: Don't log full error (may contain PII)
+          console.error(
+            '[PASSKEY] Failed to create user in PII DB:',
+            piiError instanceof Error ? piiError.name : 'Unknown error'
+          );
+          // Update pii_status to 'failed' to indicate PII DB write failure
+          await authCtx.repositories.userCore
+            .updatePIIStatus(newUserId, 'failed')
+            .catch((statusError: unknown) => {
+              console.error(
+                '[PASSKEY] Failed to update pii_status to failed:',
+                statusError instanceof Error ? statusError.name : 'Unknown error'
+              );
+            });
+          // Note: We continue with registration - Core DB user exists, PII can be retried
+        }
+      } else {
+        console.warn('[PASSKEY] DB_PII not configured - user created with pii_status=pending');
       }
 
       user = { id: newUserId, email, name: defaultName || email.split('@')[0] };
@@ -258,7 +278,11 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
       userId: user.id,
     });
   } catch (error) {
-    console.error('Passkey registration options error:', error);
+    // PII Protection: Don't log full error (may contain user data)
+    console.error(
+      'Passkey registration options error:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
     return c.json(
       {
         error: 'server_error',
@@ -347,7 +371,11 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
         expectedRPID: rpID,
       });
     } catch (error) {
-      console.error('Registration verification failed:', error);
+      // PII Protection: Don't log full error
+      console.error(
+        'Registration verification failed:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
       return c.json(
         {
           error: 'invalid_request',
@@ -409,7 +437,11 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
       )) as Session;
       sessionData = { id: createdSession.id };
     } catch (error) {
-      console.error('Failed to create session:', error);
+      // PII Protection: Don't log full error
+      console.error(
+        'Failed to create session:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
       return c.json(
         {
           error: 'server_error',
@@ -477,7 +509,11 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
       },
     });
   } catch (error) {
-    console.error('Passkey registration verify error:', error);
+    // PII Protection: Don't log full error (may contain credential data)
+    console.error(
+      'Passkey registration verify error:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
     return c.json(
       {
         error: 'server_error',
@@ -592,7 +628,11 @@ export async function passkeyLoginOptionsHandler(c: Context<{ Bindings: Env }>) 
       challengeId,
     });
   } catch (error) {
-    console.error('Passkey login options error:', error);
+    // PII Protection: Don't log full error (may contain user data)
+    console.error(
+      'Passkey login options error:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
     return c.json(
       {
         error: 'server_error',
@@ -705,7 +745,8 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
     // Convert stored public key from base64 to Uint8Array
     const normalizedCredentialId = normalizeStoredCredentialId(passkey.credential_id as string);
     if (!normalizedCredentialId) {
-      console.error('Stored credential ID could not be normalized for passkey:', passkey.id);
+      // PII Protection: Don't log passkey.id
+      console.error('Stored credential ID could not be normalized');
       return c.json(
         {
           error: 'server_error',
@@ -731,7 +772,11 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
         },
       } as any);
     } catch (error) {
-      console.error('Authentication verification failed:', error);
+      // PII Protection: Don't log full error
+      console.error(
+        'Authentication verification failed:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
       return c.json(
         {
           error: 'invalid_request',
@@ -772,7 +817,11 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
       )) as Session;
       sessionData = { id: createdSession.id };
     } catch (error) {
-      console.error('Failed to create session:', error);
+      // PII Protection: Don't log full error
+      console.error(
+        'Failed to create session:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
       return c.json(
         {
           error: 'server_error',
@@ -827,7 +876,11 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
       },
     });
   } catch (error) {
-    console.error('Passkey login verify error:', error);
+    // PII Protection: Don't log full error (may contain credential data)
+    console.error(
+      'Passkey login verify error:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
     return c.json(
       {
         error: 'server_error',

@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import type { Env } from '@authrim/shared';
+import type { Env, ClientMetadata } from '@authrim/shared';
 import type { IntrospectionResponse } from '@authrim/shared';
 import {
   validateClientId,
@@ -10,6 +10,7 @@ import {
   verifyToken,
   createAuthContextFromHono,
   getTenantIdFromContext,
+  validateClientAssertion,
 } from '@authrim/shared';
 import { importJWK, decodeProtectedHeader, type CryptoKey, type JWK } from 'jose';
 import { getIntrospectionValidationSettings } from './routes/settings/introspection-validation';
@@ -139,6 +140,10 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
   let client_id = formData.client_id;
   let client_secret = formData.client_secret;
 
+  // P0: Extract client_assertion for private_key_jwt authentication (RFC 7523)
+  const client_assertion = formData.client_assertion;
+  const client_assertion_type = formData.client_assertion_type;
+
   // Check for HTTP Basic authentication (client_secret_basic)
   // RFC 7617: client_id and client_secret are URL-encoded before Base64 encoding
   const authHeader = c.req.header('Authorization');
@@ -218,12 +223,58 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
     );
   }
 
-  // Verify client_secret using timing-safe comparison to prevent timing attacks
-  if (!client_secret || !timingSafeEqual(clientRecord.client_secret ?? '', client_secret)) {
+  // Cast to ClientMetadata for type safety
+  const clientMetadata = clientRecord as unknown as ClientMetadata;
+
+  // =========================================================================
+  // Client Authentication (supports multiple methods)
+  // Priority: private_key_jwt > client_secret_basic/post
+  // RFC 7662: Client authentication is REQUIRED for introspection
+  // =========================================================================
+
+  // P0: private_key_jwt authentication (RFC 7523)
+  if (
+    client_assertion &&
+    client_assertion_type === 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+  ) {
+    const assertionValidation = await validateClientAssertion(
+      client_assertion,
+      `${c.env.ISSUER_URL}/introspect`, // Introspection endpoint URL
+      clientMetadata
+    );
+
+    if (!assertionValidation.valid) {
+      return c.json(
+        {
+          error: assertionValidation.error || 'invalid_client',
+          error_description:
+            assertionValidation.error_description || 'Client assertion validation failed',
+        },
+        401
+      );
+    }
+    // Authentication successful via private_key_jwt
+  }
+  // client_secret_basic or client_secret_post authentication
+  else if (client_secret) {
+    // Verify client_secret using timing-safe comparison to prevent timing attacks
+    if (!timingSafeEqual(clientMetadata.client_secret ?? '', client_secret)) {
+      return c.json(
+        {
+          error: 'invalid_client',
+          error_description: 'Invalid client credentials',
+        },
+        401
+      );
+    }
+    // Authentication successful via client_secret
+  }
+  // No valid authentication method provided
+  else {
     return c.json(
       {
         error: 'invalid_client',
-        error_description: 'Invalid client credentials',
+        error_description: 'Client authentication required',
       },
       401
     );
@@ -259,6 +310,11 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
   const act = tokenPayload.act as IntrospectionResponse['act'];
   // RFC 8693: Resource server URI (Token Exchange)
   const resource = tokenPayload.resource as string | undefined;
+  // P1: RFC 9449: DPoP confirmation claim (cnf.jkt)
+  const cnf = tokenPayload.cnf as { jkt: string } | undefined;
+  // P2: RFC 7662 recommends including username for human-readable identifier
+  // Use preferred_username from token if available, otherwise use sub
+  const username = (tokenPayload.preferred_username as string) || sub;
 
   // ========== Introspection Response Cache Check ==========
   // Cache lookup is performed early to skip expensive operations (JWKS, signature verification)
@@ -477,11 +533,17 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
   // ========== Token Revocation/Existence Check END ==========
 
   // Token is active, return introspection response
+  // P1: Determine token_type based on cnf claim presence (RFC 9449)
+  const tokenType: 'Bearer' | 'DPoP' = cnf ? 'DPoP' : 'Bearer';
+
   const response: IntrospectionResponse = {
     active: true,
     scope,
     client_id: tokenClientId,
-    token_type: 'Bearer',
+    // P2: RFC 7662 recommends including username
+    username,
+    // P1: RFC 9449 - DPoP-bound tokens have token_type "DPoP"
+    token_type: tokenType,
     exp,
     iat,
     // RFC 7519: Include nbf if present
@@ -490,6 +552,8 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
     aud,
     iss,
     jti,
+    // P1: RFC 9449 - Include cnf claim for DPoP-bound tokens
+    ...(cnf && { cnf }),
     // RFC 8693: Include actor claim if present (for Token Exchange delegated tokens)
     ...(act && { act }),
     // RFC 8693: Include resource if present (for Token Exchange with resource parameter)

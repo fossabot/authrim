@@ -205,7 +205,11 @@ export function generateCheckSessionIframeHtml(issuerUrl: string): string {
         return 'changed';
       }
     } catch (e) {
-      console.error('Session state validation error:', e);
+      // PII Protection: Don't log full error object
+      console.error(
+        'Session state validation error:',
+        e instanceof Error ? e.name : 'Unknown error'
+      );
       return 'error';
     }
   }

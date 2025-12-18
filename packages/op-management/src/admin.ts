@@ -22,6 +22,45 @@ import {
 } from '@authrim/shared';
 import type { UserCore, UserPII } from '@authrim/shared';
 
+// =============================================================================
+// PII Protection: Error Handling Helpers
+// =============================================================================
+
+/**
+ * Sanitize error for logging (PII Protection)
+ * Logs only error type/code, not full message which may contain sensitive data
+ */
+function logSanitizedError(context: string, error: unknown): void {
+  if (error instanceof Error) {
+    console.error(`${context}:`, {
+      type: error.name,
+      // Only log message in development (ENVIRONMENT !== 'production')
+      ...(process.env.NODE_ENV === 'development' && { message: error.message }),
+    });
+  } else {
+    console.error(`${context}: Unknown error type`);
+  }
+}
+
+/**
+ * Get error details for response (PII Protection)
+ * Only includes details in development environment to prevent information leakage
+ */
+function getErrorDetailsForResponse(error: unknown, env: Env): { details?: string } {
+  // Only include error details in development/staging, not production
+  const isDevelopment = env.ENVIRONMENT !== 'production' && env.NODE_ENV !== 'production';
+  if (isDevelopment) {
+    return {
+      details: error instanceof Error ? error.message : String(error),
+    };
+  }
+  return {};
+}
+
+// =============================================================================
+// Policy Configuration
+// =============================================================================
+
 /**
  * Policy feature flag names mapped to camelCase property names
  */
@@ -200,7 +239,7 @@ export async function serveAvatarHandler(c: Context<{ Bindings: Env }>) {
       headers,
     });
   } catch (error) {
-    console.error('Serve avatar error:', error);
+    logSanitizedError('Serve avatar error', error);
     return c.json(
       {
         error: 'server_error',
@@ -335,12 +374,12 @@ export async function adminStatsHandler(c: Context<{ Bindings: Env }>) {
       recentActivity,
     });
   } catch (error) {
-    console.error('Admin stats error:', error);
+    logSanitizedError('Admin stats error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to retrieve statistics',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );
@@ -531,12 +570,12 @@ export async function adminUsersListHandler(c: Context<{ Bindings: Env }>) {
       },
     });
   } catch (error) {
-    console.error('Admin users list error:', error);
+    logSanitizedError('Admin users list error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to retrieve users',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );
@@ -643,7 +682,7 @@ export async function adminUserGetHandler(c: Context<{ Bindings: Env }>) {
       customFields, // adapter.query returns array directly
     });
   } catch (error) {
-    console.error('Admin user get error:', error);
+    logSanitizedError('Admin user get error', error);
     return c.json(
       {
         error: 'server_error',
@@ -759,7 +798,7 @@ export async function adminUserCreateHandler(c: Context<{ Bindings: Env }>) {
         await authCtx.repositories.userCore.updatePIIStatus(userId, 'active');
       } catch (piiError) {
         // PII insert failed - mark as 'failed' for retry
-        console.error('PII insert failed:', piiError);
+        logSanitizedError('PII insert failed', piiError);
         await authCtx.repositories.userCore.updatePIIStatus(userId, 'failed');
         throw piiError;
       }
@@ -806,12 +845,12 @@ export async function adminUserCreateHandler(c: Context<{ Bindings: Env }>) {
       201
     );
   } catch (error) {
-    console.error('Admin user create error:', error);
+    logSanitizedError('Admin user create error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to create user',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );
@@ -959,7 +998,7 @@ export async function adminUserUpdateHandler(c: Context<{ Bindings: Env }>) {
       user: updatedUser,
     });
   } catch (error) {
-    console.error('Admin user update error:', error);
+    logSanitizedError('Admin user update error', error);
     return c.json(
       {
         error: 'server_error',
@@ -1043,7 +1082,7 @@ export async function adminUserDeleteHandler(c: Context<{ Bindings: Env }>) {
       message: 'User deleted successfully',
     });
   } catch (error) {
-    console.error('Admin user delete error:', error);
+    logSanitizedError('Admin user delete error', error);
     return c.json(
       {
         error: 'server_error',
@@ -1207,12 +1246,12 @@ export async function adminUserRetryPiiHandler(c: Context<{ Bindings: Env }>) {
       pii_status: 'active',
     });
   } catch (error) {
-    console.error('Admin user retry PII error:', error);
+    logSanitizedError('Admin user retry PII error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to retry PII creation',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );
@@ -1349,12 +1388,12 @@ export async function adminUserDeletePiiHandler(c: Context<{ Bindings: Env }>) {
       retention_days: retentionDays,
     });
   } catch (error) {
-    console.error('Admin user delete PII error:', error);
+    logSanitizedError('Admin user delete PII error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to delete user PII',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );
@@ -1491,12 +1530,12 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       201
     );
   } catch (error) {
-    console.error('Admin client create error:', error);
+    logSanitizedError('Admin client create error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to create client',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );
@@ -1547,7 +1586,7 @@ export async function adminClientsListHandler(c: Context<{ Bindings: Env }>) {
       },
     });
   } catch (error) {
-    console.error('Admin clients list error:', error);
+    logSanitizedError('Admin clients list error', error);
     return c.json(
       {
         error: 'server_error',
@@ -1596,7 +1635,7 @@ export async function adminClientGetHandler(c: Context<{ Bindings: Env }>) {
       client: formattedClient,
     });
   } catch (error) {
-    console.error('Admin client get error:', error);
+    logSanitizedError('Admin client get error', error);
     return c.json(
       {
         error: 'server_error',
@@ -1704,7 +1743,7 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       client: updatedClient,
     });
   } catch (error) {
-    console.error('Admin client update error:', error);
+    logSanitizedError('Admin client update error', error);
     return c.json(
       {
         error: 'server_error',
@@ -1754,7 +1793,7 @@ export async function adminClientDeleteHandler(c: Context<{ Bindings: Env }>) {
       message: 'Client deleted successfully',
     });
   } catch (error) {
-    console.error('Admin client delete error:', error);
+    logSanitizedError('Admin client delete error', error);
     return c.json(
       {
         error: 'server_error',
@@ -1826,7 +1865,7 @@ export async function adminClientsBulkDeleteHandler(c: Context<{ Bindings: Env }
       errors,
     });
   } catch (error) {
-    console.error('Admin clients bulk delete error:', error);
+    logSanitizedError('Admin clients bulk delete error', error);
     return c.json(
       {
         error: 'server_error',
@@ -1932,7 +1971,7 @@ export async function adminUserAvatarUploadHandler(c: Context<{ Bindings: Env }>
       message: 'Avatar uploaded successfully',
     });
   } catch (error) {
-    console.error('Admin avatar upload error:', error);
+    logSanitizedError('Admin avatar upload error', error);
     return c.json(
       {
         error: 'server_error',
@@ -1996,7 +2035,7 @@ export async function adminUserAvatarDeleteHandler(c: Context<{ Bindings: Env }>
     try {
       await c.env.AVATARS.delete(filePath);
     } catch (error) {
-      console.error('R2 delete error:', error);
+      logSanitizedError('R2 delete error', error);
       // Continue even if R2 delete fails
     }
 
@@ -2015,7 +2054,7 @@ export async function adminUserAvatarDeleteHandler(c: Context<{ Bindings: Env }>
       message: 'Avatar deleted successfully',
     });
   } catch (error) {
-    console.error('Admin avatar delete error:', error);
+    logSanitizedError('Admin avatar delete error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2146,7 +2185,7 @@ export async function adminSessionsListHandler(c: Context<{ Bindings: Env }>) {
       },
     });
   } catch (error) {
-    console.error('Admin sessions list error:', error);
+    logSanitizedError('Admin sessions list error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2238,7 +2277,7 @@ export async function adminSessionGetHandler(c: Context<{ Bindings: Env }>) {
       session: result,
     });
   } catch (error) {
-    console.error('Admin session get error:', error);
+    logSanitizedError('Admin session get error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2303,7 +2342,7 @@ export async function adminSessionRevokeHandler(c: Context<{ Bindings: Env }>) {
       sessionId: sessionId,
     });
   } catch (error) {
-    console.error('Admin session revoke error:', error);
+    logSanitizedError('Admin session revoke error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2372,7 +2411,7 @@ export async function adminUserRevokeAllSessionsHandler(c: Context<{ Bindings: E
       note: 'Sessions in sharded SessionStore cannot be bulk-deleted by userId',
     });
   } catch (error) {
-    console.error('Admin revoke all sessions error:', error);
+    logSanitizedError('Admin revoke all sessions error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2504,7 +2543,7 @@ export async function adminAuditLogListHandler(c: Context<{ Bindings: Env }>) {
       },
     });
   } catch (error) {
-    console.error('Admin audit log list error:', error);
+    logSanitizedError('Admin audit log list error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2619,7 +2658,7 @@ export async function adminAuditLogGetHandler(c: Context<{ Bindings: Env }>) {
       createdAt: new Date((entry.created_at as number) * 1000).toISOString(),
     });
   } catch (error) {
-    console.error('Admin audit log get error:', error);
+    logSanitizedError('Admin audit log get error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2785,7 +2824,7 @@ export async function adminSettingsGetHandler(c: Context<{ Bindings: Env }>) {
 
     return c.json({ settings });
   } catch (error) {
-    console.error('Admin settings get error:', error);
+    logSanitizedError('Admin settings get error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2865,7 +2904,7 @@ export async function adminSettingsUpdateHandler(c: Context<{ Bindings: Env }>) 
       settings,
     });
   } catch (error) {
-    console.error('Admin settings update error:', error);
+    logSanitizedError('Admin settings update error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2886,7 +2925,7 @@ export async function adminListCertificationProfilesHandler(c: Context<{ Binding
     const profiles = listCertificationProfiles();
     return c.json({ profiles });
   } catch (error) {
-    console.error('Admin list profiles error:', error);
+    logSanitizedError('Admin list profiles error', error);
     return c.json(
       {
         error: 'server_error',
@@ -2962,7 +3001,7 @@ export async function adminApplyCertificationProfileHandler(c: Context<{ Binding
       settings: updatedSettings,
     });
   } catch (error) {
-    console.error('Admin apply profile error:', error);
+    logSanitizedError('Admin apply profile error', error);
     return c.json(
       {
         error: 'server_error',
@@ -3008,12 +3047,12 @@ export async function adminSigningKeyGetHandler(c: Context<{ Bindings: Env }>) {
       publicJWK: keyData.publicJWK,
     });
   } catch (error) {
-    console.error('Admin signing key get error:', error);
+    logSanitizedError('Admin signing key get error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to get signing key',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );
@@ -3103,7 +3142,7 @@ export async function adminTokenRegisterHandler(c: Context<{ Bindings: Env }>) {
 
       jti = payload.jti;
     } catch (parseError) {
-      console.error('Failed to parse JWT:', parseError);
+      logSanitizedError('Failed to parse JWT', parseError);
       return c.json(
         {
           error: 'invalid_request',
@@ -3151,7 +3190,7 @@ export async function adminTokenRegisterHandler(c: Context<{ Bindings: Env }>) {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Failed to register token:', error);
+      logSanitizedError('Failed to register token', error);
       return c.json(
         {
           error: 'server_error',
@@ -3179,12 +3218,12 @@ export async function adminTokenRegisterHandler(c: Context<{ Bindings: Env }>) {
       201
     );
   } catch (error) {
-    console.error('Admin token register error:', error);
+    logSanitizedError('Admin token register error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to register token',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );
@@ -3260,7 +3299,7 @@ export async function adminTestSessionCreateHandler(c: Context<{ Bindings: Env }
         name: userName,
       });
     } catch (error) {
-      console.error('Failed to create session:', error);
+      logSanitizedError('Failed to create session', error);
       return c.json(
         {
           error: 'server_error',
@@ -3285,12 +3324,12 @@ export async function adminTestSessionCreateHandler(c: Context<{ Bindings: Env }
       201
     );
   } catch (error) {
-    console.error('Admin test session create error:', error);
+    logSanitizedError('Admin test session create error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to create test session',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );
@@ -3518,12 +3557,12 @@ export async function adminTestEmailCodeHandler(c: Context<{ Bindings: Env }>) {
       201
     );
   } catch (error) {
-    console.error('Admin test email code error:', error);
+    logSanitizedError('Admin test email code error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to create test email code',
-        details: error instanceof Error ? error.message : String(error),
+        ...getErrorDetailsForResponse(error, c.env),
       },
       500
     );

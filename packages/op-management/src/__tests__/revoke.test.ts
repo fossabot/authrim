@@ -21,9 +21,17 @@ const {
   mockVerifyToken,
   mockGetTenantIdFromContext,
   mockCreateAuthContextFromHono,
+  mockValidateClientAssertion,
+  mockCreateOAuthConfigManager,
 } = vi.hoisted(() => {
   const clientRepo = {
     findByClientId: vi.fn(),
+  };
+  // Mock ConfigManager with getNumber method
+  const mockConfigManager = {
+    getNumber: vi.fn().mockResolvedValue(3600),
+    getString: vi.fn(),
+    getBoolean: vi.fn(),
   };
   return {
     mockClientRepository: clientRepo,
@@ -40,6 +48,8 @@ const {
         client: clientRepo,
       },
     }),
+    mockValidateClientAssertion: vi.fn().mockResolvedValue({ valid: true }),
+    mockCreateOAuthConfigManager: vi.fn().mockReturnValue(mockConfigManager),
   };
 });
 
@@ -54,6 +64,8 @@ vi.mock('@authrim/shared', () => ({
   verifyToken: mockVerifyToken,
   getTenantIdFromContext: mockGetTenantIdFromContext,
   createAuthContextFromHono: mockCreateAuthContextFromHono,
+  validateClientAssertion: mockValidateClientAssertion,
+  createOAuthConfigManager: mockCreateOAuthConfigManager,
 }));
 
 // Mock jose

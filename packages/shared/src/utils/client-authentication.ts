@@ -273,7 +273,11 @@ export async function validateClientAssertion(
       client_id: client.client_id,
     };
   } catch (error) {
-    console.error('Client assertion validation error:', error);
+    // PII Protection: Don't log full error object (may contain client info in stack)
+    console.error(
+      'Client assertion validation error:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
     return {
       valid: false,
       error: 'invalid_client',

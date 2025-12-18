@@ -134,7 +134,8 @@ async function processLogoutRequest(
   );
 
   if (!sessionTerminated) {
-    console.warn('No session found for NameID:', logoutRequest.nameId);
+    // PII Protection: Do not log NameID (may contain email/PII)
+    console.warn('SAML IdP SLO: No session found for logout request');
     // Still return success - session may have already been terminated
   }
 
@@ -290,16 +291,17 @@ async function terminateSessionByNameId(
       }
     }
     if (user) {
+      // PII Protection: Do not log NameID (may contain email/PII)
       console.warn(
-        `SAML IdP SLO: Cannot delete all sessions for user ${user.id} (NameID: ${nameId}) - ` +
-          'sharded SessionStore requires sessionId (sessionIndex). ' +
+        `SAML IdP SLO: Cannot delete all sessions for user (sharded SessionStore requires sessionIndex). ` +
           'Ensure the SP includes sessionIndex in LogoutRequest.'
       );
       // Return true to indicate the logout request was processed (even if we couldn't delete all sessions)
       // The session cookie will still be cleared by the caller
       return true;
     } else {
-      console.warn('SAML IdP SLO: No user found for NameID:', nameId);
+      // PII Protection: Do not log NameID (may contain email/PII)
+      console.warn('SAML IdP SLO: No user found for logout request');
       return false;
     }
   } catch (error) {

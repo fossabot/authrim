@@ -16,6 +16,8 @@
  * - REFRESH_TOKEN_ROTATION_ENABLED: Enable refresh token rotation (default: true)
  * - MAX_CODES_PER_USER: Max auth codes per user for DDoS protection (default: 100)
  * - CODE_SHARDS: Number of auth code DO shards (default: 64)
+ * - USER_CACHE_TTL: User cache TTL in seconds (default: 3600 = 1 hour)
+ * - CONSENT_CACHE_TTL: Consent cache TTL in seconds (default: 86400 = 24 hours)
  */
 
 import type { Env } from '../types/env';
@@ -50,6 +52,15 @@ export interface OAuthConfig {
 
   /** Require state parameter for CSRF protection */
   STATE_REQUIRED: boolean;
+
+  /** Require openid scope for UserInfo endpoint (OIDC compliance) */
+  USERINFO_REQUIRE_OPENID_SCOPE: boolean;
+
+  /** User cache TTL in seconds (default: 3600 = 1 hour) */
+  USER_CACHE_TTL: number;
+
+  /** Consent cache TTL in seconds (default: 86400 = 24 hours) */
+  CONSENT_CACHE_TTL: number;
 }
 
 /**
@@ -66,6 +77,9 @@ export const DEFAULT_CONFIG: OAuthConfig = {
   MAX_CODES_PER_USER: 100, // DDoS protection
   CODE_SHARDS: 64, // Default shard count
   STATE_REQUIRED: false, // Default false for backwards compatibility (enable for CSRF protection)
+  USERINFO_REQUIRE_OPENID_SCOPE: true, // Default true for OIDC compliance (set false for OAuth 2.0 compatibility)
+  USER_CACHE_TTL: 3600, // 1 hour (includes PII, balance between performance and freshness)
+  CONSENT_CACHE_TTL: 86400, // 24 hours (consent changes infrequently)
 };
 
 /**
@@ -86,6 +100,9 @@ export const CONFIG_NAMES = [
   'MAX_CODES_PER_USER',
   'CODE_SHARDS',
   'STATE_REQUIRED',
+  'USERINFO_REQUIRE_OPENID_SCOPE',
+  'USER_CACHE_TTL',
+  'CONSENT_CACHE_TTL',
 ] as const;
 
 export type ConfigName = (typeof CONFIG_NAMES)[number];
@@ -168,6 +185,29 @@ export const CONFIG_METADATA: Record<
     label: 'State Required',
     description: 'Require state parameter for CSRF protection (recommended for production)',
   },
+  USERINFO_REQUIRE_OPENID_SCOPE: {
+    type: 'boolean',
+    label: 'UserInfo Require OpenID Scope',
+    description:
+      'Require openid scope for UserInfo endpoint (OIDC compliance). Set false for OAuth 2.0 compatibility.',
+  },
+  USER_CACHE_TTL: {
+    type: 'number',
+    label: 'User Cache TTL',
+    description:
+      'User cache (includes PII) TTL in seconds. Lower values provide fresher data but more DB load. Set shorter for stricter PII handling.',
+    min: 60,
+    max: 86400,
+    unit: 'seconds',
+  },
+  CONSENT_CACHE_TTL: {
+    type: 'number',
+    label: 'Consent Cache TTL',
+    description: 'Consent cache TTL in seconds. Consent status changes infrequently.',
+    min: 60,
+    max: 604800,
+    unit: 'seconds',
+  },
 };
 
 /**
@@ -213,6 +253,12 @@ export function getConfigFromEnv(env: Partial<Env>): OAuthConfig {
     MAX_CODES_PER_USER: parseNumber(env.MAX_CODES_PER_USER, DEFAULT_CONFIG.MAX_CODES_PER_USER),
     CODE_SHARDS: parseNumber(env.AUTHRIM_CODE_SHARDS, DEFAULT_CONFIG.CODE_SHARDS),
     STATE_REQUIRED: parseBool(env.STATE_REQUIRED, DEFAULT_CONFIG.STATE_REQUIRED),
+    USERINFO_REQUIRE_OPENID_SCOPE: parseBool(
+      env.USERINFO_REQUIRE_OPENID_SCOPE,
+      DEFAULT_CONFIG.USERINFO_REQUIRE_OPENID_SCOPE
+    ),
+    USER_CACHE_TTL: parseNumber(env.USER_CACHE_TTL, DEFAULT_CONFIG.USER_CACHE_TTL),
+    CONSENT_CACHE_TTL: parseNumber(env.CONSENT_CACHE_TTL, DEFAULT_CONFIG.CONSENT_CACHE_TTL),
   };
 }
 
@@ -269,7 +315,11 @@ export class OAuthConfigManager {
           }
         }
       } catch (error) {
-        console.warn(`Failed to read config ${name} from KV:`, error);
+        // PII Protection: Don't log full error object
+        console.warn(
+          `Failed to read config ${name} from KV:`,
+          error instanceof Error ? error.name : 'Unknown error'
+        );
         // Fall through to env value
       }
     }
@@ -301,7 +351,11 @@ export class OAuthConfigManager {
           return value;
         }
       } catch (error) {
-        console.warn(`Failed to read config ${name} from KV:`, error);
+        // PII Protection: Don't log full error object
+        console.warn(
+          `Failed to read config ${name} from KV:`,
+          error instanceof Error ? error.name : 'Unknown error'
+        );
         // Fall through to env value
       }
     }
@@ -326,6 +380,9 @@ export class OAuthConfigManager {
       MAX_CODES_PER_USER: await this.getNumber('MAX_CODES_PER_USER'),
       CODE_SHARDS: await this.getNumber('CODE_SHARDS'),
       STATE_REQUIRED: await this.getBoolean('STATE_REQUIRED'),
+      USERINFO_REQUIRE_OPENID_SCOPE: await this.getBoolean('USERINFO_REQUIRE_OPENID_SCOPE'),
+      USER_CACHE_TTL: await this.getNumber('USER_CACHE_TTL'),
+      CONSENT_CACHE_TTL: await this.getNumber('CONSENT_CACHE_TTL'),
     };
   }
 
@@ -489,6 +546,21 @@ export class OAuthConfigManager {
   /** Check if state parameter is required (CSRF protection) */
   async isStateRequired(): Promise<boolean> {
     return this.getBoolean('STATE_REQUIRED');
+  }
+
+  /** Check if UserInfo endpoint requires openid scope (OIDC compliance) */
+  async isUserInfoRequireOpenidScope(): Promise<boolean> {
+    return this.getBoolean('USERINFO_REQUIRE_OPENID_SCOPE');
+  }
+
+  /** Get user cache TTL in seconds */
+  async getUserCacheTTL(): Promise<number> {
+    return this.getNumber('USER_CACHE_TTL');
+  }
+
+  /** Get consent cache TTL in seconds */
+  async getConsentCacheTTL(): Promise<number> {
+    return this.getNumber('CONSENT_CACHE_TTL');
   }
 
   /**

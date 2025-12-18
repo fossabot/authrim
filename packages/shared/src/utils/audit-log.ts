@@ -58,20 +58,23 @@ export async function createAuditLog(
     );
 
     // Log critical operations to console for immediate visibility
+    // PII Protection: Only log safe fields (no metadata which may contain PII)
     if (entry.severity === 'critical') {
       console.warn('[CRITICAL AUDIT]', {
         tenantId,
         action: entry.action,
-        userId: entry.userId,
         resource: entry.resource,
         resourceId: entry.resourceId,
-        metadata: entry.metadata,
+        // Note: userId and metadata intentionally omitted (may contain PII)
       });
     }
   } catch (error) {
     // Non-blocking: log error but don't fail the main operation
-    console.error('Failed to create audit log:', error);
-    console.error('Audit log data:', entry);
+    // PII Protection: Don't log entry details (may contain PII in metadata)
+    console.error(
+      'Failed to create audit log:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
   }
 }
 

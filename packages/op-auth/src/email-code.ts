@@ -135,16 +135,36 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
       // Step 2: Create user in PII DB (if DB_PII is configured)
       if (c.env.DB_PII) {
         const piiCtx = createPIIContextFromHono(c, tenantId);
-        await piiCtx.piiRepositories.userPII.createPII({
-          id: userId,
-          tenant_id: tenantId,
-          email: email.toLowerCase(),
-          name: defaultName,
-          preferred_username: preferredUsername,
-        });
+        try {
+          await piiCtx.piiRepositories.userPII.createPII({
+            id: userId,
+            tenant_id: tenantId,
+            email: email.toLowerCase(),
+            name: defaultName,
+            preferred_username: preferredUsername,
+          });
 
-        // Step 3: Update pii_status to 'active'
-        await authCtx.repositories.userCore.updatePIIStatus(userId, 'active');
+          // Step 3: Update pii_status to 'active' (only on successful PII DB write)
+          await authCtx.repositories.userCore.updatePIIStatus(userId, 'active');
+        } catch (piiError: unknown) {
+          // PII Protection: Don't log full error (may contain PII)
+          console.error(
+            '[EMAIL-CODE] Failed to create user in PII DB:',
+            piiError instanceof Error ? piiError.name : 'Unknown error'
+          );
+          // Update pii_status to 'failed' to indicate PII DB write failure
+          await authCtx.repositories.userCore
+            .updatePIIStatus(userId, 'failed')
+            .catch((statusError: unknown) => {
+              console.error(
+                '[EMAIL-CODE] Failed to update pii_status to failed:',
+                statusError instanceof Error ? statusError.name : 'Unknown error'
+              );
+            });
+          // Note: We continue with user creation - Core DB user exists, PII can be retried
+        }
+      } else {
+        console.warn('[EMAIL-CODE] DB_PII not configured - user created with pii_status=pending');
       }
 
       user = { id: userId, email: email.toLowerCase(), name: defaultName || email.split('@')[0] };
@@ -235,7 +255,8 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
     });
 
     if (!emailResult.success) {
-      console.error('Failed to send email code:', emailResult.error);
+      // PII Protection: Don't log full error (may contain email details)
+      console.error('Failed to send email code');
       return c.json(
         {
           error: 'server_error',
@@ -251,7 +272,8 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
       messageId: emailResult.messageId,
     });
   } catch (error) {
-    console.error('Email code send error:', error);
+    // PII Protection: Don't log full error (may contain email/user data)
+    console.error('Email code send error:', error instanceof Error ? error.name : 'Unknown error');
     return c.json(
       {
         error: 'server_error',
@@ -344,7 +366,11 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
           400
         );
       }
-      console.error('Challenge store error:', error);
+      // PII Protection: Don't log full error
+      console.error(
+        'Challenge store error:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
       return c.json({ error: 'server_error', error_description: 'Failed to verify code' }, 500);
     }
 
@@ -422,7 +448,11 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
         }
       );
     } catch (error) {
-      console.error('Failed to create session:', error);
+      // PII Protection: Don't log full error
+      console.error(
+        'Failed to create session:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
       return c.json(
         {
           error: 'server_error',
@@ -440,7 +470,11 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
         [now, now, challengeData.userId]
       )
       .catch((error) => {
-        console.error('Failed to update user login timestamp:', error);
+        // PII Protection: Don't log full error
+        console.error(
+          'Failed to update user login timestamp:',
+          error instanceof Error ? error.name : 'Unknown error'
+        );
       });
 
     // Clear OTP session cookie
@@ -473,7 +507,11 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
       },
     });
   } catch (error) {
-    console.error('Email code verify error:', error);
+    // PII Protection: Don't log full error (may contain email/code data)
+    console.error(
+      'Email code verify error:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
     return c.json(
       {
         error: 'server_error',

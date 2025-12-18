@@ -70,7 +70,11 @@ export async function refreshExpiringTokens(env: Env): Promise<number> {
         refreshedCount++;
       }
     } catch (error) {
-      console.error(`Failed to refresh token for identity ${identity.id}:`, error);
+      // PII Protection: Don't log full error object (may contain token info)
+      console.error(
+        `Failed to refresh token for identity:`,
+        error instanceof Error ? error.name : 'Unknown error'
+      );
       // Continue with other tokens
     }
   }
@@ -112,14 +116,16 @@ async function refreshIdentityToken(
   // Get provider configuration
   const provider = await getProvider(env, identity.providerId);
   if (!provider) {
-    console.warn(`Provider ${identity.providerId} not found for identity ${identity.id}`);
+    // PII Protection: Don't log identity.id (technical identifier)
+    console.warn(`Provider not found for token refresh`);
     return false;
   }
 
   // Decrypt refresh token
   const { refreshToken } = await decryptLinkedIdentityTokens(env, identity);
   if (!refreshToken) {
-    console.warn(`No refresh token for identity ${identity.id}`);
+    // PII Protection: Don't log identity.id
+    console.warn(`No refresh token available for identity`);
     return false;
   }
 
@@ -138,7 +144,8 @@ async function refreshIdentityToken(
     tokens,
   });
 
-  console.log(`Successfully refreshed token for identity ${identity.id}`);
+  // PII Protection: Don't log identity.id
+  console.log(`Successfully refreshed external IdP token`);
   return true;
 }
 

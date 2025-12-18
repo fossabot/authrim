@@ -212,14 +212,9 @@ export class OIDCRPClient {
     });
 
     if (!response.ok) {
-      const errorBody = await response.text();
-      // Log full error for debugging but don't include in thrown error
-      // errorBody may contain sensitive information from the provider
-      console.error(`Token exchange failed: ${response.status}`, {
-        status: response.status,
-        // Only log first 500 chars to prevent log flooding
-        errorPreview: errorBody.substring(0, 500),
-      });
+      // PII Protection: Do not log response body (may contain sensitive information from provider)
+      // Only log HTTP status code for debugging
+      console.error(`Token exchange failed: HTTP ${response.status}`);
       throw new Error(`Token exchange failed: HTTP ${response.status}`);
     }
 
@@ -653,14 +648,10 @@ export class OIDCRPClient {
     });
 
     if (!response.ok) {
-      const errorBody = await response.text();
-      // Log full error for debugging but don't include in thrown error
-      // errorBody may contain sensitive information from the provider
-      console.error(`Token refresh failed: ${response.status}`, {
-        status: response.status,
-        // Only log first 500 chars to prevent log flooding
-        errorPreview: errorBody.substring(0, 500),
-      });
+      // Consume body to properly close connection (body may contain sensitive data from provider)
+      await response.text();
+      // Security: Only log HTTP status code (safe), not response body
+      console.error('Token refresh failed with status:', response.status);
       throw new Error(`Token refresh failed: HTTP ${response.status}`);
     }
 

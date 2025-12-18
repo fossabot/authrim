@@ -273,7 +273,8 @@ export async function validateDPoPProof(
       jkt,
     };
   } catch (error) {
-    console.error('DPoP validation error:', error);
+    // PII Protection: Don't log full error object (may contain sensitive data in stack trace)
+    console.error('DPoP validation error:', error instanceof Error ? error.name : 'Unknown error');
     return {
       valid: false,
       error: 'invalid_dpop_proof',

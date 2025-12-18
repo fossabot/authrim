@@ -107,15 +107,17 @@ export async function revokeLinkedIdentityTokens(
       result.accessTokenRevoked || result.refreshTokenRevoked || (!accessToken && !refreshToken);
 
     if (result.success) {
+      // PII Protection: Don't log identity.id (can be used for user tracking)
       console.warn(
-        `Token revocation for identity ${identity.id}: ` +
+        `Token revocation completed: ` +
           `access=${result.accessTokenRevoked}, refresh=${result.refreshTokenRevoked}`
       );
     }
 
     return result;
   } catch (error) {
-    console.error('Token revocation error:', error);
+    // PII Protection: Don't log full error object
+    console.error('Token revocation error:', error instanceof Error ? error.name : 'Unknown error');
     result.errors.push(error instanceof Error ? error.message : 'Unknown error');
     return result;
   }
@@ -195,13 +197,10 @@ async function revokeToken(
       return { success: true };
     }
 
-    // Handle error response
+    // Handle error response - read body for parsing but don't log it (may contain sensitive data)
     const errorBody = await response.text();
-    // Log error for debugging but limit length to prevent log flooding
-    console.warn(`Token revocation failed: ${response.status}`, {
-      status: response.status,
-      errorPreview: errorBody.substring(0, 500),
-    });
+    // Security: Only log HTTP status code (safe), not response body
+    console.warn('Token revocation failed with status:', response.status);
 
     // Parse OAuth error if present (safe fields only)
     try {

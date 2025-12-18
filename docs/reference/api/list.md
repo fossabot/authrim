@@ -1,7 +1,7 @@
 # Authrim API Endpoints List
 
 **Last Updated**: 2025-12-18
-**Total Endpoints**: 87
+**Total Endpoints**: 105
 
 This document provides a concise list of all available API endpoints in Authrim OIDC Provider.
 
@@ -187,9 +187,10 @@ System configuration that can be changed at runtime without redeployment.
 | PUT    | `/api/admin/settings`                                | Update system settings                                                |
 | GET    | `/api/admin/settings/code-shards`                    | Get authorization code shard configuration                            |
 | PUT    | `/api/admin/settings/code-shards`                    | Update authorization code shard count                                 |
-| GET    | `/api/admin/settings/oauth-config`                   | Get OAuth/OIDC configuration                                          |
+| GET    | `/api/admin/settings/oauth-config`                   | Get OAuth/OIDC configuration (TOKEN_EXPIRY, USER_CACHE_TTL, etc.)     |
 | PUT    | `/api/admin/settings/oauth-config/:name`             | Update specific OAuth config value                                    |
-| DELETE | `/api/admin/settings/oauth-config/:name`             | Reset OAuth config to default                                         |
+| DELETE | `/api/admin/settings/oauth-config/:name`             | Reset specific OAuth config to default                                |
+| DELETE | `/api/admin/settings/oauth-config`                   | Reset all OAuth config overrides to defaults                          |
 | GET    | `/api/admin/settings/rate-limit`                     | Get all rate limit profiles configuration                             |
 | GET    | `/api/admin/settings/rate-limit/:profile`            | Get specific rate limit profile (strict, moderate, lenient, loadTest) |
 | PUT    | `/api/admin/settings/rate-limit/:profile`            | Update rate limit profile settings                                    |
@@ -202,6 +203,56 @@ System configuration that can be changed at runtime without redeployment.
 | PUT    | `/api/admin/settings/pii-partitions`                 | Update PII partition settings                                         |
 | POST   | `/api/admin/settings/pii-partitions/test`            | Test partition routing for given attributes                           |
 | GET    | `/api/admin/settings/pii-partitions/stats`           | Get PII partition distribution statistics                             |
+
+### Settings - JIT Provisioning
+
+Configuration for Just-In-Time user provisioning from external IdPs.
+
+| Method | Endpoint                               | Description                        |
+| ------ | -------------------------------------- | ---------------------------------- |
+| GET    | `/api/admin/settings/jit-provisioning` | Get JIT provisioning configuration |
+| PUT    | `/api/admin/settings/jit-provisioning` | Update JIT provisioning settings   |
+| DELETE | `/api/admin/settings/jit-provisioning` | Reset JIT provisioning to defaults |
+
+### Settings - Domain Hash Keys (Key Rotation)
+
+Manage email domain hash secrets for key rotation support.
+
+| Method | Endpoint                                        | Description                                 |
+| ------ | ----------------------------------------------- | ------------------------------------------- |
+| GET    | `/api/admin/settings/domain-hash-keys`          | Get domain hash key config (secrets masked) |
+| POST   | `/api/admin/settings/domain-hash-keys/rotate`   | Start key rotation (add new secret version) |
+| PUT    | `/api/admin/settings/domain-hash-keys/complete` | Complete key rotation (deprecate old keys)  |
+| GET    | `/api/admin/settings/domain-hash-keys/status`   | Get key rotation migration status           |
+| DELETE | `/api/admin/settings/domain-hash-keys/:version` | Delete deprecated secret version            |
+
+### Role Assignment Rules
+
+Dynamic role assignment based on IdP claims and email domain.
+
+| Method | Endpoint                                    | Description                        |
+| ------ | ------------------------------------------- | ---------------------------------- |
+| POST   | `/api/admin/role-assignment-rules`          | Create new role assignment rule    |
+| GET    | `/api/admin/role-assignment-rules`          | List all role assignment rules     |
+| GET    | `/api/admin/role-assignment-rules/:id`      | Get specific rule details          |
+| PUT    | `/api/admin/role-assignment-rules/:id`      | Update role assignment rule        |
+| DELETE | `/api/admin/role-assignment-rules/:id`      | Delete role assignment rule        |
+| POST   | `/api/admin/role-assignment-rules/:id/test` | Test rule against sample context   |
+| POST   | `/api/admin/role-assignment-rules/evaluate` | Evaluate all rules against context |
+
+### Organization Domain Mappings
+
+Map email domains to organizations for automatic org membership.
+
+| Method | Endpoint                                           | Description                           |
+| ------ | -------------------------------------------------- | ------------------------------------- |
+| POST   | `/api/admin/org-domain-mappings`                   | Create new domain-to-org mapping      |
+| GET    | `/api/admin/org-domain-mappings`                   | List all domain mappings              |
+| GET    | `/api/admin/org-domain-mappings/:id`               | Get specific mapping details          |
+| PUT    | `/api/admin/org-domain-mappings/:id`               | Update domain mapping                 |
+| DELETE | `/api/admin/org-domain-mappings/:id`               | Delete domain mapping                 |
+| GET    | `/api/admin/organizations/:org_id/domain-mappings` | List domain mappings for organization |
+| POST   | `/api/admin/org-domain-mappings/verify`            | Verify domain ownership               |
 
 ### Tombstones (GDPR Deletion Tracking)
 
