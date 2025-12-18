@@ -1600,6 +1600,212 @@ PIIRepository を拡張して新しい PII 種別に対応：
 
 ---
 
+## 9. Design Philosophy / 設計思想
+
+### 9.1 Why Physical DB Separation? / なぜ物理的にDBを分離するのか
+
+**選択:** 最初から D1_CORE + D1_PII を分離（Approach B）
+
+**理由:**
+1. **監査・コンプライアンスの明確さ**: 「PIIは別DBに格納」と明確に説明可能。GDPR/CCPAの監査で「テーブルレベルで分離」より「DB レベルで分離」の方が説得力がある。
+
+2. **リージョン別展開の容易さ**: EU専用PII DBを追加する際、スキーマ変更なく新しいD1バインディングを追加するだけ。テーブル分離だと後から物理分離が困難。
+
+3. **アクセス制御の強制**: PIIContextを明示的に取得しないとPIIにアクセスできない。コードレビューで「このハンドラーはPIIにアクセスしている」が一目瞭然。
+
+**トレードオフ:**
+- JOINが使えない → `Promise.all` で並列クエリ（実測で問題なし）
+- クロスDBトランザクション不可 → `pii_status` で状態管理
+
+### 9.2 Why "Partition" Instead of "Region"? / なぜ「パーティション」なのか
+
+**選択:** "region" ではなく "partition" を使用
+
+**理由:**
+1. **Durable Object のシャードとの混同回避**: 既存コードに `region-sharding.ts` がありDOシャード用。命名衝突を避ける。
+2. **柔軟なルーティング**: 地理的 (`eu`, `apac`) だけでなく、テナント (`tenant-acme`)、プラン (`premium`)、属性 (`high-security`) など多様な条件で分離可能。"region" だと地理的な意味が強すぎる。
+
+### 9.3 Why IP Routing is Low Trust? / IPルーティングの信頼度が低い理由
+
+**選択:** IP ベースルーティングは `fallback only` で、デフォルト OFF
+
+**理由:**
+1. **VPN/Proxy/Warp**: ユーザーが異なる国のIPを使用する可能性が高い
+2. **ローミング**: モバイルユーザーは頻繁に国を移動
+3. **法的証拠にならない**: GDPRの「EUデータはEU内に保存」の証拠として IP は使えない
+4. **信頼できるソース**: `declared_residence`（ユーザー自己申告）またはテナントポリシーが優先
+
+### 9.4 Why pii_status State Machine? / pii_status 状態機械の理由
+
+**選択:** `pii_status` で分散書き込みの状態を管理
+
+**理由:**
+1. **クロスDBトランザクション不可**: D1_CORE と D1_PII は別DBなので ACID トランザクションが不可能
+2. **障害時の追跡**: PII書き込みが失敗しても、`pii_status: 'failed'` で追跡・リトライ可能
+3. **M2M対応**: `pii_status: 'none'` でPIIを持たないユーザー（client_credentials フロー）を明示
+
+**状態遷移:**
+```
+新規作成: pending → active (成功) / failed (失敗)
+M2M: none (PIIなし)
+削除: active → deleted (Tombstone作成)
+```
+
+### 9.5 Why PII Sensitivity Classes? / PIIクラスの理由
+
+**選択:** `pii_class` で感度レベルを分類
+
+**理由:**
+1. **目的ベースアクセス制御**: IDENTITY_CORE（認証必須）と DEMOGRAPHIC（GDPR Art.9 特別カテゴリ）を区別
+2. **保持ポリシー**: クラス別に異なる保持期間を設定可能
+3. **監査対応**: 「なぜ分離したか」を明確に説明可能
+
+### 9.6 Why Tombstone Table? / Tombstoneテーブルの理由
+
+**選択:** `users_pii_tombstone` で削除事実を記録
+
+**理由:**
+1. **GDPR Art.17 対応**: 「忘れられる権利」の実装
+2. **再登録防止**: 削除されたメールアドレスが retention 期間中に再登録されることを防ぐ
+3. **監査証跡**: 「いつ、誰が、なぜ削除したか」を記録
+4. **PIIは保存しない**: Tombstone にはメタデータのみ（email_blind_index）、実際のPIIは削除済み
+
+---
+
+## 10. Implementation Rationale / 実装理由
+
+### 10.1 DatabaseAdapter Interface
+
+**目的:** 複数DBバックエンドの抽象化
+
+**実装理由:**
+- 現在は D1 のみだが、将来的に Postgres (Hyperdrive), DynamoDB, MySQL をサポート可能
+- テストでモックアダプターを使用可能
+- パーティションごとに異なるバックエンドを混在可能（例: default=D1, tenant-acme=Postgres）
+
+### 10.2 Repository Pattern
+
+**目的:** SQLを直接書かず、型安全なデータアクセス
+
+**実装理由:**
+- 現在の `admin.ts` には 30+ の直接SQL。保守性が低い
+- Repository 経由にすることでSQLインジェクションリスク軽減
+- PII/非PII のアクセスパターンを強制
+
+### 10.3 Context Types (AuthContext / PIIContext)
+
+**目的:** PIIアクセスを型システムで制御
+
+**実装理由:**
+- `AuthContext` を持つハンドラーはPIIにアクセスできない（コンパイルエラー）
+- PIIが必要な場合のみ `PIIContext` に昇格
+- コードレビューで「このエンドポイントはPIIにアクセスする」が一目瞭然
+
+### 10.4 Blind Index (email_blind_index)
+
+**目的:** PIIを暗号化したまま検索可能にする
+
+**実装理由:**
+- PII DB内で email を直接検索すると、インデックスにPIIが残る
+- Blind Index を使うと、検索キーはハッシュ化された値のみ
+- 万が一DBが漏洩しても、Blind Index から元のメールアドレスを復元不可
+
+---
+
+## 11. Deferred Features / 後回しにした項目
+
+### 11.1 PIIPolicyEngine (スコープ別PII評価)
+
+**内容:** PIIクラスごとにアクセスポリシーを評価するエンジン
+
+**後回しの理由:**
+- 現時点では PII の読み書きは Context レベルで制御
+- 細かいスコープ別制御は Phase 8 (Policy Integration) で実装予定
+- 現在の優先度: DB分離基盤 > ポリシーエンジン
+
+**将来実装予定:**
+```typescript
+interface PIIPolicyEngine {
+  canAccess(userId: string, piiClass: PIIClass, scope: string): Promise<boolean>;
+}
+```
+
+### 11.2 Partition Migration API
+
+**内容:** ユーザーのPIIを別パーティションに移動するAPI
+
+**後回しの理由:**
+- 初期構成では全ユーザーが default パーティション
+- 新パーティション追加時は新規ユーザーのみルーティング
+- 既存ユーザーの移行は手動運用で対応可能
+
+**将来実装予定:**
+```
+POST /api/admin/users/:id/migrate-pii
+{
+  "targetPartition": "eu",
+  "deleteFromSource": true
+}
+```
+
+### 11.3 Audit Log External Export
+
+**内容:** audit_log_pii を R2/Logpush/SIEM に自動エクスポート
+
+**後回しの理由:**
+- 現時点では D1 内に「最近のバッファ」として保持
+- ボリューム増加は Phase 11 (Security & QA) で対応
+- 現在の優先度: 基盤実装 > エクスポート自動化
+
+**将来実装予定:**
+- Scheduled Worker でエクスポート
+- `exported_at` カラムで追跡
+- R2 または Logpush に出力
+
+### 11.4 PII Encryption at Rest
+
+**内容:** users_pii の各カラムを暗号化して保存
+
+**後回しの理由:**
+- D1 は Cloudflare のマネージドサービスで、ディスク暗号化は標準
+- アプリケーション層での暗号化は性能影響が大きい
+- 現在の優先度: DB分離 > カラム暗号化
+
+**将来実装予定（必要に応じて）:**
+- AES-GCM でカラム暗号化
+- 暗号化キーは KV/Secrets に保存
+- パフォーマンステスト後に導入判断
+
+### 11.5 Multi-Region Replication
+
+**内容:** PII DBのリージョン間レプリケーション
+
+**後回しの理由:**
+- D1 は単一リージョン（現時点）
+- Cloudflare の D1 ロードマップ待ち
+- 現在は パーティション別D1 で対応
+
+**将来実装予定:**
+- D1 が multi-region 対応したら評価
+- または Hyperdrive + Postgres で実現
+
+### 11.6 GDPR Data Portability API
+
+**内容:** ユーザーの全PIIをエクスポートするAPI（GDPR Art.20）
+
+**後回しの理由:**
+- 優先度: 削除（Art.17）> ポータビリティ（Art.20）
+- 現時点では Admin API で手動エクスポート可能
+- Phase 10 (SDK & API) でユーザー向けエンドポイント追加予定
+
+**将来実装予定:**
+```
+GET /api/user/export-data
+Response: { user_data: {...}, linked_identities: [...], ... }
+```
+
+---
+
 ## 付録
 
 ### A. ファイル構成
