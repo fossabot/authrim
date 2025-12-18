@@ -119,7 +119,7 @@ timeline
 | **M4: Extensions**         | 2025-11-12 | ✅ Complete    | PAR, DPoP, Pairwise, Token Management                                 |
 | **M5: UI/UX**              | 2025-11-18 | ✅ Complete    | SvelteKit Frontend, Admin Dashboard, 15+ pages                        |
 | **M6: Enterprise**         | 2025-12-02 | ✅ Complete    | Device Flow, CIBA, SCIM, JWE, Hybrid, JAR, JARM, JWT Bearer, SAML 2.0 |
-| **M7: Identity Hub**       | 2026-Q1    | ⏳ ~90%        | RP Module ✅, Google ✅, Microsoft ✅, GitHub ✅, Identity Linking ✅ |
+| **M7: Identity Hub**       | 2026-Q1    | ⏳ ~95%        | RP Module ✅, Social Login ✅, Identity Linking ✅, **PII分離 ✅** |
 | **M8: Policy Integration** | 2026-Q2    | 🔜 Planned     | Unified AuthN + AuthZ, Token embedding, Check API                     |
 | **M9: Advanced Identity**  | 2026-Q3    | 🔜 Planned     | OpenID4VP/CI, DID Resolver, VC Issuance                               |
 | **M10: SDK & API**         | 2026-Q4    | 🔜 Planned     | WebSDK, CLI, API Documentation                                        |
@@ -232,11 +232,11 @@ timeline
 
 ---
 
-## Phase 7: Identity Hub Foundation ⏳ IN PROGRESS (~90% Complete)
+## Phase 7: Identity Hub Foundation ⏳ IN PROGRESS (~95% Complete)
 
 **Timeline:** 2025-12 to 2026-Q1
 
-**Goal:** Transform Authrim from IdP-only to Identity Hub with RP capabilities
+**Goal:** Transform Authrim from IdP-only to Identity Hub with RP capabilities + GDPR/CCPA対応
 
 ### 7.1 RP Module Foundation ✅ COMPLETE
 
@@ -278,6 +278,20 @@ timeline
 | Provider Management  | Add/edit/delete upstream IdPs       | ✅ Complete |
 | Attribute Mapping UI | Visual claim mapping editor         | ⚠️ Partial  |
 | Login Flow Designer  | Configure authentication flow order | 🔜 Planned  |
+
+### 7.5 PII/Non-PII Database Separation ✅ COMPLETE (Dec 18, 2025)
+
+GDPR/CCPA対応のためのデータ分離アーキテクチャ:
+
+| Feature               | Description                                | Status      |
+| --------------------- | ------------------------------------------ | ----------- |
+| DatabaseAdapter       | D1抽象化、将来Postgres/DynamoDB対応可能    | ✅ Complete |
+| Repository Pattern    | UserCore, UserPII, Cache リポジトリ        | ✅ Complete |
+| PIIPartitionRouter    | テナント/属性/地域ベースルーティング       | ✅ Complete |
+| AuthContext/PIIContext| 型安全なPIIアクセス制御                    | ✅ Complete |
+| Schema Migration      | users_core, users_pii, tombstones          | ✅ Complete |
+| 全パッケージ移行      | 47ファイル、4255行追加                     | ✅ Complete |
+| Admin API             | retry-pii, delete-pii, partitions, tombstones | ✅ Complete |
 
 ---
 
@@ -546,6 +560,8 @@ By 2027, Authrim will be:
 | 2025-12-17 | External IdP documentation added, other social providers deferred to Phase 8+ |
 | 2025-12-17 | **Phase 11 Load Testing ✅ Complete**: 6 benchmark reports (Silent Auth, UserInfo, Token Exchange, Token Introspection, Refresh Token, Full Login), K6 Cloud distributed testing, DO sharding optimization |
 | 2025-12-17 | **MTLS (RFC 8705) removed from scope**: Cloudflare Workers architecture limitation |
+| 2025-12-18 | **PII/Non-PII Database Separation ✅ Complete**: DatabaseAdapter, Repository pattern, PIIPartitionRouter, AuthContext/PIIContext, 47ファイル移行 |
+| 2025-12-18 | **Phase 7 ~95% Complete**: GDPR/CCPA対応アーキテクチャ完成、Phase 8への準備完了 |
 
 ---
 
@@ -560,8 +576,8 @@ The following features are intentionally **not supported** due to architectural 
 
 ---
 
-> **Last Update:** 2025-12-17
+> **Last Update:** 2025-12-18
 >
-> **Current Status:** Phase 6 ✅ | Phase 7 ~90% (Identity Hub) | Phase 11 ~15% (Load Testing ✅)
+> **Current Status:** Phase 6 ✅ | Phase 7 ~95% (Identity Hub + PII分離 ✅) | Phase 11 ~15% (Load Testing ✅)
 >
 > **Authrim** - The Identity & Access Platform for the modern web.
