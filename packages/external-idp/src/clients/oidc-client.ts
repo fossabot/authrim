@@ -158,6 +158,7 @@ export class OIDCRPClient {
     loginHint?: string;
     maxAge?: number;
     acrValues?: string;
+    responseMode?: string; // 'query' | 'fragment' | 'form_post'
   }): Promise<string> {
     const authEndpoint = await this.getAuthorizationEndpoint();
     const codeChallenge = await generateCodeChallenge(params.codeVerifier);
@@ -184,30 +185,59 @@ export class OIDCRPClient {
     if (params.acrValues) {
       url.searchParams.set('acr_values', params.acrValues);
     }
+    // response_mode: Required for Apple Sign In with name/email scope
+    if (params.responseMode) {
+      url.searchParams.set('response_mode', params.responseMode);
+    }
 
     return url.toString();
   }
 
   /**
    * Exchange authorization code for tokens
+   *
+   * Supports two authentication modes:
+   * 1. Standard: client_id and client_secret in request body (default)
+   * 2. Basic Auth: Base64-encoded credentials in Authorization header (Twitter/X)
+   *
+   * The authentication mode is determined by providerQuirks.useBasicAuth
    */
   async handleCallback(code: string, codeVerifier: string): Promise<TokenResponse> {
     const tokenEndpoint = await this.getTokenEndpoint();
 
+    // Check if provider requires Basic authentication (e.g., Twitter)
+    const quirks = this.config.providerQuirks as { useBasicAuth?: boolean } | undefined;
+    const useBasicAuth = quirks?.useBasicAuth === true;
+
+    // Build request body
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
       redirect_uri: this.config.redirectUri,
-      client_id: this.config.clientId,
-      client_secret: this.config.clientSecret,
       code_verifier: codeVerifier,
     });
 
+    // Build headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    };
+
+    if (useBasicAuth) {
+      // Twitter/X: Use Basic authentication
+      // Credentials are Base64-encoded as "client_id:client_secret"
+      const credentials = btoa(`${this.config.clientId}:${this.config.clientSecret}`);
+      headers['Authorization'] = `Basic ${credentials}`;
+      // Still need to include client_id in body for some OAuth2 implementations
+      body.set('client_id', this.config.clientId);
+    } else {
+      // Standard: Include credentials in request body
+      body.set('client_id', this.config.clientId);
+      body.set('client_secret', this.config.clientSecret);
+    }
+
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers,
       body: body.toString(),
     });
 

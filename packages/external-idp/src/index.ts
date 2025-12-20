@@ -141,7 +141,10 @@ app.get('/auth/external/providers', handleListProviders);
 app.get('/auth/external/:provider/start', handleExternalStart);
 
 // Handle OAuth callback from external IdP
+// GET: Standard OAuth callback (most providers)
+// POST: Apple Sign In with response_mode=form_post (required for name/email scope)
 app.get('/auth/external/:provider/callback', handleExternalCallback);
+app.post('/auth/external/:provider/callback', handleExternalCallback);
 
 // Handle backchannel logout from external IdP (OpenID Connect Back-Channel Logout 1.0)
 app.post('/auth/external/:provider/backchannel-logout', handleBackchannelLogout);

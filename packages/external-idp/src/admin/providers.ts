@@ -25,6 +25,24 @@ import {
   getGitHubEffectiveEndpoints,
   type GitHubProviderQuirks,
 } from '../providers/github';
+import { LINKEDIN_DEFAULT_CONFIG, validateLinkedInConfig } from '../providers/linkedin';
+import {
+  FACEBOOK_DEFAULT_CONFIG,
+  validateFacebookConfig,
+  getFacebookEffectiveEndpoints,
+  type FacebookProviderQuirks,
+} from '../providers/facebook';
+import {
+  TWITTER_DEFAULT_CONFIG,
+  validateTwitterConfig,
+  getTwitterEffectiveEndpoints,
+  type TwitterProviderQuirks,
+} from '../providers/twitter';
+import {
+  APPLE_DEFAULT_CONFIG,
+  validateAppleConfig,
+  type AppleProviderQuirks,
+} from '../providers/apple';
 import { encrypt, getEncryptionKey } from '../utils/crypto';
 
 /**
@@ -101,7 +119,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       attribute_mapping?: Record<string, string>;
       provider_quirks?: Record<string, unknown>;
       tenant_id?: string;
-      template?: 'google' | 'github' | 'microsoft';
+      template?: 'google' | 'github' | 'microsoft' | 'linkedin' | 'facebook' | 'twitter' | 'apple';
     }>();
 
     // Validate required fields
@@ -163,6 +181,84 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
         tokenEndpoint: endpoints.tokenEndpoint,
         userinfoEndpoint: endpoints.userinfoEndpoint,
         providerQuirks: quirks || GITHUB_DEFAULT_CONFIG.providerQuirks,
+      };
+    } else if (body.template === 'linkedin') {
+      // Apply LinkedIn defaults (standard OIDC)
+      const validationErrors = validateLinkedInConfig({
+        clientId: body.client_id,
+        clientSecretEncrypted: 'placeholder',
+        scopes: body.scopes || 'openid profile email',
+      });
+      if (validationErrors.length > 0) {
+        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+      }
+
+      defaults = { ...LINKEDIN_DEFAULT_CONFIG };
+    } else if (body.template === 'facebook') {
+      // Apply Facebook defaults
+      const quirks = body.provider_quirks as FacebookProviderQuirks | undefined;
+
+      const validationErrors = validateFacebookConfig({
+        clientId: body.client_id,
+        clientSecretEncrypted: 'placeholder',
+        scopes: body.scopes || 'email public_profile',
+        providerQuirks: (quirks || {}) as Record<string, unknown>,
+      });
+      if (validationErrors.length > 0) {
+        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+      }
+
+      // Get effective endpoints with API version
+      const endpoints = getFacebookEffectiveEndpoints(quirks);
+
+      defaults = {
+        ...FACEBOOK_DEFAULT_CONFIG,
+        authorizationEndpoint: endpoints.authorizationEndpoint,
+        tokenEndpoint: endpoints.tokenEndpoint,
+        userinfoEndpoint: endpoints.userinfoEndpoint,
+        providerQuirks: quirks || FACEBOOK_DEFAULT_CONFIG.providerQuirks,
+      };
+    } else if (body.template === 'twitter') {
+      // Apply Twitter defaults
+      const quirks = body.provider_quirks as TwitterProviderQuirks | undefined;
+
+      const validationErrors = validateTwitterConfig({
+        clientId: body.client_id,
+        clientSecretEncrypted: 'placeholder',
+        scopes: body.scopes || 'users.read tweet.read offline.access',
+        providerQuirks: (quirks || {}) as Record<string, unknown>,
+      });
+      if (validationErrors.length > 0) {
+        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+      }
+
+      // Get effective endpoints with user.fields
+      const endpoints = getTwitterEffectiveEndpoints(quirks);
+
+      defaults = {
+        ...TWITTER_DEFAULT_CONFIG,
+        authorizationEndpoint: endpoints.authorizationEndpoint,
+        tokenEndpoint: endpoints.tokenEndpoint,
+        userinfoEndpoint: endpoints.userinfoEndpoint,
+        providerQuirks: quirks || TWITTER_DEFAULT_CONFIG.providerQuirks,
+      };
+    } else if (body.template === 'apple') {
+      // Apply Apple defaults
+      const quirks = body.provider_quirks as AppleProviderQuirks | undefined;
+
+      const validationErrors = validateAppleConfig({
+        clientId: body.client_id,
+        clientSecretEncrypted: 'placeholder',
+        scopes: body.scopes || 'openid name email',
+        providerQuirks: (quirks || {}) as Record<string, unknown>,
+      });
+      if (validationErrors.length > 0) {
+        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+      }
+
+      defaults = {
+        ...APPLE_DEFAULT_CONFIG,
+        providerQuirks: quirks || APPLE_DEFAULT_CONFIG.providerQuirks,
       };
     }
 

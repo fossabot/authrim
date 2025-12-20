@@ -1,6 +1,9 @@
 /**
  * External IdP Callback Handler
- * GET /auth/external/:provider/callback - Handle OAuth callback
+ * GET/POST /auth/external/:provider/callback - Handle OAuth callback
+ *
+ * Most OAuth providers use GET with query parameters.
+ * Apple Sign In uses POST with response_mode=form_post when name/email scope is requested.
  */
 
 import type { Context } from 'hono';
@@ -22,23 +25,64 @@ import {
   type GitHubEmail,
   type GitHubProviderQuirks,
 } from '../providers/github';
+import { type FacebookProviderQuirks, generateAppSecretProof } from '../providers/facebook';
+import { type TwitterProviderQuirks } from '../providers/twitter';
+import { isAppleProvider, type AppleProviderQuirks } from '../providers/apple';
+import { generateAppleClientSecret, parseAppleUserData } from '../utils/apple-jwt';
+
+/**
+ * Extract callback parameters from GET query string or POST form body
+ * Apple Sign In uses POST with form_post response mode
+ */
+async function getCallbackParams(c: Context<{ Bindings: Env }>): Promise<{
+  code: string | undefined;
+  state: string | undefined;
+  error: string | undefined;
+  errorDescription: string | undefined;
+  tenantId: string;
+  user: string | undefined; // Apple-specific: user data JSON
+}> {
+  // Try GET parameters first (standard OAuth)
+  let code = c.req.query('code');
+  let state = c.req.query('state');
+  let error = c.req.query('error');
+  let errorDescription = c.req.query('error_description');
+  let tenantId = c.req.query('tenant_id') || 'default';
+  let user = c.req.query('user');
+
+  // If POST request (Apple form_post), try to get from body
+  if (c.req.method === 'POST') {
+    try {
+      const body = await c.req.parseBody();
+      // POST body takes precedence over query params for OAuth response
+      code = (body.code as string) || code;
+      state = (body.state as string) || state;
+      error = (body.error as string) || error;
+      errorDescription = (body.error_description as string) || errorDescription;
+      // Apple-specific: user data is only in POST body
+      user = (body.user as string) || user;
+      // id_token may also be in body for Apple
+    } catch {
+      // Body parsing failed, fall back to query params
+    }
+  }
+
+  return { code, state, error, errorDescription, tenantId, user };
+}
 
 /**
  * Handle OAuth callback from external IdP
  *
- * Query Parameters:
+ * Query/Body Parameters:
  * - code: Authorization code from provider
  * - state: State parameter for CSRF validation
  * - error: Error code (if authorization failed)
  * - error_description: Error description
+ * - user: (Apple only) JSON with user name, only on first authorization
  */
 export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Promise<Response> {
   const providerIdOrSlug = c.req.param('provider');
-  const code = c.req.query('code');
-  const state = c.req.query('state');
-  const error = c.req.query('error');
-  const errorDescription = c.req.query('error_description');
-  const tenantId = c.req.query('tenant_id') || 'default';
+  const { code, state, error, errorDescription, tenantId, user } = await getCallbackParams(c);
 
   // Handle provider errors
   if (error) {
@@ -69,8 +113,27 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       return redirectWithError(c, 'invalid_state', 'Provider mismatch');
     }
 
-    // 3. Decrypt client secret
-    const clientSecret = await decryptClientSecret(c.env, provider.clientSecretEncrypted);
+    // 3. Get client secret (Apple requires dynamic JWT generation)
+    let clientSecret: string;
+    if (isAppleProvider(provider)) {
+      // Apple: Generate JWT client_secret from private key
+      const quirks = provider.providerQuirks as unknown as AppleProviderQuirks;
+      const encryptionKey = getEncryptionKeyOrUndefined(c.env);
+      if (!encryptionKey) {
+        throw new Error('RP_TOKEN_ENCRYPTION_KEY is not configured');
+      }
+      const privateKey = await decrypt(quirks.privateKeyEncrypted, encryptionKey);
+      clientSecret = await generateAppleClientSecret(
+        quirks.teamId,
+        provider.clientId,
+        quirks.keyId,
+        privateKey,
+        quirks.clientSecretTtl || 2592000 // Default 30 days
+      );
+    } else {
+      // Standard: Decrypt stored client secret
+      clientSecret = await decryptClientSecret(c.env, provider.clientSecretEncrypted);
+    }
 
     // 4. Build callback URL (use slug if available, same as in start)
     const providerIdentifier = provider.slug || provider.id;
@@ -94,6 +157,20 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       userInfo = await client.fetchUserInfo(tokens.access_token);
     }
 
+    // 6.2. Apple-specific: Parse user data from POST body (first authorization only)
+    // Apple returns name info in a JSON 'user' parameter, not in the ID token
+    // Note: 'user' is extracted by getCallbackParams() from POST body for form_post mode
+    if (isAppleProvider(provider)) {
+      const appleUserData = parseAppleUserData(user);
+      if (appleUserData) {
+        // Merge Apple user data (name only provided on first auth)
+        if (appleUserData.name) userInfo.name = appleUserData.name;
+        if (appleUserData.given_name) userInfo.given_name = appleUserData.given_name;
+        if (appleUserData.family_name) userInfo.family_name = appleUserData.family_name;
+        // Note: email from ID token is more reliable than from user param
+      }
+    }
+
     // 6.3. GitHub-specific: Fetch primary email from /user/emails if needed
     // GitHub's /user endpoint may not return email if it's set to private
     if (isGitHubProvider(provider) && !userInfo.email) {
@@ -108,6 +185,32 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
         if (emailInfo) {
           userInfo.email = emailInfo.email;
           userInfo.email_verified = emailInfo.verified;
+        }
+      }
+    }
+
+    // 6.4. Facebook-specific: Re-fetch with app_secret_proof if enabled
+    if (isFacebookProvider(provider) && provider.providerType === 'oauth2') {
+      const quirks = provider.providerQuirks as FacebookProviderQuirks | undefined;
+      if (quirks?.useAppSecretProof) {
+        const facebookUserInfo = await fetchFacebookUserInfo(
+          tokens.access_token,
+          clientSecret,
+          quirks
+        );
+        if (facebookUserInfo) {
+          userInfo = { ...userInfo, ...facebookUserInfo };
+        }
+      }
+    }
+
+    // 6.5. Twitter-specific: Re-fetch with user.fields if configured
+    if (isTwitterProvider(provider) && provider.providerType === 'oauth2') {
+      const quirks = provider.providerQuirks as TwitterProviderQuirks | undefined;
+      if (quirks?.userFields) {
+        const twitterUserInfo = await fetchTwitterUserInfo(tokens.access_token, quirks);
+        if (twitterUserInfo) {
+          userInfo = { ...userInfo, ...twitterUserInfo };
         }
       }
     }
@@ -484,6 +587,140 @@ async function fetchGitHubPrimaryEmail(
     };
   } catch (error) {
     console.error('Failed to fetch GitHub emails:', error);
+    return null;
+  }
+}
+
+// =============================================================================
+// Facebook-specific helpers
+// =============================================================================
+
+/**
+ * Check if a provider is Facebook
+ */
+function isFacebookProvider(provider: UpstreamProvider): boolean {
+  // Check by authorization endpoint
+  if (provider.authorizationEndpoint?.includes('facebook.com')) {
+    return true;
+  }
+  // Check by token endpoint
+  if (provider.tokenEndpoint?.includes('graph.facebook.com')) {
+    return true;
+  }
+  // Check by name (case insensitive)
+  if (provider.name.toLowerCase().includes('facebook')) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Fetch user info from Facebook Graph API with app_secret_proof
+ *
+ * @param accessToken - Facebook access token
+ * @param appSecret - Facebook app secret (for app_secret_proof)
+ * @param quirks - Facebook provider quirks
+ * @returns User info or null if failed
+ */
+async function fetchFacebookUserInfo(
+  accessToken: string,
+  appSecret: string,
+  quirks?: FacebookProviderQuirks
+): Promise<Record<string, unknown> | null> {
+  try {
+    const apiVersion = quirks?.apiVersion || 'v20.0';
+    const fields = quirks?.fields?.join(',') || 'id,name,email,picture.type(large)';
+
+    const url = new URL(`https://graph.facebook.com/${apiVersion}/me`);
+    url.searchParams.set('fields', fields);
+    url.searchParams.set('access_token', accessToken);
+
+    // Add app_secret_proof if enabled
+    if (quirks?.useAppSecretProof) {
+      const proof = await generateAppSecretProof(accessToken, appSecret);
+      url.searchParams.set('appsecret_proof', proof);
+    }
+
+    const response = await fetch(url.toString());
+
+    if (!response.ok) {
+      console.warn('Facebook /me failed with status:', response.status);
+      return null;
+    }
+
+    const data: Record<string, unknown> = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Failed to fetch Facebook user info:', error);
+    return null;
+  }
+}
+
+// =============================================================================
+// Twitter-specific helpers
+// =============================================================================
+
+/**
+ * Check if a provider is Twitter/X
+ */
+function isTwitterProvider(provider: UpstreamProvider): boolean {
+  // Check by authorization endpoint
+  if (provider.authorizationEndpoint?.includes('twitter.com')) {
+    return true;
+  }
+  // Check by token endpoint
+  if (
+    provider.tokenEndpoint?.includes('api.twitter.com') ||
+    provider.tokenEndpoint?.includes('api.x.com')
+  ) {
+    return true;
+  }
+  // Check by name (case insensitive)
+  const name = provider.name.toLowerCase();
+  if (name.includes('twitter') || name === 'x') {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Fetch user info from Twitter API v2 with user.fields
+ *
+ * @param accessToken - Twitter access token
+ * @param quirks - Twitter provider quirks
+ * @returns User info or null if failed
+ */
+async function fetchTwitterUserInfo(
+  accessToken: string,
+  quirks?: TwitterProviderQuirks
+): Promise<Record<string, unknown> | null> {
+  try {
+    const url = new URL('https://api.twitter.com/2/users/me');
+
+    // Add user.fields
+    const userFields = quirks?.userFields || 'id,name,username,profile_image_url';
+    url.searchParams.set('user.fields', userFields);
+
+    // Add expansions if specified
+    if (quirks?.expansions) {
+      url.searchParams.set('expansions', quirks.expansions);
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.warn('Twitter /users/me failed with status:', response.status);
+      return null;
+    }
+
+    const data: Record<string, unknown> = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Failed to fetch Twitter user info:', error);
     return null;
   }
 }

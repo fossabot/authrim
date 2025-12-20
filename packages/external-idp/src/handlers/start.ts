@@ -16,6 +16,7 @@ import { OIDCRPClient } from '../clients/oidc-client';
 import { generatePKCE, generateState, generateNonce } from '../utils/pkce';
 import { storeAuthState, getStateExpiresAt } from '../utils/state';
 import { decrypt, getEncryptionKeyOrUndefined } from '../utils/crypto';
+import { isAppleProvider, type AppleProviderQuirks } from '../providers/apple';
 
 /**
  * Rate limit configuration
@@ -151,6 +152,19 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
 
     // 7. Create OIDC client and generate authorization URL
     const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret);
+
+    // Apple Sign In requires response_mode=form_post when requesting name or email scope
+    let responseMode: string | undefined;
+    if (isAppleProvider(provider)) {
+      const quirks = provider.providerQuirks as unknown as AppleProviderQuirks | undefined;
+      // Use form_post if configured (default: true) or if name/email scope is requested
+      const scopes = provider.scopes?.toLowerCase() || '';
+      const needsFormPost = scopes.includes('name') || scopes.includes('email');
+      if (quirks?.useFormPost !== false && needsFormPost) {
+        responseMode = 'form_post';
+      }
+    }
+
     const authUrl = await client.createAuthorizationUrl({
       state,
       nonce,
@@ -159,6 +173,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       loginHint,
       maxAge,
       acrValues,
+      responseMode,
     });
 
     // 8. Redirect to provider
