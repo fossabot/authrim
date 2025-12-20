@@ -1,7 +1,7 @@
 # Authrim API Endpoints List
 
-**Last Updated**: 2025-12-18
-**Total Endpoints**: 105
+**Last Updated**: 2025-12-20
+**Total Endpoints**: 110
 
 This document provides a concise list of all available API endpoints in Authrim OIDC Provider.
 
@@ -203,6 +203,11 @@ System configuration that can be changed at runtime without redeployment.
 | PUT    | `/api/admin/settings/pii-partitions`                 | Update PII partition settings                                         |
 | POST   | `/api/admin/settings/pii-partitions/test`            | Test partition routing for given attributes                           |
 | GET    | `/api/admin/settings/pii-partitions/stats`           | Get PII partition distribution statistics                             |
+| GET    | `/api/admin/settings/region-shards`                  | Get region sharding configuration (V2 with groups)                    |
+| PUT    | `/api/admin/settings/region-shards`                  | Update region sharding settings                                       |
+| DELETE | `/api/admin/settings/region-shards`                  | Reset region shards to defaults                                       |
+| POST   | `/api/admin/settings/region-shards/migrate`          | Create new generation (rolling migration)                             |
+| GET    | `/api/admin/settings/region-shards/validate`         | Validate current configuration                                        |
 
 ### Settings - JIT Provisioning
 

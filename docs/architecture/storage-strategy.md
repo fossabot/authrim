@@ -1,165 +1,89 @@
-# Authrim Storage Strategy - Hybrid Multi-Tier Architecture 🗄️
+# Storage Strategy
 
-**Last Updated**: 2025-11-13
-**Status**: Phase 5 Design
-**Version**: 1.0.0
-
----
-
-## 📋 Table of Contents
-
-1. [Overview](#overview)
-2. [Storage Tier Comparison](#storage-tier-comparison)
-3. [Hybrid Architecture Design](#hybrid-architecture-design)
-4. [Data Classification](#data-classification)
-5. [Storage Patterns](#storage-patterns)
-6. [Cost Analysis](#cost-analysis)
-7. [Migration Strategy](#migration-strategy)
-8. [Implementation Guide](#implementation-guide)
-
----
+Hybrid multi-tier storage architecture optimized for performance, cost, and consistency.
 
 ## Overview
 
-Authrim uses a **hybrid multi-tier storage architecture** that combines three Cloudflare storage services:
+| Aspect | Description |
+|--------|-------------|
+| **Tiers** | Durable Objects, D1 (SQLite), KV Storage, R2 |
+| **Pattern** | Right storage for right data |
+| **Consistency** | Strong where critical, eventual elsewhere |
+| **Caching** | Multi-layer with TTL management |
 
-- **Durable Objects (DO)**: Strong consistency, real-time state management
-- **D1 (SQLite)**: Persistent relational data, complex queries
-- **KV**: Global edge cache, static metadata
-
-This design optimizes for **performance**, **cost**, and **consistency** based on each data type's characteristics.
-
-### Design Principles
-
-1. **Right Tool for Right Job**: Match storage backend to data characteristics
-2. **Strong Consistency Where Needed**: Use DO for critical one-time operations
-3. **Cost Optimization**: Minimize expensive operations, leverage free tiers
-4. **Global Performance**: Edge caching for frequently accessed data
-5. **Cloud Portability**: Abstract storage layer for multi-cloud support
+Authrim uses a hybrid storage architecture that matches each data type to the most appropriate Cloudflare storage service based on consistency requirements, access patterns, and cost optimization.
 
 ---
 
-## Storage Tier Comparison
-
-### Feature Matrix
-
-| Feature | Durable Objects | D1 (SQLite) | KV |
-|---------|----------------|-------------|-----|
-| **Consistency** | Strong (immediate) | Eventual (seconds) | Eventual (60s globally) |
-| **Read Latency** | < 1ms (in-memory) | < 10ms (local) | < 1ms (edge) |
-| **Write Latency** | < 10ms | < 50ms | < 500ms (global) |
-| **Storage Cost** | $0.20/GB/month | $0.75/GB/month | $0.50/GB/month |
-| **Operation Cost** | $0.02/1M CPU-ms | Free (within limits) | $0.50/1M reads |
-| **TTL Support** | Manual | Manual (cleanup) | Native |
-| **Complex Queries** | No (key-value) | Yes (SQL) | No (key-value) |
-| **Transactions** | Yes (single DO) | Yes (SQLite) | No |
-| **Global Replication** | Single region | Multi-region | Global edge |
-| **Best For** | Real-time state | Persistent data | Static cache |
-
-### Cost Comparison Example
-
-**Scenario**: 10,000 authorization code operations per day
-
-| Storage | Operation Costs | Storage Costs | Total Monthly |
-|---------|----------------|---------------|---------------|
-| **DO** | $0.03 CPU | $0 (short-lived) | **$0.03** |
-| **KV** | $0.45 R/W | $0 (short-lived) | **$0.45** |
-| **D1** | $0 (free tier) | $0 (small data) | **$0** |
-
-**Result**: DO is **15x cheaper than KV** for short-lived transactional data.
-
----
-
-## Hybrid Architecture Design
-
-### Overall Architecture
+## Storage Tiers
 
 ```mermaid
 flowchart TB
-    subgraph Client["Client Application"]
-        C[Client App]
+    subgraph Worker["Cloudflare Workers"]
+        Handler[HTTP Handler]
+        Storage[Storage Abstraction]
+        Handler --> Storage
     end
 
-    subgraph Worker["Cloudflare Workers (Hono)"]
-        W[HTTP Handler]
-        SA["Storage Abstraction Layer<br/>(IStorage)"]
-        W --> SA
-    end
-
-    subgraph DO["Durable Objects<br/>Real-time / Strong Consistency"]
+    subgraph DO["Durable Objects<br/>Strong Consistency"]
         SS[Session Store]
         AC[Auth Codes]
         TR[Token Rotator]
-        KM[KeyManager]
+        KM[Key Manager]
+        PAR[PAR Store]
+        CIBA[CIBA Store]
     end
 
-    subgraph D1["D1 Database<br/>Persistent / Relational Data"]
-        U[users]
-        OC[oauth_clients]
-        SL[sessions log]
-        AL[audit_log]
-        PK[passkeys]
+    subgraph D1["D1 Database<br/>Persistent Relational"]
+        Users[users]
+        Clients[oauth_clients]
+        Audit[audit_log]
+        Sessions[sessions]
     end
 
-    subgraph KV["KV Storage<br/>Edge Cache / Global CDN"]
-        JC[JWKs cache]
-        DC[Discovery]
-        CC[Client cache]
-        ML[Magic Links]
-        CS[CSRF tokens]
+    subgraph KV["KV Storage<br/>Edge Cache"]
+        JWKS[JWKS cache]
+        Discovery[Discovery]
+        Settings[Settings]
+        MagicLinks[Magic Links]
     end
 
-    C --> W
-    SA --> DO
-    SA --> D1
-    SA --> KV
+    subgraph R2["R2 Storage<br/>Binary Objects"]
+        Avatars[User Avatars]
+        Exports[Data Exports]
+    end
+
+    Storage --> DO
+    Storage --> D1
+    Storage --> KV
+    Storage --> R2
 ```
 
-### Storage Tier Responsibilities
+---
 
-#### 🔷 Durable Objects (Strong Consistency Layer)
+## Tier Comparison
 
-**Purpose**: Real-time state management requiring strong consistency
+### Feature Matrix
 
-```mermaid
-graph LR
-    subgraph DO["Durable Objects"]
-        AC["Authorization Code Store<br/>• One-time use guarantee<br/>• TTL: 60 seconds<br/>• Strong consistency required"]
-        RT["Refresh Token Rotator<br/>• Atomic token rotation<br/>• Concurrency control<br/>• Token family tracking"]
-        SS["Session Store<br/>• In-memory hot data<br/>• Real-time session state<br/>• Instant invalidation<br/>• D1 fallback for cold sessions"]
-        KM["KeyManager<br/>• RSA key generation & rotation<br/>• Multi-key management<br/>• JWKS source of truth"]
-    end
-```
+| Feature | Durable Objects | D1 (SQLite) | KV | R2 |
+|---------|----------------|-------------|-----|-----|
+| **Consistency** | Strong | Strong* | Eventual | Strong |
+| **Read Latency** | <1ms (memory) | <10ms | <1ms (edge) | <50ms |
+| **Write Latency** | <10ms | <50ms | <500ms | <100ms |
+| **TTL Support** | Manual | Manual | Native | Manual |
+| **Complex Queries** | No | Yes (SQL) | No | No |
+| **Transactions** | Yes (per DO) | Yes | No | No |
+| **Best For** | Real-time state | Persistent data | Edge cache | Binary files |
 
-#### 🔶 D1 Database (Persistent Data Layer)
+*D1 consistency is within-region; cross-region may have short delays.
 
-**Purpose**: Long-term storage, relational queries, audit trails
+### Cost Analysis
 
-```mermaid
-graph LR
-    subgraph D1["D1 Database"]
-        UD["User Data<br/>• users (master records)<br/>• user_custom_fields<br/>• passkeys (WebAuthn)"]
-        OD["OAuth Data<br/>• oauth_clients<br/>• scope_mappings"]
-        SL["Session Logs<br/>• sessions (historical)<br/>• Active → DO, Expired → D1"]
-        AC["Access Control<br/>• roles (RBAC)<br/>• user_roles"]
-        AU["Audit & Compliance<br/>• audit_log<br/>• refresh_token_log"]
-        CF["Configuration<br/>• branding_settings<br/>• identity_providers"]
-    end
-```
-
-#### 🔵 KV Storage (Edge Cache Layer)
-
-**Purpose**: Global CDN cache, static metadata, short-lived tokens
-
-```mermaid
-graph LR
-    subgraph KV["KV Storage"]
-        PK["Public Keys & Discovery<br/>• JWKs (cached from DO)<br/>• openid-configuration<br/>• TTL: 1 hour"]
-        CM["Client Metadata Cache<br/>• Source: D1 oauth_clients<br/>• Read-through pattern<br/>• TTL: 5 minutes"]
-        ST["Short-Lived Tokens<br/>• Magic Links (15 min)<br/>• CSRF tokens (1 hour)<br/>• Email verification (1 hour)"]
-        RL["Rate Limiting<br/>• IP-based counters<br/>• Endpoint-specific limits"]
-    end
-```
+| Operation Type | DO | D1 | KV | R2 |
+|----------------|----|----|----|----|
+| 1M reads | ~$0.02 | Free tier | $0.50 | $0.36 |
+| 1M writes | ~$0.02 | Free tier | $5.00 | $4.50 |
+| Storage/GB | $0.20 | $0.75 | $0.50 | $0.015 |
 
 ---
 
@@ -167,498 +91,312 @@ graph LR
 
 ### By Consistency Requirement
 
-| Consistency Level | Data Types | Storage |
-|------------------|-----------|---------|
-| **Strong** | Authorization codes, Refresh token rotation | Durable Objects |
-| **Session** | Active user sessions (hot data) | Durable Objects |
-| **Eventual** | User profiles, Client configs | D1 + KV (cache) |
-| **Static** | Public keys, Discovery metadata | KV (with DO source) |
+| Level | Data Types | Storage | Reason |
+|-------|-----------|---------|--------|
+| **Strong** | Auth codes, Token rotation | DO | One-time use, theft detection |
+| **Strong** | Active sessions | DO | Real-time invalidation |
+| **Strong** | PAR, CIBA requests | DO | Request binding |
+| **Persistent** | Users, Clients | D1 | Relational queries |
+| **Eventual** | Discovery, JWKS | KV | High read volume |
 
 ### By Lifetime
 
-| Lifetime | Data Types | Storage | TTL |
-|----------|-----------|---------|-----|
-| **Ultra-short** (< 1 min) | Authorization codes | Durable Objects | 60s |
-| **Short** (< 1 hour) | Magic Links, CSRF tokens | KV | 15-60 min |
-| **Medium** (< 1 day) | Active sessions | DO → D1 | 24 hours |
-| **Long** (months-years) | Users, Clients, Audit logs | D1 | Indefinite |
+| Lifetime | Data | Storage | TTL |
+|----------|------|---------|-----|
+| <60s | Authorization codes | DO | 60s |
+| <5min | PAR request_uri | DO | 60s |
+| <15min | Magic links | KV | 15min |
+| <24h | Active sessions | DO | 24h |
+| <30d | Refresh tokens | DO | 30d |
+| Indefinite | Users, Clients, Audit | D1 | - |
 
 ### By Access Pattern
 
-| Access Pattern | Data Types | Primary Storage | Cache |
-|---------------|-----------|----------------|-------|
-| **Write-once, read-once** | Authorization codes | Durable Objects | None |
-| **Write-rarely, read-often** | Public keys, Discovery | DO/D1 | KV |
-| **Write-often, read-often** | Active sessions | Durable Objects | None |
-| **Write-often, read-rarely** | Audit logs | D1 | None |
+| Pattern | Data | Storage | Strategy |
+|---------|------|---------|----------|
+| Write-once-read-once | Auth codes | DO | Atomic consume |
+| Write-rare-read-often | JWKS, Discovery | DO → KV | Write-through cache |
+| Write-often-read-often | Sessions | DO | In-memory |
+| Write-often-read-rare | Audit logs | D1 | Async write |
 
 ---
 
 ## Storage Patterns
 
-### Pattern 1: Write-Through Cache (Client Metadata)
+### Pattern 1: Write-Through Cache
+
+For data that changes rarely but reads frequently.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Worker
+    participant KV
+    participant D1
+
+    Client->>Worker: GET /client/:id
+
+    Worker->>KV: Get client cache
+    alt Cache hit
+        KV-->>Worker: Cached client data
+    else Cache miss
+        Worker->>D1: SELECT * FROM oauth_clients
+        D1-->>Worker: Client data
+        Worker->>KV: Set cache (TTL: 5min)
+    end
+
+    Worker-->>Client: Client data
+```
+
+**Used for**: Client metadata, User profiles
+
+### Pattern 2: Hot/Cold Storage
+
+For data with varying access frequency.
+
+```mermaid
+flowchart TB
+    subgraph Hot["Hot Storage (DO)"]
+        Active["Active Sessions<br/>In-memory<br/>Sub-ms access"]
+    end
+
+    subgraph Cold["Cold Storage (D1)"]
+        Historical["Session History<br/>SQL queryable<br/>Audit trail"]
+    end
+
+    Active -->|"Session expires<br/>or inactive 1h"| Historical
+    Historical -->|"Session reactivated"| Active
+```
+
+**Used for**: Sessions, Rate limit counters
+
+### Pattern 3: Atomic Operation
+
+For security-critical one-time operations.
+
+```mermaid
+sequenceDiagram
+    participant Token as Token Endpoint
+    participant DO as AuthCodeStore
+
+    Token->>DO: Consume code (atomic)
+
+    DO->>DO: Check: exists && !used
+    alt Valid
+        DO->>DO: Mark as used
+        DO-->>Token: Code data
+    else Already used
+        DO-->>Token: Error (replay attack)
+    end
+```
+
+**Used for**: Authorization codes, PAR requests, Challenges
+
+### Pattern 4: Source of Truth with Cache
+
+For data where DO is authoritative.
+
+```mermaid
+flowchart LR
+    subgraph DO["Source of Truth"]
+        KM["KeyManager<br/>Private keys<br/>Key metadata"]
+    end
+
+    subgraph KV["Edge Cache"]
+        JWKS["JWKS<br/>Public keys only<br/>TTL: 1 hour"]
+    end
+
+    KM -->|"Rotation event"| JWKS
+    Request --> KV
+```
+
+**Used for**: JWKS, Discovery metadata
+
+---
+
+## Data Flow by Operation
+
+### Authorization Code Flow
+
+```
+/authorize → DO:AuthCodeStore (write code)
+/token     → DO:AuthCodeStore (consume code, atomic)
+           → DO:KeyManager (sign tokens)
+           → DO:RefreshTokenRotator (store refresh token)
+```
+
+### Token Refresh
+
+```
+/token (refresh) → DO:RefreshTokenRotator (validate & rotate)
+                 → DO:KeyManager (sign new tokens)
+```
+
+### User Authentication
+
+```
+/authorize → D1:users (lookup)
+           → KV:client_cache (client info)
+           → DO:SessionStore (create session)
+           → DO:AuthCodeStore (create code)
+```
+
+---
+
+## Configuration Storage
+
+### Priority Hierarchy
+
+```
+KV (dynamic) → Environment Variable → Code Default
+```
+
+All settings follow this pattern:
 
 ```typescript
-// Read path: KV → D1 (on miss)
-async function getClient(clientId: string) {
-  // 1. Try KV cache first
-  const cached = await env.CLIENTS_CACHE.get(`client:${clientId}`);
-  if (cached) return JSON.parse(cached);
+async function getSetting(key: string): Promise<string> {
+  // 1. Check KV for dynamic override
+  const kvValue = await env.KV.get(`setting:${key}`);
+  if (kvValue) return kvValue;
 
-  // 2. Cache miss, query D1
-  const client = await env.DB.prepare(
-    'SELECT * FROM oauth_clients WHERE client_id = ?'
-  ).bind(clientId).first();
+  // 2. Check environment variable
+  if (env[key]) return env[key];
 
-  // 3. Update cache
-  if (client) {
-    await env.CLIENTS_CACHE.put(
-      `client:${clientId}`,
-      JSON.stringify(client),
-      { expirationTtl: 300 } // 5 minutes
-    );
-  }
-
-  return client;
-}
-
-// Write path: D1 → KV invalidation
-async function updateClient(clientId: string, updates: any) {
-  // 1. Update D1 master
-  await env.DB.prepare(
-    'UPDATE oauth_clients SET ... WHERE client_id = ?'
-  ).bind(...).run();
-
-  // 2. Invalidate KV cache
-  await env.CLIENTS_CACHE.delete(`client:${clientId}`);
+  // 3. Return secure default
+  return DEFAULTS[key];
 }
 ```
 
-### Pattern 2: Hot/Cold Session Storage
+### Settings Storage
+
+| Setting Type | Storage | Update Method |
+|--------------|---------|---------------|
+| Feature flags | KV | Admin API |
+| Security config | KV + Env | Admin API, deploy |
+| Secrets | Env (encrypted) | Deploy only |
+| Tenant settings | D1 | Admin API |
+
+---
+
+## Migration Patterns
+
+### KV to DO Migration
+
+For data requiring stronger consistency:
 
 ```typescript
-// Active sessions in DO, cold sessions in D1
+// Before: KV-based auth codes
+await env.KV.put(`code:${code}`, JSON.stringify(data), { expirationTtl: 60 });
+
+// After: DO-based auth codes
+const id = env.AUTH_CODE_STORE.idFromName(getShardId(code));
+const stub = env.AUTH_CODE_STORE.get(id);
+await stub.fetch('/code', { method: 'POST', body: JSON.stringify(data) });
+```
+
+### D1 to DO Migration (Hot Data)
+
+For frequently accessed data:
+
+```typescript
+// Hot/cold pattern for sessions
 class SessionStore {
-  async getSession(sessionId: string) {
-    // 1. Check DO (hot data)
-    const doSession = await this.doStorage.get(sessionId);
-    if (doSession) return doSession;
+  private hot: Map<string, Session> = new Map();
 
-    // 2. Check D1 (cold data, expired sessions)
-    const d1Session = await this.db.prepare(
-      'SELECT * FROM sessions WHERE id = ? AND expires_at > ?'
-    ).bind(sessionId, Date.now() / 1000).first();
-
-    // 3. Promote to DO if still valid
-    if (d1Session && !this.isExpired(d1Session)) {
-      await this.doStorage.put(sessionId, d1Session);
-      return d1Session;
+  async get(id: string): Promise<Session | null> {
+    // Check hot storage first
+    if (this.hot.has(id)) {
+      return this.hot.get(id)!;
     }
 
-    return null;
-  }
-
-  async createSession(userId: string) {
-    const session = { id: generateId(), userId, ... };
-
-    // 1. Store in DO (hot data)
-    await this.doStorage.put(session.id, session);
-
-    // 2. Store in D1 (persistent log)
-    await this.db.prepare(
-      'INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)'
-    ).bind(session.id, session.userId, session.expiresAt, session.createdAt).run();
-
+    // Fall back to D1
+    const session = await this.d1.get(id);
+    if (session) {
+      this.hot.set(id, session); // Promote to hot
+    }
     return session;
   }
 }
 ```
 
-### Pattern 3: Source of Truth + Cache (Public Keys)
+---
 
-```typescript
-// DO KeyManager is source of truth, KV is global cache
-async function getJWKS() {
-  // 1. Try KV cache
-  const cached = await env.JWKS_CACHE.get('jwks');
-  if (cached) return JSON.parse(cached);
+## Cost Optimization
 
-  // 2. Fetch from KeyManager DO
-  const keyManagerId = env.KEY_MANAGER.idFromName('default');
-  const keyManager = env.KEY_MANAGER.get(keyManagerId);
-  const response = await keyManager.fetch(
-    new Request('http://internal/jwks', { method: 'GET' })
-  );
-  const jwks = await response.json();
+### Strategies
 
-  // 3. Cache in KV (1 hour TTL)
-  await env.JWKS_CACHE.put('jwks', JSON.stringify(jwks), {
-    expirationTtl: 3600
-  });
+| Strategy | Implementation | Savings |
+|----------|---------------|---------|
+| Edge caching | KV for public keys, discovery | 90% DO reads |
+| Batch writes | Async audit logging | 50% D1 writes |
+| TTL expiration | Native KV TTL | No cleanup cost |
+| Read replicas | Multi-region D1 | Lower latency |
 
-  return jwks;
-}
+### Free Tier Utilization
 
-// Invalidate cache on key rotation
-async function rotateKeys() {
-  // 1. Rotate in DO
-  const keyManagerId = env.KEY_MANAGER.idFromName('default');
-  const keyManager = env.KEY_MANAGER.get(keyManagerId);
-  await keyManager.fetch(
-    new Request('http://internal/rotate', { method: 'POST' })
-  );
-
-  // 2. Invalidate KV cache
-  await env.JWKS_CACHE.delete('jwks');
-}
-```
-
-### Pattern 4: One-Time Use Tokens (Authorization Codes)
-
-```typescript
-// Authorization codes in DO for strong consistency
-class AuthorizationCodeStore {
-  async create(code: string, data: any) {
-    // Store in DO with TTL
-    await this.doStorage.put(code, {
-      data,
-      used: false,
-      expiresAt: Date.now() + 60000 // 60 seconds
-    });
-  }
-
-  async consume(code: string): Promise<any | null> {
-    const stored = await this.doStorage.get(code);
-
-    if (!stored) return null;
-    if (stored.used) throw new Error('Code already used'); // Replay attack
-    if (Date.now() > stored.expiresAt) return null;
-
-    // Mark as used atomically (DO guarantees strong consistency)
-    stored.used = true;
-    await this.doStorage.put(code, stored);
-
-    return stored.data;
-  }
-}
-```
+| Service | Free Tier | Authrim Usage |
+|---------|-----------|---------------|
+| D1 | 5M reads/day | User lookups |
+| KV | 100K reads/day | Discovery, JWKS |
+| DO | 1M requests/month | Auth codes, sessions |
+| R2 | 10M reads/month | Avatars |
 
 ---
 
-## Cost Analysis
-
-### Monthly Cost Estimation (100K active users)
-
-#### Scenario Assumptions
-- 100,000 users
-- 10,000 logins/day (300K/month)
-- 50,000 active sessions
-- 1,000 OAuth clients
-
-#### Cost Breakdown
-
-| Service | Usage | Unit Cost | Monthly Cost |
-|---------|-------|-----------|--------------|
-| **Durable Objects** | | | |
-| - CPU (auth codes) | 300K × 5ms = 1.5M ms | $0.02/1M ms | $0.03 |
-| - CPU (sessions) | 300K × 2ms = 600K ms | $0.02/1M ms | $0.01 |
-| - Storage (50K sessions) | 50K × 1KB = 50MB | $0.20/GB | $0.01 |
-| **D1** | | | |
-| - Rows read | 1M/month | Free (5M/day) | $0 |
-| - Rows written | 500K/month | Free (100K/day) | $0 |
-| - Storage (100K users) | 100K × 2KB = 200MB | $0.75/GB | $0.15 |
-| **KV** | | | |
-| - Reads (JWKS, clients) | 2M/month | $0.50/1M | $1.00 |
-| - Writes (cache updates) | 100K/month | $0.50/1M | $0.05 |
-| - Storage (metadata) | 10MB | $0.50/GB | $0.01 |
-| **Workers** | | | |
-| - Requests | 300K/day = 9M/month | Free (10M/month) | $0 |
-| **Total** | | | **$1.26/month** |
-
-**Cost per user**: $0.0000126 (~$0.01 per 1000 users)
-
-#### Comparison: KV-Only Architecture
-
-| Item | Cost |
-|------|------|
-| Auth codes (KV) | $0.45 |
-| Sessions (KV) | $0.30 |
-| Everything else | $1.21 |
-| **Total (KV-only)** | **$1.96/month** |
-
-**Savings with hybrid architecture**: $0.70/month (36% reduction)
-
----
-
-## Migration Strategy
-
-### Phase 1: Current State (Before Phase 5)
-
-```mermaid
-graph TB
-    subgraph KV["All data in KV"]
-        AC[AUTH_CODES]
-        SS[STATE_STORE]
-        NS[NONCE_STORE]
-        CL[CLIENTS]
-        RT[REFRESH_TOKENS]
-        RV[REVOKED_TOKENS]
-    end
-
-    subgraph DO["Durable Objects"]
-        KM[KeyManager - implemented]
-    end
-```
-
-### Phase 2: Phase 5 Migration Plan
-
-#### Step 1: D1 Setup (Week 1)
-1. Create D1 database
-2. Run migrations (001_initial_schema.sql, 002_seed_default_data.sql)
-3. Test D1 connectivity
-
-#### Step 2: Migrate Static Data (Week 1)
-1. Export clients from KV
-2. Import to D1 `oauth_clients` table
-3. Implement read-through cache (KV as cache layer)
-
-#### Step 3: Implement Durable Objects (Week 2)
-1. **SessionStore DO**
-   - Implement in-memory session management
-   - Integrate with D1 for persistence
-
-2. **AuthorizationCodeStore DO**
-   - Migrate from KV to DO
-   - Add replay attack prevention
-
-3. **RefreshTokenRotator DO**
-   - Implement atomic rotation
-   - Add D1 audit log
-
-#### Step 4: Deploy & Test (Week 3)
-1. Parallel operation (KV + DO + D1)
-2. Validate data consistency
-3. Performance testing
-
-#### Step 5: Cutover (Week 4)
-1. Switch read traffic to new storage
-2. Monitor errors
-3. Decommission old KV stores
-
-### Rollback Plan
-
-```typescript
-// Feature flags for gradual rollout
-const STORAGE_CONFIG = {
-  USE_DO_AUTH_CODES: env.ENABLE_DO_AUTH_CODES === 'true',
-  USE_DO_SESSIONS: env.ENABLE_DO_SESSIONS === 'true',
-  USE_D1_CLIENTS: env.ENABLE_D1_CLIENTS === 'true',
-};
-
-// Fallback logic
-async function getClient(clientId: string) {
-  if (STORAGE_CONFIG.USE_D1_CLIENTS) {
-    try {
-      return await getClientFromD1(clientId);
-    } catch (e) {
-      console.error('D1 failed, falling back to KV', e);
-      return await getClientFromKV(clientId);
-    }
-  }
-  return await getClientFromKV(clientId);
-}
-```
-
----
-
-## Implementation Guide
-
-### Storage Abstraction Layer
-
-```typescript
-// packages/shared/src/storage/interfaces.ts
-export interface IStorageAdapter {
-  // KV-like operations
-  get(key: string): Promise<any>;
-  set(key: string, value: any, ttl?: number): Promise<void>;
-  delete(key: string): Promise<void>;
-
-  // SQL-like operations
-  query(sql: string, params: any[]): Promise<any[]>;
-  execute(sql: string, params: any[]): Promise<void>;
-}
-
-// Cloudflare implementation
-export class CloudflareStorageAdapter implements IStorageAdapter {
-  constructor(
-    private d1: D1Database,
-    private kv: KVNamespace,
-    private doNamespace: DurableObjectNamespace
-  ) {}
-
-  async get(key: string): Promise<any> {
-    // Route to appropriate storage based on key prefix
-    if (key.startsWith('session:')) {
-      return this.getFromDO('SessionStore', key);
-    } else if (key.startsWith('client:')) {
-      return this.getFromD1WithCache(key);
-    } else {
-      return this.kv.get(key);
-    }
-  }
-
-  // ... implementation
-}
-
-// AWS implementation (future)
-export class AWSStorageAdapter implements IStorageAdapter {
-  constructor(
-    private rds: RDSClient,
-    private elasticache: ElastiCacheClient,
-    private dynamodb: DynamoDBClient
-  ) {}
-
-  // ... implementation
-}
-```
-
-### Environment Configuration
-
-```toml
-# wrangler.toml
-
-# D1 Database
-[[d1_databases]]
-binding = "DB"
-database_name = "authrim-prod"
-database_id = "xxxx"
-
-# KV Namespaces
-[[kv_namespaces]]
-binding = "JWKS_CACHE"
-id = "xxxx"
-
-[[kv_namespaces]]
-binding = "CLIENTS_CACHE"
-id = "xxxx"
-
-[[kv_namespaces]]
-binding = "MAGIC_LINKS"
-id = "xxxx"
-
-# Durable Objects
-[[durable_objects.bindings]]
-name = "KEY_MANAGER"
-class_name = "KeyManager"
-script_name = "authrim"
-
-[[durable_objects.bindings]]
-name = "SESSION_STORE"
-class_name = "SessionStore"
-script_name = "authrim"
-
-[[durable_objects.bindings]]
-name = "AUTH_CODE_STORE"
-class_name = "AuthorizationCodeStore"
-script_name = "authrim"
-
-[[durable_objects.bindings]]
-name = "REFRESH_TOKEN_ROTATOR"
-class_name = "RefreshTokenRotator"
-script_name = "authrim"
-```
-
----
-
-## Performance Benchmarks
-
-### Target Latencies (p95)
-
-| Operation | Target | Storage |
-|-----------|--------|---------|
-| Get authorization code | < 10ms | Durable Objects |
-| Get active session | < 5ms | Durable Objects (in-memory) |
-| Get cold session | < 50ms | D1 |
-| Get client metadata | < 5ms | KV (cache hit) |
-| Get client metadata (miss) | < 50ms | D1 + KV update |
-| Get JWKS | < 5ms | KV (cache hit) |
-| Create user | < 100ms | D1 |
-| User search | < 200ms | D1 (indexed) |
-
-### Scalability Limits
-
-| Metric | Limit | Notes |
-|--------|-------|-------|
-| Users | 10M+ | D1 can handle millions of rows |
-| Active sessions | 1M+ | DO distributed across regions |
-| Requests/second | 100K+ | Workers auto-scale globally |
-| Concurrent logins | 10K+ | DO per-object limit: ~1000 req/s |
-
----
-
-## Monitoring & Observability
+## Monitoring
 
 ### Key Metrics
 
-```typescript
-// packages/shared/src/telemetry/storage-metrics.ts
-export const STORAGE_METRICS = {
-  // Latency
-  'storage.latency.do.read': histogram(),
-  'storage.latency.do.write': histogram(),
-  'storage.latency.d1.query': histogram(),
-  'storage.latency.kv.get': histogram(),
+| Metric | Storage | Alert Threshold |
+|--------|---------|-----------------|
+| Cache hit rate | KV | <90% |
+| DO latency p99 | DO | >50ms |
+| D1 query time | D1 | >100ms |
+| Hot session count | DO | >10K/shard |
 
-  // Cache hit rates
-  'storage.cache.hit_rate.clients': gauge(),
-  'storage.cache.hit_rate.jwks': gauge(),
-
-  // Error rates
-  'storage.errors.do': counter(),
-  'storage.errors.d1': counter(),
-  'storage.errors.kv': counter(),
-
-  // Cost tracking
-  'storage.operations.do.cpu_ms': counter(),
-  'storage.operations.kv.reads': counter(),
-  'storage.operations.d1.rows_read': counter(),
-};
-```
-
-### Health Checks
+### Storage Health Check
 
 ```typescript
-export async function healthCheck(env: Env) {
-  const results = {
-    do: await checkDO(env),
-    d1: await checkD1(env),
-    kv: await checkKV(env),
-  };
+async function healthCheck(): Promise<StorageHealth> {
+  const [doHealth, d1Health, kvHealth] = await Promise.all([
+    checkDOHealth(env.SESSION_STORE),
+    checkD1Health(env.D1),
+    checkKVHealth(env.KV),
+  ]);
 
   return {
-    healthy: Object.values(results).every(r => r.healthy),
-    details: results,
+    healthy: doHealth.ok && d1Health.ok && kvHealth.ok,
+    latencies: {
+      do: doHealth.latency,
+      d1: d1Health.latency,
+      kv: kvHealth.latency,
+    },
   };
 }
 ```
+
+---
+
+## Related Documents
+
+| Document | Description |
+|----------|-------------|
+| [Architecture Overview](./overview.md) | System architecture |
+| [Durable Objects](./durable-objects.md) | DO design and patterns |
+| [Database Schema](./database-schema.md) | D1 schema |
+| [DO Sharding](./durable-objects-sharding.md) | Sharding strategies |
 
 ---
 
 ## References
 
-### Related Documents
-- [database-schema.md](./database-schema.md) - D1 schema and ER diagrams
-- [durable-objects.md](./durable-objects.md) - DO architecture details
-- [PHASE5_PLANNING.md](../project-management/PHASE5_PLANNING.md) - Phase 5 implementation plan
-- [technical-specs.md](./technical-specs.md) - Overall system architecture
-
-### External Resources
-- [Cloudflare D1 Pricing](https://developers.cloudflare.com/d1/platform/pricing/)
-- [Cloudflare KV Pricing](https://developers.cloudflare.com/kv/platform/pricing/)
-- [Cloudflare Durable Objects Pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/)
-- [SQLite Performance](https://www.sqlite.org/whentouse.html)
+- [Cloudflare D1](https://developers.cloudflare.com/d1/)
+- [Cloudflare KV](https://developers.cloudflare.com/kv/)
+- [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)
+- [Cloudflare R2](https://developers.cloudflare.com/r2/)
 
 ---
 
-**Change History**:
-- 2025-11-13: Initial version created (Phase 5 design)
+**Last Updated**: 2025-12-20
+**Status**: Production
+**Version**: 2.0.0

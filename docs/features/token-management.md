@@ -1,442 +1,341 @@
 # Token Management
 
-This document describes Authrim's token management capabilities, including refresh token flow, token introspection, and token revocation.
-
 ## Overview
 
-Authrim implements comprehensive token management features as defined in:
-- **RFC 6749 Section 6**: Refresh Token Grant
-- **RFC 7662**: OAuth 2.0 Token Introspection
-- **RFC 7009**: OAuth 2.0 Token Revocation
+Authrim implements comprehensive token management features for OAuth 2.0 and OpenID Connect, including refresh token flow, token introspection, and token revocation.
 
-These features provide clients with advanced token lifecycle management capabilities.
+### Specifications
+
+| Feature | RFC | Endpoint |
+|---------|-----|----------|
+| Refresh Token | [RFC 6749 §6](https://tools.ietf.org/html/rfc6749#section-6) | `POST /token` |
+| Token Introspection | [RFC 7662](https://tools.ietf.org/html/rfc7662) | `POST /introspect` |
+| Token Revocation | [RFC 7009](https://tools.ietf.org/html/rfc7009) | `POST /revoke` |
 
 ---
 
-## Refresh Token Flow
+## Benefits
 
-### Specification
+### Security Advantages
 
-- **RFC**: [RFC 6749 Section 6](https://tools.ietf.org/html/rfc6749#section-6)
-- **Endpoint**: `POST /token`
-- **Grant Type**: `refresh_token`
+1. **🔄 Refresh Token Rotation**
+   - Old tokens invalidated on each refresh
+   - Prevents refresh token replay attacks
+   - OAuth 2.0 Security BCP compliant
 
-### Overview
+2. **🔍 Real-Time Token Validation**
+   - Introspect tokens before processing sensitive requests
+   - Immediate revocation detection
+   - Supports resource server validation
 
-Refresh tokens allow clients to obtain new access tokens without requiring the user to re-authenticate. This improves user experience while maintaining security through token rotation.
+3. **🛡️ Immediate Revocation**
+   - Invalidate compromised tokens instantly
+   - Supports user logout flows
+   - Authorization code reuse protection
 
-### Security Features
+---
 
-#### Refresh Token Rotation
+## Practical Use Cases
 
-Authrim implements **automatic refresh token rotation** as a security best practice:
+### Use Case 1: Mobile Banking Session Management
 
-1. When a refresh token is used, it is immediately invalidated
-2. A new refresh token is issued with the new access token
-3. This prevents refresh token replay attacks
+**Scenario**: A mobile banking app needs long-lived access without requiring frequent re-authentication, but must immediately revoke access when the user logs out or reports a stolen device.
 
-#### Scope Downgrading
+**Challenge**: Access tokens expire quickly (1 hour). Users don't want to re-login daily. But when a device is reported stolen, access must be revoked immediately.
 
-Clients can request a reduced scope when using a refresh token:
+**Token Management Solution**:
+```typescript
+class BankingSessionManager {
+  private refreshToken: string;
+  private accessToken: string;
+  private tokenExpiry: number;
+
+  async ensureValidToken(): Promise<string> {
+    // Refresh token 5 minutes before expiry
+    if (Date.now() > this.tokenExpiry - 300000) {
+      await this.refreshAccessToken();
+    }
+    return this.accessToken;
+  }
+
+  async refreshAccessToken(): Promise<void> {
+    const response = await fetch('https://bank.authrim.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: this.refreshToken,
+        client_id: CLIENT_ID
+      })
+    });
+
+    const tokens = await response.json();
+
+    // Rotation: old refresh token is now invalid
+    this.refreshToken = tokens.refresh_token;  // New token
+    this.accessToken = tokens.access_token;
+    this.tokenExpiry = Date.now() + (tokens.expires_in * 1000);
+  }
+
+  async logout(): Promise<void> {
+    // Revoke both tokens
+    await Promise.all([
+      this.revokeToken(this.accessToken, 'access_token'),
+      this.revokeToken(this.refreshToken, 'refresh_token')
+    ]);
+  }
+
+  private async revokeToken(token: string, hint: string): Promise<void> {
+    await fetch('https://bank.authrim.com/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token, token_type_hint: hint })
+    });
+  }
+}
+```
+
+**Backend - Stolen Device Report**:
+```python
+def handle_stolen_device_report(user_id: str):
+    # Get all active refresh tokens for user
+    tokens = get_user_refresh_tokens(user_id)
+
+    # Revoke all tokens
+    for token in tokens:
+        requests.post(
+            'https://bank.authrim.com/revoke',
+            data={'token': token, 'token_type_hint': 'refresh_token'},
+            auth=(CLIENT_ID, CLIENT_SECRET)
+        )
+
+    # Next time the stolen device tries to refresh, it will fail
+```
+
+**Result**: Users stay logged in for weeks without re-authentication. When a device is reported stolen, all tokens are revoked immediately, and the stolen device cannot refresh or access the API.
+
+---
+
+### Use Case 2: Microservices API Gateway Token Validation
+
+**Scenario**: An API gateway needs to validate access tokens before routing requests to backend microservices. The gateway must detect revoked tokens and extract token metadata (scopes, user info).
+
+**Challenge**: Validating JWTs locally only checks signature and expiry. It can't detect revoked tokens or get real-time token status.
+
+**Token Management Solution**:
+```python
+class APIGateway:
+    def __init__(self):
+        self.introspection_cache = TTLCache(maxsize=10000, ttl=30)  # 30s cache
+
+    async def validate_request(self, request: Request) -> TokenInfo:
+        token = extract_bearer_token(request)
+
+        # Check cache first
+        if token in self.introspection_cache:
+            return self.introspection_cache[token]
+
+        # Introspect token
+        response = await httpx.post(
+            'https://auth.example.com/introspect',
+            data={
+                'token': token,
+                'token_type_hint': 'access_token'
+            },
+            auth=(GATEWAY_CLIENT_ID, GATEWAY_CLIENT_SECRET)
+        )
+
+        token_info = response.json()
+
+        if not token_info.get('active'):
+            raise HTTPException(401, 'Token is inactive or revoked')
+
+        # Cache for 30 seconds
+        self.introspection_cache[token] = token_info
+
+        return token_info
+
+    async def route_request(self, request: Request):
+        token_info = await self.validate_request(request)
+
+        # Check scopes for this endpoint
+        required_scope = get_required_scope(request.path)
+        if required_scope not in token_info.get('scope', '').split():
+            raise HTTPException(403, f'Missing required scope: {required_scope}')
+
+        # Add user context to request headers
+        request.headers['X-User-ID'] = token_info['sub']
+        request.headers['X-Client-ID'] = token_info['client_id']
+
+        # Route to backend service
+        return await self.proxy_to_backend(request)
+```
+
+**Introspection Response**:
+```json
+{
+  "active": true,
+  "scope": "openid profile orders:read orders:write",
+  "client_id": "mobile_app",
+  "token_type": "Bearer",
+  "exp": 1703116800,
+  "sub": "user-12345",
+  "iss": "https://auth.example.com"
+}
+```
+
+**Result**: Gateway validates tokens in real-time, caches results briefly for performance, and can immediately detect revoked tokens.
+
+---
+
+### Use Case 3: SaaS Multi-Tenant Token Lifecycle
+
+**Scenario**: A SaaS platform serves multiple tenants. When an admin removes a user from a tenant, all their active sessions must be terminated immediately.
+
+**Challenge**: Users may have active sessions across multiple devices and applications. Access tokens issued before removal are still valid until they expire.
+
+**Token Management Solution**:
+```javascript
+// Admin removes user from tenant
+async function removeUserFromTenant(tenantId, userId) {
+  // 1. Remove user from tenant in database
+  await db.tenantUsers.delete({ tenantId, userId });
+
+  // 2. Get all active tokens for this user in this tenant
+  const tokens = await db.tokens.find({
+    userId,
+    tenantId,
+    status: 'active'
+  });
+
+  // 3. Revoke all tokens
+  await Promise.all(tokens.map(token =>
+    fetch('https://auth.saas.com/revoke', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${btoa(ADMIN_CLIENT_ID + ':' + ADMIN_CLIENT_SECRET)}`
+      },
+      body: new URLSearchParams({
+        token: token.refreshToken,
+        token_type_hint: 'refresh_token'
+      })
+    })
+  ));
+
+  // 4. Any active session will fail on next API call or token refresh
+  console.log(`Revoked ${tokens.length} tokens for user ${userId}`);
+}
+
+// Client-side: Handle revocation gracefully
+async function makeApiCall(endpoint) {
+  try {
+    const response = await fetch(endpoint, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+
+    if (response.status === 401) {
+      // Token revoked or expired
+      const refreshResult = await refreshToken();
+      if (refreshResult.error === 'invalid_grant') {
+        // Refresh token also revoked - force logout
+        showMessage('Your access has been revoked. Please contact admin.');
+        logout();
+        return;
+      }
+    }
+
+    return response.json();
+  } catch (error) {
+    handleError(error);
+  }
+}
+```
+
+**Result**: When an admin removes a user, their sessions on all devices are terminated within seconds. The user sees a clear message explaining what happened.
+
+---
+
+## API Reference
+
+### Refresh Token
+
+**POST /token**
 
 ```http
 POST /token HTTP/1.1
-Host: authrim.sgrastar.workers.dev
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=refresh_token
-&refresh_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
-&client_id=my_client_id
-&client_secret=my_client_secret
-&scope=openid profile
+&refresh_token=eyJhbGciOiJSUzI1NiJ9...
+&client_id=my_client
+&scope=openid profile  (optional, for scope downgrading)
 ```
 
-**Note**: The requested scope must be a subset of the original scope. Attempting to request additional scopes will result in an `invalid_scope` error.
-
-### Request Format
-
-**Endpoint**: `POST /token`
-
-**Headers**:
-```http
-Content-Type: application/x-www-form-urlencoded
-Authorization: Basic <base64(client_id:client_secret)>  # Optional, alternative to form params
-```
-
-**Body Parameters**:
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `grant_type` | ✅ Yes | Must be `refresh_token` |
-| `refresh_token` | ✅ Yes | The refresh token issued during authorization code exchange |
-| `client_id` | ✅ Yes | The client identifier (or via Basic auth) |
-| `client_secret` | ❌ No | The client secret (if confidential client, or via Basic auth) |
-| `scope` | ❌ No | Optional reduced scope (must be subset of original) |
-
-### Response Format
-
-**Success Response** (200 OK):
-
+**Success Response**:
 ```json
 {
-  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "access_token": "eyJhbGciOiJSUzI1NiJ9...",
   "token_type": "Bearer",
   "expires_in": 3600,
-  "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "scope": "openid profile email"
+  "refresh_token": "eyJhbGciOiJSUzI1NiJ9...",
+  "scope": "openid profile"
 }
 ```
 
-**Error Responses**:
-
-| Error Code | HTTP Status | Description |
-|------------|-------------|-------------|
-| `invalid_request` | 400 | Missing or invalid `refresh_token` parameter |
-| `invalid_client` | 401 | Invalid or missing client credentials |
-| `invalid_grant` | 400 | Refresh token is invalid, expired, or revoked |
-| `invalid_scope` | 400 | Requested scope exceeds original scope |
-| `server_error` | 500 | Server configuration error |
-
-### Example Usage
-
-#### Using Form Parameters
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=refresh_token" \
-  -d "refresh_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
-  -d "client_id=my_client_id" \
-  -d "client_secret=my_client_secret"
-```
-
-#### Using HTTP Basic Authentication
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -u "my_client_id:my_client_secret" \
-  -d "grant_type=refresh_token" \
-  -d "refresh_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
-```
-
-### Refresh Token Structure
-
-Refresh tokens are JWTs containing the following claims:
-
-```json
-{
-  "iss": "https://authrim.sgrastar.workers.dev",
-  "sub": "user-abc123",
-  "aud": "my_client_id",
-  "exp": 1234567890,
-  "iat": 1234564290,
-  "jti": "rt_unique_identifier",
-  "scope": "openid profile email",
-  "client_id": "my_client_id"
-}
-```
-
-### Storage and Expiration
-
-- **Storage**: Refresh tokens are stored in Cloudflare KV with metadata
-- **Default Expiration**: 7 days (configurable via `REFRESH_TOKEN_EXPIRY` environment variable)
-- **Rotation**: Old refresh tokens are deleted when new ones are issued
+**Note**: A new refresh token is always issued (rotation).
 
 ---
 
-## Token Introspection
+### Token Introspection
 
-### Specification
+**POST /introspect**
 
-- **RFC**: [RFC 7662](https://tools.ietf.org/html/rfc7662)
-- **Endpoint**: `POST /introspect`
-
-### Overview
-
-Token introspection allows authorized clients to query the authorization server about the state of an access token or refresh token. This is useful for:
-
-- Resource servers validating access tokens
-- Clients checking token validity before use
-- Administrative tools auditing token state
-
-### Request Format
-
-**Endpoint**: `POST /introspect`
-
-**Headers**:
 ```http
+POST /introspect HTTP/1.1
 Content-Type: application/x-www-form-urlencoded
-Authorization: Basic <base64(client_id:client_secret)>  # Optional
+Authorization: Basic <base64(client_id:client_secret)>
+
+token=eyJhbGciOiJSUzI1NiJ9...
+&token_type_hint=access_token
 ```
 
-**Body Parameters**:
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `token` | ✅ Yes | The token to introspect (access or refresh token) |
-| `token_type_hint` | ❌ No | Hint about token type: `access_token` or `refresh_token` |
-| `client_id` | ✅ Yes | The client identifier (or via Basic auth) |
-| `client_secret` | ❌ No | The client secret (if confidential client, or via Basic auth) |
-
-### Response Format
-
-**Active Token** (200 OK):
-
+**Active Token Response**:
 ```json
 {
   "active": true,
   "scope": "openid profile email",
-  "client_id": "my_client_id",
+  "client_id": "my_client",
   "token_type": "Bearer",
   "exp": 1234567890,
-  "iat": 1234564290,
-  "sub": "user-abc123",
-  "aud": "https://authrim.sgrastar.workers.dev",
-  "iss": "https://authrim.sgrastar.workers.dev",
-  "jti": "at_unique_identifier"
+  "sub": "user-123",
+  "iss": "https://your-tenant.authrim.com"
 }
 ```
 
-**Inactive Token** (200 OK):
-
+**Inactive Token Response**:
 ```json
 {
   "active": false
 }
 ```
 
-**Note**: Per RFC 7662, the response for invalid tokens is intentionally minimal to prevent token scanning attacks.
-
-### Token States
-
-A token is considered **inactive** if:
-
-1. ❌ Token signature verification fails
-2. ❌ Token has expired (`exp` claim < current time)
-3. ❌ Token has been revoked (for access tokens)
-4. ❌ Token does not exist in storage (for refresh tokens)
-5. ❌ Token format is invalid
-
-### Example Usage
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/introspect \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -u "my_client_id:my_client_secret" \
-  -d "token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
-  -d "token_type_hint=access_token"
-```
-
-### Security Considerations
-
-- **Client Authentication Required**: Only authenticated clients can introspect tokens
-- **No Information Disclosure**: Invalid tokens return minimal response
-- **Token Ownership**: Tokens can be introspected regardless of which client they were issued to (this is standard behavior per RFC 7662)
-
 ---
 
-## Token Revocation
+### Token Revocation
 
-### Specification
+**POST /revoke**
 
-- **RFC**: [RFC 7009](https://tools.ietf.org/html/rfc7009)
-- **Endpoint**: `POST /revoke`
-
-### Overview
-
-Token revocation allows clients to notify the authorization server that a token is no longer needed. This is important for:
-
-- **User Logout**: Invalidate tokens when user logs out
-- **Security**: Revoke tokens if compromise is suspected
-- **Cleanup**: Remove tokens that are no longer needed
-
-### Request Format
-
-**Endpoint**: `POST /revoke`
-
-**Headers**:
 ```http
+POST /revoke HTTP/1.1
 Content-Type: application/x-www-form-urlencoded
-Authorization: Basic <base64(client_id:client_secret)>  # Optional
+Authorization: Basic <base64(client_id:client_secret)>
+
+token=eyJhbGciOiJSUzI1NiJ9...
+&token_type_hint=refresh_token
 ```
 
-**Body Parameters**:
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `token` | ✅ Yes | The token to revoke (access or refresh token) |
-| `token_type_hint` | ❌ No | Hint about token type: `access_token` or `refresh_token` |
-| `client_id` | ✅ Yes | The client identifier (or via Basic auth) |
-| `client_secret` | ❌ No | The client secret (if confidential client, or via Basic auth) |
-
-### Response Format
-
-**Success** (200 OK):
-
-```http
-HTTP/1.1 200 OK
-Content-Length: 0
-```
-
-**Note**: Per RFC 7009, the server always returns 200 OK, even if the token was invalid or didn't exist. This prevents information disclosure.
-
-### Example Usage
-
-#### Revoke Access Token
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/revoke \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -u "my_client_id:my_client_secret" \
-  -d "token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
-  -d "token_type_hint=access_token"
-```
-
-#### Revoke Refresh Token
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/revoke \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -u "my_client_id:my_client_secret" \
-  -d "token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
-  -d "token_type_hint=refresh_token"
-```
-
-### Revocation Behavior
-
-#### Access Tokens
-
-1. Token is added to a revocation list in Cloudflare KV
-2. Revocation entry expires when the original token would have expired
-3. Subsequent introspection or userinfo requests will fail
-
-#### Refresh Tokens
-
-1. Token is deleted from Cloudflare KV storage
-2. Subsequent refresh requests will fail immediately
-
-### Security Considerations
-
-- **Client Ownership Verification**: Clients can only revoke their own tokens
-- **Silent Failures**: Invalid tokens or tokens belonging to other clients return 200 OK (prevents information disclosure)
-- **Logging**: Unauthorized revocation attempts are logged for security monitoring
-
----
-
-## Integration with Other Flows
-
-### Authorization Code Reuse Protection
-
-When an authorization code is reused, Authrim automatically revokes all tokens issued with that code:
-
-```typescript
-// Per RFC 6749 Section 4.1.2: Authorization codes are single-use
-if (authCodeData.used && authCodeData.jti) {
-  console.warn(`Authorization code reuse detected!`);
-
-  // Revoke the previously issued access token
-  await revokeToken(env, authCodeData.jti, expiresIn);
-
-  return error('invalid_grant', 'Authorization code has already been used');
-}
-```
-
-This prevents attackers from using stolen authorization codes.
-
-### UserInfo Endpoint Validation
-
-The UserInfo endpoint automatically checks token revocation status:
-
-```typescript
-// Check if token has been revoked
-const revoked = await isTokenRevoked(env, jti);
-if (revoked) {
-  return error('invalid_token', 'Token has been revoked');
-}
-```
-
----
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TOKEN_EXPIRY` | `3600` | Access token lifetime in seconds (1 hour) |
-| `REFRESH_TOKEN_EXPIRY` | `604800` | Refresh token lifetime in seconds (7 days) |
-
-### Example Configuration
-
-```toml
-# wrangler.toml
-[vars]
-TOKEN_EXPIRY = "3600"          # 1 hour
-REFRESH_TOKEN_EXPIRY = "604800" # 7 days
-```
-
----
-
-## Storage Architecture
-
-### Cloudflare KV Namespaces
-
-Authrim uses Cloudflare KV for token metadata storage:
-
-#### Refresh Tokens
-- **Key Format**: `refresh_token:{jti}`
-- **Value**: JSON metadata (client_id, sub, scope, iat, exp)
-- **TTL**: Automatic expiration based on `REFRESH_TOKEN_EXPIRY`
-
-#### Revoked Access Tokens
-- **Key Format**: `revoked_token:{jti}`
-- **Value**: Timestamp of revocation
-- **TTL**: Automatic expiration based on original token expiry
-
----
-
-## Testing
-
-### Test Coverage
-
-Authrim includes comprehensive tests for token management:
-
-- **Refresh Token Flow**: 20+ test cases
-- **Token Introspection**: 15+ test cases
-- **Token Revocation**: 12+ test cases
-
-**Total**: 47+ tests covering all scenarios
-
-### Test File
-
-```bash
-test/handlers/token-refresh-introspect-revoke.test.ts
-```
-
-### Running Tests
-
-```bash
-npm test -- token-refresh-introspect-revoke
-```
-
----
-
-## Best Practices
-
-### For Clients
-
-1. **Store Refresh Tokens Securely**: Use secure storage (e.g., encrypted database, secure keychain)
-2. **Revoke on Logout**: Always revoke tokens when user logs out
-3. **Handle Rotation**: Update stored refresh token after each use
-4. **Error Handling**: Implement proper error handling for `invalid_grant` errors
-
-### For Resource Servers
-
-1. **Introspect Regularly**: Check token status before processing sensitive requests
-2. **Cache Introspection Results**: Cache results briefly to reduce load (but respect token expiry)
-3. **Handle Revoked Tokens**: Reject requests with revoked tokens
+**Response**: Always `200 OK` with empty body (per RFC 7009).
 
 ---
 
@@ -444,81 +343,101 @@ npm test -- token-refresh-introspect-revoke
 
 ### Refresh Token Rotation
 
-- ✅ **Implemented**: Automatic refresh token rotation
-- ✅ **Benefit**: Prevents refresh token replay attacks
-- ✅ **Compliance**: Recommended by OAuth 2.0 Security Best Current Practice
+| Aspect | Behavior |
+|--------|----------|
+| Old token | Immediately invalidated |
+| New token | Returned with each refresh |
+| Replay attack | Detected and blocked |
+| Compliance | OAuth 2.0 Security BCP |
 
-### Token Revocation List
+### Authorization Code Reuse Detection
 
-- ✅ **Implemented**: Revoked access tokens stored in KV
-- ✅ **Benefit**: Immediate invalidation of compromised tokens
-- ✅ **Performance**: Minimal overhead using KV lookups
+When an authorization code is reused, all tokens from the original exchange are automatically revoked:
 
-### Information Disclosure Prevention
+```typescript
+if (authCode.used && authCode.tokenJti) {
+  await revokeToken(authCode.tokenJti);
+  throw new Error('Authorization code reused - tokens revoked');
+}
+```
 
-- ✅ **Implemented**: Consistent responses for invalid tokens
-- ✅ **Benefit**: Prevents token scanning attacks
-- ✅ **Compliance**: Per RFC 7009 Section 2.2
+---
+
+## Configuration
+
+### Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `access_token_expiry` | `3600` | Access token lifetime (1 hour) |
+| `refresh_token_expiry` | `604800` | Refresh token lifetime (7 days) |
+
+### Discovery Metadata
+
+```json
+{
+  "introspection_endpoint": "https://your-tenant.authrim.com/introspect",
+  "revocation_endpoint": "https://your-tenant.authrim.com/revoke",
+  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"]
+}
+```
+
+---
+
+## Testing
+
+### Test Scenarios
+
+| Scenario | Expected Result |
+|----------|-----------------|
+| Valid refresh | New access + refresh token |
+| Expired refresh token | 400 invalid_grant |
+| Revoked refresh token | 400 invalid_grant |
+| Introspect active token | active: true with claims |
+| Introspect revoked token | active: false |
+| Revoke any token | 200 OK (always) |
+
+### Running Tests
+
+```bash
+pnpm --filter @authrim/op-token run test
+pnpm --filter @authrim/op-management run test
+```
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
-#### "invalid_grant: Refresh token is invalid or expired"
+### "invalid_grant: Refresh token is invalid or expired"
 
 **Causes**:
-- Refresh token has expired (default: 7 days)
-- Refresh token was already used (rotation)
-- Refresh token was revoked
+- Token expired (default: 7 days)
+- Token already used (rotation)
+- Token was revoked
 
-**Solution**:
-- User must re-authenticate via authorization code flow
+**Solution**: User must re-authenticate.
 
-#### "invalid_scope: Requested scope exceeds original scope"
+### "invalid_scope: Requested scope exceeds original"
 
-**Causes**:
-- Attempting to request scopes not granted in original authorization
+**Cause**: Trying to get more scopes than originally granted.
+**Solution**: Only request subset of original scopes, or re-authenticate.
 
-**Solution**:
-- Only request scopes that were originally granted
-- For new scopes, initiate a new authorization code flow
+### Token appears valid but API rejects it
 
-#### Token Not Revoked Immediately
-
-**Causes**:
-- KV eventual consistency (rare)
-- Cached introspection results
-
-**Solution**:
-- Wait 1-2 seconds and retry
-- Clear any local caches
-
----
-
-## Future Enhancements
-
-### Planned Features (Phase 4+)
-
-- [ ] **Token Binding**: Bind tokens to specific devices/certificates
-- [ ] **DPoP (Demonstrating Proof of Possession)**: RFC 9449 support
-- [ ] **Token Exchange**: RFC 8693 for delegation scenarios
-- [ ] **Incremental Authorization**: Request additional scopes without re-auth
+**Cause**: Token was revoked but client cached it.
+**Solution**: Use introspection to check real-time status.
 
 ---
 
 ## References
 
 - [RFC 6749 - OAuth 2.0](https://tools.ietf.org/html/rfc6749)
-- [RFC 6749 Section 6 - Refresh Token](https://tools.ietf.org/html/rfc6749#section-6)
 - [RFC 7662 - Token Introspection](https://tools.ietf.org/html/rfc7662)
 - [RFC 7009 - Token Revocation](https://tools.ietf.org/html/rfc7009)
 - [OAuth 2.0 Security Best Current Practice](https://tools.ietf.org/html/draft-ietf-oauth-security-topics)
 
 ---
 
-**Last Updated**: 2025-11-12
-**Status**: ✅ Implemented and Tested
-**Tests**: 47+ passing tests
-**Implementation**: `src/handlers/token.ts`, `src/handlers/introspect.ts`, `src/handlers/revoke.ts`
+**Last Updated**: 2025-12-20
+**Status**: ✅ Implemented
+**Implementation**: `packages/op-token/src/token.ts`, `packages/op-management/src/routes/introspect.ts`, `packages/op-management/src/routes/revoke.ts`

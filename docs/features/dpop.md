@@ -2,54 +2,174 @@
 
 ## Overview
 
-**RFC 9449** - OAuth 2.0 Demonstrating Proof of Possession (DPoP)
+**RFC 9449** - OAuth 2.0 Demonstrating Proof of Possession
 
 Authrim implements DPoP, a modern OAuth 2.0 security extension that binds access tokens to a specific client's cryptographic key, preventing token theft and replay attacks even if tokens are intercepted.
 
-## Specification
+### Specification
 
-- **RFC**: [RFC 9449 - OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)
-- **Status**: ✅ Implemented
-- **Supported Endpoints**: `/token`, `/userinfo`
+| Attribute | Value |
+|-----------|-------|
+| **RFC** | [RFC 9449 - DPoP](https://datatracker.ietf.org/doc/html/rfc9449) |
+| **Status** | ✅ Implemented |
+| **Endpoints** | `/token`, `/userinfo`, `/introspect` |
 
 ---
 
-## Why Use DPoP?
+## Benefits
 
-### Security Benefits
+### Security Advantages
 
 1. **🔐 Token Theft Protection**
    - Access tokens are cryptographically bound to client's key pair
    - Stolen tokens cannot be used by attackers (no private key)
    - Eliminates bearer token vulnerabilities
-   - Prevents man-in-the-middle attacks
 
 2. **🛡️ Replay Attack Prevention**
    - Each request requires fresh DPoP proof (60-second window)
    - Unique `jti` (JWT ID) enforced per proof
    - Automatic replay detection via nonce tracking
-   - Protection against token reuse attacks
 
-3. **🌐 Edge-Native Security**
-   - Perfect for distributed edge architectures
-   - No shared session state required
-   - Stateless verification using JWT
-   - Ideal for Cloudflare Workers
-
-4. **🚀 OAuth 2.1 Ready**
+3. **🚀 OAuth 2.1 Ready**
    - DPoP is part of OAuth 2.1 draft
-   - Future-proof security standard
    - Recommended by OAuth working group
-   - Industry-leading security posture
+   - Future-proof security standard
 
-### Use Cases
+---
 
-- **Financial Services**: FAPI (Financial-grade API) compliance
-- **Healthcare**: HIPAA-compliant token security
-- **High-Security APIs**: Government, banking, enterprise
-- **Mobile Apps**: Secure token storage and usage
-- **Public Networks**: Protection on untrusted networks
-- **Zero Trust Architecture**: Cryptographic proof of possession
+## Practical Use Cases
+
+### Use Case 1: Open Banking API Security
+
+**Scenario**: A fintech company builds an app that connects to multiple banks via Open Banking APIs. The app initiates payments, views balances, and manages standing orders on behalf of customers.
+
+**Challenge**: Open Banking APIs handle sensitive financial data and transactions. If an access token is stolen (via network interception, logging, or memory dumps), attackers could initiate unauthorized transactions.
+
+**DPoP Solution**:
+```typescript
+// Fintech app generates a key pair per device
+const keyPair = await crypto.subtle.generateKey(
+  { name: 'ECDSA', namedCurve: 'P-256' },
+  true,
+  ['sign', 'verify']
+);
+
+// Each API call includes a fresh DPoP proof
+async function initiatePayment(accessToken: string, payment: PaymentDetails) {
+  const dpopProof = await createDPoPProof({
+    privateKey: keyPair.privateKey,
+    publicKeyJwk: await exportJWK(keyPair.publicKey),
+    method: 'POST',
+    url: 'https://bank-api.authrim.com/payments',
+    accessToken  // ath claim binds proof to specific token
+  });
+
+  return fetch('https://bank-api.authrim.com/payments', {
+    method: 'POST',
+    headers: {
+      'Authorization': `DPoP ${accessToken}`,
+      'DPoP': dpopProof
+    },
+    body: JSON.stringify(payment)
+  });
+}
+```
+
+**Result**: Even if an attacker intercepts the access token from logs or network traffic, they cannot use it because:
+- They don't have the private key to create valid DPoP proofs
+- The `ath` claim in the proof is tied to that specific token
+- The `jti` prevents replaying captured proofs
+
+---
+
+### Use Case 2: Enterprise Zero-Trust API Gateway
+
+**Scenario**: A large enterprise adopts Zero Trust architecture. All internal APIs (HR, Finance, Engineering) require cryptographic proof that requests come from authorized applications, not just valid tokens.
+
+**Challenge**: In Zero Trust, even internal network traffic is untrusted. Bearer tokens alone don't prove the request came from the original authorized client—they could be forwarded, stolen, or leaked.
+
+**DPoP Solution**:
+```python
+class EnterpriseAPIClient:
+    def __init__(self, service_name: str):
+        # Each microservice has its own key pair stored in HSM
+        self.private_key = hsm.get_signing_key(f"{service_name}-dpop")
+        self.public_jwk = hsm.get_public_jwk(f"{service_name}-dpop")
+
+    def call_api(self, method: str, url: str, access_token: str, body=None):
+        # Create proof with hardware-backed key
+        dpop_proof = self.create_dpop_proof(method, url, access_token)
+
+        headers = {
+            'Authorization': f'DPoP {access_token}',
+            'DPoP': dpop_proof,
+            'X-Service-Name': self.service_name
+        }
+
+        response = requests.request(method, url, headers=headers, json=body)
+        return response
+
+# API Gateway validation
+def validate_request(request):
+    dpop_proof = request.headers['DPoP']
+    access_token = extract_dpop_token(request.headers['Authorization'])
+
+    # Verify: token's cnf.jkt matches proof's jwk thumbprint
+    token_jkt = decode_jwt(access_token)['cnf']['jkt']
+    proof_jkt = calculate_jwk_thumbprint(dpop_proof.jwk)
+
+    if token_jkt != proof_jkt:
+        raise SecurityError("Token not bound to this client")
+```
+
+**Result**: Each microservice cryptographically proves it's the legitimate holder of the access token. Forwarded or proxied requests fail because the forwarding service cannot create valid proofs.
+
+---
+
+### Use Case 3: Healthcare Mobile App (HIPAA Compliance)
+
+**Scenario**: A healthcare provider's mobile app allows patients to view lab results, schedule appointments, and message doctors. The app accesses Protected Health Information (PHI) via FHIR APIs.
+
+**Challenge**: HIPAA requires safeguards to protect PHI. Mobile devices can be lost or compromised. If a token is extracted from a compromised device, the attacker shouldn't be able to access another patient's data from a different device.
+
+**DPoP Solution**:
+```swift
+// iOS app stores DPoP key in Secure Enclave
+class SecureAuthClient {
+    private let keychain = Keychain(service: "com.healthcare.dpop")
+    private var privateKey: SecKey?
+
+    init() {
+        // Key never leaves Secure Enclave
+        self.privateKey = try! keychain.createSecureEnclaveKey(
+            tag: "dpop-signing-key",
+            accessControl: .biometryAny  // Require Face ID/Touch ID
+        )
+    }
+
+    func fetchPatientRecords(accessToken: String) async throws -> [PatientRecord] {
+        // Biometric auth required to use key
+        let dpopProof = try await createDPoPProof(
+            method: "GET",
+            url: "https://fhir.hospital.org/Patient",
+            accessToken: accessToken
+        )
+
+        let request = URLRequest(url: URL(string: "https://fhir.hospital.org/Patient")!)
+        request.setValue("DPoP \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(dpopProof, forHTTPHeaderField: "DPoP")
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return try JSONDecoder().decode([PatientRecord].self, from: data)
+    }
+}
+```
+
+**Result**:
+- DPoP key is stored in hardware Secure Enclave, never exportable
+- Biometric authentication required to use the key
+- Even with a stolen token, attackers cannot use it on a different device
+- Meets HIPAA technical safeguard requirements for access control
 
 ---
 
@@ -61,28 +181,35 @@ Authrim implements DPoP, a modern OAuth 2.0 security extension that binds access
 sequenceDiagram
     participant Client
     participant AS as Authorization Server
+    participant RS as Resource Server
 
     Note over Client: 1. Generate Key Pair (once)<br/>Private Key + Public Key (JWK)
 
-    Client->>AS: 2. POST /token<br/>Authorization: Basic client_id:secret<br/>DPoP: dpop_proof_jwt
-    Note over AS: 3. Validate DPoP Proof<br/>(signature, claims)
-    Note over AS: 4. Bind Token to JWK (cnf claim)
-    AS-->>Client: 5. 200 OK<br/>{access_token, token_type: "DPoP"}
+    Client->>AS: 2. POST /token<br/>DPoP: dpop_proof_jwt
+    Note over AS: 3. Validate proof, bind token to JWK
+    AS-->>Client: 4. {access_token, token_type: "DPoP"}
 
-    Client->>AS: 6. GET /userinfo<br/>Authorization: DPoP access_token<br/>DPoP: dpop_proof_jwt
-    Note over AS: 7. Validate<br/>• DPoP proof<br/>• Token cnf<br/>• ath claim
-    AS-->>Client: 8. 200 OK (user info)
+    Client->>RS: 5. GET /resource<br/>Authorization: DPoP access_token<br/>DPoP: dpop_proof_jwt (with ath)
+    Note over RS: 6. Verify proof matches token binding
+    RS-->>Client: 7. Protected resource
 ```
 
-### Step-by-Step Process
+### Token Binding
 
-1. **Client generates key pair**: Client creates an asymmetric key pair (RSA, EC) and keeps private key secure
-2. **Client creates DPoP proof**: Signs JWT with private key, includes public key in `jwk` header
-3. **Client sends request with DPoP header**: Includes `DPoP` header with proof JWT
-4. **Server validates DPoP proof**: Verifies signature, claims, freshness, and replay protection
-5. **Server binds token to key**: Includes `cnf` claim with JWK thumbprint in access token
-6. **Client uses DPoP-bound token**: Sends token with fresh DPoP proof for each request
-7. **Server validates proof and binding**: Verifies DPoP proof matches token binding
+DPoP-bound access tokens include a `cnf` (confirmation) claim:
+
+```json
+{
+  "iss": "https://your-tenant.authrim.com",
+  "sub": "user-123",
+  "exp": 1699880143,
+  "cnf": {
+    "jkt": "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I"
+  }
+}
+```
+
+The `jkt` (JWK Thumbprint) cryptographically binds the token to the client's public key.
 
 ---
 
@@ -90,794 +217,332 @@ sequenceDiagram
 
 ### DPoP Proof JWT Structure
 
-#### Header
-
+**Header**:
 ```json
 {
   "typ": "dpop+jwt",
-  "alg": "RS256",
+  "alg": "ES256",
   "jwk": {
-    "kty": "RSA",
-    "n": "...",
-    "e": "AQAB"
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "...",
+    "y": "..."
   }
 }
 ```
 
-**Required Header Fields**:
-
-| Field | Value | Description |
-|-------|-------|-------------|
-| `typ` | `dpop+jwt` | Type must be exactly `dpop+jwt` |
-| `alg` | Algorithm | Signing algorithm (e.g., `RS256`, `ES256`) - MUST NOT be `none` |
-| `jwk` | JWK | Public key (MUST NOT include private key material) |
-
-#### Payload (Claims)
-
+**Payload**:
 ```json
 {
   "jti": "unique-identifier-123",
   "htm": "POST",
-  "htu": "https://authrim.sgrastar.workers.dev/token",
+  "htu": "https://your-tenant.authrim.com/token",
   "iat": 1699876543,
-  "ath": "base64url-hash-of-access-token"
-}
-```
-
-**Required Claims**:
-
-| Claim | Type | Description |
-|-------|------|-------------|
-| `jti` | string | Unique identifier for this proof (prevents replay attacks) |
-| `htm` | string | HTTP method (uppercase): `POST`, `GET`, etc. |
-| `htu` | string | HTTP URL of the request (without query/fragment) |
-| `iat` | number | Issued at timestamp (must be recent, within 60 seconds) |
-| `ath` | string | Access token hash (required when using access token) - base64url(SHA-256(access_token)) |
-
----
-
-### Token Endpoint with DPoP
-
-**POST /token**
-
-#### Request
-
-**Headers**:
-```http
-Content-Type: application/x-www-form-urlencoded
-Authorization: Basic <base64(client_id:client_secret)>
-DPoP: <dpop_proof_jwt>
-```
-
-**DPoP Header**: JWT proof signed with client's private key
-
-**Body** (same as standard token request):
-```
-grant_type=authorization_code
-&code=abc123...
-&redirect_uri=https://myapp.example.com/callback
-&code_verifier=xyz789... (if PKCE)
-```
-
-#### Success Response
-
-**Status**: `200 OK`
-
-```json
-{
-  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "DPoP",
-  "expires_in": 3600,
-  "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "scope": "openid profile email"
-}
-```
-
-**Key Differences**:
-- `token_type` is `DPoP` (instead of `Bearer`)
-- Access token includes `cnf` claim with JWK thumbprint
-
-**Access Token Claims (includes)**:
-```json
-{
-  "cnf": {
-    "jkt": "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I"
-  }
-}
-```
-
-#### Error Responses
-
-**400 Bad Request**:
-
-```json
-{
-  "error": "invalid_dpop_proof",
-  "error_description": "DPoP proof signature verification failed"
-}
-```
-
-**Common DPoP Errors**:
-
-| Error Code | Description |
-|------------|-------------|
-| `invalid_dpop_proof` | DPoP proof validation failed (signature, format, claims) |
-| `use_dpop_nonce` | DPoP proof jti already used (replay attack detected) |
-
----
-
-### UserInfo Endpoint with DPoP
-
-**GET /userinfo**
-
-#### Request
-
-**Headers**:
-```http
-Authorization: DPoP <access_token>
-DPoP: <dpop_proof_jwt>
-```
-
-**Note**: Authorization scheme is `DPoP` (not `Bearer`)
-
-#### DPoP Proof Claims (for UserInfo)
-
-```json
-{
-  "jti": "unique-identifier-456",
-  "htm": "GET",
-  "htu": "https://authrim.sgrastar.workers.dev/userinfo",
-  "iat": 1699876600,
   "ath": "fUHyO2r2Z3DZ53EsNrWBb0xWXoaNy59IiKCAqksmQEo"
 }
 ```
 
-**ath claim**: Must match SHA-256 hash of the access token
+| Claim | Required | Description |
+|-------|----------|-------------|
+| `jti` | ✅ Yes | Unique identifier (prevents replay attacks) |
+| `htm` | ✅ Yes | HTTP method (uppercase) |
+| `htu` | ✅ Yes | HTTP URL (without query/fragment) |
+| `iat` | ✅ Yes | Issued at timestamp (must be within 60 seconds) |
+| `ath` | When using token | SHA-256 hash of access token (base64url) |
 
-#### Success Response
+---
 
-**Status**: `200 OK`
+### Token Endpoint
 
+**POST /token**
+
+```http
+POST /token HTTP/1.1
+Host: your-tenant.authrim.com
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic <base64(client_id:client_secret)>
+DPoP: <dpop_proof_jwt>
+
+grant_type=authorization_code&code=abc123&redirect_uri=...
+```
+
+**Success Response**:
 ```json
 {
-  "sub": "user-123",
-  "name": "John Doe",
-  "email": "john@example.com",
-  "email_verified": true
+  "access_token": "eyJhbGciOiJSUzI1NiJ9...",
+  "token_type": "DPoP",
+  "expires_in": 3600
 }
 ```
 
-#### Error Responses
+Note: `token_type` is `DPoP` instead of `Bearer`.
 
-**401 Unauthorized**:
+---
 
-```json
-{
-  "error": "invalid_token",
-  "error_description": "DPoP proof ath claim does not match access token"
-}
+### Resource Endpoint (e.g., UserInfo)
+
+```http
+GET /userinfo HTTP/1.1
+Host: your-tenant.authrim.com
+Authorization: DPoP <access_token>
+DPoP: <dpop_proof_jwt_with_ath>
 ```
+
+Note: Authorization scheme is `DPoP` instead of `Bearer`.
 
 ---
 
 ## Usage Examples
 
-### Example 1: Full DPoP Flow with Token Request
-
-#### Step 1: Generate Key Pair (Client-Side)
-
-```javascript
-// Generate RSA key pair
-const keyPair = await crypto.subtle.generateKey(
-  {
-    name: 'RSASSA-PKCS1-v1_5',
-    modulusLength: 2048,
-    publicExponent: new Uint8Array([1, 0, 1]),
-    hash: 'SHA-256',
-  },
-  true,
-  ['sign', 'verify']
-);
-
-// Export public key as JWK
-const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
-
-// Store private key securely
-// (IndexedDB, secure enclave, etc.)
-```
-
-#### Step 2: Create DPoP Proof JWT
-
-```javascript
-import { SignJWT, exportJWK, calculateJwkThumbprint } from 'jose';
-
-async function createDPoPProof(privateKey, publicKeyJwk, method, url, accessToken) {
-  const jti = crypto.randomUUID(); // Unique ID
-  const iat = Math.floor(Date.now() / 1000);
-
-  const claims = {
-    jti,
-    htm: method.toUpperCase(),
-    htu: new URL(url).origin + new URL(url).pathname, // No query/fragment
-    iat,
-  };
-
-  // Add ath claim if access token is present
-  if (accessToken) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(accessToken);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    claims.ath = base64url(hashBuffer);
-  }
-
-  // Sign JWT with private key
-  const dpopProof = await new SignJWT(claims)
-    .setProtectedHeader({
-      typ: 'dpop+jwt',
-      alg: 'RS256',
-      jwk: publicKeyJwk,
-    })
-    .sign(privateKey);
-
-  return dpopProof;
-}
-```
-
-#### Step 3: Request Tokens with DPoP
-
-```javascript
-const dpopProof = await createDPoPProof(
-  privateKey,
-  publicKeyJwk,
-  'POST',
-  'https://authrim.sgrastar.workers.dev/token'
-);
-
-const tokenResponse = await fetch('https://authrim.sgrastar.workers.dev/token', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Authorization': `Basic ${btoa(clientId + ':' + clientSecret)}`,
-    'DPoP': dpopProof,
-  },
-  body: new URLSearchParams({
-    grant_type: 'authorization_code',
-    code: authorizationCode,
-    redirect_uri: 'https://myapp.example.com/callback',
-  }),
-});
-
-const tokens = await tokenResponse.json();
-// tokens.token_type === 'DPoP'
-// tokens.access_token is now bound to your key pair
-```
-
-#### Step 4: Use Access Token with DPoP
-
-```javascript
-const accessToken = tokens.access_token;
-
-// Create fresh DPoP proof for UserInfo request
-const dpopProofUserInfo = await createDPoPProof(
-  privateKey,
-  publicKeyJwk,
-  'GET',
-  'https://authrim.sgrastar.workers.dev/userinfo',
-  accessToken // Include access token for ath claim
-);
-
-const userInfoResponse = await fetch('https://authrim.sgrastar.workers.dev/userinfo', {
-  method: 'GET',
-  headers: {
-    'Authorization': `DPoP ${accessToken}`,
-    'DPoP': dpopProofUserInfo,
-  },
-});
-
-const userInfo = await userInfoResponse.json();
-```
-
----
-
-### Example 2: DPoP with Refresh Token
-
-```javascript
-const dpopProof = await createDPoPProof(
-  privateKey,
-  publicKeyJwk,
-  'POST',
-  'https://authrim.sgrastar.workers.dev/token'
-);
-
-const tokenResponse = await fetch('https://authrim.sgrastar.workers.dev/token', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Authorization': `Basic ${btoa(clientId + ':' + clientSecret)}`,
-    'DPoP': dpopProof,
-  },
-  body: new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-  }),
-});
-
-const tokens = await tokenResponse.json();
-// New access token is also DPoP-bound
-```
-
----
-
-## Implementation Details
-
-### DPoP Proof Validation
-
-Authrim validates the following:
-
-1. **JWT Structure**: Must be valid 3-part JWT (header.payload.signature)
-2. **Header Validation**:
-   - `typ` must be exactly `dpop+jwt`
-   - `alg` must be valid signing algorithm (not `none`)
-   - `jwk` must be present and valid public key
-   - `jwk` must NOT contain private key material (`d`, `p`, `q`, etc.)
-3. **Signature Verification**: JWT signature verified using public key from `jwk` header
-4. **Claims Validation**:
-   - `jti` must be present and unique
-   - `htm` must match HTTP method (uppercase)
-   - `htu` must match request URL (without query/fragment)
-   - `iat` must be present and recent (within 60 seconds)
-   - `ath` must match access token hash (when access token is present)
-5. **Replay Protection**: `jti` checked against used JTIs in KV store
-6. **Freshness**: Proof must be issued within last 60 seconds
-
-### Access Token Binding
-
-DPoP-bound access tokens include a `cnf` (confirmation) claim:
-
-```json
-{
-  "iss": "https://authrim.sgrastar.workers.dev",
-  "sub": "user-123",
-  "aud": "https://authrim.sgrastar.workers.dev",
-  "exp": 1699880143,
-  "iat": 1699876543,
-  "scope": "openid profile email",
-  "cnf": {
-    "jkt": "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I"
-  }
-}
-```
-
-**cnf.jkt**: JWK thumbprint (SHA-256) of the client's public key
-
-### JWK Thumbprint Calculation
+### JavaScript/TypeScript
 
 ```typescript
-import { calculateJwkThumbprint } from 'jose';
+import { SignJWT, exportJWK, calculateJwkThumbprint } from 'jose';
 
-const jkt = await calculateJwkThumbprint(jwk, 'sha256');
-// Example: "0ZcOCORZNYy-DWpqq30jZyJGHTN0d2HglBV3uiguA4I"
+class DPoPClient {
+  private keyPair!: CryptoKeyPair;
+  private publicKeyJwk!: JsonWebKey;
+
+  async initialize() {
+    this.keyPair = await crypto.subtle.generateKey(
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      true,
+      ['sign', 'verify']
+    );
+    this.publicKeyJwk = await crypto.subtle.exportKey('jwk', this.keyPair.publicKey);
+  }
+
+  async createProof(method: string, url: string, accessToken?: string): Promise<string> {
+    const claims: any = {
+      jti: crypto.randomUUID(),
+      htm: method.toUpperCase(),
+      htu: new URL(url).origin + new URL(url).pathname,
+      iat: Math.floor(Date.now() / 1000)
+    };
+
+    if (accessToken) {
+      const hash = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(accessToken)
+      );
+      claims.ath = btoa(String.fromCharCode(...new Uint8Array(hash)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    return await new SignJWT(claims)
+      .setProtectedHeader({
+        typ: 'dpop+jwt',
+        alg: 'ES256',
+        jwk: this.publicKeyJwk
+      })
+      .sign(this.keyPair.privateKey);
+  }
+
+  async getTokens(code: string, clientId: string, redirectUri: string) {
+    const proof = await this.createProof('POST', 'https://your-tenant.authrim.com/token');
+
+    const response = await fetch('https://your-tenant.authrim.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'DPoP': proof
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: clientId,
+        redirect_uri: redirectUri
+      })
+    });
+
+    return response.json();  // token_type: "DPoP"
+  }
+
+  async callAPI(url: string, accessToken: string) {
+    const proof = await this.createProof('GET', url, accessToken);
+
+    return fetch(url, {
+      headers: {
+        'Authorization': `DPoP ${accessToken}`,
+        'DPoP': proof
+      }
+    });
+  }
+}
 ```
 
-### Replay Protection (JTI Storage)
+---
 
-**KV Namespace**: `NONCE_STORE`
+### Python
 
-**Key Format**: `dpop_jti:{jti}`
+```python
+import time
+import uuid
+import hashlib
+import base64
+from jose import jwt
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.backends import default_backend
 
-**Value**: `"1"` (presence indicates used)
+class DPoPClient:
+    def __init__(self):
+        self.private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
+        self.public_key = self.private_key.public_key()
+        self.public_jwk = self._export_public_jwk()
 
-**TTL**: 60 seconds (same as proof freshness window)
+    def create_proof(self, method: str, url: str, access_token: str = None) -> str:
+        claims = {
+            'jti': str(uuid.uuid4()),
+            'htm': method.upper(),
+            'htu': url.split('?')[0],  # Remove query string
+            'iat': int(time.time())
+        }
 
-This ensures each DPoP proof can only be used once within its validity period.
+        if access_token:
+            ath = hashlib.sha256(access_token.encode()).digest()
+            claims['ath'] = base64.urlsafe_b64encode(ath).rstrip(b'=').decode()
+
+        headers = {
+            'typ': 'dpop+jwt',
+            'alg': 'ES256',
+            'jwk': self.public_jwk
+        }
+
+        return jwt.encode(claims, self.private_key, algorithm='ES256', headers=headers)
+
+    def get_tokens(self, code: str, client_id: str, redirect_uri: str):
+        proof = self.create_proof('POST', 'https://your-tenant.authrim.com/token')
+
+        response = requests.post(
+            'https://your-tenant.authrim.com/token',
+            headers={'DPoP': proof},
+            data={
+                'grant_type': 'authorization_code',
+                'code': code,
+                'client_id': client_id,
+                'redirect_uri': redirect_uri
+            }
+        )
+        return response.json()
+```
 
 ---
 
 ## Security Considerations
 
-### 1. Key Pair Management
+### Key Management
 
-**Client Responsibilities**:
-- ✅ Generate strong key pairs (RSA 2048+ or EC P-256+)
-- ✅ Store private key securely (secure enclave, encrypted storage)
-- ✅ Never transmit private key
-- ✅ Rotate keys periodically
-- ✅ Use separate key pairs per device/instance
+| Practice | Recommendation |
+|----------|----------------|
+| Key Generation | Use RSA 2048+ or EC P-256+ |
+| Key Storage | Secure enclave, HSM, or encrypted keychain |
+| Key Rotation | Rotate every 30-90 days |
+| Private Key | Never transmit or log |
 
-**Server Validation**:
-- ✅ Rejects JWK with private key material
-- ✅ Validates JWK structure and parameters
-- ✅ Supports multiple signing algorithms
+### Proof Validation
 
-### 2. DPoP Proof Freshness
+| Check | Requirement |
+|-------|-------------|
+| `typ` header | Must be exactly `dpop+jwt` |
+| `alg` header | Must not be `none` |
+| `jwk` header | Must not contain private key (`d`, `p`, `q`) |
+| `iat` claim | Must be within 60 seconds |
+| `jti` claim | Must be unique (single-use) |
+| `htm` claim | Must match HTTP method |
+| `htu` claim | Must match request URL |
+| `ath` claim | Must match SHA-256 of access token |
 
-- ✅ **60-second window**: Proofs must be issued within last 60 seconds
-- ✅ **Clock skew tolerance**: 60 seconds for `iat` validation
-- ✅ **Single-use**: Each `jti` can only be used once
+### Supported Algorithms
 
-### 3. Access Token Hash (ath)
-
-- ✅ **Required for protected resources**: When using access token, `ath` claim is mandatory
-- ✅ **SHA-256 hash**: Cryptographic hash of the access token
-- ✅ **Prevents token substitution**: Proof is bound to specific access token
-
-### 4. Replay Attack Prevention
-
-- ✅ **JTI tracking**: All used JTIs stored in KV with 60-second TTL
-- ✅ **Automatic cleanup**: Expired JTIs automatically removed
-- ✅ **Distributed protection**: Works across edge nodes (KV global replication)
-
-### 5. Algorithm Security
-
-**Supported Algorithms** (secure):
 - ✅ RS256, RS384, RS512 (RSA)
 - ✅ ES256, ES384, ES512 (ECDSA)
 - ✅ PS256, PS384, PS512 (RSA-PSS)
-
-**Rejected Algorithms**:
-- ❌ `none` (no signature)
-- ❌ Symmetric algorithms (HS256, HS384, HS512)
+- ❌ none, HS256, HS384, HS512 (rejected)
 
 ---
 
 ## Configuration
 
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NONCE_STORE` | Required | KV namespace for JTI replay protection |
-
 ### Discovery Metadata
-
-DPoP support is advertised in the OpenID Provider metadata:
 
 ```json
 {
   "dpop_signing_alg_values_supported": [
-    "RS256", "RS384", "RS512",
-    "ES256", "ES384", "ES512",
-    "PS256", "PS384", "PS512"
+    "RS256", "ES256", "PS256"
   ]
 }
 ```
 
 ---
 
+## Comparison: Bearer vs DPoP
+
+| Aspect | Bearer Token | DPoP Token |
+|--------|--------------|------------|
+| Token binding | None | Cryptographically bound to key |
+| Stolen token usability | Fully usable | Unusable without private key |
+| Replay protection | None | jti-based single-use |
+| FAPI 2.0 compliance | ❌ No | ✅ Yes |
+| OAuth 2.1 recommendation | Legacy | Recommended |
+
+---
+
 ## Testing
 
-### Test Coverage
+### Test Scenarios
 
-Authrim includes comprehensive tests for DPoP:
-
-**Test File**: `test/dpop.test.ts`
-
-**Test Scenarios**:
-- ✅ Access token hash calculation (SHA-256)
-- ✅ Consistent hash for same token
-- ✅ Different hashes for different tokens
-- ✅ DPoP-bound token detection (`isDPoPBoundToken`)
-- ✅ Token extraction from DPoP Authorization header
-- ✅ Case-insensitive scheme matching
-- ✅ Whitespace handling
-- ✅ Invalid format rejection
-- ✅ Bearer token distinction
-
-**Total**: 12+ test cases
-
-### Integration Tests
-
-Additional integration tests in:
-- `test/handlers/token.test.ts` - DPoP token issuance
-- `test/handlers/userinfo.test.ts` - DPoP proof validation with access tokens
-- `test/token-introspection.test.ts` - DPoP-bound token introspection
+| Scenario | Expected Result |
+|----------|-----------------|
+| Token request with valid DPoP | 200 with token_type: "DPoP" |
+| Missing DPoP proof | 200 with Bearer token (downgrade) |
+| Invalid proof signature | 400 invalid_dpop_proof |
+| Expired proof (> 60s) | 400 invalid_dpop_proof |
+| Reused jti | 400 use_dpop_nonce |
+| Wrong htm/htu | 400 invalid_dpop_proof |
+| Missing ath on resource access | 401 invalid_token |
 
 ### Running Tests
 
 ```bash
-npm test -- dpop.test.ts
+pnpm --filter @authrim/op-token run test
+pnpm --filter @authrim/op-userinfo run test
 ```
-
----
-
-## Client Libraries
-
-### JavaScript/TypeScript (with jose)
-
-```typescript
-import { generateKeyPair, SignJWT, exportJWK } from 'jose';
-import { encode as base64url } from 'jose/util/base64url';
-
-class DPoPClient {
-  private keyPair: CryptoKeyPair | null = null;
-  private publicKeyJwk: any = null;
-
-  async initialize() {
-    // Generate key pair
-    this.keyPair = await generateKeyPair('RS256');
-    this.publicKeyJwk = await exportJWK(this.keyPair.publicKey);
-  }
-
-  async createProof(method: string, url: string, accessToken?: string): Promise<string> {
-    if (!this.keyPair) throw new Error('Client not initialized');
-
-    const jti = crypto.randomUUID();
-    const iat = Math.floor(Date.now() / 1000);
-
-    const parsedUrl = new URL(url);
-    const htu = `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}`;
-
-    const claims: any = { jti, htm: method.toUpperCase(), htu, iat };
-
-    if (accessToken) {
-      // Calculate ath
-      const encoder = new TextEncoder();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(accessToken));
-      claims.ath = base64url(new Uint8Array(hashBuffer));
-    }
-
-    return await new SignJWT(claims)
-      .setProtectedHeader({
-        typ: 'dpop+jwt',
-        alg: 'RS256',
-        jwk: this.publicKeyJwk,
-      })
-      .sign(this.keyPair.privateKey);
-  }
-
-  async requestToken(authCode: string, clientId: string, clientSecret: string, redirectUri: string) {
-    const dpopProof = await this.createProof('POST', 'https://authrim.sgrastar.workers.dev/token');
-
-    const response = await fetch('https://authrim.sgrastar.workers.dev/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${btoa(clientId + ':' + clientSecret)}`,
-        'DPoP': dpopProof,
-      },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code: authCode,
-        redirect_uri: redirectUri,
-      }),
-    });
-
-    return await response.json();
-  }
-
-  async getUserInfo(accessToken: string) {
-    const dpopProof = await this.createProof(
-      'GET',
-      'https://authrim.sgrastar.workers.dev/userinfo',
-      accessToken
-    );
-
-    const response = await fetch('https://authrim.sgrastar.workers.dev/userinfo', {
-      headers: {
-        'Authorization': `DPoP ${accessToken}`,
-        'DPoP': dpopProof,
-      },
-    });
-
-    return await response.json();
-  }
-}
-
-// Usage
-const client = new DPoPClient();
-await client.initialize();
-
-const tokens = await client.requestToken(authCode, clientId, clientSecret, redirectUri);
-const userInfo = await client.getUserInfo(tokens.access_token);
-```
-
----
-
-## Comparison: Bearer vs DPoP
-
-### Bearer Token (Traditional)
-
-```http
-GET /userinfo HTTP/1.1
-Host: authrim.sgrastar.workers.dev
-Authorization: Bearer eyJhbGciOiJSUzI1NiJ9...
-```
-
-**Issues**:
-- ❌ Token can be used by anyone who has it
-- ❌ Stolen tokens are fully usable
-- ❌ No cryptographic binding
-- ❌ Vulnerable to token theft attacks
-
-### DPoP Token (Secure)
-
-```http
-GET /userinfo HTTP/1.1
-Host: authrim.sgrastar.workers.dev
-Authorization: DPoP eyJhbGciOiJSUzI1NiJ9...
-DPoP: eyJhbGciOiJSUzI1NiIsInR5cCI6ImRwb3Arand0IiwiandrIjp7Imt0eSI6IlJTQSIsIm4iOiIuLi4iLCJlIjoiQVFBQiJ9fQ.eyJqdGkiOiJ1bmlxdWUtaWQiLCJodG0iOiJHRVQiLCJodHUiOiJodHRwczovL2hpYmFuYS5zZ3Jhc3Rhci53b3JrZXJzLmRldi91c2VyaW5mbyIsImlhdCI6MTY5OTg3NjYwMCwiYXRoIjoiZlVIeU8ycjJaM0RaNTNFc05yV0JiMHhXWG9hTnk1OUlpS0NBcWtzbVFFbyJ9.signature...
-```
-
-**Benefits**:
-- ✅ Token bound to client's private key
-- ✅ Stolen tokens unusable without private key
-- ✅ Cryptographic proof of possession
-- ✅ Protection against token theft
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
+### "DPoP proof typ header must be 'dpop+jwt'"
 
-#### "DPoP proof typ header must be 'dpop+jwt'"
+**Cause**: Incorrect JWT type header.
+**Solution**: Set header `typ` to exactly `dpop+jwt`.
 
-**Cause**: Incorrect JWT type in header
+### "DPoP proof is too old"
 
-**Solution**:
-```javascript
-{
-  "typ": "dpop+jwt",  // Must be exactly this
-  "alg": "RS256",
-  "jwk": {...}
-}
-```
+**Cause**: Proof `iat` is more than 60 seconds ago.
+**Solution**: Generate fresh proof for each request with current timestamp.
 
-#### "DPoP proof must include jwk header parameter"
+### "DPoP proof jti has already been used"
 
-**Cause**: Missing or invalid `jwk` in JWT header
+**Cause**: Reusing the same proof.
+**Solution**: Generate new UUID for `jti` on every request.
 
-**Solution**: Include public key JWK in header:
-```javascript
-const header = {
-  typ: 'dpop+jwt',
-  alg: 'RS256',
-  jwk: publicKeyJwk  // Must include public key
-};
-```
+### "DPoP proof ath claim does not match access token"
 
-#### "JWK must not contain private key material"
-
-**Cause**: Private key parameters (`d`, `p`, `q`, etc.) in JWK
-
-**Solution**: Export only public key:
-```javascript
-const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
-// Remove any private parameters
-delete publicKeyJwk.d;
-delete publicKeyJwk.p;
-delete publicKeyJwk.q;
-```
-
-#### "DPoP proof htm claim must match request method"
-
-**Cause**: HTTP method mismatch
-
-**Solution**:
-```javascript
-htm: 'POST'  // Must match actual request method (uppercase)
-```
-
-#### "DPoP proof htu claim must match request URL"
-
-**Cause**: URL mismatch or includes query/fragment
-
-**Solution**:
-```javascript
-// Correct: protocol + host + pathname only
-htu: 'https://authrim.sgrastar.workers.dev/userinfo'
-
-// Incorrect: includes query
-htu: 'https://authrim.sgrastar.workers.dev/userinfo?foo=bar'
-```
-
-#### "DPoP proof is too old (must be within 60 seconds)"
-
-**Cause**: Proof issued more than 60 seconds ago
-
-**Solution**: Generate fresh proof for each request:
-```javascript
-iat: Math.floor(Date.now() / 1000)  // Current timestamp
-```
-
-#### "DPoP proof ath claim does not match access token"
-
-**Cause**: Access token hash mismatch
-
-**Solution**: Calculate correct ath:
-```javascript
-const encoder = new TextEncoder();
-const data = encoder.encode(accessToken);
-const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-const ath = base64url(new Uint8Array(hashBuffer));
-```
-
-#### "DPoP proof jti has already been used (replay attack detected)"
-
-**Cause**: Reusing same DPoP proof
-
-**Solution**: Generate new unique `jti` for each request:
-```javascript
-jti: crypto.randomUUID()  // Fresh UUID for each proof
-```
-
----
-
-## Best Practices
-
-### For Clients
-
-1. **Generate Strong Keys**
-   - Use RSA 2048+ or EC P-256+
-   - Use secure random number generator
-   - Store private key in secure enclave/keychain
-
-2. **Fresh Proofs**
-   - Generate new proof for each request
-   - Never reuse proofs
-   - Use current timestamp for `iat`
-
-3. **Unique JTI**
-   - Generate cryptographically random `jti`
-   - Use UUID v4 or similar
-   - Never reuse JTI values
-
-4. **Secure Key Storage**
-   - Use Web Crypto API secure key storage
-   - Use hardware security modules when available
-   - Never log or transmit private keys
-
-5. **Key Rotation**
-   - Rotate keys periodically (e.g., every 30-90 days)
-   - Support multiple active keys during rotation
-   - Revoke old keys properly
-
-### For Security
-
-1. **Use DPoP for High-Value APIs**
-   - Financial transactions
-   - Healthcare data access
-   - Government services
-   - Enterprise APIs
-
-2. **Combine with PKCE**
-   - Use DPoP + PKCE for maximum security
-   - PKCE protects authorization code
-   - DPoP protects access token
-
-3. **Monitor for Anomalies**
-   - Log DPoP proof validation failures
-   - Alert on replay attack attempts
-   - Monitor for suspicious patterns
-
----
-
-## Future Enhancements
-
-### Planned Features (Phase 5+)
-
-- [ ] **DPoP Nonce**: Server-provided nonce for enhanced replay protection
-- [ ] **Key Rotation API**: Endpoint for rotating DPoP keys
-- [ ] **Multiple Key Support**: Allow clients to register multiple keys
-- [ ] **DPoP with mTLS**: Combined DPoP + mutual TLS
-- [ ] **Hardware Key Support**: WebAuthn/FIDO2 key integration
-- [ ] **Analytics**: DPoP usage statistics and security metrics
+**Cause**: Access token hash mismatch.
+**Solution**: Calculate `ath` as base64url(SHA-256(access_token)).
 
 ---
 
 ## References
 
-- [RFC 9449 - OAuth 2.0 Demonstrating Proof of Possession (DPoP)](https://datatracker.ietf.org/doc/html/rfc9449)
+- [RFC 9449 - OAuth 2.0 DPoP](https://datatracker.ietf.org/doc/html/rfc9449)
 - [OAuth 2.1 Draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1)
 - [FAPI 2.0 Security Profile](https://openid.net/specs/fapi-2_0-security-profile.html)
 - [OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics)
-- [RFC 9110 - HTTP Semantics](https://datatracker.ietf.org/doc/html/rfc9110)
 
 ---
 
-**Last Updated**: 2025-11-12
-**Status**: ✅ Implemented and Tested
-**Tests**: 12+ passing tests (unit + integration)
-**Implementation**: `src/utils/dpop.ts`, `src/handlers/token.ts`, `src/handlers/userinfo.ts`
-**Discovery**: `src/handlers/discovery.ts` (dpop_signing_alg_values_supported)
+**Last Updated**: 2025-12-20
+**Status**: ✅ Implemented
+**Implementation**: `packages/shared/src/utils/dpop.ts`, `packages/op-token/src/token.ts`, `packages/op-userinfo/src/userinfo.ts`

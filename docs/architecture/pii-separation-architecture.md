@@ -26,10 +26,10 @@ WebAuthn 仕様では `user_handle`（authenticator に保存されるユーザ�
 
 ```typescript
 // packages/op-auth/src/passkey.ts:179
-userID: encoder.encode(user.id as string)  // user.id は UUID
+userID: encoder.encode(user.id as string); // user.id は UUID
 
 // packages/op-auth/src/passkey.ts:129
-const newUserId = crypto.randomUUID();  // UUID v4 で生成
+const newUserId = crypto.randomUUID(); // UUID v4 で生成
 ```
 
 **結論**: `user_handle` には `crypto.randomUUID()` で生成された UUID が使用されており、**PII は含まれていない**。これは正しい実装である。
@@ -81,11 +81,19 @@ const accessTokenClaims = {
 ```typescript
 // packages/op-token/src/token.ts:938-949
 const idTokenClaims = {
-  iss, sub, aud, nonce, at_hash, auth_time, sid,  // ✅ すべて非PII
+  iss,
+  sub,
+  aud,
+  nonce,
+  at_hash,
+  auth_time,
+  sid, // ✅ すべて非PII
   // RBAC Claims（環境変数で制御可能）
-  authrim_roles, authrim_user_type, authrim_org_id,  // ✅ 非PII
-  authrim_org_name,  // ⚠️ 準PII（企業名）- デフォルトでは含まれない
-  authrim_orgs,      // ⚠️ 準PII（組織名を含む）- デフォルトでは含まれない
+  authrim_roles,
+  authrim_user_type,
+  authrim_org_id, // ✅ 非PII
+  authrim_org_name, // ⚠️ 準PII（企業名）- デフォルトでは含まれない
+  authrim_orgs, // ⚠️ 準PII（組織名を含む）- デフォルトでは含まれない
 };
 ```
 
@@ -96,7 +104,11 @@ const idTokenClaims = {
 ```typescript
 // packages/op-token/src/token.ts:1057-1063
 const refreshTokenClaims = {
-  iss, sub, aud, scope, client_id  // ✅ すべて非PII
+  iss,
+  sub,
+  aud,
+  scope,
+  client_id, // ✅ すべて非PII
 };
 ```
 
@@ -106,50 +118,50 @@ const refreshTokenClaims = {
 
 #### PII を含むテーブル（分離が必要）
 
-| テーブル名 | PII フィールド | リスクレベル |
-|-----------|---------------|-------------|
-| `users` | email, name, given_name, family_name, middle_name, nickname, preferred_username, phone_number, address_json, birthdate, gender, picture, profile, website, password_hash | **Critical** |
-| `user_custom_fields` | field_value（任意の PII が入る可能性） | **High** |
-| `subject_identifiers` | identifier_value（email, phone, DID 等） | **High** |
-| `verified_attributes` | attribute_value（医療ライセンス番号等） | **High** |
-| `linked_identities` | provider_email, raw_claims, profile_data | **High** |
-| `audit_log` | ip_address, user_agent | **Medium** |
+| テーブル名            | PII フィールド                                                                                                                                                           | リスクレベル |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ |
+| `users`               | email, name, given_name, family_name, middle_name, nickname, preferred_username, phone_number, address_json, birthdate, gender, picture, profile, website, password_hash | **Critical** |
+| `user_custom_fields`  | field_value（任意の PII が入る可能性）                                                                                                                                   | **High**     |
+| `subject_identifiers` | identifier_value（email, phone, DID 等）                                                                                                                                 | **High**     |
+| `verified_attributes` | attribute_value（医療ライセンス番号等）                                                                                                                                  | **High**     |
+| `linked_identities`   | provider_email, raw_claims, profile_data                                                                                                                                 | **High**     |
+| `audit_log`           | ip_address, user_agent                                                                                                                                                   | **Medium**   |
 
 #### Non-PII テーブル（分離不要）
 
-| カテゴリ | テーブル名 | 説明 |
-|---------|-----------|------|
-| **認証インフラ** | passkeys | 公開鍵、credential_id（UUID 参照） |
-| | sessions | セッション ID（UUID 参照） |
-| | password_reset_tokens | トークンハッシュのみ |
-| | user_token_families | JTI、UUID 参照 |
-| | external_idp_auth_states | OAuth state、PKCE verifier |
-| **認可・RBAC** | roles | ロール定義 |
-| | user_roles | UUID 参照のみ |
-| | role_assignments | UUID 参照のみ |
-| | organizations | 組織名（※準 PII、要検討） |
-| | subject_org_membership | UUID 参照のみ |
-| | relationships | ReBAC 関係（UUID 参照） |
-| | relation_definitions | 関係定義 |
-| | relationship_closure | 推移的閉包 |
-| **設定・マスタ** | oauth_clients | クライアント設定 |
-| | oauth_client_consents | UUID 参照のみ |
-| | upstream_providers | IdP 設定 |
-| | scope_mappings | スコープ定義 |
-| | branding_settings | UI 設定 |
-| | identity_providers | IdP 設定 |
-| | refresh_token_shard_configs | シャーディング設定 |
+| カテゴリ         | テーブル名                  | 説明                               |
+| ---------------- | --------------------------- | ---------------------------------- |
+| **認証インフラ** | passkeys                    | 公開鍵、credential_id（UUID 参照） |
+|                  | sessions                    | セッション ID（UUID 参照）         |
+|                  | password_reset_tokens       | トークンハッシュのみ               |
+|                  | user_token_families         | JTI、UUID 参照                     |
+|                  | external_idp_auth_states    | OAuth state、PKCE verifier         |
+| **認可・RBAC**   | roles                       | ロール定義                         |
+|                  | user_roles                  | UUID 参照のみ                      |
+|                  | role_assignments            | UUID 参照のみ                      |
+|                  | organizations               | 組織名（※準 PII、要検討）          |
+|                  | subject_org_membership      | UUID 参照のみ                      |
+|                  | relationships               | ReBAC 関係（UUID 参照）            |
+|                  | relation_definitions        | 関係定義                           |
+|                  | relationship_closure        | 推移的閉包                         |
+| **設定・マスタ** | oauth_clients               | クライアント設定                   |
+|                  | oauth_client_consents       | UUID 参照のみ                      |
+|                  | upstream_providers          | IdP 設定                           |
+|                  | scope_mappings              | スコープ定義                       |
+|                  | branding_settings           | UI 設定                            |
+|                  | identity_providers          | IdP 設定                           |
+|                  | refresh_token_shard_configs | シャーディング設定                 |
 
 ### 2.3 KV キャッシュの PII 分類
 
-| KV Namespace | PII | 分離対象 |
-|--------------|-----|---------|
-| **USER_CACHE** | ✅ フルプロファイル（email, name, phone 等） | 🔴 要分離 |
-| CONSENT_CACHE | ❌ scope, granted_at のみ | ✅ 分離不要 |
-| STATE_STORE | ❌ state → client_id | ✅ 分離不要 |
-| NONCE_STORE | ❌ nonce → client_id | ✅ 分離不要 |
-| CLIENTS_CACHE | ❌ クライアント設定 | ✅ 分離不要 |
-| REBAC_CACHE | ❌ ロール、権限 | ✅ 分離不要 |
+| KV Namespace   | PII                                          | 分離対象    |
+| -------------- | -------------------------------------------- | ----------- |
+| **USER_CACHE** | ✅ フルプロファイル（email, name, phone 等） | 🔴 要分離   |
+| CONSENT_CACHE  | ❌ scope, granted_at のみ                    | ✅ 分離不要 |
+| STATE_STORE    | ❌ state → client_id                         | ✅ 分離不要 |
+| NONCE_STORE    | ❌ nonce → client_id                         | ✅ 分離不要 |
+| CLIENTS_CACHE  | ❌ クライアント設定                          | ✅ 分離不要 |
+| REBAC_CACHE    | ❌ ロール、権限                              | ✅ 分離不要 |
 
 ---
 
@@ -159,13 +171,14 @@ const refreshTokenClaims = {
 
 Repository を以下の 3 層に分割する：
 
-| 層 | 特性 | 用途 |
-|---|------|------|
-| **CacheRepository** | 最速・揮発性・安い | UserInfo 高速化、RBAC クレームキャッシュ |
-| **CoreRepository** | 耐久性・整合性・グローバル | 認証・認可の真実のソース |
-| **PIIRepository** | 地域縛り・GDPR 対応・暗号化 | 個人情報のみ |
+| 層                  | 特性                        | 用途                                     |
+| ------------------- | --------------------------- | ---------------------------------------- |
+| **CacheRepository** | 最速・揮発性・安い          | UserInfo 高速化、RBAC クレームキャッシュ |
+| **CoreRepository**  | 耐久性・整合性・グローバル  | 認証・認可の真実のソース                 |
+| **PIIRepository**   | 地域縛り・GDPR 対応・暗号化 | 個人情報のみ                             |
 
 **設計思想**:
+
 - キャッシュ層は「最速・安い・揮発性」— 消えても再構築可能
 - Core 層は「耐久性・一意性・整合性」— 認証の根幹
 - PII 層は「地域縛り・復旧可能性」— 法的要件に対応
@@ -175,12 +188,12 @@ Repository を以下の 3 層に分割する：
 各エンドポイントがアクセスできる Repository を明確に制限する：
 
 | エンドポイント | Core | Cache | PII |
-|---------------|------|-------|-----|
-| `/authorize` | ✅ | ✅ | ❌ |
-| `/token` | ✅ | ✅ | ❌ |
-| `/userinfo` | ✅ | ✅ | ✅ |
-| `/signup` | ✅ | ❌ | ✅ |
-| `/admin/users` | ✅ | ✅ | ✅ |
+| -------------- | ---- | ----- | --- |
+| `/authorize`   | ✅   | ✅    | ❌  |
+| `/token`       | ✅   | ✅    | ❌  |
+| `/userinfo`    | ✅   | ✅    | ✅  |
+| `/signup`      | ✅   | ❌    | ✅  |
+| `/admin/users` | ✅   | ✅    | ✅  |
 
 **設計思想**: 認証・認可フロー（`/authorize`, `/token`）は PII を必要としない。PII が必要なのは `/userinfo` やユーザー管理 API のみ。このルールを TypeScript の型レベルで強制する。
 
@@ -188,12 +201,12 @@ Repository を以下の 3 層に分割する：
 
 将来の移植性を確保するため、データベースアクセスを抽象化する：
 
-| Cloudflare | AWS 相当 |
-|------------|---------|
-| D1 | Aurora Serverless / DynamoDB |
-| Durable Objects | DynamoDB + Item Locking |
-| KV | ElastiCache / DynamoDB |
-| Workers | Lambda@Edge |
+| Cloudflare      | AWS 相当                     |
+| --------------- | ---------------------------- |
+| D1              | Aurora Serverless / DynamoDB |
+| Durable Objects | DynamoDB + Item Locking      |
+| KV              | ElastiCache / DynamoDB       |
+| Workers         | Lambda@Edge                  |
 
 **設計思想**: Authrim は「Auth0 を超える」ことを目指す。インフラに依存しない設計により、Cloudflare でも AWS でも動作可能にする。
 
@@ -392,19 +405,19 @@ export class CoreRepository {
 export class PIIRepository {
   constructor(
     private db: DatabaseAdapter,
-    private encryption: EncryptionService  // Field-level encryption
+    private encryption: EncryptionService // Field-level encryption
   ) {}
 
   // User Profile (PII)
   async getUserProfile(userId: string): Promise<UserProfile | null>;
   async createUserProfile(data: CreateUserProfileInput): Promise<UserProfile>;
   async updateUserProfile(userId: string, data: UpdateUserProfileInput): Promise<void>;
-  async deleteUserProfile(userId: string): Promise<void>;  // GDPR deletion
-  async anonymizeUserProfile(userId: string): Promise<void>;  // GDPR anonymization
+  async deleteUserProfile(userId: string): Promise<void>; // GDPR deletion
+  async anonymizeUserProfile(userId: string): Promise<void>; // GDPR anonymization
 
   // Identifiers
   async getIdentifiersByUserId(userId: string): Promise<Identifier[]>;
-  async findUserByEmail(email: string): Promise<string | null>;  // Returns userId via blind index
+  async findUserByEmail(email: string): Promise<string | null>; // Returns userId via blind index
 
   // Linked Identities
   async getLinkedIdentities(userId: string): Promise<LinkedIdentity[]>;
@@ -524,9 +537,9 @@ export class UserService {
 export type Region = 'eu' | 'us' | 'jp' | 'global';
 
 export interface RegionConfig {
-  eu: string;   // EU Postgres connection string
-  us: string;   // US Postgres connection string
-  jp: string;   // JP Postgres connection string
+  eu: string; // EU Postgres connection string
+  us: string; // US Postgres connection string
+  jp: string; // JP Postgres connection string
 }
 
 export class RegionRouter {
@@ -583,14 +596,14 @@ export type UserInfoHandler = (c: HonoContext, ctx: UserInfoContext) => Promise<
 // 使用例
 // authorize.ts - AuthHandler なので ctx.pii にアクセスするとコンパイルエラー
 export const authorizeHandler: AuthHandler = async (c, ctx) => {
-  const user = await ctx.core.getUserCore(userId);  // ✅ OK
+  const user = await ctx.core.getUserCore(userId); // ✅ OK
   // ctx.pii.getUserProfile(userId);  // ❌ コンパイルエラー: Property 'pii' does not exist
 };
 
 // userinfo.ts - UserInfoHandler なので ctx.pii にアクセス可能
 export const userinfoHandler: UserInfoHandler = async (c, ctx) => {
   const [core, profile] = await Promise.all([
-    ctx.core.getUserCore(userId),   // ✅ OK
+    ctx.core.getUserCore(userId), // ✅ OK
     ctx.pii.getUserProfile(userId), // ✅ OK
   ]);
 };
@@ -633,9 +646,7 @@ email などの暗号化フィールドを検索可能にするため、Blind In
 // Blind Index の生成
 function createBlindIndex(value: string, masterIndexKey: string): string {
   const normalized = value.toLowerCase().trim();
-  return crypto.createHmac('sha256', masterIndexKey)
-    .update(normalized)
-    .digest('base64url');
+  return crypto.createHmac('sha256', masterIndexKey).update(normalized).digest('base64url');
 }
 
 // テーブル設計
@@ -647,6 +658,7 @@ function createBlindIndex(value: string, masterIndexKey: string): string {
 ```
 
 **制限事項**:
+
 - 前方一致検索や部分一致検索は不可（やる場合は別の検索専用ストアが必要）
 - 完全一致検索のみサポート
 
@@ -670,6 +682,7 @@ function createBlindIndex(value: string, masterIndexKey: string): string {
 ```
 
 **運用フロー**:
+
 1. アプリケーション起動時に KMS から Tenant DEK を取得（wrapped）
 2. KMS で DEK を unwrap してメモリに保持
 3. PII の暗号化/復号に DEK を使用
@@ -741,10 +754,10 @@ CREATE TABLE audit_log_pii (
 
 コンプライアンス対応のため、保持期間を明確に定義する：
 
-| 種類 | 保持期間 | 根拠 |
-|------|---------|------|
-| audit_log_core | 7 年 | 一般的な法的要件 |
-| audit_log_pii | 1 年 | GDPR の最小化原則 |
+| 種類           | 保持期間 | 根拠              |
+| -------------- | -------- | ----------------- |
+| audit_log_core | 7 年     | 一般的な法的要件  |
+| audit_log_pii  | 1 年     | GDPR の最小化原則 |
 
 ### 6.3 Cache Invalidation 戦略
 
@@ -774,10 +787,10 @@ CREATE TABLE audit_log_pii (
 class PIIRepository {
   async updateUserProfile(userId: string, data: UpdateUserProfileInput): Promise<void> {
     // 1. PII DB を更新
-    await this.db.execute(
-      'UPDATE users_pii SET name = $1, updated_at = NOW() WHERE id = $2',
-      [data.name, userId]
-    );
+    await this.db.execute('UPDATE users_pii SET name = $1, updated_at = NOW() WHERE id = $2', [
+      data.name,
+      userId,
+    ]);
 
     // 2. Core DB の version をインクリメント
     await this.coreDb.execute(
@@ -857,9 +870,9 @@ Regional PII DB の障害時にも認証フローが完全に停止しないよ�
 // packages/shared/src/utils/circuit-breaker.ts
 
 export interface CircuitBreakerConfig {
-  failureThreshold: number;    // Open になる失敗回数（デフォルト: 5）
-  resetTimeoutMs: number;      // Half-Open に移行する時間（デフォルト: 30000）
-  halfOpenSuccessThreshold: number;  // Closed に戻る成功回数（デフォルト: 2）
+  failureThreshold: number; // Open になる失敗回数（デフォルト: 5）
+  resetTimeoutMs: number; // Half-Open に移行する時間（デフォルト: 30000）
+  halfOpenSuccessThreshold: number; // Closed に戻る成功回数（デフォルト: 2）
 }
 
 export class CircuitBreaker {
@@ -952,7 +965,7 @@ export const userinfoHandler: UserInfoHandler = async (c, ctx) => {
     email_verified: core.email_verified,
     name: profile?.name ?? null,
     // ... other claims
-    _degraded: profile === null,  // クライアントに degraded 状態を通知
+    _degraded: profile === null, // クライアントに degraded 状態を通知
   });
 };
 ```
@@ -969,7 +982,7 @@ Fallback Region（EU DB down → US replica）は以下の理由から**デフ�
 // テナント設定
 interface TenantConfig {
   pii_region: Region;
-  enable_fallback_region: boolean;  // デフォルト: false
+  enable_fallback_region: boolean; // デフォルト: false
   fallback_region?: Region;
 }
 ```
@@ -1025,7 +1038,12 @@ export type PIIHandler<E extends Env = Env> = (
 export function createAuthContext(env: Env): AuthContext {
   return {
     core: new CoreRepository(new D1Adapter(env.DB)),
-    cache: new CacheRepository(env.USER_CACHE, env.CONSENT_CACHE, env.REBAC_CACHE, env.CLIENTS_CACHE),
+    cache: new CacheRepository(
+      env.USER_CACHE,
+      env.CONSENT_CACHE,
+      env.REBAC_CACHE,
+      env.CLIENTS_CACHE
+    ),
     env,
   };
 }
@@ -1177,13 +1195,12 @@ export class PIIRepository {
   async getUserProfile(userId: string): Promise<UserProfile | null> {
     // Level 1 & 2: tenant_id を WHERE 句に含める
     // Level 3: tenant_id チェックは不要（専用 DB のため）
-    const query = this.schema === 'public'
-      ? 'SELECT * FROM users_pii WHERE id = $1 AND tenant_id = $2'
-      : `SELECT * FROM ${this.schema}.users_pii WHERE id = $1`;
+    const query =
+      this.schema === 'public'
+        ? 'SELECT * FROM users_pii WHERE id = $1 AND tenant_id = $2'
+        : `SELECT * FROM ${this.schema}.users_pii WHERE id = $1`;
 
-    const params = this.schema === 'public'
-      ? [userId, this.tenantId]
-      : [userId];
+    const params = this.schema === 'public' ? [userId, this.tenantId] : [userId];
 
     return this.db.queryOne<UserProfile>(query, params);
   }
@@ -1192,12 +1209,12 @@ export class PIIRepository {
 
 #### プラン別の提供
 
-| プラン | 分離レベル | 追加料金 |
-|-------|-----------|---------|
-| Free | Row-level | - |
-| Professional | Row-level | - |
-| Enterprise | Schema-level | + |
-| Enterprise Plus | Database-level | ++ |
+| プラン          | 分離レベル     | 追加料金 |
+| --------------- | -------------- | -------- |
+| Free            | Row-level      | -        |
+| Professional    | Row-level      | -        |
+| Enterprise      | Schema-level   | +        |
+| Enterprise Plus | Database-level | ++       |
 
 ### 6.7 Soft Delete + Anonymization
 
@@ -1367,7 +1384,10 @@ export class KeyManager {
   private keys: Map<number, CryptoKey> = new Map();
   private currentVersion: number;
 
-  constructor(private kms: KMSClient, private tenantId: string) {}
+  constructor(
+    private kms: KMSClient,
+    private tenantId: string
+  ) {}
 
   async initialize(): Promise<void> {
     // KMS から現在のキーバージョンを取得
@@ -1407,11 +1427,7 @@ export class KeyManager {
       throw new Error(`Key version ${version} not available`);
     }
 
-    const plaintext = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      ciphertext
-    );
+    const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
 
     return new TextDecoder().decode(plaintext);
   }
@@ -1419,11 +1435,10 @@ export class KeyManager {
   async rotateKey(): Promise<void> {
     // 1. 新キーを生成
     const newVersion = this.currentVersion + 1;
-    const newKey = await crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      true,
-      ['encrypt', 'decrypt']
-    );
+    const newKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
+      'encrypt',
+      'decrypt',
+    ]);
 
     // 2. KMS でラップして保存
     const wrappedKey = await this.kms.wrapKey(newKey);
@@ -1485,15 +1500,17 @@ export interface Metrics {
 
 // Repository でのメトリクス記録
 class PIIRepository {
-  constructor(private db: DatabaseAdapter, private metrics: Metrics) {}
+  constructor(
+    private db: DatabaseAdapter,
+    private metrics: Metrics
+  ) {}
 
   async getUserProfile(userId: string): Promise<UserProfile | null> {
     const start = Date.now();
     try {
-      const result = await this.db.queryOne<UserProfile>(
-        'SELECT * FROM users_pii WHERE id = $1',
-        [userId]
-      );
+      const result = await this.db.queryOne<UserProfile>('SELECT * FROM users_pii WHERE id = $1', [
+        userId,
+      ]);
       this.metrics.recordLatency('pii', 'getUserProfile', Date.now() - start);
       return result;
     } catch (error) {
@@ -1510,59 +1527,59 @@ class PIIRepository {
 
 ### Phase 1: Database Adapter Layer
 
-| タスク | 優先度 | 複雑度 |
-|--------|--------|--------|
-| DatabaseAdapter interface 定義 | 高 | 低 |
-| D1Adapter 実装 | 高 | 低 |
-| KVAdapter 実装 | 高 | 低 |
-| DOAdapter 実装 | 高 | 中 |
-| PostgresAdapter 実装 | 高 | 中 |
-| 基本テスト | 高 | 低 |
+| タスク                         | 優先度 | 複雑度 |
+| ------------------------------ | ------ | ------ |
+| DatabaseAdapter interface 定義 | 高     | 低     |
+| D1Adapter 実装                 | 高     | 低     |
+| KVAdapter 実装                 | 高     | 低     |
+| DOAdapter 実装                 | 高     | 中     |
+| PostgresAdapter 実装           | 高     | 中     |
+| 基本テスト                     | 高     | 低     |
 
 ### Phase 2: Repository Layer
 
-| タスク | 優先度 | 複雑度 |
-|--------|--------|--------|
-| CoreRepository 実装 | 高 | 中 |
-| PIIRepository 実装 | 高 | 中 |
-| CacheRepository 実装 | 高 | 低 |
-| RegionRouter 実装 | 高 | 中 |
-| Type-safe Context 実装 | 高 | 低 |
+| タスク                 | 優先度 | 複雑度 |
+| ---------------------- | ------ | ------ |
+| CoreRepository 実装    | 高     | 中     |
+| PIIRepository 実装     | 高     | 中     |
+| CacheRepository 実装   | 高     | 低     |
+| RegionRouter 実装      | 高     | 中     |
+| Type-safe Context 実装 | 高     | 低     |
 
 ### Phase 3: 暗号化 & セキュリティ
 
-| タスク | 優先度 | 複雑度 |
-|--------|--------|--------|
-| Field-level encryption 実装 | 高 | 中 |
-| Blind Index 実装 | 高 | 中 |
-| Key Management (KMS 連携) | 高 | 高 |
-| Key Rotation 実装 | 中 | 高 |
+| タスク                      | 優先度 | 複雑度 |
+| --------------------------- | ------ | ------ |
+| Field-level encryption 実装 | 高     | 中     |
+| Blind Index 実装            | 高     | 中     |
+| Key Management (KMS 連携)   | 高     | 高     |
+| Key Rotation 実装           | 中     | 高     |
 
 ### Phase 4: 既存コード移行
 
-| タスク | 優先度 | 複雑度 |
-|--------|--------|--------|
-| Handler を Repository パターンに移行 | 高 | 高 |
-| DB スキーマ分割マイグレーション | 高 | 高 |
-| Cache 層の分離 | 中 | 中 |
-| Audit Log 分離 | 中 | 中 |
+| タスク                               | 優先度 | 複雑度 |
+| ------------------------------------ | ------ | ------ |
+| Handler を Repository パターンに移行 | 高     | 高     |
+| DB スキーマ分割マイグレーション      | 高     | 高     |
+| Cache 層の分離                       | 中     | 中     |
+| Audit Log 分離                       | 中     | 中     |
 
 ### Phase 5: Resilience & Observability
 
-| タスク | 優先度 | 複雑度 |
-|--------|--------|--------|
-| Circuit Breaker 実装 | 中 | 中 |
-| Graceful Degradation 実装 | 中 | 低 |
-| Metrics / Monitoring 実装 | 中 | 中 |
-| Health Check エンドポイント | 低 | 低 |
+| タスク                      | 優先度 | 複雑度 |
+| --------------------------- | ------ | ------ |
+| Circuit Breaker 実装        | 中     | 中     |
+| Graceful Degradation 実装   | 中     | 低     |
+| Metrics / Monitoring 実装   | 中     | 中     |
+| Health Check エンドポイント | 低     | 低     |
 
 ### Phase 6: Multi-tenant & GDPR
 
-| タスク | 優先度 | 複雑度 |
-|--------|--------|--------|
-| Multi-tenant Isolation (Level 2, 3) | 中 | 中 |
-| Soft Delete + Anonymization | 高 | 低 |
-| Data Export (GDPR ポータビリティ) | 中 | 中 |
+| タスク                              | 優先度 | 複雑度 |
+| ----------------------------------- | ------ | ------ |
+| Multi-tenant Isolation (Level 2, 3) | 中     | 中     |
+| Soft Delete + Anonymization         | 高     | 低     |
+| Data Export (GDPR ポータビリティ)   | 中     | 中     |
 
 ---
 
@@ -1572,13 +1589,13 @@ class PIIRepository {
 
 この設計により、将来 AWS への移行が容易になる：
 
-| Cloudflare | AWS |
-|------------|-----|
-| D1 | Aurora Serverless v2 |
-| Durable Objects | DynamoDB + Item Locking |
-| KV | ElastiCache (Redis) or DynamoDB |
-| Workers | Lambda@Edge |
-| Regional Postgres | RDS (Postgres) |
+| Cloudflare        | AWS                             |
+| ----------------- | ------------------------------- |
+| D1                | Aurora Serverless v2            |
+| Durable Objects   | DynamoDB + Item Locking         |
+| KV                | ElastiCache (Redis) or DynamoDB |
+| Workers           | Lambda@Edge                     |
+| Regional Postgres | RDS (Postgres)                  |
 
 移行時は DatabaseAdapter の実装を追加するだけで、Repository 層以上のコードは変更不要。
 
@@ -1607,6 +1624,7 @@ PIIRepository を拡張して新しい PII 種別に対応：
 **選択:** 最初から D1_CORE + D1_PII を分離（Approach B）
 
 **理由:**
+
 1. **監査・コンプライアンスの明確さ**: 「PIIは別DBに格納」と明確に説明可能。GDPR/CCPAの監査で「テーブルレベルで分離」より「DB レベルで分離」の方が説得力がある。
 
 2. **リージョン別展開の容易さ**: EU専用PII DBを追加する際、スキーマ変更なく新しいD1バインディングを追加するだけ。テーブル分離だと後から物理分離が困難。
@@ -1614,6 +1632,7 @@ PIIRepository を拡張して新しい PII 種別に対応：
 3. **アクセス制御の強制**: PIIContextを明示的に取得しないとPIIにアクセスできない。コードレビューで「このハンドラーはPIIにアクセスしている」が一目瞭然。
 
 **トレードオフ:**
+
 - JOINが使えない → `Promise.all` で並列クエリ（実測で問題なし）
 - クロスDBトランザクション不可 → `pii_status` で状態管理
 
@@ -1622,6 +1641,7 @@ PIIRepository を拡張して新しい PII 種別に対応：
 **選択:** "region" ではなく "partition" を使用
 
 **理由:**
+
 1. **Durable Object のシャードとの混同回避**: 既存コードに `region-sharding.ts` がありDOシャード用。命名衝突を避ける。
 2. **柔軟なルーティング**: 地理的 (`eu`, `apac`) だけでなく、テナント (`tenant-acme`)、プラン (`premium`)、属性 (`high-security`) など多様な条件で分離可能。"region" だと地理的な意味が強すぎる。
 
@@ -1630,6 +1650,7 @@ PIIRepository を拡張して新しい PII 種別に対応：
 **選択:** IP ベースルーティングは `fallback only` で、デフォルト OFF
 
 **理由:**
+
 1. **VPN/Proxy/Warp**: ユーザーが異なる国のIPを使用する可能性が高い
 2. **ローミング**: モバイルユーザーは頻繁に国を移動
 3. **法的証拠にならない**: GDPRの「EUデータはEU内に保存」の証拠として IP は使えない
@@ -1640,11 +1661,13 @@ PIIRepository を拡張して新しい PII 種別に対応：
 **選択:** `pii_status` で分散書き込みの状態を管理
 
 **理由:**
+
 1. **クロスDBトランザクション不可**: D1_CORE と D1_PII は別DBなので ACID トランザクションが不可能
 2. **障害時の追跡**: PII書き込みが失敗しても、`pii_status: 'failed'` で追跡・リトライ可能
 3. **M2M対応**: `pii_status: 'none'` でPIIを持たないユーザー（client_credentials フロー）を明示
 
 **状態遷移:**
+
 ```
 新規作成: pending → active (成功) / failed (失敗)
 M2M: none (PIIなし)
@@ -1656,6 +1679,7 @@ M2M: none (PIIなし)
 **選択:** `pii_class` で感度レベルを分類
 
 **理由:**
+
 1. **目的ベースアクセス制御**: IDENTITY_CORE（認証必須）と DEMOGRAPHIC（GDPR Art.9 特別カテゴリ）を区別
 2. **保持ポリシー**: クラス別に異なる保持期間を設定可能
 3. **監査対応**: 「なぜ分離したか」を明確に説明可能
@@ -1665,6 +1689,7 @@ M2M: none (PIIなし)
 **選択:** `users_pii_tombstone` で削除事実を記録
 
 **理由:**
+
 1. **GDPR Art.17 対応**: 「忘れられる権利」の実装
 2. **再登録防止**: 削除されたメールアドレスが retention 期間中に再登録されることを防ぐ
 3. **監査証跡**: 「いつ、誰が、なぜ削除したか」を記録
@@ -1679,6 +1704,7 @@ M2M: none (PIIなし)
 **目的:** 複数DBバックエンドの抽象化
 
 **実装理由:**
+
 - 現在は D1 のみだが、将来的に Postgres (Hyperdrive), DynamoDB, MySQL をサポート可能
 - テストでモックアダプターを使用可能
 - パーティションごとに異なるバックエンドを混在可能（例: default=D1, tenant-acme=Postgres）
@@ -1688,6 +1714,7 @@ M2M: none (PIIなし)
 **目的:** SQLを直接書かず、型安全なデータアクセス
 
 **実装理由:**
+
 - 現在の `admin.ts` には 30+ の直接SQL。保守性が低い
 - Repository 経由にすることでSQLインジェクションリスク軽減
 - PII/非PII のアクセスパターンを強制
@@ -1697,6 +1724,7 @@ M2M: none (PIIなし)
 **目的:** PIIアクセスを型システムで制御
 
 **実装理由:**
+
 - `AuthContext` を持つハンドラーはPIIにアクセスできない（コンパイルエラー）
 - PIIが必要な場合のみ `PIIContext` に昇格
 - コードレビューで「このエンドポイントはPIIにアクセスする」が一目瞭然
@@ -1706,6 +1734,7 @@ M2M: none (PIIなし)
 **目的:** PIIを暗号化したまま検索可能にする
 
 **実装理由:**
+
 - PII DB内で email を直接検索すると、インデックスにPIIが残る
 - Blind Index を使うと、検索キーはハッシュ化された値のみ
 - 万が一DBが漏洩しても、Blind Index から元のメールアドレスを復元不可
@@ -1719,11 +1748,14 @@ M2M: none (PIIなし)
 **内容:** PIIクラスごとにアクセスポリシーを評価するエンジン
 
 **後回しの理由:**
+
 - 現時点では PII の読み書きは Context レベルで制御
-- 細かいスコープ別制御は Phase 8 (Policy Integration) で実装予定
+- Phase 8 (Policy Integration) では Token Embedding と Check API を優先実装（✅ 完了）
+- PIIスコープ別制御はPhase 10 (Policy Admin Console) で拡張予定
 - 現在の優先度: DB分離基盤 > ポリシーエンジン
 
 **将来実装予定:**
+
 ```typescript
 interface PIIPolicyEngine {
   canAccess(userId: string, piiClass: PIIClass, scope: string): Promise<boolean>;
@@ -1735,11 +1767,13 @@ interface PIIPolicyEngine {
 **内容:** ユーザーのPIIを別パーティションに移動するAPI
 
 **後回しの理由:**
+
 - 初期構成では全ユーザーが default パーティション
 - 新パーティション追加時は新規ユーザーのみルーティング
 - 既存ユーザーの移行は手動運用で対応可能
 
 **将来実装予定:**
+
 ```
 POST /api/admin/users/:id/migrate-pii
 {
@@ -1753,11 +1787,13 @@ POST /api/admin/users/:id/migrate-pii
 **内容:** audit_log_pii を R2/Logpush/SIEM に自動エクスポート
 
 **後回しの理由:**
+
 - 現時点では D1 内に「最近のバッファ」として保持
 - ボリューム増加は Phase 11 (Security & QA) で対応
 - 現在の優先度: 基盤実装 > エクスポート自動化
 
 **将来実装予定:**
+
 - Scheduled Worker でエクスポート
 - `exported_at` カラムで追跡
 - R2 または Logpush に出力
@@ -1767,11 +1803,13 @@ POST /api/admin/users/:id/migrate-pii
 **内容:** users_pii の各カラムを暗号化して保存
 
 **後回しの理由:**
+
 - D1 は Cloudflare のマネージドサービスで、ディスク暗号化は標準
 - アプリケーション層での暗号化は性能影響が大きい
 - 現在の優先度: DB分離 > カラム暗号化
 
 **将来実装予定（必要に応じて）:**
+
 - AES-GCM でカラム暗号化
 - 暗号化キーは KV/Secrets に保存
 - パフォーマンステスト後に導入判断
@@ -1781,11 +1819,13 @@ POST /api/admin/users/:id/migrate-pii
 **内容:** PII DBのリージョン間レプリケーション
 
 **後回しの理由:**
+
 - D1 は単一リージョン（現時点）
 - Cloudflare の D1 ロードマップ待ち
 - 現在は パーティション別D1 で対応
 
 **将来実装予定:**
+
 - D1 が multi-region 対応したら評価
 - または Hyperdrive + Postgres で実現
 
@@ -1794,11 +1834,13 @@ POST /api/admin/users/:id/migrate-pii
 **内容:** ユーザーの全PIIをエクスポートするAPI（GDPR Art.20）
 
 **後回しの理由:**
+
 - 優先度: 削除（Art.17）> ポータビリティ（Art.20）
 - 現時点では Admin API で手動エクスポート可能
 - Phase 10 (SDK & API) でユーザー向けエンドポイント追加予定
 
 **将来実装予定:**
+
 ```
 GET /api/user/export-data
 Response: { user_data: {...}, linked_identities: [...], ... }
@@ -1915,6 +1957,6 @@ CREATE UNIQUE INDEX idx_users_pii_email_blind_index ON users_pii(tenant_id, emai
 
 ## 変更履歴
 
-| 日付 | バージョン | 変更内容 |
-|------|-----------|---------|
-| 2025-12-12 | 1.0 | 初版作成 |
+| 日付       | バージョン | 変更内容 |
+| ---------- | ---------- | -------- |
+| 2025-12-12 | 1.0        | 初版作成 |

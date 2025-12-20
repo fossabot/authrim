@@ -1,324 +1,442 @@
 # Form Post Response Mode
 
+Deliver OAuth authorization responses via HTTP POST for enhanced security and privacy.
+
 ## Overview
 
-**OAuth 2.0 Form Post Response Mode** allows authorization responses to be delivered via HTTP POST instead of URL redirects with query or fragment parameters.
+| Specification | Status | Response Mode |
+|---------------|--------|---------------|
+| [OAuth 2.0 Form Post](https://openid.net/specs/oauth-v2-form-post-response-mode-1_0.html) | ✅ Implemented | `form_post` |
 
-Authrim implements Form Post Response Mode as specified in the [OAuth 2.0 Form Post Response Mode specification](https://openid.net/specs/oauth-v2-form-post-response-mode-1_0.html).
+Form Post Response Mode delivers authorization responses (code, state) via HTTP POST instead of URL parameters, providing:
 
-## Specification
-
-- **Specification**: [OAuth 2.0 Form Post Response Mode](https://openid.net/specs/oauth-v2-form-post-response-mode-1_0.html)
-- **Status**: ✅ Implemented
-- **Response Mode**: `form_post`
-
----
-
-## Why Use Form Post Response Mode?
-
-### Benefits
-
-1. **🔒 Improved Security**
-   - Authorization response parameters (code, state) not exposed in URL
-   - Not visible in browser history
-   - Not leaked through Referer headers
-   - Reduced attack surface for parameter tampering
-
-2. **📏 URL Length Limitations**
-   - Avoids browser/server URL length limits
-   - Especially useful for complex responses with many parameters
-   - Better compatibility with some server configurations
-
-3. **🛡️ Privacy Protection**
-   - Sensitive data not logged in web server access logs
-   - No exposure through browser extensions monitoring URLs
-   - Prevents surveillance of authorization responses
-
-4. **✅ Better User Experience**
-   - Clean URL in browser address bar
-   - No visible parameters in URL
-   - Professional appearance
-
-### Use Cases
-
-- **Enterprise Applications**: Corporate apps with strict security policies
-- **Mobile Apps**: Native apps using web-based authorization
-- **Single Page Applications (SPAs)**: Modern web apps
-- **High-Security Environments**: Financial, healthcare, government apps
+- **Enhanced Security**: Parameters not exposed in URL or browser history
+- **Privacy Protection**: No logging in server access logs or Referer leakage
+- **URL Length Safety**: Avoids browser/server URL length limits
+- **Clean URLs**: Professional appearance without visible parameters
 
 ---
 
-## How Form Post Response Mode Works
+## Benefits
+
+| Benefit | Description |
+|---------|-------------|
+| **No URL Exposure** | Authorization code not visible in browser address bar |
+| **No History Leakage** | Parameters not saved in browser history |
+| **No Referer Leakage** | Code not leaked via HTTP Referer header |
+| **Server Log Safety** | POST bodies typically not logged by web servers |
+| **Longer Payloads** | Supports complex responses without URL limits |
+
+---
+
+## Practical Use Cases
+
+### Use Case 1: Enterprise Banking Portal with Strict Audit Requirements
+
+**Scenario**: A bank's customer portal requires that authorization codes never appear in logs, browser history, or monitoring systems. Security team mandates POST-based token delivery for PCI DSS compliance.
+
+**Why Form Post**: URL parameters are logged everywhere - web servers, CDNs, monitoring tools. Form POST keeps sensitive data out of logs.
+
+```mermaid
+sequenceDiagram
+    participant User as Customer
+    participant Portal as Banking Portal
+    participant Auth as Authrim
+    participant Audit as Security Audit
+
+    User->>Portal: Access account dashboard
+    Portal->>Auth: GET /authorize<br/>response_mode=form_post
+
+    Note over Auth: User authenticates<br/>with MFA
+
+    Auth-->>User: HTML page with<br/>auto-submitting form
+    Note over User: Browser POSTs to portal
+
+    User->>Portal: POST /callback<br/>code=xxx (in body)
+
+    Portal->>Portal: Parse POST body<br/>(not URL params!)
+
+    Portal->>Audit: Log: "Auth callback received"<br/>(no code in logs)
+
+    Portal->>Auth: POST /token
+    Auth-->>Portal: access_token, refresh_token
+
+    Portal-->>User: Welcome to Banking
+```
+
+**Implementation**:
+
+```typescript
+// Banking Portal: Authorization initiation
+function initiateSecureAuth(req: Request, res: Response) {
+  const state = crypto.randomUUID();
+  const nonce = crypto.randomUUID();
+
+  // Store state for CSRF validation
+  req.session.authState = state;
+  req.session.authNonce = nonce;
+
+  const authUrl = new URL('https://auth.bank.example.com/authorize');
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('response_mode', 'form_post'); // Critical for security
+  authUrl.searchParams.set('client_id', process.env.BANK_CLIENT_ID!);
+  authUrl.searchParams.set('redirect_uri', 'https://portal.bank.example.com/auth/callback');
+  authUrl.searchParams.set('scope', 'openid accounts:read transactions:read');
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('nonce', nonce);
+  authUrl.searchParams.set('acr_values', 'urn:bank:mfa:sms');
+
+  res.redirect(authUrl.toString());
+}
+
+// Banking Portal: POST callback handler
+// IMPORTANT: This MUST be a POST handler, not GET!
+app.post('/auth/callback', express.urlencoded({ extended: true }), async (req, res) => {
+  // Parameters are in req.body, NOT req.query
+  const { code, state, error, error_description } = req.body;
+
+  // CSRF protection
+  if (state !== req.session.authState) {
+    // Log security event (without exposing code)
+    securityLog.warn({
+      event: 'auth_state_mismatch',
+      session_id: req.session.id,
+      expected_state: req.session.authState?.slice(0, 8) + '...',
+      received_state: state?.slice(0, 8) + '...'
+    });
+    return res.status(403).render('error', { message: 'Security validation failed' });
+  }
+
+  if (error) {
+    return res.status(400).render('error', { message: error_description });
+  }
+
+  // Exchange code for tokens
+  const tokens = await exchangeCodeForTokens(code);
+
+  // Audit log (no sensitive data)
+  auditLog.info({
+    event: 'auth_success',
+    user_id: tokens.sub,
+    session_id: req.session.id
+    // Note: No code or tokens in logs!
+  });
+
+  req.session.tokens = tokens;
+  res.redirect('/dashboard');
+});
+```
+
+**Nginx Configuration** (ensure POST bodies are NOT logged):
+
+```nginx
+# Ensure POST body is not logged
+log_format banking_secure '$remote_addr - $remote_user [$time_local] '
+                          '"$request_method $uri" $status $body_bytes_sent '
+                          '"$http_referer" "$http_user_agent"';
+# Note: No $request_body in log format!
+
+location /auth/callback {
+  proxy_pass http://backend;
+
+  # Security headers
+  proxy_hide_header X-Powered-By;
+  add_header X-Frame-Options DENY;
+  add_header X-Content-Type-Options nosniff;
+}
+```
+
+---
+
+### Use Case 2: Healthcare Patient Portal with HIPAA Logging Requirements
+
+**Scenario**: A healthcare system's patient portal must ensure PHI identifiers never appear in system logs or monitoring tools. Authorization flows must use POST to keep identifiers out of URLs.
+
+**Why Form Post**: HIPAA auditors specifically check for PHI in logs. Form POST prevents codes (which could be correlated to patients) from appearing in any log.
+
+```mermaid
+sequenceDiagram
+    participant Patient
+    participant Portal as Patient Portal
+    participant Auth as Healthcare IdP
+    participant EMR as EMR System
+
+    Patient->>Portal: Access health records
+    Portal->>Auth: /authorize<br/>response_mode=form_post<br/>login_hint=MRN123456
+
+    Auth->>Auth: Authenticate patient<br/>(MFA required)
+
+    Auth-->>Patient: Auto-submit form page
+
+    Patient->>Portal: POST /oauth/callback<br/>code=xxx&state=yyy
+
+    Portal->>Auth: Exchange code
+    Auth-->>Portal: tokens + patient claims
+
+    Portal->>EMR: Fetch patient records
+    EMR-->>Portal: Health data
+
+    Portal-->>Patient: View health records
+
+    Note over Portal: All logs are PHI-free
+```
+
+**Implementation**:
+
+```typescript
+// Healthcare Portal Configuration
+const healthcareOAuthConfig = {
+  issuer: 'https://auth.healthcare.example.com',
+  clientId: process.env.HEALTHCARE_CLIENT_ID,
+  redirectUri: 'https://patient-portal.healthcare.example.com/oauth/callback',
+
+  // HIPAA-compliant settings
+  responseMode: 'form_post', // Never expose codes in URLs
+  scope: 'openid profile patient/*.read',
+
+  // Audit configuration
+  auditConfig: {
+    logCodes: false,         // Never log authorization codes
+    logTokens: false,        // Never log tokens
+    logUserIds: true,        // Log user IDs for audit trail
+    maskPHI: true            // Mask any PHI in logs
+  }
+};
+
+// Callback handler with HIPAA-compliant logging
+app.post('/oauth/callback', async (req, res) => {
+  const startTime = Date.now();
+  const correlationId = crypto.randomUUID();
+
+  try {
+    // Extract from POST body (HIPAA-compliant)
+    const { code, state } = req.body;
+
+    // Validate state (CSRF protection)
+    const expectedState = await redisClient.get(`auth_state:${req.session.id}`);
+    if (state !== expectedState) {
+      throw new SecurityError('State mismatch');
+    }
+
+    // Exchange code for tokens
+    const tokens = await exchangeCode(code);
+
+    // HIPAA-compliant audit log
+    await hipaaAuditLog({
+      correlationId,
+      event: 'PATIENT_AUTHENTICATION',
+      outcome: 'SUCCESS',
+      patientId: maskPHI(tokens.patient_id), // Masked for logs
+      timestamp: new Date().toISOString(),
+      duration_ms: Date.now() - startTime,
+      ip: hashForAudit(req.ip), // Hashed IP for privacy
+      userAgent: req.headers['user-agent']
+    });
+
+    req.session.tokens = tokens;
+    res.redirect('/dashboard');
+
+  } catch (error) {
+    await hipaaAuditLog({
+      correlationId,
+      event: 'PATIENT_AUTHENTICATION',
+      outcome: 'FAILURE',
+      error: error.message, // No PHI in error messages
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(400).render('auth-error');
+  }
+});
+```
+
+---
+
+### Use Case 3: Corporate SSO with Browser Extension Security Concerns
+
+**Scenario**: A company's employees use browser extensions that may capture URL parameters. IT security requires that OAuth codes be delivered via POST to prevent extension-based data exfiltration.
+
+**Why Form Post**: Malicious or data-collecting browser extensions often capture URL query parameters. POST body data is harder for extensions to intercept.
+
+```mermaid
+sequenceDiagram
+    participant Employee
+    participant Browser as Browser + Extensions
+    participant App as Corporate App
+    participant IdP as Corporate IdP
+
+    Employee->>App: Access internal tool
+    App->>IdP: /authorize<br/>response_mode=form_post
+
+    Note over Browser: Extensions see URL<br/>(no sensitive data)
+
+    IdP->>IdP: SSO authentication
+
+    IdP-->>Browser: HTML form page
+
+    Note over Browser: Extensions see empty URL<br/>Form auto-submits via POST
+
+    Browser->>App: POST /callback<br/>code in body
+
+    Note over Browser: Extensions cannot easily<br/>intercept POST body
+
+    App->>IdP: Exchange code
+    App-->>Employee: Access granted
+```
+
+**Implementation**:
+
+```typescript
+// Corporate SSO Middleware
+export function corporateSSOMiddleware(config: SSOConfig) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    // Check if user is authenticated
+    if (req.session.user) {
+      return next();
+    }
+
+    // Security check: Only allow form_post
+    const useFormPost = true; // Mandated by security policy
+
+    const authUrl = buildAuthUrl({
+      ...config,
+      responseMode: useFormPost ? 'form_post' : 'query',
+      state: await generateSecureState(req.session.id),
+      // Additional security parameters
+      prompt: 'login', // Force fresh authentication
+      max_age: 3600    // Max 1 hour since last auth
+    });
+
+    res.redirect(authUrl);
+  };
+}
+
+// POST callback with extension-resistant security
+app.post('/sso/callback',
+  // Rate limiting
+  rateLimit({ windowMs: 60000, max: 10 }),
+
+  // Body parsing
+  express.urlencoded({ extended: true }),
+
+  async (req, res) => {
+    // Timing-safe state comparison
+    const expectedState = req.session.expectedState;
+    const receivedState = req.body.state;
+
+    if (!timingSafeEqual(expectedState, receivedState)) {
+      securityAlert({
+        type: 'sso_state_mismatch',
+        session: req.session.id,
+        ip: req.ip
+      });
+      return res.status(403).send('Security validation failed');
+    }
+
+    // Verify the code came from POST body, not URL
+    if (req.query.code) {
+      securityAlert({
+        type: 'code_in_url',
+        message: 'Authorization code found in URL, expected POST body',
+        ip: req.ip
+      });
+      return res.status(400).send('Invalid request');
+    }
+
+    const { code } = req.body;
+
+    // Exchange and establish session
+    const tokens = await exchangeCodeForTokens(code);
+    req.session.user = await getUserFromTokens(tokens);
+
+    res.redirect(req.session.returnTo || '/');
+  }
+);
+```
+
+---
+
+## How Form Post Works
 
 ### Flow Diagram
 
 ```mermaid
 sequenceDiagram
-    participant Client as Client (RP)
+    participant Client
     participant AS as Authorization Server
+    participant Browser
 
-    Client->>AS: 1. Authorization Request<br/>(response_mode=form_post)
-    Note over AS: 2. User Authentication
-    AS-->>Client: 3. HTML Page with Auto-Submit Form<br/>&lt;form method="post" action="redirect_uri"&gt;<br/>&lt;input name="code" value="..."&gt;<br/>&lt;input name="state" value="..."&gt;<br/>&lt;/form&gt;
-    Note over Client: 4. Browser Auto-Submits Form (POST)<br/>to Client's redirect_uri
-    Note over Client: POST /callback<br/>code=...&state=...
+    Client->>AS: GET /authorize?response_mode=form_post
+
+    Note over AS: User authenticates
+
+    AS-->>Browser: 200 OK<br/>HTML page with form
+
+    Note over Browser: Form contains:<br/>&lt;input name="code" value="xxx"&gt;<br/>&lt;input name="state" value="yyy"&gt;
+
+    Browser->>Browser: JavaScript auto-submits form
+
+    Browser->>Client: POST /callback<br/>Content-Type: form-urlencoded<br/>code=xxx&state=yyy
+
+    Client->>Client: Parse POST body<br/>Exchange code for tokens
 ```
 
-### Step-by-Step Process
-
-1. **Client initiates authorization**: Includes `response_mode=form_post` in authorization request
-2. **User authenticates**: Authorization server authenticates user
-3. **Server returns HTML page**: Page contains auto-submitting form with authorization response
-4. **Browser auto-submits form**: Form POSTs parameters to client's redirect_uri
-5. **Client receives parameters**: Via POST body instead of URL query
-
----
-
-## API Reference
-
-### Authorization Request with Form Post
-
-**GET/POST /authorize**
-
-#### Request Parameters
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `response_mode` | ✅ Yes | Must be `form_post` |
-| `response_type` | ✅ Yes | OAuth response type (e.g., `code`) |
-| `client_id` | ✅ Yes | The client identifier |
-| `redirect_uri` | ✅ Yes | Client's registered redirect URI |
-| `scope` | ✅ Yes | Requested scopes (space-separated) |
-| `state` | ❌ Recommended | Opaque value for CSRF protection |
-| `nonce` | ❌ No | Nonce for ID token binding (OIDC) |
-
-#### Example Request
-
-```http
-GET /authorize
-  ?response_type=code
-  &response_mode=form_post
-  &client_id=my_client_id
-  &redirect_uri=https://myapp.example.com/callback
-  &scope=openid+profile+email
-  &state=abc123
-  &nonce=xyz789
-Host: authrim.sgrastar.workers.dev
-```
-
----
-
-### Form Post Response
-
-**HTTP 200 OK** with HTML page containing auto-submitting form.
-
-#### Response Format
+### HTML Response Structure
 
 ```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Authorization</title>
-  <style>
-    /* User-friendly loading UI */
-  </style>
 </head>
 <body>
-  <div class="container">
-    <div class="spinner"></div>
-    <p class="message">Redirecting to application...</p>
-    <p class="note">Please wait</p>
+  <div class="loading">
+    <p>Redirecting to application...</p>
   </div>
 
-  <form id="auth-form" method="post" action="https://myapp.example.com/callback">
+  <form id="auth-form" method="post" action="https://app.example.com/callback">
     <input type="hidden" name="code" value="abc123..." />
-    <input type="hidden" name="state" value="abc123" />
+    <input type="hidden" name="state" value="xyz789" />
   </form>
 
   <script>
-    // Auto-submit form immediately
     document.getElementById('auth-form').submit();
   </script>
 </body>
 </html>
 ```
 
-#### Response Parameters
-
-The form contains the following hidden inputs:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `code` | string | Authorization code |
-| `state` | string | State parameter (if provided in request) |
-
 ---
 
-### Client Receives POST Request
+## API Reference
 
-The client's redirect_uri receives a **POST request** with form parameters:
+### Authorization Request
+
+```http
+GET /authorize?
+  response_type=code&
+  response_mode=form_post&
+  client_id=CLIENT_ID&
+  redirect_uri=https://app.example.com/callback&
+  scope=openid+profile&
+  state=RANDOM_STATE
+Host: auth.example.com
+```
+
+### Form Post Response
+
+**HTTP 200 OK** with HTML containing auto-submitting form.
+
+### Client Receives POST
 
 ```http
 POST /callback HTTP/1.1
-Host: myapp.example.com
+Host: app.example.com
 Content-Type: application/x-www-form-urlencoded
 
-code=abc123...&state=abc123
+code=abc123...&state=xyz789
 ```
-
-The client must handle this as a POST request (not GET).
-
----
-
-## Usage Examples
-
-### Example 1: Basic Form Post Flow
-
-#### Step 1: Client Initiates Authorization
-
-```javascript
-const authUrl = new URL('https://authrim.sgrastar.workers.dev/authorize');
-authUrl.searchParams.set('response_type', 'code');
-authUrl.searchParams.set('response_mode', 'form_post');
-authUrl.searchParams.set('client_id', 'my_client_id');
-authUrl.searchParams.set('redirect_uri', 'https://myapp.example.com/callback');
-authUrl.searchParams.set('scope', 'openid profile email');
-authUrl.searchParams.set('state', 'abc123');
-
-// Redirect user to authorization URL
-window.location.href = authUrl.toString();
-```
-
-#### Step 2: Client Handles POST Callback
-
-**Express.js Example:**
-
-```javascript
-const express = require('express');
-const app = express();
-
-// IMPORTANT: Enable form parsing
-app.use(express.urlencoded({ extended: true }));
-
-app.post('/callback', (req, res) => {
-  const code = req.body.code;  // NOT req.query.code!
-  const state = req.body.state;
-
-  // Validate state (CSRF protection)
-  if (state !== expectedState) {
-    return res.status(400).send('Invalid state');
-  }
-
-  // Exchange code for tokens
-  // ... (token exchange logic)
-
-  res.send('Authorization successful!');
-});
-```
-
-**Next.js Example:**
-
-```typescript
-// pages/api/callback.ts
-import type { NextApiRequest, NextApiResponse } from 'next';
-
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { code, state } = req.body;
-
-  // Validate state
-  // ... (state validation)
-
-  // Exchange code for tokens
-  // ... (token exchange logic)
-
-  res.status(200).json({ success: true });
-}
-```
-
----
-
-### Example 2: Form Post with PKCE
-
-```javascript
-// Generate PKCE parameters
-const codeVerifier = generateRandomString(128);
-const codeChallenge = await sha256(codeVerifier);
-const codeChallengeBase64 = base64UrlEncode(codeChallenge);
-
-const authUrl = new URL('https://authrim.sgrastar.workers.dev/authorize');
-authUrl.searchParams.set('response_type', 'code');
-authUrl.searchParams.set('response_mode', 'form_post');
-authUrl.searchParams.set('client_id', 'my_client_id');
-authUrl.searchParams.set('redirect_uri', 'https://myapp.example.com/callback');
-authUrl.searchParams.set('scope', 'openid profile');
-authUrl.searchParams.set('code_challenge', codeChallengeBase64);
-authUrl.searchParams.set('code_challenge_method', 'S256');
-
-// Store code_verifier for later use in token exchange
-sessionStorage.setItem('code_verifier', codeVerifier);
-
-window.location.href = authUrl.toString();
-```
-
----
-
-### Example 3: Form Post with PAR
-
-```javascript
-// Step 1: Push authorization request
-const parResponse = await fetch('https://authrim.sgrastar.workers.dev/as/par', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/x-www-form-urlencoded',
-  },
-  body: new URLSearchParams({
-    client_id: 'my_client_id',
-    response_type: 'code',
-    response_mode: 'form_post',
-    redirect_uri: 'https://myapp.example.com/callback',
-    scope: 'openid profile email',
-    state: 'abc123',
-  }),
-});
-
-const { request_uri } = await parResponse.json();
-
-// Step 2: Redirect to authorization endpoint with request_uri
-const authUrl = new URL('https://authrim.sgrastar.workers.dev/authorize');
-authUrl.searchParams.set('client_id', 'my_client_id');
-authUrl.searchParams.set('request_uri', request_uri);
-
-window.location.href = authUrl.toString();
-```
-
-**Result**: User is redirected to authorization server, and after authentication, the response is delivered via form POST.
-
----
-
-## Response Mode Validation
-
-### Supported Response Modes
-
-| Mode | Description | Compatible with `response_type=code` |
-|------|-------------|-------------------------------------|
-| `query` | Query parameters (default) | ✅ Yes |
-| `form_post` | HTTP POST form | ✅ Yes |
-| `fragment` | Fragment parameters | ❌ No (for security reasons) |
-
-### Validation Rules
-
-1. **Unsupported modes**: If `response_mode` is not `query`, `form_post`, or `fragment`, an error is returned
-2. **Fragment with code**: `response_mode=fragment` is **not allowed** with `response_type=code` for security reasons
-3. **Default mode**: If `response_mode` is not specified, defaults to `query`
 
 ---
 
@@ -326,11 +444,7 @@ window.location.href = authUrl.toString();
 
 ### XSS Prevention
 
-Authrim implements **comprehensive HTML escaping** to prevent XSS attacks:
-
-#### Escaping Functions
-
-All user-provided parameters are escaped before being embedded in HTML:
+All parameters are HTML-escaped before embedding:
 
 ```typescript
 function escapeHtml(unsafe: string): string {
@@ -343,275 +457,117 @@ function escapeHtml(unsafe: string): string {
 }
 ```
 
-#### Example
-
-**Input:**
-```
-state=<script>alert('XSS')</script>
-```
-
-**Escaped Output in HTML:**
-```html
-<input type="hidden" name="state" value="&lt;script&gt;alert(&#039;XSS&#039;)&lt;/script&gt;" />
-```
-
 ### CSRF Protection
 
-- **State parameter**: Always use `state` parameter for CSRF protection
-- **Validation**: Validate state on callback to ensure request originated from your app
+- Always use `state` parameter
+- Validate state matches on callback
+- Use secure, random state values
 
-### Parameter Integrity
+### Comparison with Query Mode
 
-- **POST body**: Parameters in POST body, not URL
-- **No logging**: Most web servers don't log POST bodies by default
-- **No browser history**: POST parameters not saved in browser history
+| Aspect | Query Mode | Form Post |
+|--------|------------|-----------|
+| URL Visibility | ❌ Code in URL | ✅ Clean URL |
+| Browser History | ❌ Saved | ✅ Not saved |
+| Server Logs | ❌ Logged | ✅ Not logged |
+| Referer Leakage | ❌ Possible | ✅ No leakage |
 
 ---
 
-## Client-Side Handling
+## Client Implementation
 
-### Required Configuration
-
-Clients must:
-
-1. **Accept POST requests** on redirect_uri
-2. **Parse form-encoded body** (`application/x-www-form-urlencoded`)
-3. **Validate state parameter** (CSRF protection)
-4. **Handle errors** in form POST
-
-### Common Frameworks
-
-#### Express.js
+### Express.js
 
 ```javascript
-app.use(express.urlencoded({ extended: true }));
+// IMPORTANT: Use POST handler, not GET
+app.post('/callback', express.urlencoded({ extended: true }), (req, res) => {
+  const { code, state } = req.body; // NOT req.query!
 
-app.post('/callback', (req, res) => {
-  const { code, state } = req.body;
-  // Handle authorization
+  if (state !== req.session.expectedState) {
+    return res.status(403).send('Invalid state');
+  }
+
+  // Exchange code for tokens...
 });
 ```
 
-#### Hono
+### Next.js
+
+```typescript
+// pages/api/callback.ts
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const { code, state } = req.body;
+  // ...
+}
+```
+
+### Hono
 
 ```typescript
 app.post('/callback', async (c) => {
   const body = await c.req.parseBody();
-  const code = body.code;
-  const state = body.state;
-  // Handle authorization
+  const code = body.code as string;
+  const state = body.state as string;
+  // ...
 });
 ```
-
-#### Python Flask
-
-```python
-@app.route('/callback', methods=['POST'])
-def callback():
-    code = request.form.get('code')
-    state = request.form.get('state')
-    # Handle authorization
-```
-
----
-
-## HTML Response Structure
-
-### User Experience
-
-Authrim's form post response includes a user-friendly loading screen:
-
-1. **Loading Spinner**: Animated spinner indicating progress
-2. **Message**: "Redirecting to application..."
-3. **Auto-Submit**: Form submits immediately via JavaScript
-4. **Fallback**: Form is visible if JavaScript is disabled (manual submit)
-
-### Styling
-
-The response includes modern, responsive CSS:
-
-- Gradient background
-- Centered content
-- Smooth animations
-- Mobile-friendly
 
 ---
 
 ## Discovery Metadata
 
-Form Post support is advertised in the OpenID Provider metadata:
-
 ```json
 {
-  "response_modes_supported": ["query", "form_post"]
+  "response_modes_supported": ["query", "form_post", "fragment"]
 }
 ```
 
-Clients can check this metadata to verify Form Post support before using it.
-
 ---
 
-## Testing
+## Configuration
 
-### Test Coverage
+### Environment Variables
 
-Authrim includes comprehensive tests for Form Post Response Mode:
-
-**Test File**: `test/form-post-response-mode.test.ts`
-
-**Test Scenarios**:
-- ✅ HTML form generation
-- ✅ State parameter inclusion
-- ✅ HTML escaping (XSS prevention)
-- ✅ Response mode validation
-- ✅ Integration with PKCE
-- ✅ Integration with PAR
-- ✅ Discovery endpoint
-- ✅ Security (XSS, quotes, ampersands)
-- ✅ HTML structure (doctype, meta tags, spinner)
-
-**Total**: 19+ test cases
-
-### Running Tests
-
-```bash
-npm test -- form-post-response-mode.test.ts
-```
-
----
-
-## Comparison: Query vs Form Post
-
-### Query Mode (Default)
-
-**Request:**
-```http
-GET /authorize?response_type=code&client_id=...&redirect_uri=...&scope=...
-```
-
-**Response:**
-```http
-HTTP/1.1 302 Found
-Location: https://myapp.example.com/callback?code=abc123&state=xyz
-```
-
-**Issues**:
-- ❌ Code visible in URL
-- ❌ Logged in web server logs
-- ❌ Saved in browser history
-- ❌ Can leak via Referer header
-
----
-
-### Form Post Mode
-
-**Request:**
-```http
-GET /authorize?response_type=code&response_mode=form_post&client_id=...&redirect_uri=...&scope=...
-```
-
-**Response:**
-```http
-HTTP/1.1 200 OK
-Content-Type: text/html
-
-<html>
-  <form method="post" action="https://myapp.example.com/callback">
-    <input type="hidden" name="code" value="abc123" />
-    <input type="hidden" name="state" value="xyz" />
-  </form>
-  <script>document.forms[0].submit();</script>
-</html>
-```
-
-**Benefits**:
-- ✅ Code not visible in URL
-- ✅ Not logged in web server logs (usually)
-- ✅ Not saved in browser history
-- ✅ No Referer leakage
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `FORM_POST_TEMPLATE` | Custom HTML template | Built-in |
+| `FORM_POST_AUTO_SUBMIT` | Enable auto-submit JS | `true` |
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
+### Client receives GET instead of POST
 
-#### Client receives GET instead of POST
+**Cause**: Callback endpoint only handles GET requests.
 
-**Cause**: Client's redirect_uri only handles GET requests
-
-**Solution**: Ensure callback endpoint accepts POST:
-
+**Solution**: Add POST handler:
 ```javascript
-// Express.js
-app.post('/callback', handler);  // Not app.get()
-
-// Next.js
-if (req.method !== 'POST') {
-  return res.status(405).end();
-}
+app.post('/callback', handler); // Not app.get()
 ```
 
-#### Parameters not found in request
+### Parameters not found
 
-**Cause**: Client reading from query parameters instead of body
+**Cause**: Reading from `req.query` instead of `req.body`.
 
 **Solution**: Read from POST body:
-
 ```javascript
-// Correct
-const code = req.body.code;
-
-// Incorrect
-const code = req.query.code;  // Won't work with form_post!
+const code = req.body.code; // NOT req.query.code
 ```
 
-#### Form not auto-submitting
-
-**Cause**: JavaScript disabled or error
-
-**Solution**: The form is visible and can be manually submitted. Ensure JavaScript is enabled for best UX.
-
 ---
 
-## Best Practices
+## Implementation Files
 
-### For Clients
-
-1. **Always use state**: Include `state` parameter for CSRF protection
-2. **Validate state**: Check state matches on callback
-3. **Handle POST**: Ensure redirect_uri accepts POST requests
-4. **Parse body**: Read parameters from POST body, not URL
-5. **PKCE**: Use PKCE for enhanced security (especially public clients)
-
-### For Security
-
-1. **HTTPS only**: Always use HTTPS for redirect_uri in production
-2. **Exact URI matching**: Register exact redirect URIs (no wildcards)
-3. **Short-lived codes**: Authorization codes expire quickly (120 seconds)
-4. **One-time use**: Codes are single-use only
-
----
-
-## Browser Compatibility
-
-Form Post Response Mode works on all modern browsers:
-
-- ✅ Chrome/Edge (all versions)
-- ✅ Firefox (all versions)
-- ✅ Safari (all versions)
-- ✅ Mobile browsers (iOS Safari, Chrome Mobile)
-
----
-
-## Future Enhancements
-
-### Planned Features (Phase 5+)
-
-- [ ] **JWT-Secured Response Mode**: Signed/encrypted response JWTs
-- [ ] **Fragment Response Mode**: Support for implicit/hybrid flows
-- [ ] **Custom HTML Templates**: Configurable form post page design
-- [ ] **Analytics**: Track form post usage and success rates
+| Component | File | Description |
+|-----------|------|-------------|
+| Form Post Handler | `packages/op-auth/src/authorize.ts` | Response generation |
+| HTML Template | `packages/op-auth/src/templates/form-post.ts` | Form template |
+| Discovery | `packages/op-discovery/src/discovery.ts` | Metadata |
 
 ---
 
@@ -619,13 +575,11 @@ Form Post Response Mode works on all modern browsers:
 
 - [OAuth 2.0 Form Post Response Mode](https://openid.net/specs/oauth-v2-form-post-response-mode-1_0.html)
 - [OAuth 2.0 Multiple Response Types](https://openid.net/specs/oauth-v2-multiple-response-types-1_0.html)
-- [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html)
-- [OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics)
+- [OAuth 2.0 Security BCP](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics)
 
 ---
 
-**Last Updated**: 2025-11-12
-**Status**: ✅ Implemented and Tested
+**Last Updated**: 2025-12-20
+**Status**: ✅ Fully Implemented
 **Tests**: 19+ passing tests
-**Implementation**: `src/handlers/authorize.ts` (lines 200-226, 370-510)
-**Discovery**: `src/handlers/discovery.ts` (line 30)
+**Implementation**: `packages/op-auth/src/authorize.ts`

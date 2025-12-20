@@ -426,35 +426,93 @@ Cleanup old generation shards after shard count changes.
 
 ## Region Shards Settings
 
-Region sharding enables Durable Objects (SessionStore, AuthCodeStore, ChallengeStore) to be placed in specific geographic regions using Cloudflare's `locationHint` feature. This reduces latency for users in specific regions.
+Region sharding enables Durable Objects (SessionStore, AuthCodeStore, ChallengeStore, DPoPJTIStore, PARRequestStore, etc.) to be placed in specific geographic regions using Cloudflare's `locationHint` feature. This reduces latency for users in specific regions.
+
+**V2 Features**:
+
+- Colocation groups (user-client group ensures AuthCode and RefreshToken are colocated)
+- Per-group shard count configuration
+- Rolling migration with generation tracking
+- Environment variable fallback support
+
+### Configuration Priority
+
+```
+1. KV Store (region_shard_config:{tenantId})  → Dynamic configuration
+2. Environment Variables                       → Deployment-time defaults
+3. Hardcoded Defaults                          → Safe fallback
+```
+
+**Environment Variables**:
+
+| Variable                     | Type   | Default | Description                       |
+| ---------------------------- | ------ | ------- | --------------------------------- |
+| `REGION_SHARD_TOTAL_SHARDS`  | number | 20      | Default total shards              |
+| `REGION_SHARD_GENERATION`    | number | 1       | Current generation                |
+| `REGION_SHARD_APAC_PERCENT`  | number | 20      | APAC region percentage            |
+| `REGION_SHARD_ENAM_PERCENT`  | number | 40      | Eastern North America percentage  |
+| `REGION_SHARD_WEUR_PERCENT`  | number | 40      | Western Europe percentage         |
+| `REGION_SHARD_GROUPS_JSON`   | string | -       | JSON-encoded groups configuration |
 
 ### GET /api/admin/settings/region-shards
 
-Get current region sharding configuration.
+Get current region sharding configuration (V2 format with groups).
 
 **Response**:
 
 ```json
 {
+  "version": 2,
   "currentGeneration": 1,
   "currentTotalShards": 20,
+  "baseRegions": {
+    "apac": 20,
+    "enam": 40,
+    "weur": 40
+  },
   "currentRegions": {
-    "wnam": {
-      "startShard": 0,
-      "endShard": 19,
-      "shardCount": 20
+    "apac": { "startShard": 0, "endShard": 3, "shardCount": 4 },
+    "enam": { "startShard": 4, "endShard": 11, "shardCount": 8 },
+    "weur": { "startShard": 12, "endShard": 19, "shardCount": 8 }
+  },
+  "groups": {
+    "user-client": {
+      "totalShards": 64,
+      "members": ["authcode", "refresh"],
+      "description": "Colocated by userId:clientId - MUST have identical shard counts"
+    },
+    "random-high-rps": {
+      "totalShards": 64,
+      "members": ["revocation", "dpop"],
+      "description": "High RPS endpoints with random UUID keys"
+    },
+    "random-medium-rps": {
+      "totalShards": 32,
+      "members": ["session", "challenge"],
+      "description": "Medium RPS endpoints"
+    },
+    "client-based": {
+      "totalShards": 32,
+      "members": ["par", "device", "ciba"],
+      "description": "client_id based sharding"
+    },
+    "vc": {
+      "totalShards": 16,
+      "members": ["credoffer", "vprequest"],
+      "description": "Verifiable Credentials"
     }
   },
   "previousGenerations": [],
   "maxPreviousGenerations": 5,
   "updatedAt": 1702644000000,
-  "updatedBy": "admin-api"
+  "updatedBy": "admin-api",
+  "source": "kv"
 }
 ```
 
 ### PUT /api/admin/settings/region-shards
 
-Update region sharding configuration. If `totalShards` or `regionDistribution` changes, a new generation is created automatically.
+Update region sharding configuration. If `totalShards`, `regionDistribution`, or `groups` changes, a new generation is created automatically.
 
 **Request Body**:
 
@@ -462,7 +520,19 @@ Update region sharding configuration. If `totalShards` or `regionDistribution` c
 {
   "totalShards": 20,
   "regionDistribution": {
-    "wnam": 100
+    "apac": 20,
+    "enam": 40,
+    "weur": 40
+  },
+  "groups": {
+    "user-client": {
+      "totalShards": 64,
+      "members": ["authcode", "refresh"]
+    },
+    "client-based": {
+      "totalShards": 32,
+      "members": ["par", "device", "ciba", "dpop"]
+    }
   }
 }
 ```
@@ -471,17 +541,19 @@ Update region sharding configuration. If `totalShards` or `regionDistribution` c
 | ------------------ | ------ | -------- | ---------------------- | -------------------------------- |
 | totalShards        | number | Yes      | >= active region count | Total number of shards           |
 | regionDistribution | object | Yes      | Must sum to 100        | Percentage allocation per region |
+| groups             | object | No       | Valid group structure  | Per-group shard configuration    |
 
 **Valid Region Keys**:
-| Key | Region | Cloudflare Location |
-|-----|--------|---------------------|
-| `apac` | Asia Pacific | Tokyo, Singapore, Sydney |
-| `enam` | Eastern North America | Ashburn, Virginia |
-| `wnam` | Western North America | Portland, Oregon |
-| `weur` | Western Europe | Frankfurt, London |
-| `oc` | Oceania | Sydney |
-| `afr` | Africa | Johannesburg |
-| `me` | Middle East | Dubai |
+
+| Key    | Region                | Cloudflare Location          |
+| ------ | --------------------- | ---------------------------- |
+| `apac` | Asia Pacific          | Tokyo, Singapore, Sydney     |
+| `enam` | Eastern North America | Ashburn, Virginia            |
+| `wnam` | Western North America | Portland, Oregon             |
+| `weur` | Western Europe        | Frankfurt, London            |
+| `oc`   | Oceania               | Sydney                       |
+| `afr`  | Africa                | Johannesburg                 |
+| `me`   | Middle East           | Dubai                        |
 
 **Response**:
 
@@ -492,12 +564,11 @@ Update region sharding configuration. If `totalShards` or `regionDistribution` c
   "currentGeneration": 2,
   "currentTotalShards": 20,
   "currentRegions": {
-    "wnam": {
-      "startShard": 0,
-      "endShard": 19,
-      "shardCount": 20
-    }
+    "apac": { "startShard": 0, "endShard": 3, "shardCount": 4 },
+    "enam": { "startShard": 4, "endShard": 11, "shardCount": 8 },
+    "weur": { "startShard": 12, "endShard": 19, "shardCount": 8 }
   },
+  "groups": { ... },
   "previousGenerationsCount": 1,
   "updatedAt": 1702644000000,
   "note": "New generation created. Existing resources will continue to use old config until they expire."
@@ -511,6 +582,76 @@ Update region sharding configuration. If `totalShards` or `regionDistribution` c
 - Each region with percentage > 0 must get at least 1 shard after rounding
 - Regions with 0% are allowed (disabled regions)
 - Only valid region keys are accepted
+- **CRITICAL**: `user-client` group members MUST have identical shard counts
+
+### POST /api/admin/settings/region-shards/migrate
+
+Create a new generation for rolling migration. Use this for shard count changes without breaking existing resources.
+
+**Request Body**:
+
+```json
+{
+  "totalShards": 64,
+  "regionDistribution": {
+    "apac": 30,
+    "enam": 35,
+    "weur": 35
+  }
+}
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "previousGeneration": 1,
+  "newGeneration": 2,
+  "previousTotalShards": 20,
+  "newTotalShards": 64,
+  "newRegions": {
+    "apac": { "startShard": 0, "endShard": 18, "shardCount": 19 },
+    "enam": { "startShard": 19, "endShard": 41, "shardCount": 23 },
+    "weur": { "startShard": 42, "endShard": 63, "shardCount": 22 }
+  },
+  "note": "New generation created. Writes go to gen 2, reads fall back to gen 1."
+}
+```
+
+### GET /api/admin/settings/region-shards/validate
+
+Validate current configuration for potential issues.
+
+**Response** (valid):
+
+```json
+{
+  "valid": true,
+  "checks": {
+    "regionDistributionSum": { "passed": true, "value": 100 },
+    "userClientGroupColocation": { "passed": true, "shardCounts": [64, 64] },
+    "minShardsPerRegion": { "passed": true },
+    "previousGenerationsLimit": { "passed": true, "count": 1, "max": 5 }
+  }
+}
+```
+
+**Response** (invalid):
+
+```json
+{
+  "valid": false,
+  "checks": {
+    "regionDistributionSum": { "passed": false, "value": 90, "error": "Must sum to 100" },
+    "userClientGroupColocation": {
+      "passed": false,
+      "shardCounts": [64, 32],
+      "error": "CRITICAL: user-client group members have mismatched shard counts. This will cause intermittent auth failures."
+    }
+  }
+}
+```
 
 ### DELETE /api/admin/settings/region-shards
 
@@ -539,6 +680,23 @@ Delete region sharding configuration (reset to defaults).
 }
 ```
 
+### Colocation Groups
+
+**⚠️ CRITICAL: user-client Group**
+
+The `user-client` group (AuthCodeStore + RefreshTokenRotator) MUST have identical shard counts. Mismatched shard counts cause intermittent authentication failures:
+
+```
+Why colocation matters:
+- Auth code issued → stored in AuthCodeStore shard N (based on userId:clientId)
+- Token request → RefreshToken stored in RefreshTokenRotator shard N
+- If shard counts differ:
+  - hash("user1:client1") % 64 = 15
+  - hash("user1:client1") % 32 = 15 (coincidence, works)
+  - hash("user2:client2") % 64 = 47
+  - hash("user2:client2") % 32 = 15 (DIFFERENT! breaks)
+```
+
 ### Region Sharding Examples
 
 **Example 1: US West Only (for k6 Cloud Portland)**
@@ -550,21 +708,42 @@ curl -X PUT https://your-domain.com/api/admin/settings/region-shards \
   -d '{"totalShards": 20, "regionDistribution": {"wnam": 100}}'
 ```
 
-**Example 2: Multi-Region Distribution**
+**Example 2: Multi-Region Distribution with Groups**
 
 ```bash
 curl -X PUT https://your-domain.com/api/admin/settings/region-shards \
   -H "X-Admin-Secret: YOUR_ADMIN_SECRET" \
   -H "Content-Type: application/json" \
-  -d '{"totalShards": 20, "regionDistribution": {"apac": 20, "enam": 40, "weur": 40}}'
+  -d '{
+    "totalShards": 64,
+    "regionDistribution": {"apac": 20, "enam": 40, "weur": 40},
+    "groups": {
+      "user-client": {"totalShards": 64, "members": ["authcode", "refresh"]},
+      "client-based": {"totalShards": 32, "members": ["par", "dpop"]}
+    }
+  }'
 ```
 
-**Example 3: Using wrangler directly**
+**Example 3: Rolling Migration**
+
+```bash
+# Step 1: Create new generation
+curl -X POST https://your-domain.com/api/admin/settings/region-shards/migrate \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"totalShards": 64, "regionDistribution": {"apac": 30, "enam": 35, "weur": 35}}'
+
+# Step 2: Validate configuration
+curl -X GET https://your-domain.com/api/admin/settings/region-shards/validate \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET"
+```
+
+**Example 4: Using wrangler directly**
 
 ```bash
 # Set configuration (US West 100%)
 npx wrangler kv key put "region_shard_config:default" \
-  '{"currentGeneration":1,"currentTotalShards":20,"currentRegions":{"wnam":{"startShard":0,"endShard":19,"shardCount":20}},"previousGenerations":[],"maxPreviousGenerations":5,"updatedAt":1702644000000,"updatedBy":"wrangler"}' \
+  '{"version":2,"currentGeneration":1,"currentTotalShards":20,"baseRegions":{"wnam":100},"currentRegions":{"wnam":{"startShard":0,"endShard":19,"shardCount":20}},"groups":{},"previousGenerations":[],"maxPreviousGenerations":5,"updatedAt":1702644000000,"updatedBy":"wrangler"}' \
   --namespace-id=YOUR_NAMESPACE_ID --remote
 
 # Check current value
@@ -584,6 +763,40 @@ npx wrangler kv key delete "region_shard_config:default" \
 | `amazon:us:ashburn`   | `enam`                |
 | `amazon:jp:tokyo`     | `apac`                |
 | `amazon:eu:frankfurt` | `weur`                |
+
+### ID Format Reference
+
+All region-sharded resources use this ID format:
+
+```
+g{generation}:{region}:{shard}:{type}_{uuid}
+```
+
+| Component    | Description                | Example              |
+| ------------ | -------------------------- | -------------------- |
+| `generation` | Config version (1-999)     | `g1`, `g2`           |
+| `region`     | Cloudflare region key      | `apac`, `enam`       |
+| `shard`      | Shard index (0 to N-1)     | `0`, `31`, `63`      |
+| `type`       | 3-character DO type prefix | `ses`, `acd`, `dpp`  |
+| `uuid`       | Unique identifier          | `abc123-def456`      |
+
+**Example**: `g1:apac:3:ses_abc123-def456`
+
+### Type Prefix Reference
+
+| DO                   | ID Prefix | Description                      |
+| -------------------- | --------- | -------------------------------- |
+| SessionStore         | `ses`     | User sessions                    |
+| AuthCodeStore        | `acd`     | Authorization codes              |
+| RefreshTokenRotator  | `rft`     | Refresh token families           |
+| ChallengeStore       | `cha`     | WebAuthn/FIDO2 challenges        |
+| TokenRevocationStore | `rev`     | Revoked tokens                   |
+| CredentialOfferStore | `cof`     | OpenID4VCI credential offers     |
+| VPRequestStore       | `vpr`     | OpenID4VP verification requests  |
+| DPoPJTIStore         | `dpp`     | DPoP proof replay prevention     |
+| PARRequestStore      | `par`     | Pushed Authorization Requests    |
+| DeviceCodeStore      | `dev`     | Device Authorization Flow        |
+| CIBARequestStore     | `cba`     | Client-Initiated Backchannel Auth|
 
 ---
 

@@ -26,7 +26,7 @@ Documents for planning, scheduling, and tracking project progress.
 | Document | Description |
 |:---------|:------------|
 | [Vision](./VISION.md) | Long-term vision and strategic goals |
-| [Roadmap](./ROADMAP.md) | Product roadmap (Phase 6: 8/11 complete) |
+| [Roadmap](./ROADMAP.md) | Product roadmap (Phase 9: VC/DID Integration) |
 | [Project Schedule](./project-management/SCHEDULE.md) | Timeline with major milestones |
 | [Task Breakdown](./project-management/TASKS.md) | Task checklist by phase |
 | [API Inventory](./project-management/API_INVENTORY.md) | Complete API endpoint status |
@@ -39,18 +39,39 @@ Documents for planning, scheduling, and tracking project progress.
 
 Technical specifications and system design documentation.
 
+### Core Architecture
 | Document | Description |
 |:---------|:------------|
-| [Technical Specs](./architecture/technical-specs.md) | System architecture and endpoint specifications |
-| [Protocol Flow](./architecture/protocol-flow.md) | End-to-end OIDC Authorization Code Flow |
-| [Workers Architecture](./architecture/workers.md) | Cloudflare Workers monorepo and worker split design |
+| [Architecture Overview](./architecture/overview.md) | High-level system architecture (14 packages, 16 DOs) |
+| [Workers Architecture](./architecture/workers.md) | Cloudflare Workers monorepo structure |
+| [Durable Objects](./architecture/durable-objects.md) | 16 DOs for strong consistency |
+| [Protocol Flow](./architecture/protocol-flow.md) | 11 OAuth/OIDC protocol flows |
+| [Storage Strategy](./architecture/storage-strategy.md) | Hybrid multi-tier storage (DO + D1 + KV + R2) |
+
+### Security & Authentication
+| Document | Description |
+|:---------|:------------|
+| [Security Architecture](./architecture/security.md) | Defense-in-depth security, FAPI 2.0 compliance |
+| [Authentication Flows](./architecture/authentication-flows.md) | Passkey, Password+OTP, Magic Link, Federation |
+| [Key Management](./architecture/key-management.md) | Cryptographic key lifecycle and rotation |
+| [Error Handling](./architecture/error-handling.md) | OAuth 2.0 error responses and logging |
+
+### Configuration & Deployment
+| Document | Description |
+|:---------|:------------|
+| [Configuration](./architecture/configuration.md) | Hybrid config (KV + Env + Defaults) |
+| [Multi-Tenancy](./architecture/multi-tenancy.md) | Tenant isolation architecture |
 | [Architecture Patterns](./architecture/patterns.md) | Deployment architecture patterns (A/B/C/D) |
 | [Router Setup](./architecture/router-setup.md) | Router Worker configuration guide |
-| [Durable Objects](./architecture/durable-objects.md) | Durable Objects design and usage |
 | [Database Schema](./architecture/database-schema.md) | D1 database schema documentation |
-| [Storage Strategy](./architecture/storage-strategy.md) | KV, D1, DO storage selection guide |
+| [Technical Specs](./architecture/technical-specs.md) | Detailed endpoint specifications |
+
+### Consistency & Storage
+| Document | Description |
+|:---------|:------------|
 | [Storage Consistency Design](./architecture/storage-consistency-design.md) | Consistency guarantees and design |
 | [Storage Implementation](./architecture/storage-consistency-implementation.md) | Implementation record of storage design |
+| [DO Sharding](./architecture/durable-objects-sharding.md) | Durable Objects sharding strategies |
 
 ---
 
@@ -58,20 +79,45 @@ Technical specifications and system design documentation.
 
 Documentation for OIDC features and extensions.
 
-### Core Features
+### Core OIDC Features
 | Document | Description |
 |:---------|:------------|
-| [PKCE](./features/pkce.md) | Proof Key for Code Exchange |
+| [OIDC Core](./features/oidc-core.md) | OpenID Connect Core 1.0 implementation |
+| [Discovery](./features/discovery.md) | Provider metadata and JWKS endpoints |
+| [UserInfo](./features/userinfo.md) | User claims and profile information |
+| [PKCE](./features/pkce.md) | Proof Key for Code Exchange (RFC 7636) |
 | [Hybrid Flow](./features/hybrid-flow.md) | OAuth 2.0 Hybrid Flow implementation |
 | [Token Management](./features/token-management.md) | Token lifecycle and rotation |
 
-### Advanced Features
+### Session & Logout
+| Document | Description |
+|:---------|:------------|
+| [Session Management](./features/session-management.md) | Session tracking and ITP compatibility |
+| [Logout](./features/logout.md) | All logout mechanisms (RP-Initiated, Front/Back-Channel) |
+
+### Authentication Methods
+| Document | Description |
+|:---------|:------------|
+| [Client Authentication](./features/client-authentication.md) | All 5 client authentication methods |
+| [Passkey/WebAuthn](./features/passkey-webauthn.md) | FIDO2 passwordless authentication |
+
+### Advanced Security Features
 | Document | Description |
 |:---------|:------------|
 | [PAR](./features/par.md) | Pushed Authorization Requests (RFC 9126) |
-| [DPoP](./features/dpop.md) | Demonstrating Proof of Possession |
+| [DPoP](./features/dpop.md) | Demonstrating Proof of Possession (RFC 9449) |
 | [JAR/JARM](./features/jar-jarm.md) | JWT Secured Authorization Request/Response Mode |
-| [Device Flow](./features/device-flow.md) | OAuth 2.0 Device Authorization Grant |
+| [Token Exchange](./features/token-exchange.md) | OAuth 2.0 Token Exchange (RFC 8693) |
+
+### Async Grant Flows
+| Document | Description |
+|:---------|:------------|
+| [Device Flow](./features/device-flow.md) | OAuth 2.0 Device Authorization Grant (RFC 8628) |
+| [CIBA](./features/ciba.md) | Client Initiated Backchannel Authentication |
+
+### Additional Features
+| Document | Description |
+|:---------|:------------|
 | [Dynamic Client Registration](./features/dynamic-client-registration.md) | OpenID Connect DCR |
 | [Form Post Response Mode](./features/form-post-response-mode.md) | OAuth 2.0 Form Post Response Mode |
 | [Pairwise Subject Identifiers](./features/pairwise-subject-identifiers.md) | Privacy-preserving subject identifiers |
@@ -79,7 +125,6 @@ Documentation for OIDC features and extensions.
 ### Enterprise Features
 | Document | Description |
 |:---------|:------------|
-| [CIBA](./features/ciba.md) | Client Initiated Backchannel Authentication |
 | [SCIM](./features/scim.md) | System for Cross-domain Identity Management |
 | [SCIM Implementation](./features/scim-implementation.md) | SCIM implementation summary |
 

@@ -1,206 +1,373 @@
 # Pairwise Subject Identifiers
 
+Protect user privacy by issuing different identifiers for the same user across different clients.
+
 ## Overview
 
-**OpenID Connect Core 1.0 Section 8** - Subject Identifier Types
+| Specification | Status | Configuration |
+|---------------|--------|---------------|
+| [OIDC Core 1.0 Section 8](https://openid.net/specs/openid-connect-core-1_0.html#SubjectIDTypes) | ✅ Implemented | `subject_type: "pairwise"` |
 
-Authrim implements pairwise subject identifiers, a privacy-enhancing feature that provides different subject (`sub`) values for the same user across different clients, preventing user tracking and correlation across applications.
+Pairwise subject identifiers provide different `sub` (subject) values for the same user across different clients, preventing user tracking and correlation across applications.
 
-## Specification
-
-- **Specification**: [OpenID Connect Core 1.0 Section 8](https://openid.net/specs/openid-connect-core-1_0.html#SubjectIDTypes)
-- **Algorithm**: [OIDC Core 8.1 - Pairwise Identifier Algorithm](https://openid.net/specs/openid-connect-core-1_0.html#PairwiseAlg)
-- **Status**: ✅ Implemented
-- **Configuration**: Client registration (`subject_type` parameter)
-
----
-
-## Why Use Pairwise Subject Identifiers?
-
-### Privacy Benefits
-
-1. **🔒 User Privacy Protection**
-   - Different `sub` values for same user across clients
-   - Prevents user tracking across applications
-   - Complies with privacy regulations (GDPR, CCPA)
-   - Reduces data correlation risks
-
-2. **🛡️ Prevents Client Collusion**
-   - Clients cannot correlate users by comparing `sub` values
-   - Each client sees unique identifier for each user
-   - Protects against malicious client cooperation
-   - Enforces data minimization principles
-
-3. **📊 Data Protection Compliance**
-   - **GDPR Article 25**: Privacy by Design
-   - **GDPR Article 32**: Pseudonymization
-   - **CCPA**: Consumer privacy protection
-   - **HIPAA**: Healthcare data protection
-
-4. **✅ Security Benefits**
-   - Limits blast radius of data breaches
-   - Reduces identity correlation attacks
-   - Protects user identity across services
-   - Supports zero-trust architecture
-
-### Use Cases
-
-- **Healthcare**: HIPAA-compliant patient identifiers
-- **Finance**: GDPR-compliant banking applications
-- **Government**: Citizen privacy protection
-- **Enterprise**: Employee privacy across departments
-- **Consumer Apps**: User privacy across third-party integrations
-- **Multi-Tenant SaaS**: Tenant isolation and privacy
+```
+Same User + Different Clients = Different Subject Identifiers
+```
 
 ---
 
-## How Pairwise Subject Identifiers Work
+## Benefits
 
-### Flow Diagram
+| Benefit | Description |
+|---------|-------------|
+| **User Privacy** | Different `sub` values prevent cross-client tracking |
+| **Anti-Collusion** | Clients cannot correlate users by sharing IDs |
+| **GDPR Compliance** | Privacy by Design (Article 25) |
+| **HIPAA Compliance** | De-identification across applications |
+| **Data Minimization** | Limits identity exposure scope |
+
+---
+
+## Practical Use Cases
+
+### Use Case 1: Healthcare App Ecosystem with HIPAA Compliance
+
+**Scenario**: A healthcare system has multiple patient-facing applications (appointment booking, prescription refills, telehealth). Each app is developed by different vendors. HIPAA requires that patient identifiers not be correlatable across vendors.
+
+**Why Pairwise**: Each vendor receives a different patient identifier, preventing vendors from colluding to build comprehensive patient profiles without consent.
 
 ```mermaid
 sequenceDiagram
-    participant ClientA as Client A
-    participant AS as Authorization Server
+    participant Patient
+    participant IdP as Healthcare IdP
+    participant App1 as Appointment App<br/>(Vendor A)
+    participant App2 as Rx Refill App<br/>(Vendor B)
+    participant App3 as Telehealth App<br/>(Vendor C)
 
-    ClientA->>AS: 1. Client Registration<br/>(subject_type: "pairwise")
-    ClientA->>AS: 2. User Authorization<br/>User ID: "user-12345"
-    Note over AS: 3. Generate Pairwise Sub<br/>SHA-256(sector + user_id + salt)<br/>= "AbC123..."
-    AS-->>ClientA: 4. ID Token<br/>sub: "AbC123..."
+    Patient->>App1: Login
+    App1->>IdP: Authorize
+    IdP->>IdP: Generate pairwise sub<br/>for Vendor A sector
+    IdP-->>App1: sub = "aB3x7..."<br/>(unique to Vendor A)
+
+    Patient->>App2: Login
+    App2->>IdP: Authorize
+    IdP->>IdP: Generate pairwise sub<br/>for Vendor B sector
+    IdP-->>App2: sub = "Kp9m2..."<br/>(unique to Vendor B)
+
+    Patient->>App3: Login
+    App3->>IdP: Authorize
+    IdP->>IdP: Generate pairwise sub<br/>for Vendor C sector
+    IdP-->>App3: sub = "Zt4q8..."<br/>(unique to Vendor C)
+
+    Note over App1,App3: Same patient, 3 different identifiers!<br/>Vendors cannot correlate without IdP
 ```
 
-```mermaid
-sequenceDiagram
-    participant ClientB as Client B
-    participant AS as Authorization Server
+**Implementation**:
 
-    ClientB->>AS: 1. Client Registration<br/>(subject_type: "pairwise")
-    ClientB->>AS: 2. Same User Authorization<br/>User ID: "user-12345" (same user!)
-    Note over AS: 3. Generate Different Pairwise Sub<br/>(different sector)<br/>= "XyZ789..."
-    AS-->>ClientB: 4. ID Token<br/>sub: "XyZ789..." (different!)
+```typescript
+// Healthcare IdP: Pairwise generation for HIPAA compliance
+async function generateHIPAACompliantSubject(
+  patientId: string,
+  clientId: string,
+  clientConfig: ClientConfig
+): Promise<string> {
+  // Use pairwise for third-party vendor apps
+  if (clientConfig.vendor_type === 'third_party') {
+    const sectorId = extractSectorIdentifier(clientConfig.redirect_uris[0]);
+
+    // HIPAA-compliant pairwise generation
+    const pairwiseSub = await generatePairwiseSubject(
+      patientId,
+      sectorId,
+      env.HIPAA_PAIRWISE_SALT
+    );
+
+    // Audit log for compliance
+    await auditLog({
+      event: 'pairwise_subject_generated',
+      patient_id_hash: await hash(patientId), // Never log actual patient ID
+      client_id: clientId,
+      sector: sectorId,
+      timestamp: new Date().toISOString()
+    });
+
+    return pairwiseSub;
+  }
+
+  // First-party apps get public subject
+  return patientId;
+}
+
+// Client registration with HIPAA requirements
+app.post('/register', async (c) => {
+  const body = await c.req.json();
+
+  // Third-party vendors MUST use pairwise
+  if (body.vendor_type === 'third_party' && body.subject_type !== 'pairwise') {
+    return c.json({
+      error: 'invalid_client_metadata',
+      error_description: 'Third-party vendors must use pairwise subject type for HIPAA compliance'
+    }, 400);
+  }
+
+  // Register client with enforced pairwise
+  const client = await registerClient({
+    ...body,
+    subject_type: body.vendor_type === 'third_party' ? 'pairwise' : body.subject_type
+  });
+
+  return c.json(client, 201);
+});
 ```
 
-**Result**: Same user, different clients → Different `sub` values
+**Vendor Registration**:
 
-### Pairwise Algorithm (OIDC Core 8.1)
-
+```bash
+# Register third-party appointment app
+curl -X POST https://auth.healthcare.example.com/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_name": "AppointmentPro by Vendor A",
+    "redirect_uris": ["https://appointments.vendora.com/callback"],
+    "subject_type": "pairwise",
+    "vendor_type": "third_party",
+    "grant_types": ["authorization_code"],
+    "scope": "openid profile appointments:read appointments:write"
+  }'
 ```
-sub = base64url(SHA-256(sector_identifier || local_account_id || salt))
-```
-
-**Components**:
-- `sector_identifier`: Client's host (e.g., `example.com`)
-- `local_account_id`: User's internal ID (e.g., `user-12345`)
-- `salt`: Server secret for additional security
-- `||`: Concatenation operator
 
 ---
 
-## Subject Type Comparison
+### Use Case 2: Consumer Ad-Tech Privacy Protection
 
-### Public Subject Type (Default)
+**Scenario**: A media company offers "Login with MediaCo" for partner websites. To prevent ad-tech companies from building shadow profiles by correlating user IDs across sites, all partner integrations use pairwise subjects.
 
-```json
-{
-  "sub": "user-12345",
-  "iss": "https://authrim.sgrastar.workers.dev",
-  "aud": "client_abc",
-  ...
+**Why Pairwise**: Even if two partner sites share data with the same ad-tech company, user identifiers from MediaCo cannot be correlated.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant IdP as MediaCo IdP
+    participant Site1 as NewsPartner.com
+    participant Site2 as SportsBlog.com
+    participant AdTech as Ad Network
+
+    User->>Site1: Login with MediaCo
+    Site1->>IdP: Authorize
+    IdP-->>Site1: sub = "news_Abc123..."
+
+    User->>Site2: Login with MediaCo
+    Site2->>IdP: Authorize
+    IdP-->>Site2: sub = "sports_Xyz789..."
+
+    Site1->>AdTech: User activity<br/>user_id: news_Abc123
+    Site2->>AdTech: User activity<br/>user_id: sports_Xyz789
+
+    Note over AdTech: Cannot correlate!<br/>Different IDs for same user
+```
+
+**Implementation**:
+
+```typescript
+// Consumer IdP: Privacy-focused pairwise configuration
+const privacyConfig = {
+  // All third-party integrations use pairwise
+  default_subject_type: 'pairwise',
+
+  // Prevent tracking with short-lived tokens
+  access_token_ttl: 3600, // 1 hour
+
+  // Require PKCE for all public clients
+  require_pkce: true,
+
+  // Privacy disclosure in consent screen
+  consent_disclosure: {
+    pairwise: 'This site receives a unique identifier that cannot be used to track you across other sites.',
+    public: 'This site receives your account identifier.'
+  }
+};
+
+// Consent screen with privacy explanation
+function buildConsentScreen(client: Client, user: User) {
+  return {
+    client_name: client.client_name,
+    requested_scopes: client.scope.split(' '),
+    privacy_info: client.subject_type === 'pairwise'
+      ? `${client.client_name} will receive a unique identifier that only works with this site. This prevents tracking across other sites you use.`
+      : `${client.client_name} will receive your account identifier.`,
+    data_shared: [
+      client.scope.includes('email') && { type: 'email', value: maskEmail(user.email) },
+      client.scope.includes('profile') && { type: 'profile', value: user.name }
+    ].filter(Boolean)
+  };
 }
 ```
 
-**Characteristics**:
-- ✅ Same `sub` value across all clients
-- ✅ Simpler implementation
-- ❌ Clients can correlate users
-- ❌ Privacy risks
-- **Use Case**: Internal applications, trusted clients
+**Partner Registration**:
 
-### Pairwise Subject Type
+```typescript
+// Partner site self-registration
+async function registerPartnerSite(partnerData: PartnerRegistration) {
+  // Enforce pairwise for all partner sites
+  const client = await fetch('https://id.mediaco.com/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_name: partnerData.siteName,
+      redirect_uris: partnerData.callbackUrls,
+      subject_type: 'pairwise', // Mandatory for partners
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      scope: 'openid profile email',
+      // Privacy metadata
+      privacy_policy_uri: partnerData.privacyPolicyUrl,
+      tos_uri: partnerData.termsUrl
+    })
+  });
 
-**Client A**:
-```json
-{
-  "sub": "AbC123XyZ456...",
-  "iss": "https://authrim.sgrastar.workers.dev",
-  "aud": "client_a",
-  ...
+  return client.json();
 }
 ```
 
-**Client B** (same user):
-```json
-{
-  "sub": "PqR789StU012...",
-  "iss": "https://authrim.sgrastar.workers.dev",
-  "aud": "client_b",
-  ...
-}
+---
+
+### Use Case 3: Multi-Tenant B2B SaaS with Tenant Isolation
+
+**Scenario**: A B2B SaaS platform allows customers to build integrations via OAuth. Each customer's integrations should receive different user identifiers, even for the same underlying employee identity.
+
+**Why Pairwise**: Customer A's integration cannot correlate users with Customer B's integration, maintaining tenant isolation even at the identity layer.
+
+```mermaid
+sequenceDiagram
+    participant Employee
+    participant IdP as SaaS IdP
+    participant AppA as Customer A's App
+    participant AppB as Customer B's App
+
+    Note over Employee: Works for consulting firm,<br/>uses both customers' apps
+
+    Employee->>AppA: Access Customer A's integration
+    AppA->>IdP: Authorize
+    IdP->>IdP: Pairwise with<br/>Customer A's sector
+    IdP-->>AppA: sub = "custA_Abc..."
+
+    Employee->>AppB: Access Customer B's integration
+    AppB->>IdP: Authorize
+    IdP->>IdP: Pairwise with<br/>Customer B's sector
+    IdP-->>AppB: sub = "custB_Xyz..."
+
+    Note over AppA,AppB: Same employee, different IDs<br/>Tenant isolation maintained
 ```
 
-**Characteristics**:
-- ✅ Different `sub` values per client
-- ✅ Enhanced privacy
-- ✅ GDPR/CCPA compliant
-- ✅ Prevents user correlation
-- **Use Case**: Third-party integrations, public APIs, high-security environments
+**Implementation**:
+
+```typescript
+// Multi-tenant SaaS: Per-tenant pairwise
+interface TenantClient {
+  client_id: string;
+  tenant_id: string;
+  sector_identifier: string;
+  subject_type: 'pairwise' | 'public';
+}
+
+async function generateTenantIsolatedSubject(
+  userId: string,
+  tenantClient: TenantClient
+): Promise<string> {
+  if (tenantClient.subject_type === 'public') {
+    return userId;
+  }
+
+  // Use tenant-specific sector for complete isolation
+  const effectiveSector = `${tenantClient.tenant_id}:${tenantClient.sector_identifier}`;
+
+  return await generatePairwiseSubject(
+    userId,
+    effectiveSector,
+    env.TENANT_PAIRWISE_SALT
+  );
+}
+
+// Customer integration registration
+app.post('/api/integrations/:tenantId', async (c) => {
+  const tenantId = c.req.param('tenantId');
+  const body = await c.req.json();
+
+  // Validate tenant admin permissions
+  const admin = c.get('user');
+  if (!await isTenantAdmin(admin.sub, tenantId)) {
+    return c.json({ error: 'forbidden' }, 403);
+  }
+
+  // Register OAuth client for this tenant's integration
+  const client = await registerClient({
+    ...body,
+    subject_type: 'pairwise', // All tenant integrations use pairwise
+    software_id: `tenant:${tenantId}`,
+    // Sector is tenant-specific
+    effective_sector: `${tenantId}:${extractSector(body.redirect_uris[0])}`
+  });
+
+  await storeTenantIntegration(tenantId, client.client_id, {
+    name: body.client_name,
+    created_by: admin.sub,
+    created_at: new Date().toISOString()
+  });
+
+  return c.json({
+    client_id: client.client_id,
+    client_secret: client.client_secret,
+    subject_type: 'pairwise',
+    tenant_isolated: true
+  }, 201);
+});
+```
+
+---
+
+## How Pairwise Works
+
+### Algorithm
+
+```
+sub = base64url(SHA-256(sector_identifier || user_id || salt))
+```
+
+| Component | Description |
+|-----------|-------------|
+| `sector_identifier` | Client's host (e.g., `app.example.com`) |
+| `user_id` | User's internal account ID |
+| `salt` | Server secret for additional security |
+| `||` | Concatenation |
+
+### Subject Type Comparison
+
+| Aspect | Public | Pairwise |
+|--------|--------|----------|
+| `sub` value | Same across all clients | Different per client |
+| Privacy | ❌ Clients can correlate | ✅ No correlation possible |
+| Use case | First-party apps | Third-party integrations |
 
 ---
 
 ## API Reference
 
-### Client Registration with Pairwise
+### Client Registration
 
-**POST /register**
+```http
+POST /register
+Content-Type: application/json
 
-#### Request
-
-```json
 {
   "redirect_uris": ["https://app.example.com/callback"],
-  "client_name": "My Privacy-Focused App",
+  "client_name": "Privacy-Focused App",
   "subject_type": "pairwise"
 }
 ```
 
-**Parameters**:
+### With Sector Identifier URI
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `subject_type` | ❌ No | string | Subject identifier type: `public` (default) or `pairwise` |
-| `sector_identifier_uri` | ❌ Conditional | string | HTTPS URI for sector identifier (required if multiple redirect URIs have different hosts) |
-
-#### Response
-
-```json
-{
-  "client_id": "client_AbC123...",
-  "client_secret": "XyZ456...",
-  "redirect_uris": ["https://app.example.com/callback"],
-  "subject_type": "pairwise",
-  ...
-}
-```
-
----
-
-### Pairwise with Multiple Redirect URIs
-
-#### Same Host (No sector_identifier_uri required)
-
-```json
-{
-  "redirect_uris": [
-    "https://app.example.com/callback1",
-    "https://app.example.com/callback2"
-  ],
-  "subject_type": "pairwise"
-}
-```
-
-✅ **Valid**: All redirect URIs have same host (`app.example.com`)
-
-#### Different Hosts (sector_identifier_uri required)
+Required when redirect URIs have different hosts:
 
 ```json
 {
@@ -213,303 +380,7 @@ sub = base64url(SHA-256(sector_identifier || local_account_id || salt))
 }
 ```
 
-✅ **Valid**: Different hosts, but `sector_identifier_uri` provided
-
-**sector-uris.json** (example):
-```json
-[
-  "https://app1.example.com/callback",
-  "https://app2.example.com/callback"
-]
-```
-
-#### Different Hosts (No sector_identifier_uri)
-
-```json
-{
-  "redirect_uris": [
-    "https://app1.example.com/callback",
-    "https://app2.example.com/callback"
-  ],
-  "subject_type": "pairwise"
-}
-```
-
-❌ **Invalid**: Returns `invalid_client_metadata` error
-
----
-
-## Implementation Details
-
-### Pairwise Subject Generation
-
-```typescript
-async function generatePairwiseSubject(
-  localAccountId: string,
-  sectorIdentifier: string,
-  salt: string
-): Promise<string> {
-  // OIDC Core 8.1: sub = SHA-256(sector || local_account_id || salt)
-  const data = `${sectorIdentifier}${localAccountId}${salt}`;
-
-  const encoder = new TextEncoder();
-  const dataBuffer = encoder.encode(data);
-
-  // Hash with SHA-256
-  const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
-
-  // Convert to base64url
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const base64 = btoa(String.fromCharCode(...hashArray));
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-```
-
-### Sector Identifier Extraction
-
-```typescript
-function extractSectorIdentifier(redirectUri: string): string {
-  const url = new URL(redirectUri);
-  return url.host; // Returns hostname:port
-}
-```
-
-**Examples**:
-- `https://example.com/callback` → `example.com`
-- `https://example.com:8080/callback` → `example.com:8080`
-- `http://localhost:3000/callback` → `localhost:3000`
-
-### Effective Sector Identifier
-
-```typescript
-function determineEffectiveSectorIdentifier(
-  redirectUris: string[],
-  sectorIdentifierUri?: string
-): string {
-  // If sector_identifier_uri provided, use its host
-  if (sectorIdentifierUri) {
-    return extractSectorIdentifier(sectorIdentifierUri);
-  }
-
-  // Otherwise, use host from first redirect_uri
-  return extractSectorIdentifier(redirectUris[0]);
-}
-```
-
-### Subject Identifier Generation
-
-```typescript
-async function generateSubjectIdentifier(
-  localAccountId: string,
-  subjectType: 'public' | 'pairwise',
-  sectorIdentifier?: string,
-  salt?: string
-): Promise<string> {
-  if (subjectType === 'public') {
-    // Public: return local account ID directly
-    return localAccountId;
-  }
-
-  // Pairwise: generate cryptographic hash
-  if (!sectorIdentifier || !salt) {
-    throw new Error('Sector identifier and salt required for pairwise');
-  }
-
-  return await generatePairwiseSubject(localAccountId, sectorIdentifier, salt);
-}
-```
-
----
-
-## Usage Examples
-
-### Example 1: Register Client with Pairwise
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": ["https://myapp.example.com/callback"],
-    "client_name": "Privacy-Focused App",
-    "subject_type": "pairwise"
-  }'
-```
-
-**Response**:
-```json
-{
-  "client_id": "client_AbC123...",
-  "client_secret": "XyZ456...",
-  "redirect_uris": ["https://myapp.example.com/callback"],
-  "subject_type": "pairwise",
-  ...
-}
-```
-
----
-
-### Example 2: Multiple Redirect URIs (Same Host)
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": [
-      "https://myapp.example.com/callback1",
-      "https://myapp.example.com/callback2"
-    ],
-    "subject_type": "pairwise"
-  }'
-```
-
-✅ **Works**: All URIs have same host
-
----
-
-### Example 3: Multiple Redirect URIs (Different Hosts)
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": [
-      "https://app1.example.com/callback",
-      "https://app2.example.com/callback"
-    ],
-    "subject_type": "pairwise",
-    "sector_identifier_uri": "https://example.com/.well-known/sector-uris.json"
-  }'
-```
-
-✅ **Works**: `sector_identifier_uri` provided
-
----
-
-### Example 4: Comparing Public vs Pairwise
-
-**Register Two Clients** (same user authorizes both):
-
-**Client A (Public)**:
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": ["https://app-a.example.com/callback"],
-    "subject_type": "public"
-  }'
-```
-
-**Client B (Public)**:
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": ["https://app-b.example.com/callback"],
-    "subject_type": "public"
-  }'
-```
-
-**Result**:
-- Client A gets: `sub: "user-12345"`
-- Client B gets: `sub: "user-12345"` ← **Same!**
-- ❌ Clients can correlate users
-
-**Client C (Pairwise)**:
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": ["https://app-c.example.com/callback"],
-    "subject_type": "pairwise"
-  }'
-```
-
-**Client D (Pairwise)**:
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": ["https://app-d.example.com/callback"],
-    "subject_type": "pairwise"
-  }'
-```
-
-**Result**:
-- Client C gets: `sub: "AbC123XyZ456..."`
-- Client D gets: `sub: "PqR789StU012..."` ← **Different!**
-- ✅ Clients cannot correlate users
-
----
-
-## Security Considerations
-
-### 1. Salt Management
-
-**Salt Requirements**:
-- ✅ **Cryptographically Secure**: Use strong random salt
-- ✅ **Server Secret**: Never expose salt to clients
-- ✅ **Consistent**: Same salt for all pairwise subjects
-- ✅ **Rotatable**: Support salt rotation with grace period
-
-**Example**:
-```env
-PAIRWISE_SALT="your-cryptographically-secure-secret-salt-here"
-```
-
-### 2. Sector Identifier Validation
-
-**Validation Rules**:
-- ✅ **HTTPS Required**: `sector_identifier_uri` must use HTTPS
-- ✅ **Host Consistency**: All redirect URIs must match sector identifier
-- ✅ **JSON Array**: Sector identifier URI must return JSON array of URIs
-- ✅ **URI Matching**: All redirect URIs must be in sector identifier list
-
-### 3. Privacy Protection
-
-**Best Practices**:
-- ✅ Use pairwise for third-party clients
-- ✅ Use public for first-party/internal clients
-- ✅ Document privacy policy clearly
-- ✅ Allow users to view connected clients
-
-### 4. Storage Considerations
-
-**Pairwise Mapping Storage**:
-- Store mapping: `(user_id, sector_identifier) → pairwise_sub`
-- Enable reverse lookup for account management
-- Support data portability requirements
-- Implement secure deletion for GDPR compliance
-
----
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PAIRWISE_SALT` | Required | Secret salt for pairwise subject generation |
-
-**Example Configuration**:
-```toml
-# wrangler.toml
-[vars]
-# Public variables
-ISSUER_URL = "https://authrim.sgrastar.workers.dev"
-
-# Secrets (set via `wrangler secret put`)
-# PAIRWISE_SALT = "<your-secret-salt>"
-```
-
-**Set Salt Secret**:
-```bash
-wrangler secret put PAIRWISE_SALT
-# Enter value: <paste-your-cryptographically-secure-salt>
-```
-
 ### Discovery Metadata
-
-Subject type support is advertised in OpenID Provider metadata:
 
 ```json
 {
@@ -519,193 +390,90 @@ Subject type support is advertised in OpenID Provider metadata:
 
 ---
 
-## Testing
+## Security Considerations
 
-### Test Coverage
-
-Authrim includes comprehensive tests for pairwise subject identifiers:
-
-**Test File**: `test/pairwise.test.ts`
-
-**Test Scenarios**:
-- ✅ Pairwise subject generation (base64url encoding)
-- ✅ Consistent subjects for same inputs
-- ✅ Different subjects for different sector identifiers
-- ✅ Different subjects for different users
-- ✅ Different subjects with different salts
-- ✅ Sector identifier extraction (host + port)
-- ✅ Sector identifier validation (localhost)
-- ✅ Invalid URL handling
-- ✅ Query parameter handling
-- ✅ Sector identifier consistency validation (single URI)
-- ✅ Sector identifier consistency validation (multiple URIs, same host)
-- ✅ Sector identifier consistency validation (multiple URIs, different hosts)
-- ✅ Empty redirect URIs handling
-- ✅ Effective sector identifier determination
-- ✅ Effective sector identifier with sector_identifier_uri
-- ✅ Subject identifier generation (public type)
-- ✅ Subject identifier generation (pairwise type)
-- ✅ Error handling (missing sector identifier or salt)
-
-**Total**: 22+ test cases
-
-### Running Tests
-
-```bash
-npm test -- pairwise.test.ts
-```
+| Consideration | Recommendation |
+|---------------|----------------|
+| **Salt Security** | Store as secret, never expose |
+| **Salt Rotation** | Support grace period with old salt |
+| **Sector Validation** | HTTPS required for sector_identifier_uri |
+| **Mapping Storage** | Store for account management/deletion |
 
 ---
 
-## Troubleshooting
+## Configuration
 
-### Common Issues
+### Environment Variables
 
-#### "sector_identifier_uri is required when using pairwise subject type with multiple redirect URIs from different hosts"
+| Variable | Description |
+|----------|-------------|
+| `PAIRWISE_SALT` | Secret salt for pairwise generation (required) |
 
-**Cause**: Multiple redirect URIs with different hosts, but no `sector_identifier_uri`
-
-**Solution**:
-```json
-{
-  "redirect_uris": [
-    "https://app1.example.com/callback",
-    "https://app2.example.com/callback"
-  ],
-  "subject_type": "pairwise",
-  "sector_identifier_uri": "https://example.com/.well-known/sector-uris.json"
-}
-```
-
-#### "Sector identifier is required for pairwise subject type"
-
-**Cause**: Attempting to generate pairwise subject without sector identifier
-
-**Solution**: Ensure client has valid redirect URIs or sector_identifier_uri
-
-#### "Salt is required for pairwise subject type"
-
-**Cause**: Server not configured with pairwise salt
-
-**Solution**: Set `PAIRWISE_SALT` environment variable/secret
+### Set Salt Secret
 
 ```bash
 wrangler secret put PAIRWISE_SALT
+# Enter cryptographically secure value
 ```
-
-#### Inconsistent `sub` values for same user
-
-**Cause**: Salt changed between token issuances
-
-**Solution**: Keep salt consistent. For salt rotation:
-1. Store old salt alongside new salt
-2. Try both salts when validating existing tokens
-3. Remove old salt after grace period
-
----
-
-## Best Practices
-
-### When to Use Pairwise
-
-**✅ Use Pairwise For:**
-- Third-party integrations
-- Public APIs
-- Healthcare applications (HIPAA)
-- Financial services (GDPR)
-- Government services
-- Consumer-facing applications
-- Multi-tenant SaaS platforms
-
-**❌ Use Public For:**
-- First-party applications
-- Internal enterprise tools
-- Single-organization deployments
-- Development/testing environments
-- Applications requiring user correlation
-
-### Privacy Policy
-
-**Recommendations**:
-1. **Disclose Subject Type**: Inform users about privacy protection
-2. **Data Minimization**: Only request necessary scopes
-3. **User Consent**: Clear consent for data sharing
-4. **Access Control**: Allow users to view/revoke client access
-
-### Account Management
-
-**Implementation Tips**:
-1. **Store Mappings**: Keep `(user_id, client_id) → pairwise_sub` mapping
-2. **Reverse Lookup**: Support finding all clients for a user
-3. **Data Portability**: Export user's connected clients
-4. **Right to Erasure**: Delete all pairwise mappings on account deletion
-
-### Salt Rotation
-
-**Strategy**:
-1. Generate new salt
-2. Store both old and new salts
-3. Use new salt for new tokens
-4. Support both salts for validation (grace period: 30-90 days)
-5. Remove old salt after grace period
-6. Notify clients about salt rotation
 
 ---
 
 ## Compliance
 
-### GDPR (General Data Protection Regulation)
+### GDPR
 
-**Relevant Articles**:
-- **Article 25**: Privacy by Design and by Default
-  - ✅ Pairwise implements privacy by design
-- **Article 32**: Security of Processing
-  - ✅ Pseudonymization through pairwise subjects
-- **Article 17**: Right to Erasure
-  - ✅ Delete pairwise mappings on user request
+- **Article 25**: Privacy by Design (pairwise enables this)
+- **Article 32**: Pseudonymization through pairwise
+- **Article 17**: Delete mappings on erasure request
 
-### CCPA (California Consumer Privacy Act)
+### HIPAA
 
-**Requirements**:
-- **Do Not Sell**: Pairwise prevents unauthorized user tracking
-- **Right to Know**: Users can see connected clients
+- **De-identification**: Different IDs across applications
+- **Minimum Necessary**: Limits identity exposure
+
+### CCPA
+
+- **Do Not Sell**: Prevents unauthorized tracking
 - **Right to Delete**: Delete all pairwise mappings
-
-### HIPAA (Health Insurance Portability and Accountability Act)
-
-**Requirements**:
-- **De-identification**: Pairwise provides de-identification across clients
-- **Minimum Necessary**: Limits data exposure
-- **Access Controls**: Different identifiers per client
 
 ---
 
-## Future Enhancements
+## Troubleshooting
 
-### Planned Features (Phase 5+)
+### "sector_identifier_uri is required"
 
-- [ ] **Dynamic Salt Rotation**: API for rotating pairwise salt
-- [ ] **Pairwise Mapping API**: Endpoint for listing user's pairwise subjects
-- [ ] **Account Linking**: Link pairwise subjects across sectors
-- [ ] **Sector Identifier URI Validation**: Fetch and validate sector identifier URI
-- [ ] **Admin Dashboard**: View pairwise mappings per user
-- [ ] **Audit Log**: Track pairwise subject generation and usage
-- [ ] **Migration Tool**: Convert existing public subjects to pairwise
+**Cause**: Multiple redirect URIs with different hosts
+
+**Solution**: Provide sector_identifier_uri
+
+### Inconsistent `sub` values
+
+**Cause**: Salt changed between issuances
+
+**Solution**: Keep salt consistent; implement rotation with grace period
+
+---
+
+## Implementation Files
+
+| Component | File | Description |
+|-----------|------|-------------|
+| Pairwise Generation | `packages/shared/src/utils/pairwise.ts` | SHA-256 hashing |
+| Client Registration | `packages/op-auth/src/register.ts` | subject_type validation |
+| Token Issuance | `packages/op-token/src/token.ts` | Sub generation |
+| Discovery | `packages/op-discovery/src/discovery.ts` | subject_types_supported |
 
 ---
 
 ## References
 
-- [OpenID Connect Core 1.0 - Section 8: Subject Identifier Types](https://openid.net/specs/openid-connect-core-1_0.html#SubjectIDTypes)
-- [OpenID Connect Core 1.0 - Section 8.1: Pairwise Identifier Algorithm](https://openid.net/specs/openid-connect-core-1_0.html#PairwiseAlg)
-- [GDPR Article 25 - Privacy by Design](https://gdpr-info.eu/art-25-gdpr/)
-- [GDPR Article 32 - Security of Processing](https://gdpr-info.eu/art-32-gdpr/)
-- [RFC 7519 - JSON Web Token (JWT)](https://tools.ietf.org/html/rfc7519)
+- [OIDC Core 1.0 Section 8: Subject Identifier Types](https://openid.net/specs/openid-connect-core-1_0.html#SubjectIDTypes)
+- [OIDC Core 1.0 Section 8.1: Pairwise Identifier Algorithm](https://openid.net/specs/openid-connect-core-1_0.html#PairwiseAlg)
+- [GDPR Article 25: Privacy by Design](https://gdpr-info.eu/art-25-gdpr/)
 
 ---
 
-**Last Updated**: 2025-11-12
-**Status**: ✅ Implemented and Tested
+**Last Updated**: 2025-12-20
+**Status**: ✅ Fully Implemented
 **Tests**: 22+ passing tests
-**Implementation**: `src/utils/pairwise.ts`, `src/handlers/register.ts`, `src/handlers/token.ts`
-**Discovery**: `src/handlers/discovery.ts` (subject_types_supported)
+**Implementation**: `packages/shared/src/utils/pairwise.ts`

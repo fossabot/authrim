@@ -13,10 +13,10 @@ timeline
     title Authrim Development Timeline
     section 2025
         Nov-Dec : ✅ P1-6 Complete
-                : ⏳ P7 Identity Hub Start
+                : ✅ P8 Policy Integration
+                : ⏳ P7 Identity Hub (~95%)
     section 2026
-        Q1 : P7 Identity Hub
-        Q2 : P8 Policy Integration
+        Q1 : P7 Identity Hub Complete
         Q3 : P9 Advanced Identity
         Q4 : P10 SDK & API
     section 2027
@@ -26,9 +26,9 @@ timeline
 
 **Legend:**
 
-- ✅ Complete (Phases 1-6)
-- ⏳ In Progress (Phase 7)
-- 🔜 Planned (Phases 8-12)
+- ✅ Complete (Phases 1-6, 8)
+- ⏳ In Progress (Phase 7: ~95%, Phase 11: ~15%)
+- 🔜 Planned (Phases 9-10, 12)
 
 ---
 
@@ -100,31 +100,31 @@ timeline
 
 ### Key Differentiators
 
-| Feature                      | Description                                                          |
-| ---------------------------- | -------------------------------------------------------------------- |
-| **OP-embedded Policy Engine**| Sync evaluation of RBAC/ABAC/ReBAC at token issuance. No extra API calls needed |
-| **Dual Authorization Model** | Token embedding (fast) + Real-time API (dynamic) combined            |
-| **Identity Stitching**       | Auto-link same email, conditional VC subject linking, re-auth on change |
-| **Edge-native**              | All layers run at edge on Cloudflare Workers. Global low latency     |
+| Feature                       | Description                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| **OP-embedded Policy Engine** | Sync evaluation of RBAC/ABAC/ReBAC at token issuance. No extra API calls needed |
+| **Dual Authorization Model**  | Token embedding (fast) + Real-time API (dynamic) combined                       |
+| **Identity Stitching**        | Auto-link same email, conditional VC subject linking, re-auth on change         |
+| **Edge-native**               | All layers run at edge on Cloudflare Workers. Global low latency                |
 
 ---
 
 ## Milestones
 
-| Milestone                  | Date       | Status         | Description                                                           |
-| -------------------------- | ---------- | -------------- | --------------------------------------------------------------------- |
-| **M1: Foundation**         | 2025-12-15 | ✅ Complete    | Project setup, tooling, basic structure                               |
-| **M2: Core API**           | 2026-01-31 | ✅ Complete    | All OIDC endpoints functional                                         |
-| **M3: Conformance**        | 2025-11-12 | ✅ Complete    | Basic OP 78.95%, Config OP 100%, Form Post 84.21%                     |
-| **M4: Extensions**         | 2025-11-12 | ✅ Complete    | PAR, DPoP, Pairwise, Token Management                                 |
-| **M5: UI/UX**              | 2025-11-18 | ✅ Complete    | SvelteKit Frontend, Admin Dashboard, 15+ pages                        |
-| **M6: Enterprise**         | 2025-12-02 | ✅ Complete    | Device Flow, CIBA, SCIM, JWE, Hybrid, JAR, JARM, JWT Bearer, SAML 2.0 |
-| **M7: Identity Hub**       | 2026-Q1    | ⏳ ~95%        | RP Module ✅, Social Login ✅, Identity Linking ✅, **PII分離 ✅** |
-| **M8: Policy Integration** | 2026-Q2    | 🔜 Planned     | Unified AuthN + AuthZ, Token embedding, Check API                     |
-| **M9: Advanced Identity**  | 2026-Q3    | 🔜 Planned     | OpenID4VP/CI, DID Resolver, VC Issuance                               |
-| **M10: SDK & API**         | 2026-Q4    | 🔜 Planned     | WebSDK, CLI, API Documentation                                        |
-| **M11: Security & QA**     | 2025-12~   | ⏳ ~15%        | Load Testing ✅, Security Audit, MTLS pending                         |
-| **M12: Release**           | 2027-Q2    | 🔜 Final       | OpenID Certification, Public Release                                  |
+| Milestone                  | Date       | Status      | Description                                                           |
+| -------------------------- | ---------- | ----------- | --------------------------------------------------------------------- |
+| **M1: Foundation**         | 2025-12-15 | ✅ Complete | Project setup, tooling, basic structure                               |
+| **M2: Core API**           | 2026-01-31 | ✅ Complete | All OIDC endpoints functional                                         |
+| **M3: Conformance**        | 2025-11-12 | ✅ Complete | Basic OP 78.95%, Config OP 100%, Form Post 84.21%                     |
+| **M4: Extensions**         | 2025-11-12 | ✅ Complete | PAR, DPoP, Pairwise, Token Management                                 |
+| **M5: UI/UX**              | 2025-11-18 | ✅ Complete | SvelteKit Frontend, Admin Dashboard, 15+ pages                        |
+| **M6: Enterprise**         | 2025-12-02 | ✅ Complete | Device Flow, CIBA, SCIM, JWE, Hybrid, JAR, JARM, JWT Bearer, SAML 2.0 |
+| **M7: Identity Hub**       | 2026-Q1    | ⏳ ~95%     | RP Module ✅, Social Login ✅, Identity Linking ✅, **PII分離 ✅**    |
+| **M8: Policy Integration** | 2025-12    | ✅ Complete | Unified AuthN + AuthZ, Token embedding, Check API                     |
+| **M9: Advanced Identity**  | 2026-Q3    | 🔜 Planned  | OpenID4VP/CI, DID Resolver, VC Issuance                               |
+| **M10: SDK & API**         | 2026-Q4    | 🔜 Planned  | WebSDK, CLI, API Documentation                                        |
+| **M11: Security & QA**     | 2025-12~   | ⏳ ~15%     | Load Testing ✅, Security Audit, MTLS pending                         |
+| **M12: Release**           | 2027-Q2    | 🔜 Final    | OpenID Certification, Public Release                                  |
 
 ---
 
@@ -283,15 +283,15 @@ timeline
 
 Data separation architecture for GDPR/CCPA compliance:
 
-| Feature               | Description                                      | Status      |
-| --------------------- | ------------------------------------------------ | ----------- |
-| DatabaseAdapter       | D1 abstraction, future Postgres/DynamoDB support | ✅ Complete |
-| Repository Pattern    | UserCore, UserPII, Cache repositories            | ✅ Complete |
-| PIIPartitionRouter    | Tenant/attribute/geo-based routing               | ✅ Complete |
-| AuthContext/PIIContext| Type-safe PII access control                     | ✅ Complete |
-| Schema Migration      | users_core, users_pii, tombstones                | ✅ Complete |
-| Full Package Migration| 47 files, 4255 lines added                       | ✅ Complete |
-| Admin API             | retry-pii, delete-pii, partitions, tombstones    | ✅ Complete |
+| Feature                | Description                                      | Status      |
+| ---------------------- | ------------------------------------------------ | ----------- |
+| DatabaseAdapter        | D1 abstraction, future Postgres/DynamoDB support | ✅ Complete |
+| Repository Pattern     | UserCore, UserPII, Cache repositories            | ✅ Complete |
+| PIIPartitionRouter     | Tenant/attribute/geo-based routing               | ✅ Complete |
+| AuthContext/PIIContext | Type-safe PII access control                     | ✅ Complete |
+| Schema Migration       | users_core, users_pii, tombstones                | ✅ Complete |
+| Full Package Migration | 47 files, 4255 lines added                       | ✅ Complete |
+| Admin API              | retry-pii, delete-pii, partitions, tombstones    | ✅ Complete |
 
 ---
 
@@ -422,23 +422,23 @@ Data separation architecture for GDPR/CCPA compliance:
 
 ### Key Features
 
-| Feature             | Description                        | Status     |
-| ------------------- | ---------------------------------- | ---------- |
+| Feature             | Description                        | Status      |
+| ------------------- | ---------------------------------- | ----------- |
 | Load Testing        | Performance benchmarks             | ✅ Complete |
-| Security Audit      | External security review           | 🔜 Planned |
-| Penetration Testing | Third-party security assessment    | 🔜 Planned |
-| Conformance Tests   | Hybrid OP, Dynamic OP, RP profiles | 🔜 Planned |
+| Security Audit      | External security review           | 🔜 Planned  |
+| Penetration Testing | Third-party security assessment    | 🔜 Planned  |
+| Conformance Tests   | Hybrid OP, Dynamic OP, RP profiles | 🔜 Planned  |
 
 ### Load Testing Results (December 2025) ✅
 
-| Endpoint | Recommended RPS | Peak RPS | Key Finding |
-|----------|-----------------|----------|-------------|
-| Silent Auth (128 shards) | 2,500 | 3,500 | DO sharding eliminates errors |
-| Refresh Token (48 shards) | 2,500 | 3,000 | Linear shard scaling |
-| UserInfo | 2,000 | 2,500 | JWT validation stable at 1-4ms CPU |
-| Token Exchange | 1,500 | 2,500 | 100% token validation accuracy |
-| Token Introspection (32 shards) | 300 | 500 | Region-aware JTI sharding |
-| Full Login (32 shards) | 100 LPS | 150 LPS | 91% P95 latency reduction |
+| Endpoint                        | Recommended RPS | Peak RPS | Key Finding                        |
+| ------------------------------- | --------------- | -------- | ---------------------------------- |
+| Silent Auth (128 shards)        | 2,500           | 3,500    | DO sharding eliminates errors      |
+| Refresh Token (48 shards)       | 2,500           | 3,000    | Linear shard scaling               |
+| UserInfo                        | 2,000           | 2,500    | JWT validation stable at 1-4ms CPU |
+| Token Exchange                  | 1,500           | 2,500    | 100% token validation accuracy     |
+| Token Introspection (32 shards) | 300             | 500      | Region-aware JTI sharding          |
+| Full Login (32 shards)          | 100 LPS         | 150 LPS  | 91% P95 latency reduction          |
 
 > **Reports:** [load-testing/reports/Dec2025/](../load-testing/reports/Dec2025/)
 
@@ -489,14 +489,14 @@ Data separation architecture for GDPR/CCPA compliance:
 | Metric                   | Target      | Current                       | Phase |
 | ------------------------ | ----------- | ----------------------------- | ----- |
 | Social login providers   | 7+          | 2 (Google, Microsoft)+dynamic | P7    |
-| OIDC RP Client tests     | 50+         | 14,756 lines ✅            | P7    |
-| Identity linking tests   | 50+         | 14,666 lines ✅            | P7    |
-| Provider Management UI   | Complete    | ✅ Complete                | P7    |
-| Policy integration tests | 100+        | -                          | P8    |
-| VC credential types      | 5+          | -                          | P9    |
-| SDK downloads            | 1000+       | -                          | P10   |
-| Load test RPS            | 10,000+     | ✅ 3,500 (Silent Auth)     | P11   |
-| OpenID Certification     | ✅ Obtained | -                          | P12   |
+| OIDC RP Client tests     | 50+         | 14,756 lines ✅               | P7    |
+| Identity linking tests   | 50+         | 14,666 lines ✅               | P7    |
+| Provider Management UI   | Complete    | ✅ Complete                   | P7    |
+| Policy integration tests | 100+        | -                             | P8    |
+| VC credential types      | 5+          | -                             | P9    |
+| SDK downloads            | 1000+       | -                             | P10   |
+| Load test RPS            | 10,000+     | ✅ 3,500 (Silent Auth)        | P11   |
+| OpenID Certification     | ✅ Obtained | -                             | P12   |
 
 ---
 
@@ -509,7 +509,7 @@ Data separation architecture for GDPR/CCPA compliance:
 | **RBAC**                  | ✅    | ✅   | ✅       | ✅  | ✅          |
 | **ABAC**                  | ⚠️    | ⚠️   | ✅       | ✅  | ✅          |
 | **ReBAC**                 | ❌    | ❌   | ❌       | ✅  | ✅          |
-| **AuthN + AuthZ Unified** | ⚠️    | ⚠️   | ⚠️       | ❌  | 🔜 P8       |
+| **AuthN + AuthZ Unified** | ⚠️    | ⚠️   | ⚠️       | ❌  | ✅          |
 | **OpenID4VP**             | ❌    | ❌   | ❌       | ❌  | 🔜 P9       |
 | **OpenID4CI**             | ❌    | ❌   | ❌       | ❌  | 🔜 P9       |
 | **Edge Deployment**       | ❌    | ❌   | ❌       | ❌  | ✅          |
@@ -536,33 +536,33 @@ By 2027, Authrim will be:
 
 ## Change Log
 
-| Date       | Change                                                                              |
-| ---------- | ----------------------------------------------------------------------------------- |
-| 2025-11-11 | Initial roadmap                                                                     |
-| 2025-11-12 | Phase 3 & 4 completed early                                                         |
-| 2025-11-18 | Phase 5 completed                                                                   |
-| 2025-11-25 | Phase 6: 8/11 features complete                                                     |
-| 2025-11-29 | Documentation restructure                                                           |
-| 2025-12-02 | Major roadmap restructure: Phase 7-12 redefined, SaaS removed, Policy Service added |
-| 2025-12-02 | SAML 2.0 complete, Phase 6 complete                                                 |
-| 2025-12-03 | **Major pivot: Identity Hub + Policy Integration strategy**                         |
-| 2025-12-03 | Phase 7 redefined: Identity Hub Foundation (RP, Social Login)                       |
-| 2025-12-03 | Phase 8 redefined: Unified Policy Integration                                       |
-| 2025-12-03 | Phase 9 redefined: Advanced Identity (OpenID4VP/CI, DID)                            |
-| 2025-12-03 | Timeline compressed: Target completion 2027-Q2                                      |
-| 2025-12-15 | **Phase 7 ~80% complete**: RP Module, Google, Identity Linking/Stitching done       |
-| 2025-12-15 | Remaining P7 tasks: GitHub/Microsoft templates, Login Flow Designer                 |
-| 2025-12-15 | **Microsoft (Entra ID) complete**: Multi-tenant support (common/organizations/consumers), issuer pattern validation, comprehensive security tests |
-| 2025-12-17 | **GitHub OAuth 2.0 complete**: Enterprise Server support, /user/emails API, 57 tests |
-| 2025-12-17 | **Durable Objects best practices**: blockConcurrencyWhile, Tombstone pattern, DO retry utility |
-| 2025-12-17 | External IdP documentation added, other social providers deferred to Phase 8+ |
+| Date       | Change                                                                                                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2025-11-11 | Initial roadmap                                                                                                                                                                                            |
+| 2025-11-12 | Phase 3 & 4 completed early                                                                                                                                                                                |
+| 2025-11-18 | Phase 5 completed                                                                                                                                                                                          |
+| 2025-11-25 | Phase 6: 8/11 features complete                                                                                                                                                                            |
+| 2025-11-29 | Documentation restructure                                                                                                                                                                                  |
+| 2025-12-02 | Major roadmap restructure: Phase 7-12 redefined, SaaS removed, Policy Service added                                                                                                                        |
+| 2025-12-02 | SAML 2.0 complete, Phase 6 complete                                                                                                                                                                        |
+| 2025-12-03 | **Major pivot: Identity Hub + Policy Integration strategy**                                                                                                                                                |
+| 2025-12-03 | Phase 7 redefined: Identity Hub Foundation (RP, Social Login)                                                                                                                                              |
+| 2025-12-03 | Phase 8 redefined: Unified Policy Integration                                                                                                                                                              |
+| 2025-12-03 | Phase 9 redefined: Advanced Identity (OpenID4VP/CI, DID)                                                                                                                                                   |
+| 2025-12-03 | Timeline compressed: Target completion 2027-Q2                                                                                                                                                             |
+| 2025-12-15 | **Phase 7 ~80% complete**: RP Module, Google, Identity Linking/Stitching done                                                                                                                              |
+| 2025-12-15 | Remaining P7 tasks: GitHub/Microsoft templates, Login Flow Designer                                                                                                                                        |
+| 2025-12-15 | **Microsoft (Entra ID) complete**: Multi-tenant support (common/organizations/consumers), issuer pattern validation, comprehensive security tests                                                          |
+| 2025-12-17 | **GitHub OAuth 2.0 complete**: Enterprise Server support, /user/emails API, 57 tests                                                                                                                       |
+| 2025-12-17 | **Durable Objects best practices**: blockConcurrencyWhile, Tombstone pattern, DO retry utility                                                                                                             |
+| 2025-12-17 | External IdP documentation added, other social providers deferred to Phase 8+                                                                                                                              |
 | 2025-12-17 | **Phase 11 Load Testing ✅ Complete**: 6 benchmark reports (Silent Auth, UserInfo, Token Exchange, Token Introspection, Refresh Token, Full Login), K6 Cloud distributed testing, DO sharding optimization |
-| 2025-12-17 | **MTLS (RFC 8705) removed from scope**: Cloudflare Workers architecture limitation |
-| 2025-12-18 | **PII/Non-PII Database Separation ✅ Complete**: DatabaseAdapter, Repository pattern, PIIPartitionRouter, AuthContext/PIIContext, 47 files migrated |
-| 2025-12-18 | **Phase 7 ~95% Complete**: GDPR/CCPA compliant architecture complete, ready for Phase 8 |
-| 2025-12-18 | **8.4 Policy Admin Console → Moved to Phase 10**: Develop alongside SDK for consistent developer experience |
-| 2025-12-18 | **8.1 Policy ↔ Identity Integration ✅ Complete**: Rule Evaluator, JIT Provisioning with dynamic role assignment, org auto-join, email domain hash with key rotation, Admin APIs |
-| 2025-12-19 | **Phase 8 ✅ Complete**: Token Embedding Model (8.2), Real-time Check API (8.3) with UnifiedCheckService, Permission Parser, WebSocket Push via PermissionChangeHub DO, Check API Keys Admin API |
+| 2025-12-17 | **MTLS (RFC 8705) removed from scope**: Cloudflare Workers architecture limitation                                                                                                                         |
+| 2025-12-18 | **PII/Non-PII Database Separation ✅ Complete**: DatabaseAdapter, Repository pattern, PIIPartitionRouter, AuthContext/PIIContext, 47 files migrated                                                        |
+| 2025-12-18 | **Phase 7 ~95% Complete**: GDPR/CCPA compliant architecture complete, ready for Phase 8                                                                                                                    |
+| 2025-12-18 | **8.4 Policy Admin Console → Moved to Phase 10**: Develop alongside SDK for consistent developer experience                                                                                                |
+| 2025-12-18 | **8.1 Policy ↔ Identity Integration ✅ Complete**: Rule Evaluator, JIT Provisioning with dynamic role assignment, org auto-join, email domain hash with key rotation, Admin APIs                          |
+| 2025-12-19 | **Phase 8 ✅ Complete**: Token Embedding Model (8.2), Real-time Check API (8.3) with UnifiedCheckService, Permission Parser, WebSocket Push via PermissionChangeHub DO, Check API Keys Admin API           |
 
 ---
 
@@ -570,10 +570,10 @@ By 2027, Authrim will be:
 
 The following features are intentionally **not supported** due to architectural constraints:
 
-| Feature | Reason | Alternative |
-|---------|--------|-------------|
-| **MTLS (RFC 8705)** | Cloudflare Workers terminates TLS at edge; cannot control TLS handshake directly. SHA-256 certificate thumbprint requires additional Cloudflare configuration (Managed Transforms, API Shield). | FAPI 2.0 supports `private_key_jwt` as an alternative client authentication method. DPoP (RFC 9449) provides sender-constrained tokens without MTLS. |
-| **LDAP/AD Integration** | Cloudflare Workers runtime has no TCP socket support. | Use SCIM 2.0 for user provisioning, or connect via external IdP (Azure AD, Okta) that provides OIDC/SAML federation. |
+| Feature                 | Reason                                                                                                                                                                                          | Alternative                                                                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **MTLS (RFC 8705)**     | Cloudflare Workers terminates TLS at edge; cannot control TLS handshake directly. SHA-256 certificate thumbprint requires additional Cloudflare configuration (Managed Transforms, API Shield). | FAPI 2.0 supports `private_key_jwt` as an alternative client authentication method. DPoP (RFC 9449) provides sender-constrained tokens without MTLS. |
+| **LDAP/AD Integration** | Cloudflare Workers runtime has no TCP socket support.                                                                                                                                           | Use SCIM 2.0 for user provisioning, or connect via external IdP (Azure AD, Okta) that provides OIDC/SAML federation.                                 |
 
 ---
 

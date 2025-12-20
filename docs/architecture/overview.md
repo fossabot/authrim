@@ -1,294 +1,409 @@
-# authrim – Technical Specification (for AI analysis)
+# Architecture Overview
 
-## 1. Project Overview
-**authrim** is a lightweight, standards-compliant **OpenID Connect Provider (OP)** implemented entirely on **Cloudflare Workers** using **Hono** as the routing framework.
-It demonstrates that an individual developer can deploy a fully functional, globally distributed OpenID Provider (OIDC OP) at the edge.
+Enterprise-grade OpenID Connect Provider running on Cloudflare's global edge network.
 
-**Related Documents:**
-- [Protocol Flow](./protocol-flow.md) - End-to-end OIDC flow specification
-- [Conformance Test Plan](../conformance/test-plan.md) - Testing and validation strategy
-- [Project Schedule](../project-management/SCHEDULE.md) - Development timeline
-- [Task Breakdown](../project-management/TASKS.md) - Detailed implementation tasks
+## Overview
 
----
+| Aspect | Description |
+|--------|-------------|
+| **Platform** | Cloudflare Workers (Edge-native) |
+| **Framework** | Hono (TypeScript) |
+| **Storage** | Hybrid Multi-Tier (Durable Objects + D1 + KV) |
+| **Architecture** | Monorepo with Domain-Separated Workers |
 
-## 2. Primary Objectives
-- Implement the OpenID Connect Core 1.0 and Discovery 1.0 specifications on a serverless edge platform.
-- Minimize operational complexity (no servers, no external DB, fully stateless).
-- Achieve **OpenID Certified™ Basic OP Profile** compliance.
-- Provide a reference implementation for educational and lightweight enterprise use.
+Authrim is a production-ready OpenID Connect Provider (OP) and OAuth 2.0 Authorization Server implemented entirely on Cloudflare's edge platform. It provides comprehensive identity and access management capabilities with sub-50ms global latency.
 
 ---
 
-## 3. Core Architecture
+## System Architecture
 
-### 3.1 System Components
+### High-Level Architecture
 
-**Phase 5 Update**: Hybrid Multi-Tier Storage Architecture
-
-| Component | Role | Cloudflare Service |
-|:--|:--|:--|
-| **Worker (Hono App)** | Handles HTTP routes, authorization, and token issuance. | Cloudflare Workers |
-| **Durable Objects** | Strong consistency layer for auth codes, sessions, token rotation | Cloudflare Durable Objects |
-| **D1 Database** | Persistent relational data (users, clients, audit logs) | Cloudflare D1 (SQLite) |
-| **KV Storage** | Global edge cache for public keys, discovery, static metadata | Cloudflare KV |
-| **Automatic TLS** | Ensures HTTPS for all endpoints. | Cloudflare Edge Network |
-
-**Storage Architecture**:
 ```mermaid
 flowchart TB
-    subgraph Worker["Cloudflare Workers (Hono)"]
-        W[HTTP Routes & Business Logic]
+    subgraph Clients["Client Applications"]
+        Web[Web Apps]
+        Mobile[Mobile Apps]
+        API[API Clients]
+        IoT[IoT Devices]
     end
 
-    subgraph Storage["Storage Layer"]
-        DO[Durable Objects<br/>Consistency]
-        D1[D1 Database<br/>Persistent]
-        KV[KV Storage<br/>Edge Cache]
+    subgraph Edge["Cloudflare Edge Network"]
+        Router[Router Worker]
+
+        subgraph Workers["Domain Workers"]
+            Auth[op-auth]
+            Token[op-token]
+            UserInfo[op-userinfo]
+            Discovery[op-discovery]
+            Management[op-management]
+            Async[op-async]
+            SAML[op-saml]
+            SCIM[scim]
+            ExternalIdP[external-idp]
+            PolicySvc[policy-service]
+            VC[vc]
+        end
+
+        subgraph Storage["Storage Layer"]
+            DO[Durable Objects]
+            D1[D1 Database]
+            KV[KV Storage]
+            R2[R2 Storage]
+        end
     end
 
-    W --> DO
-    W --> D1
-    W --> KV
+    Clients --> Router
+    Router --> Workers
+    Workers --> Storage
 ```
 
-See [storage-strategy.md](./storage-strategy.md) for detailed architecture
+### Request Flow
 
-### 3.2 Logical Flow Diagram
 ```mermaid
-flowchart LR
-    User([User]) --> A[/authorize]
-    A --> OP["authrim OP"]
-    OP --> R["redirect_uri<br/>(with code)"]
-    R --> T[/token]
-    T --> Token["{access_token, id_token}"]
-    Token --> U[/userinfo]
-    U --> Claims["user claims"]
-```
+sequenceDiagram
+    participant Client
+    participant Router
+    participant Worker
+    participant DO as Durable Object
+    participant D1
+    participant KV
 
-### 3.3 Deployment Characteristics
-- Global edge execution (multi-region, low latency)
-- No dedicated server or container
-- Built-in TLS, DNS, CDN caching by Cloudflare
+    Client->>Router: HTTPS Request
+    Router->>Router: Route by path pattern
+    Router->>Worker: Forward to domain worker
 
----
+    alt Hot Data (Sessions, Tokens)
+        Worker->>DO: Strong consistency read/write
+        DO-->>Worker: Immediate response
+    else Persistent Data (Users, Clients)
+        Worker->>D1: SQL query
+        D1-->>Worker: Query result
+    else Cached Data (JWKS, Discovery)
+        Worker->>KV: Edge cache read
+        KV-->>Worker: Cached response
+    end
 
-## 4. Specification Compliance Map
-
-| Category | Specification | Compliance | Notes |
-|:--|:--|:--|:--|
-| **Core** | OpenID Connect Core 1.0 | ✅ Implemented (Authorization Code Flow) | Supports `code` response type only |
-| **Discovery** | OpenID Connect Discovery 1.0 | ✅ Fully implemented | `/.well-known/openid-configuration` |
-| **Registration** | Dynamic Client Registration 1.0 | ⚙️ Planned | `/register` endpoint |
-| **Session** | Session Management 1.0 | ❌ Not implemented | No iframe or `check_session` |
-| **JWT / JWK** | RFC 7517 / 7519 | ✅ Implemented via `jose` | RS256 signing, static JWKS |
-| **OAuth 2.0** | RFC 6749 / 6750 | ✅ Implemented | Basic Authorization Code flow |
-
----
-
-## 5. Endpoints and Behaviors
-
-### 5.1 Discovery
-**Path:** `/.well-known/openid-configuration`  
-**Purpose:** Return OP metadata including issuer, endpoints, supported claims, and algorithms.
-
-Example response:
-```json
-{
-  "issuer": "https://id.example.dev",
-  "authorization_endpoint": "https://id.example.dev/authorize",
-  "token_endpoint": "https://id.example.dev/token",
-  "userinfo_endpoint": "https://id.example.dev/userinfo",
-  "jwks_uri": "https://id.example.dev/.well-known/jwks.json",
-  "response_types_supported": ["code"],
-  "grant_types_supported": ["authorization_code"],
-  "id_token_signing_alg_values_supported": ["RS256"]
-}
+    Worker-->>Router: Response
+    Router-->>Client: HTTPS Response
 ```
 
 ---
 
-### 5.2 JWKS
+## Package Structure
 
-**Path:** `/.well-known/jwks.json`
-**Purpose:** Publish public keys used for ID token signature verification.
-Stored in KV or as static constant.
+Authrim uses a monorepo architecture with 14 specialized packages:
 
-Example:
+### Worker Packages (Deployable)
 
-```json
-{
-  "keys": [
-    {
-      "kty": "RSA",
-      "alg": "RS256",
-      "use": "sig",
-      "kid": "edge-key-1",
-      "n": "<base64url modulus>",
-      "e": "AQAB"
-    }
-  ]
-}
+| Package | Description | Key Endpoints |
+|---------|-------------|---------------|
+| **router** | Central routing layer | All incoming requests |
+| **op-auth** | Authorization & authentication | `/authorize`, `/logout`, passkey, consent |
+| **op-token** | Token issuance & management | `/token`, `/introspect`, `/revoke` |
+| **op-userinfo** | User claims endpoint | `/userinfo` |
+| **op-discovery** | OIDC Discovery & JWKS | `/.well-known/*` |
+| **op-management** | Admin API & management | `/api/admin/*` |
+| **op-async** | Async grant flows | `/device/*`, `/bc-authorize` (CIBA) |
+| **op-saml** | SAML SP functionality | `/saml/*` |
+| **scim** | User provisioning | `/scim/v2/*` |
+| **external-idp** | External IdP integration | Social login, SAML/OIDC federation |
+| **policy-service** | Policy decision service | Real-time authorization checks |
+| **vc** | Verifiable Credentials | OpenID4VCI, OpenID4VP, DID |
+
+### Library Packages
+
+| Package | Description |
+|---------|-------------|
+| **shared** | Common utilities, types, Durable Objects |
+| **policy-core** | Policy engine core logic |
+
+---
+
+## Durable Objects
+
+Authrim uses 16 Durable Objects for strong consistency:
+
+### Core Authentication
+
+| Durable Object | Purpose | Consistency |
+|----------------|---------|-------------|
+| **AuthorizationCodeStore** | Authorization code storage | Single-use guarantee |
+| **SessionStore** | Active user sessions | Real-time state |
+| **RefreshTokenRotator** | Token rotation & family tracking | One-time use |
+| **KeyManager** | JWK key lifecycle | Atomic operations |
+
+### Security & Rate Limiting
+
+| Durable Object | Purpose | Consistency |
+|----------------|---------|-------------|
+| **DPoPJTIStore** | DPoP proof replay prevention | Unique JTI tracking |
+| **TokenRevocationStore** | Revoked token registry | Immediate propagation |
+| **RateLimiterCounter** | API rate limiting | Atomic counters |
+| **UserCodeRateLimiter** | Device flow rate limiting | Per-user limits |
+| **ChallengeStore** | WebAuthn challenge management | Single-use verification |
+
+### Protocol Stores
+
+| Durable Object | Purpose | Consistency |
+|----------------|---------|-------------|
+| **PARRequestStore** | Pushed Authorization Requests | Request URI binding |
+| **DeviceCodeStore** | Device Authorization Grant | Polling state |
+| **CIBARequestStore** | CIBA authentication requests | Async flow state |
+| **SAMLRequestStore** | SAML request/response binding | Cross-domain state |
+
+### Infrastructure
+
+| Durable Object | Purpose | Consistency |
+|----------------|---------|-------------|
+| **VersionManager** | Deployment versioning | Atomic version control |
+| **PermissionChangeHub** | Real-time permission updates | WebSocket broadcast |
+
+---
+
+## Storage Strategy
+
+### Hybrid Multi-Tier Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Storage Selection                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐     │
+│  │ Durable Objects │  │   D1 Database   │  │   KV Storage    │     │
+│  ├─────────────────┤  ├─────────────────┤  ├─────────────────┤     │
+│  │ • Auth codes    │  │ • Users         │  │ • JWKS cache    │     │
+│  │ • Sessions      │  │ • OAuth clients │  │ • Discovery     │     │
+│  │ • Token state   │  │ • Audit logs    │  │ • Settings      │     │
+│  │ • Rate limits   │  │ • Roles/Perms   │  │ • Magic links   │     │
+│  │ • CIBA/Device   │  │ • Credentials   │  │ • Client cache  │     │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘     │
+│         │                    │                    │                 │
+│    Strong              Persistent            Edge Cache             │
+│  Consistency           Relational            (Eventually            │
+│  (Single Point)        (ACID)               Consistent)             │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Storage Selection Criteria
+
+| Requirement | Storage | Reason |
+|-------------|---------|--------|
+| Single-use tokens | Durable Objects | Atomic check-and-delete |
+| User profile data | D1 | Relational queries, persistence |
+| Public keys | KV | Global edge caching, high read volume |
+| Session state | Durable Objects | Real-time invalidation |
+| Audit logs | D1 | Queryable, long-term storage |
+| Feature flags | KV → Env → Default | Dynamic configuration |
+
+---
+
+## Specification Compliance
+
+### OpenID Connect
+
+| Specification | Status | Notes |
+|---------------|--------|-------|
+| OIDC Core 1.0 | ✅ Certified | Authorization Code, Implicit, Hybrid |
+| OIDC Discovery 1.0 | ✅ Certified | Full metadata support |
+| OIDC Dynamic Registration 1.0 | ✅ Certified | Full DCR support |
+| OIDC RP-Initiated Logout 1.0 | ✅ Implemented | All logout mechanisms |
+| OIDC Session Management 1.0 | ✅ Implemented | Check session + ITP-compatible |
+| OIDC Front-Channel Logout 1.0 | ✅ Implemented | Iframe-based logout |
+| OIDC Back-Channel Logout 1.0 | ✅ Implemented | Server-to-server logout |
+
+### OAuth 2.0 & Extensions
+
+| Specification | Status | Notes |
+|---------------|--------|-------|
+| OAuth 2.0 (RFC 6749) | ✅ Implemented | All grant types |
+| Bearer Token (RFC 6750) | ✅ Implemented | Token usage |
+| PKCE (RFC 7636) | ✅ Implemented | S256 + plain |
+| Token Introspection (RFC 7662) | ✅ Implemented | Active token validation |
+| Token Revocation (RFC 7009) | ✅ Implemented | Immediate revocation |
+| Device Authorization (RFC 8628) | ✅ Implemented | TV/IoT login |
+| Token Exchange (RFC 8693) | ✅ Implemented | Delegation, impersonation |
+| DPoP (RFC 9449) | ✅ Implemented | Proof-of-possession |
+| PAR (RFC 9126) | ✅ Implemented | Secure authorization |
+| JAR (RFC 9101) | ✅ Implemented | JWT authorization requests |
+| JARM | ✅ Implemented | JWT authorization responses |
+
+### Security Profiles
+
+| Specification | Status | Notes |
+|---------------|--------|-------|
+| FAPI 2.0 Security Profile | ✅ Implemented | Financial-grade security |
+| FAPI 2.0 Message Signing | ✅ Implemented | HTTP message signatures |
+| FAPI-CIBA | ✅ Implemented | Decoupled authentication |
+
+### Enterprise Standards
+
+| Specification | Status | Notes |
+|---------------|--------|-------|
+| SCIM 2.0 (RFC 7643/7644) | ✅ Implemented | User/group provisioning |
+| SAML 2.0 | ✅ Implemented | SP functionality |
+| WebAuthn/Passkeys | ✅ Implemented | FIDO2 authentication |
+| OpenID4VCI | ✅ Implemented | Credential issuance |
+| OpenID4VP | ✅ Implemented | Credential presentation |
+
+---
+
+## Deployment Patterns
+
+Authrim supports multiple deployment architectures:
+
+### Pattern A: Unified Deployment
+
+All workers deployed to a single domain. Simplest setup for getting started.
+
+```
+https://auth.example.com/
+├── /.well-known/*     → op-discovery
+├── /authorize         → op-auth
+├── /token             → op-token
+├── /userinfo          → op-userinfo
+├── /api/admin/*       → op-management
+└── /scim/*            → scim
+```
+
+### Pattern B: Domain Separation
+
+Separate domains for different concerns. Enhanced security isolation.
+
+```
+https://auth.example.com/          → op-auth, op-token
+https://admin.example.com/         → op-management
+https://api.example.com/           → op-userinfo, scim
+```
+
+### Pattern C: Multi-Tenant
+
+Tenant-specific subdomains with shared infrastructure.
+
+```
+https://tenant1.auth.example.com/  → Tenant 1
+https://tenant2.auth.example.com/  → Tenant 2
+https://tenant3.auth.example.com/  → Tenant 3
+```
+
+### Pattern D: Headless
+
+API-only deployment for custom UI integration.
+
+---
+
+## Security Architecture
+
+### Defense in Depth
+
+```mermaid
+flowchart TB
+    subgraph Edge["Edge Security"]
+        WAF[Cloudflare WAF]
+        DDoS[DDoS Protection]
+        TLS[TLS 1.3]
+    end
+
+    subgraph App["Application Security"]
+        PKCE[PKCE Enforcement]
+        DPoP[DPoP Binding]
+        CORS[CORS Policy]
+        CSP[Content Security Policy]
+    end
+
+    subgraph Data["Data Security"]
+        Encrypt[Envelope Encryption]
+        KeyRot[Key Rotation]
+        Audit[Audit Logging]
+    end
+
+    Edge --> App --> Data
+```
+
+### Key Security Features
+
+| Feature | Implementation |
+|---------|----------------|
+| **Transport Security** | TLS 1.3, HSTS, certificate transparency |
+| **Token Security** | DPoP binding, short TTL, one-time codes |
+| **Key Management** | Automatic rotation, envelope encryption |
+| **Rate Limiting** | Per-endpoint, per-client, per-user limits |
+| **Audit Logging** | Comprehensive event logging with context |
+| **CSRF Protection** | State parameter, SameSite cookies |
+
+---
+
+## Performance Characteristics
+
+### Global Latency
+
+| Operation | p50 | p99 |
+|-----------|-----|-----|
+| Discovery | 5ms | 15ms |
+| JWKS | 5ms | 15ms |
+| Token Issuance | 30ms | 80ms |
+| Token Introspection | 15ms | 40ms |
+| UserInfo | 20ms | 50ms |
+
+### Scalability
+
+- **Horizontal**: Cloudflare's global edge network (300+ locations)
+- **Vertical**: Automatic scaling with Workers
+- **Storage**: Durable Objects for consistency, KV for read scaling
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Category | Variable | Description |
+|----------|----------|-------------|
+| **Core** | `ISSUER_DOMAIN` | Issuer URL domain |
+| **Keys** | `PRIVATE_KEY_ENCRYPTED` | Encrypted signing key |
+| **Database** | `D1` | D1 database binding |
+| **Storage** | `KV`, `DO_*` | Storage bindings |
+| **Security** | `ADMIN_API_SECRET` | Admin API authentication |
+
+### Feature Flags (KV-Based)
+
+All features configurable via Admin API:
+
+```
+Priority: KV → Environment → Code Default
 ```
 
 ---
 
-### 5.3 Authorization Endpoint
+## Related Documents
 
-**Path:** `/authorize`
-**Function:** Handles user authorization and issues a temporary code.
-
-Behavior:
-
-1. Validate `client_id`, `redirect_uri`, `response_type=code`.
-2. Generate `state` and `code` (stored in KV with TTL=120s).
-3. Redirect to `redirect_uri?code={code}&state={state}`.
-
----
-
-### 5.4 Token Endpoint
-
-**Path:** `/token`
-**Function:** Exchange `code` for an `id_token` and `access_token`.
-
-Steps:
-
-1. Validate `grant_type=authorization_code`, `code`, and `client_id`.
-2. Load stored state from KV.
-3. Create JWT with claims:
-
-   * `iss`, `aud`, `sub`, `iat`, `exp`
-4. Sign using RS256 (JOSE).
-5. Return JSON:
-
-```json
-{
-  "access_token": "edge-token",
-  "id_token": "<JWT>",
-  "token_type": "Bearer",
-  "expires_in": 600
-}
-```
+| Document | Description |
+|----------|-------------|
+| [Workers Architecture](./workers.md) | Detailed package structure |
+| [Durable Objects](./durable-objects.md) | DO design and sharding |
+| [Storage Strategy](./storage-strategy.md) | Multi-tier storage details |
+| [Database Schema](./database-schema.md) | D1 schema documentation |
+| [Protocol Flow](./protocol-flow.md) | OIDC flow sequences |
+| [Deployment Patterns](./patterns.md) | Architecture patterns |
 
 ---
 
-### 5.5 UserInfo Endpoint
+## References
 
-**Path:** `/userinfo`
-**Function:** Return user claims for authenticated requests.
-Currently static for conformance testing.
+### Specifications
+- [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html)
+- [OAuth 2.0 (RFC 6749)](https://datatracker.ietf.org/doc/html/rfc6749)
+- [FAPI 2.0 Security Profile](https://openid.net/specs/fapi-2_0-security-profile.html)
 
-Response:
-
-```json
-{
-  "sub": "demo-user",
-  "name": "Edge Demo User",
-  "email": "edge@example.com"
-}
-```
+### Platform
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
+- [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)
+- [Hono Framework](https://hono.dev/)
 
 ---
 
-### 5.6 Dynamic Client Registration (Planned)
-
-**Path:** `/register`
-**Function:** Accept POST with client metadata, return client_id and configuration.
-Not yet implemented.
-
----
-
-### 5.7 Session Management (Future)
-
-**Path:** `/check_session_iframe`
-**Function:** Manage session state monitoring between RP and OP.
-Not yet implemented.
-
----
-
-## 6. Token Structure
-
-### 6.1 ID Token (JWT)
-
-Header:
-
-```json
-{ "alg": "RS256", "typ": "JWT", "kid": "edge-key-1" }
-```
-
-Payload:
-
-```json
-{
-  "iss": "https://id.example.dev",
-  "aud": "my-client-id",
-  "sub": "demo-user",
-  "iat": 1731200000,
-  "exp": 1731200600
-}
-```
-
----
-
-## 7. Environment Configuration
-
-| Variable        | Purpose                                | Example                                                         |
-| :-------------- | :------------------------------------- | :-------------------------------------------------------------- |
-| `PRIVATE_KEY`   | RSA private key in PEM format          | `"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"` |
-| `STATE_KV`      | Cloudflare KV namespace for code/state | `"state-kv-namespace-id"`                                       |
-| `ISSUER_DOMAIN` | Issuer domain (for `iss`)              | `"id.example.dev"`                                              |
-| `JWKS_KID`      | Key ID for JWKS                        | `"edge-key-1"`                                                  |
-| `TOKEN_TTL`     | Token lifetime (seconds)               | `600`                                                           |
-
----
-
-## 8. Conformance Plan
-
-| Stage       | Goal                                       | Tool / Criteria                   |
-| :---------- | :----------------------------------------- | :-------------------------------- |
-| **Phase 1** | Core + Discovery validation                | OpenID Conformance Suite (Docker) |
-| **Phase 2** | Token signature validation (JWS / JWK)     | JWT.io / Conformance suite        |
-| **Phase 3** | OAuth 2.0 grant tests (Authorization Code) | Conformance suite                 |
-| **Phase 4** | Dynamic Registration                       | Manual / optional                 |
-| **Phase 5** | Public certification                       | Submit to OpenID Foundation       |
-
----
-
-## 9. Security Considerations
-
-* All communications over HTTPS (Cloudflare-managed TLS).
-* All tokens signed with private key; public JWK exposed for verification.
-* `state` and `nonce` validated per OIDC Core spec.
-* Authorization codes stored with short TTL (120 seconds).
-* Nonce replay protection via KV or in-memory ephemeral binding.
-* CORS disabled by default.
-
----
-
-## 10. Future Enhancements
-
-* Rotating JWKS keys via Durable Object
-* Nonce verification
-* Form Post response mode
-* Refresh Token support
-* User authentication integration (passwordless / WebAuthn)
-
----
-
-## 11. License
-
-Apache License 2.0 © 2025 [sgrastar](https://github.com/sgrastar)
-
----
-
-## 12. Summary (AI context)
-
-In short:
-
-* **authrim** is a Cloudflare Workers-based implementation of an **OpenID Provider (OP)**.
-* It adheres to **OIDC Core**, **Discovery**, and **OAuth 2.0** specifications.
-* It’s **stateless**, **edge-native**, and suitable for **OpenID Conformance certification**.
-* Its key innovation: *individual developers can deploy their own issuer on the edge.*
-
-> Conceptually: “authrim ignites identity — a spark of trust at the edge.”
-
+**Last Updated**: 2025-12-20
+**Status**: Production
+**Version**: Phase 9 (VC/DID Integration Complete)

@@ -1,117 +1,121 @@
-# Durable Objects Architecture 🔷
+# Durable Objects Architecture
 
-**Last Updated**: 2025-12-05
-**Status**: Phase 6 Implementation
-**Version**: 2.2.0
-
----
+Strong consistency layer for distributed authentication and authorization.
 
 ## Overview
 
-Authrim uses Cloudflare Durable Objects for managing **strong consistency requirements** in distributed authentication flows. Durable Objects provide:
+| Aspect | Description |
+|--------|-------------|
+| **Total DOs** | 16 Durable Objects |
+| **Purpose** | Strong consistency for auth flows |
+| **Pattern** | Single-instance-per-key globally |
+| **Storage** | In-memory + persistent (DO storage/D1) |
 
-- **Strong consistency**: Immediate read-after-write consistency (no eventual consistency delays)
-- **Atomic operations**: Transactions within a single DO instance
-- **In-memory state**: Sub-millisecond access to hot data
-- **Global coordination**: Single-instance-per-key guarantees across the world
+Authrim uses Cloudflare Durable Objects to provide **strong consistency** guarantees that are critical for security-sensitive operations like authorization codes, sessions, and token rotation.
 
-### Durable Objects in Authrim
+---
 
-| Durable Object | Purpose | Phase | Status |
-|----------------|---------|-------|--------|
-| **KeyManager** | RSA key management & rotation | Phase 3 | ✅ Implemented |
-| **SessionStore** | Active session state management | Phase 5 | ✅ Implemented |
-| **AuthorizationCodeStore** | One-time authorization codes | Phase 5 | ✅ Implemented |
-| **RefreshTokenRotator** | Atomic refresh token rotation | Phase 5 | ✅ Implemented |
-| **DeviceCodeStore** | Device Flow code management | Phase 5 | ✅ Implemented |
-| **CIBARequestStore** | CIBA authentication requests | Phase 5 | ✅ Implemented |
-| **SAMLRequestStore** | SAML 2.0 request state management | Phase 6 | ✅ Implemented |
+## Durable Objects List
 
-### Architecture Diagram
+### Core Authentication
+
+| Durable Object | Purpose | Consistency Guarantee |
+|----------------|---------|----------------------|
+| **KeyManager** | RSA/EC key management & rotation | Atomic key operations |
+| **SessionStore** | Active user session state | Real-time invalidation |
+| **AuthorizationCodeStore** | One-time auth codes | Single-use guarantee |
+| **RefreshTokenRotator** | Token rotation & family tracking | Theft detection |
+
+### Security & Rate Limiting
+
+| Durable Object | Purpose | Consistency Guarantee |
+|----------------|---------|----------------------|
+| **DPoPJTIStore** | DPoP proof replay prevention | Unique JTI tracking |
+| **TokenRevocationStore** | Revoked token registry | Immediate propagation |
+| **RateLimiterCounter** | API rate limiting | Atomic counters |
+| **UserCodeRateLimiter** | Device flow rate limiting | Per-user limits |
+| **ChallengeStore** | WebAuthn challenge management | Single-use verification |
+
+### Protocol Stores
+
+| Durable Object | Purpose | Consistency Guarantee |
+|----------------|---------|----------------------|
+| **PARRequestStore** | Pushed Authorization Requests | Request URI binding |
+| **DeviceCodeStore** | Device Authorization Grant | Polling state management |
+| **CIBARequestStore** | CIBA authentication requests | Async flow state |
+| **SAMLRequestStore** | SAML request/response binding | Cross-domain state |
+
+### Infrastructure
+
+| Durable Object | Purpose | Consistency Guarantee |
+|----------------|---------|----------------------|
+| **VersionManager** | Deployment versioning | Atomic version control |
+| **PermissionChangeHub** | Real-time permission updates | WebSocket broadcast |
+
+---
+
+## Architecture Diagram
 
 ```mermaid
 flowchart TB
-    subgraph Worker["Cloudflare Workers (Hono)"]
-        W[HTTP Handler]
+    subgraph Workers["Cloudflare Workers"]
+        Auth[op-auth]
+        Token[op-token]
+        Async[op-async]
+        Policy[policy-service]
     end
 
-    subgraph DOs["Durable Objects"]
-        KM["KeyManager<br/>• Keys JWKS<br/>• Rotation"]
-        SS["SessionStore<br/>• Hot Sessions"]
-        ACS["AuthCodeStore<br/>• Codes TTL<br/>• Replay"]
-        TR["TokenRotator<br/>• Rotation<br/>• Audit Log"]
+    subgraph CoreDOs["Core Authentication DOs"]
+        KM["KeyManager<br/>Keys & Rotation"]
+        SS["SessionStore<br/>Active Sessions"]
+        ACS["AuthCodeStore<br/>One-time Codes"]
+        RTR["RefreshTokenRotator<br/>Token Families"]
     end
 
-    subgraph Storage["Storage Backend"]
-        KM_S["Persistent Storage"]
-        SS_S["In-memory + D1 fallback"]
-        ACS_S["In-memory TTL-based"]
-        TR_S["In-memory + D1 audit"]
+    subgraph SecurityDOs["Security DOs"]
+        DPOP["DPoPJTIStore<br/>JTI Replay"]
+        TRS["TokenRevocationStore<br/>Revoked Tokens"]
+        RLC["RateLimiterCounter<br/>Rate Limits"]
+        UCRL["UserCodeRateLimiter<br/>Device Rate Limits"]
+        CS["ChallengeStore<br/>WebAuthn Challenges"]
     end
 
-    W --> KM
-    W --> SS
-    W --> ACS
-    W --> TR
+    subgraph ProtocolDOs["Protocol DOs"]
+        PAR["PARRequestStore<br/>PAR Requests"]
+        DCS["DeviceCodeStore<br/>Device Codes"]
+        CIBA["CIBARequestStore<br/>CIBA Requests"]
+        SAML["SAMLRequestStore<br/>SAML State"]
+    end
 
-    KM --> KM_S
-    SS --> SS_S
-    ACS --> ACS_S
-    TR --> TR_S
+    subgraph InfraDOs["Infrastructure DOs"]
+        VM["VersionManager<br/>Deployments"]
+        PCH["PermissionChangeHub<br/>Real-time Updates"]
+    end
+
+    Auth --> CoreDOs
+    Auth --> SecurityDOs
+    Auth --> ProtocolDOs
+    Token --> CoreDOs
+    Token --> SecurityDOs
+    Async --> ProtocolDOs
+    Policy --> InfraDOs
 ```
 
 ---
 
-## 1. KeyManager Durable Object
+## 1. KeyManager
+
+Manages cryptographic keys for JWT signing with automatic rotation.
 
 ### Purpose
 
-The `KeyManager` Durable Object is responsible for:
-- Storing RSA key pairs for JWT signing
-- Managing multiple active keys simultaneously
-- Implementing automatic key rotation
-- Providing JWKS (JSON Web Key Set) endpoint data
-- Ensuring zero-downtime during key rotation
-
-### Architecture
-
-```mermaid
-flowchart TB
-    subgraph KM["KeyManager Durable Object"]
-        subgraph Storage["Durable Storage"]
-            K1["Key 1<br/>kid: key-1<br/>active: no<br/>created: T1"]
-            K2["Key 2<br/>kid: key-2<br/>active: yes<br/>created: T2"]
-            K3["Key 3<br/>kid: key-3<br/>active: no<br/>created: T3"]
-        end
-        Config["Configuration<br/>• rotationIntervalDays: 90<br/>• retentionPeriodDays: 30"]
-    end
-```
+- Store RSA/EC key pairs for JWT signing
+- Manage multiple active keys simultaneously
+- Implement automatic key rotation
+- Provide JWKS endpoint data
+- Support envelope encryption for key protection
 
 ### Key Rotation Strategy
-
-#### Rotation Process
-
-1. **New Key Generation**
-   - Generate new RSA key pair (2048-bit)
-   - Assign unique `kid` (key ID) with timestamp
-   - Store public JWK and private PEM in Durable Object
-
-2. **Activation**
-   - Mark new key as active signing key
-   - Deactivate previous active key (but keep it for verification)
-   - Update `activeKeyId` in state
-
-3. **Gradual Transition**
-   - New tokens signed with new key
-   - Old keys remain available for verification
-   - JWKS endpoint returns all non-expired keys
-
-4. **Cleanup**
-   - Keep old keys for retention period (default: 30 days)
-   - Remove keys older than retention period
-   - Ensures smooth transition for token verification
-
-#### Timeline Example
 
 ```mermaid
 timeline
@@ -120,817 +124,489 @@ timeline
           : Sign all tokens with Key 1
     Day 90 : Generate Key 2 (active)
            : Deactivate Key 1
-           : Sign new tokens with Key 2
-           : Key 1 still available for verification
-    Day 120 : Remove Key 1 (30 days after rotation)
+           : Key 1 available for verification
+    Day 120 : Remove Key 1
             : Only Key 2 remains
     Day 180 : Generate Key 3 (active)
             : Deactivate Key 2
-            : Sign new tokens with Key 3
-            : Key 2 still available for verification
-    Day 210 : Remove Key 2
-            : Only Key 3 remains
 ```
 
-### API Endpoints
+### API
 
-The KeyManager Durable Object exposes the following HTTP endpoints:
-
-#### `GET /active`
-Returns the currently active signing key.
-
-**Response:**
-```json
-{
-  "kid": "key-1234567890-abc123",
-  "publicJWK": { ... },
-  "privatePEM": "-----BEGIN PRIVATE KEY-----\n...",
-  "createdAt": 1699999999999,
-  "isActive": true
-}
-```
-
-#### `GET /jwks`
-Returns all public keys in JWKS format (for OpenID Connect Discovery).
-
-**Response:**
-```json
-{
-  "keys": [
-    {
-      "kty": "RSA",
-      "use": "sig",
-      "alg": "RS256",
-      "kid": "key-1234567890-abc123",
-      "n": "...",
-      "e": "AQAB"
-    }
-  ]
-}
-```
-
-#### `POST /rotate`
-Triggers manual key rotation.
-
-**Response:**
-```json
-{
-  "success": true,
-  "key": {
-    "kid": "key-new-id",
-    "publicJWK": { ... },
-    "createdAt": 1699999999999
-  }
-}
-```
-
-#### `GET /should-rotate`
-Checks if automatic key rotation is needed based on rotation interval.
-
-**Response:**
-```json
-{
-  "shouldRotate": true
-}
-```
-
-#### `GET /config`
-Returns current key rotation configuration.
-
-**Response:**
-```json
-{
-  "rotationIntervalDays": 90,
-  "retentionPeriodDays": 30
-}
-```
-
-#### `POST /config`
-Updates key rotation configuration.
-
-**Request:**
-```json
-{
-  "rotationIntervalDays": 60,
-  "retentionPeriodDays": 45
-}
-```
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/active` | GET | Get active signing key |
+| `/jwks` | GET | Get all public keys (JWKS) |
+| `/rotate` | POST | Trigger key rotation |
+| `/should-rotate` | GET | Check if rotation needed |
+| `/config` | GET/POST | Key rotation configuration |
 
 ### Configuration
 
-#### Default Settings
-
-- **Rotation Interval**: 90 days
-- **Retention Period**: 30 days
-- **Key Algorithm**: RS256 (RSA with SHA-256)
-- **Key Size**: 2048 bits
-
-#### Customization
-
-Configuration can be updated via the `/config` endpoint or by modifying the initial state in the constructor.
-
-### Security Considerations
-
-1. **Private Key Storage**
-   - Private keys stored in Durable Object storage (encrypted at rest)
-   - Never exposed via public JWKS endpoint
-   - Accessed only by token signing operations
-
-2. **Key Rotation**
-   - Regular rotation reduces impact of potential key compromise
-   - Automated rotation ensures consistency
-   - Retention period allows gradual migration
-
-3. **Access Control**
-   - KeyManager should only be accessible from internal Workers
-   - No public HTTP access to KeyManager endpoints
-   - Use Cloudflare Access or Workers authentication
-
-### Usage in Authrim
-
-#### Initialization
-
-```typescript
-// In wrangler.toml
-[[durable_objects.bindings]]
-name = "KEY_MANAGER"
-class_name = "KeyManager"
-script_name = "authrim"
-
-// In worker code
-const keyManagerId = env.KEY_MANAGER.idFromName('default');
-const keyManager = env.KEY_MANAGER.get(keyManagerId);
-```
-
-#### Getting Active Key
-
-```typescript
-const response = await keyManager.fetch(
-  new Request('http://internal/active', { method: 'GET' })
-);
-const activeKey = await response.json();
-```
-
-#### Rotating Keys
-
-```typescript
-const response = await keyManager.fetch(
-  new Request('http://internal/rotate', { method: 'POST' })
-);
-const result = await response.json();
-```
-
-### Future Enhancements
-
-1. **Multiple Key Manager Instances**
-   - Support for regional KeyManagers
-   - Cross-region key replication
-
-2. **Key Backup and Recovery**
-   - Export keys for backup
-   - Import keys from backup
-
-3. **Audit Logging**
-   - Log all key operations
-   - Track key usage and rotation history
-
-4. **Automatic Rotation**
-   - Scheduled key rotation via Cron Triggers
-   - Notification on rotation completion
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Rotation Interval | 90 days | Time between rotations |
+| Retention Period | 30 days | Keep old keys for verification |
+| Key Algorithm | RS256 | Signing algorithm |
+| Key Size | 2048 bits | RSA key size |
 
 ---
 
-## 2. SessionStore Durable Object
+## 2. SessionStore
+
+Manages active user sessions with instant invalidation capability.
 
 ### Purpose
 
-The `SessionStore` Durable Object manages **active user sessions** with:
-- **In-memory hot data**: Active sessions stored in memory for sub-ms access
-- **Instant invalidation**: Immediate session revocation (security requirement)
-- **D1 fallback**: Cold sessions loaded from D1 database
-- **ITP-compatible**: Works with Safari's Intelligent Tracking Prevention
+- Store active sessions in memory (hot data)
+- Provide sub-millisecond session lookup
+- Enable instant session revocation
+- Fall back to D1 for cold sessions
+- Support ITP-compatible session management
 
-### Architecture
+### Hot/Cold Pattern
 
 ```mermaid
 flowchart TB
-    subgraph SS["SessionStore Durable Object"]
-        subgraph Hot["In-Memory Storage (Hot Sessions)"]
-            S1["session:abc123 → { userId, expiresAt, data, ... }"]
-            S2["session:def456 → { userId, expiresAt, data, ... }"]
+    subgraph SessionStore["SessionStore DO"]
+        subgraph Hot["In-Memory (Hot)"]
+            S1["session:abc → Active"]
+            S2["session:def → Active"]
         end
-
-        subgraph Cold["D1 Database (Cold Sessions)"]
-            D1["SELECT * FROM sessions<br/>WHERE id = ? AND expires_at > ?"]
+        subgraph Cold["D1 (Cold)"]
+            D1["SELECT * FROM sessions"]
         end
-
         Hot -->|fallback on miss| Cold
     end
 ```
 
-### API Endpoints
+### API
 
-#### `GET /session/:id`
-Get session by ID (memory → D1 fallback).
-
-**Response:**
-```json
-{
-  "id": "session_abc123",
-  "userId": "user_xyz",
-  "expiresAt": 1700000000,
-  "createdAt": 1699900000,
-  "data": { "amr": ["pwd"], "acr": "1" }
-}
-```
-
-#### `POST /session`
-Create new session.
-
-**Request:**
-```json
-{
-  "userId": "user_xyz",
-  "ttl": 86400,
-  "data": { "amr": ["pwd"] }
-}
-```
-
-**Response:**
-```json
-{
-  "id": "session_abc123",
-  "expiresAt": 1700000000
-}
-```
-
-#### `DELETE /session/:id`
-Invalidate session immediately.
-
-**Response:**
-```json
-{
-  "success": true,
-  "deleted": "session_abc123"
-}
-```
-
-#### `GET /sessions/user/:userId`
-List all active sessions for a user.
-
-**Response:**
-```json
-{
-  "sessions": [
-    { "id": "session_abc123", "createdAt": 1699900000 },
-    { "id": "session_def456", "createdAt": 1699800000 }
-  ]
-}
-```
-
-### Hot/Cold Pattern
-
-```typescript
-class SessionStore {
-  private sessions: Map<string, Session> = new Map();
-
-  async getSession(sessionId: string): Promise<Session | null> {
-    // 1. Check in-memory (hot)
-    let session = this.sessions.get(sessionId);
-    if (session) {
-      if (!this.isExpired(session)) return session;
-      this.sessions.delete(sessionId); // Cleanup expired
-      return null;
-    }
-
-    // 2. Check D1 (cold)
-    const d1Session = await this.loadFromD1(sessionId);
-    if (d1Session && !this.isExpired(d1Session)) {
-      // Promote to hot storage
-      this.sessions.set(sessionId, d1Session);
-      return d1Session;
-    }
-
-    return null;
-  }
-
-  async createSession(userId: string, ttl: number, data: any) {
-    const session: Session = {
-      id: crypto.randomUUID(),
-      userId,
-      expiresAt: Date.now() + ttl * 1000,
-      createdAt: Date.now(),
-      data,
-    };
-
-    // 1. Store in memory (hot)
-    this.sessions.set(session.id, session);
-
-    // 2. Persist to D1 (backup & audit)
-    await this.saveToD1(session);
-
-    return session;
-  }
-
-  async invalidateSession(sessionId: string) {
-    // 1. Remove from memory
-    this.sessions.delete(sessionId);
-
-    // 2. Mark as deleted in D1
-    await this.deleteFromD1(sessionId);
-  }
-}
-```
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/session/:id` | GET | Get session by ID |
+| `/session` | POST | Create new session |
+| `/session/:id` | DELETE | Invalidate session |
+| `/sessions/user/:userId` | GET | List user's sessions |
 
 ### Configuration
 
-- **Default TTL**: 24 hours
-- **Memory cleanup interval**: Every 5 minutes
-- **D1 fallback timeout**: 100ms
-- **Max sessions per user**: 10 (configurable)
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Session TTL | 24 hours | Default session lifetime |
+| Max per User | 10 | Maximum concurrent sessions |
+| Cleanup Interval | 5 minutes | Expired session cleanup |
 
 ---
 
-## 3. AuthorizationCodeStore Durable Object
+## 3. AuthorizationCodeStore
+
+Stores one-time authorization codes with replay attack prevention.
 
 ### Purpose
 
-The `AuthorizationCodeStore` Durable Object manages **one-time authorization codes** with:
-- **One-time use guarantee**: Prevents authorization code replay attacks (CRITICAL)
-- **Short TTL**: 60 seconds lifetime
-- **Atomic consume**: Marks code as used atomically
-- **PKCE support**: Stores code_challenge for validation
-
-### Architecture
-
-```mermaid
-flowchart TB
-    subgraph ACS["AuthorizationCodeStore Durable Object"]
-        subgraph Mem["In-Memory Storage (TTL: 60 seconds)"]
-            Code["code:abc123 → {<br/>  clientId: 'client_1',<br/>  redirectUri: 'https://...',<br/>  userId: 'user_123',<br/>  scope: 'openid profile',<br/>  codeChallenge: 'sha256...',<br/>  used: false,<br/>  expiresAt: 1700000060<br/>}"]
-        end
-    end
-```
-
-### API Endpoints
-
-#### `POST /code`
-Store authorization code.
-
-**Request:**
-```json
-{
-  "code": "auth_code_abc123",
-  "clientId": "client_1",
-  "redirectUri": "https://app.example.com/callback",
-  "userId": "user_123",
-  "scope": "openid profile email",
-  "codeChallenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
-  "codeChallengeMethod": "S256"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "expiresAt": 1700000060
-}
-```
-
-#### `POST /code/consume`
-Consume authorization code (one-time use).
-
-**Request:**
-```json
-{
-  "code": "auth_code_abc123",
-  "clientId": "client_1",
-  "codeVerifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-}
-```
-
-**Response (Success):**
-```json
-{
-  "userId": "user_123",
-  "scope": "openid profile email",
-  "redirectUri": "https://app.example.com/callback"
-}
-```
-
-**Response (Already Used - Replay Attack):**
-```json
-{
-  "error": "invalid_grant",
-  "error_description": "Authorization code already used"
-}
-```
+- Store authorization codes with short TTL
+- Guarantee single-use (replay prevention)
+- Store PKCE code_challenge for validation
+- Atomic consume operation
 
 ### Replay Attack Prevention
 
-```typescript
-class AuthorizationCodeStore {
-  private codes: Map<string, AuthCode> = new Map();
+```mermaid
+sequenceDiagram
+    participant Client
+    participant ACS as AuthCodeStore
+    participant Token as Token Endpoint
 
-  async consume(code: string, clientId: string, codeVerifier?: string) {
-    const stored = this.codes.get(code);
+    Client->>ACS: Store code (valid 60s)
+    ACS-->>Client: OK
 
-    if (!stored) {
-      throw new Error('invalid_grant: Code not found or expired');
-    }
+    Client->>Token: Exchange code
+    Token->>ACS: Consume code (atomic)
+    ACS->>ACS: Mark as used
+    ACS-->>Token: Code data
 
-    // CRITICAL: Check if already used (replay attack)
-    if (stored.used) {
-      // Security: Revoke ALL tokens for this authorization attempt
-      await this.revokeTokensForAuth(stored.userId, stored.clientId);
-      throw new Error('invalid_grant: Code already used (replay attack detected)');
-    }
+    Note over Client,Token: Later replay attempt
 
-    // Validate PKCE
-    if (stored.codeChallenge) {
-      const challenge = this.generateCodeChallenge(codeVerifier);
-      if (challenge !== stored.codeChallenge) {
-        throw new Error('invalid_grant: Invalid code_verifier');
-      }
-    }
-
-    // Validate client
-    if (stored.clientId !== clientId) {
-      throw new Error('invalid_grant: Client mismatch');
-    }
-
-    // Mark as used ATOMICALLY (DO guarantees strong consistency)
-    stored.used = true;
-    this.codes.set(code, stored);
-
-    return {
-      userId: stored.userId,
-      scope: stored.scope,
-      redirectUri: stored.redirectUri,
-    };
-  }
-
-  private generateCodeChallenge(verifier: string): string {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(verifier);
-    const hash = crypto.subtle.digest('SHA-256', data);
-    return btoa(String.fromCharCode(...new Uint8Array(hash)))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
-  }
-}
+    Client->>Token: Exchange same code
+    Token->>ACS: Consume code
+    ACS-->>Token: ERROR: already used
+    ACS->>ACS: Revoke all related tokens
 ```
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/code` | POST | Store authorization code |
+| `/code/consume` | POST | Consume code (one-time) |
 
 ### Configuration
 
-- **TTL**: 60 seconds (per OAuth 2.0 Security BCP)
-- **Cleanup interval**: Every 30 seconds
-- **Max codes per user**: 5 concurrent (DDoS protection)
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Code TTL | 60 seconds | Authorization code lifetime |
+| Max per User | 5 | Concurrent codes per user |
 
 ---
 
-## 4. RefreshTokenRotator Durable Object
+## 4. RefreshTokenRotator
+
+Manages refresh token rotation with token family tracking and theft detection.
 
 ### Purpose
 
-The `RefreshTokenRotator` Durable Object manages **atomic refresh token rotation** with:
-- **Token family tracking**: Detect token theft via rotation chain
-- **Atomic rotation**: Prevents race conditions (multiple refresh attempts)
-- **Audit logging**: All rotations logged to D1
-- **Theft detection**: Revoke all tokens if replay detected
-- **V3 Sharding**: Generation-based sharding for high RPS workloads
+- Track token families for rotation
+- Detect token theft via replay
+- Atomic rotation guarantees
+- Audit logging to D1
 
-> 📖 **Sharding Details**: See [refresh-token-sharding.md](./refresh-token-sharding.md) for full specification
-
-### Architecture
+### Theft Detection
 
 ```mermaid
 flowchart TB
-    subgraph RTR["RefreshTokenRotator Durable Object"]
-        subgraph TF["Token Family Tracking"]
-            Family["family:xyz → {<br/>  currentToken: 'rt_v3',<br/>  previousTokens: ['rt_v1', 'rt_v2'],<br/>  userId: 'user_123',<br/>  clientId: 'client_1',<br/>  rotationCount: 2<br/>}"]
-        end
+    subgraph Family["Token Family"]
+        V1["Token V1<br/>(used)"]
+        V2["Token V2<br/>(used)"]
+        V3["Token V3<br/>(current)"]
+        V1 --> V2 --> V3
+    end
 
-        subgraph Audit["D1 Audit Log"]
-            Log["INSERT INTO refresh_token_log<br/>(action, token_id, ...)"]
-        end
-
-        TF --> Audit
+    subgraph Theft["Theft Scenario"]
+        Attacker["Attacker uses V2"]
+        Alert["THEFT DETECTED!"]
+        Revoke["Revoke ALL tokens"]
+        Attacker --> Alert --> Revoke
     end
 ```
 
-### API Endpoints
+### API
 
-#### `POST /rotate`
-Rotate refresh token (atomic operation).
-
-**Request:**
-```json
-{
-  "currentToken": "rt_v2_abc123",
-  "userId": "user_123",
-  "clientId": "client_1"
-}
-```
-
-**Response (Success):**
-```json
-{
-  "newToken": "rt_v3_def456",
-  "expiresIn": 2592000,
-  "rotationCount": 3
-}
-```
-
-**Response (Theft Detected - Old Token Reused):**
-```json
-{
-  "error": "invalid_grant",
-  "error_description": "Token theft detected",
-  "action": "all_tokens_revoked"
-}
-```
-
-#### `POST /revoke-family`
-Revoke all tokens in a token family (logout all devices).
-
-**Request:**
-```json
-{
-  "familyId": "family_xyz",
-  "reason": "user_logout"
-}
-```
-
-### Rotation & Theft Detection
-
-```typescript
-class RefreshTokenRotator {
-  private families: Map<string, TokenFamily> = new Map();
-
-  async rotate(currentToken: string, userId: string, clientId: string) {
-    // Find token family
-    const family = this.findFamilyByToken(currentToken);
-
-    if (!family) {
-      throw new Error('invalid_grant: Token not found');
-    }
-
-    // CRITICAL: Check if token is the current one
-    if (family.currentToken !== currentToken) {
-      // Token replay detected! This token was already rotated.
-      // This indicates potential token theft.
-      console.error('Token theft detected!', {
-        userId,
-        clientId,
-        attemptedToken: currentToken,
-        currentToken: family.currentToken,
-      });
-
-      // SECURITY: Revoke ALL tokens in this family
-      await this.revokeFamilyTokens(family.id);
-      await this.logToD1('theft_detected', family.id, userId);
-
-      throw new Error('invalid_grant: Token theft detected');
-    }
-
-    // Generate new token
-    const newToken = this.generateToken();
-
-    // Atomic rotation (DO guarantees consistency)
-    family.previousTokens.push(family.currentToken);
-    family.currentToken = newToken;
-    family.rotationCount++;
-    family.lastRotation = Date.now();
-
-    this.families.set(family.id, family);
-
-    // Audit log
-    await this.logToD1('rotated', family.id, userId, {
-      newToken,
-      rotationCount: family.rotationCount,
-    });
-
-    return {
-      newToken,
-      expiresIn: 30 * 24 * 60 * 60, // 30 days
-      rotationCount: family.rotationCount,
-    };
-  }
-
-  async revokeFamilyTokens(familyId: string) {
-    this.families.delete(familyId);
-    await this.logToD1('family_revoked', familyId);
-  }
-
-  private generateToken(): string {
-    return `rt_${crypto.randomUUID()}`;
-  }
-
-  private async logToD1(action: string, familyId: string, userId?: string, metadata?: any) {
-    // Log to D1 audit_log table
-    // ... implementation
-  }
-}
-```
-
-### Configuration
-
-- **Token TTL**: 30 days
-- **Max rotations**: Unlimited
-- **Family retention**: 90 days after last rotation
-- **Theft detection**: Immediate revocation on replay
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/rotate` | POST | Rotate refresh token |
+| `/revoke-family` | POST | Revoke entire token family |
+| `/validate` | POST | Check if token is current |
 
 ---
 
-## Implementation Timeline
+## 5. DPoPJTIStore
 
-### Phase 3 (Completed)
-- ✅ KeyManager Durable Object implemented
-- ✅ Key rotation functionality
-- ✅ JWKS endpoint
+Prevents DPoP proof replay by tracking used JTI values.
 
-### Phase 5 (Implementation in Progress - May 2026)
-- **Week 1**: SessionStore implementation
-  - ✅ Hot/cold session pattern
-  - ✅ D1 integration
-  - ✅ Unit tests (20+ test cases)
-  - ✅ API documentation
-- **Week 2**: AuthorizationCodeStore implementation
-  - ✅ Replay attack prevention
-  - ✅ PKCE validation
-  - ✅ Unit tests (15+ test cases)
-  - ✅ API documentation
-- **Week 2**: RefreshTokenRotator implementation
-  - ✅ Token family tracking
-  - ✅ Theft detection
-  - ✅ Unit tests (18+ test cases)
-  - ✅ API documentation
-- **Week 3**: Integration testing (In Progress)
-  - 🔄 Storage abstraction layer
-  - 🔄 Security testing
-  - 🔄 Performance benchmarks
-- **Week 4**: Production deployment (Planned)
-  - Gradual rollout
-  - Monitoring setup
+### Purpose
+
+- Store used DPoP JTI values
+- Prevent proof replay attacks
+- Automatic cleanup of expired JTIs
+- Per-client tracking
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/jti/check` | POST | Check and record JTI |
+| `/jti/cleanup` | POST | Clean expired JTIs |
+
+### Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| JTI TTL | 5 minutes | JTI retention time |
+| Cleanup Interval | 1 minute | Automatic cleanup |
+
+---
+
+## 6. TokenRevocationStore
+
+Maintains registry of revoked tokens for immediate invalidation.
+
+### Purpose
+
+- Store revoked token identifiers
+- Enable immediate token invalidation
+- Support introspection queries
+- Automatic cleanup of expired entries
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/revoke` | POST | Revoke a token |
+| `/check` | POST | Check if revoked |
+| `/cleanup` | POST | Clean expired entries |
+
+---
+
+## 7. RateLimiterCounter
+
+Provides atomic rate limiting counters for API endpoints.
+
+### Purpose
+
+- Per-endpoint rate limiting
+- Per-client rate limiting
+- Sliding window algorithm
+- Atomic counter operations
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/check` | POST | Check and increment counter |
+| `/reset` | POST | Reset counter |
+
+---
+
+## 8. UserCodeRateLimiter
+
+Rate limiting specifically for Device Flow user code attempts.
+
+### Purpose
+
+- Prevent brute-force user code guessing
+- Per-device-code rate limiting
+- Progressive backoff support
+
+---
+
+## 9. ChallengeStore
+
+Manages WebAuthn challenges for passkey authentication.
+
+### Purpose
+
+- Store registration challenges
+- Store authentication challenges
+- Single-use validation
+- Automatic expiration
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/challenge` | POST | Store new challenge |
+| `/challenge/verify` | POST | Verify and consume challenge |
+
+---
+
+## 10. PARRequestStore
+
+Stores Pushed Authorization Requests for later authorization.
+
+### Purpose
+
+- Store PAR request data
+- Generate request_uri
+- Single-use consumption
+- Validate client binding
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/request` | POST | Store PAR request |
+| `/request/:uri` | GET | Retrieve request |
+| `/request/:uri/consume` | POST | Consume request |
+
+---
+
+## 11. DeviceCodeStore
+
+Manages Device Authorization Grant flow state.
+
+### Purpose
+
+- Store device codes and user codes
+- Track authorization status
+- Support polling from device
+- Handle user authorization
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/device` | POST | Create device authorization |
+| `/device/:code` | GET | Check authorization status |
+| `/device/:code/authorize` | POST | User authorizes device |
+| `/device/:code/deny` | POST | User denies device |
+
+---
+
+## 12. CIBARequestStore
+
+Manages Client-Initiated Backchannel Authentication requests.
+
+### Purpose
+
+- Store CIBA auth requests
+- Track authentication status
+- Support poll, ping, and push modes
+- Handle user authentication completion
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/request` | POST | Create CIBA request |
+| `/request/:id` | GET | Check request status |
+| `/request/:id/complete` | POST | Complete authentication |
+| `/request/:id/deny` | POST | Deny authentication |
+
+---
+
+## 13. SAMLRequestStore
+
+Manages SAML 2.0 request/response state.
+
+### Purpose
+
+- Store SAML AuthnRequest data
+- Enable response correlation
+- Prevent replay attacks
+- Support IdP-initiated flows
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/request` | POST | Store SAML request |
+| `/request/:id` | GET | Retrieve request |
+| `/request/:id/consume` | POST | Consume after response |
+
+---
+
+## 14. VersionManager
+
+Manages deployment versions for canary releases.
+
+### Purpose
+
+- Track active deployment versions
+- Support gradual rollouts
+- Enable instant rollback
+- Version-specific configuration
+
+---
+
+## 15. PermissionChangeHub
+
+Broadcasts real-time permission changes via WebSocket.
+
+### Purpose
+
+- Real-time permission updates
+- WebSocket connection management
+- Subscription to permission changes
+- Multi-client broadcast
+
+### API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/websocket` | GET | WebSocket upgrade |
+| `/broadcast` | POST | Broadcast change event |
+
+---
+
+## Sharding Strategy
+
+For high-throughput scenarios, some DOs use sharding:
+
+### Sharding by Region
+
+```mermaid
+flowchart LR
+    Request --> Hash["Hash(request_id)"]
+    Hash --> Shard1["Shard 0-7"]
+    Hash --> Shard2["Shard 8-15"]
+    Hash --> Shard3["Shard 16-23"]
+    Hash --> Shard4["Shard 24-31"]
+```
+
+### Sharding Documents
+
+| DO | Sharding Doc |
+|----|--------------|
+| AuthorizationCodeStore | [durable-objects-sharding.md](./durable-objects-sharding.md) |
+| RefreshTokenRotator | [refresh-token-sharding.md](./refresh-token-sharding.md) |
+| PARRequestStore | [par-sharding.ts](../../packages/shared/src/utils/par-sharding.ts) |
 
 ---
 
 ## Security Considerations
 
-### Authentication & Authorization
+### Authentication
 
-All Durable Objects should implement **Bearer token authentication**:
+All DOs implement Bearer token authentication:
 
 ```typescript
-class BaseDurableObject {
-  private authenticate(request: Request): boolean {
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return false;
-    }
-    const token = authHeader.substring(7);
-    const secret = this.env.DURABLE_OBJECT_SECRET;
-    // Constant-time comparison to prevent timing attacks
-    return !!secret && timingSafeEqual(token, secret);
+async fetch(request: Request): Promise<Response> {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return new Response('Unauthorized', { status: 401 });
   }
-
-  async fetch(request: Request): Promise<Response> {
-    if (!this.authenticate(request)) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'WWW-Authenticate': 'Bearer' },
-      });
-    }
-    // ... handle request
+  const token = authHeader.substring(7);
+  if (!timingSafeEqual(token, this.env.DO_SECRET)) {
+    return new Response('Unauthorized', { status: 401 });
   }
+  // Handle request...
 }
 ```
 
 ### Rate Limiting
 
-Implement per-DO rate limiting to prevent abuse:
+Per-DO rate limiting prevents abuse:
 
-```typescript
-class RateLimiter {
-  private requests: Map<string, number[]> = new Map();
-
-  isAllowed(key: string, limit: number, windowMs: number): boolean {
-    const now = Date.now();
-    const timestamps = this.requests.get(key) || [];
-
-    // Remove expired timestamps
-    const valid = timestamps.filter(ts => now - ts < windowMs);
-
-    if (valid.length >= limit) {
-      return false;
-    }
-
-    valid.push(now);
-    this.requests.set(key, valid);
-    return true;
-  }
-}
-```
-
-### Data Sanitization
-
-Never expose sensitive data in logs or responses:
-
-```typescript
-function sanitizeSession(session: Session) {
-  const { data, ...safe } = session;
-  return safe; // Remove session data from response
-}
-```
+| DO | Rate Limit |
+|----|------------|
+| AuthorizationCodeStore | 100/min per client |
+| SessionStore | 1000/min global |
+| RefreshTokenRotator | 10/min per user |
 
 ---
 
-## Performance Benchmarks
+## Performance Characteristics
 
-### Target Latencies (p95)
+### Latency Targets (p95)
 
 | Operation | Target | Notes |
 |-----------|--------|-------|
-| SessionStore GET (hot) | < 5ms | In-memory lookup |
+| SessionStore GET (hot) | < 5ms | In-memory |
 | SessionStore GET (cold) | < 50ms | D1 fallback |
-| AuthCode CONSUME | < 10ms | In-memory + atomic check |
-| RefreshToken ROTATE | < 15ms | In-memory + D1 audit log |
-| KeyManager GET JWKS | < 5ms | In-memory cache |
+| AuthCode consume | < 10ms | Atomic check |
+| Token rotate | < 15ms | + D1 audit |
+| KeyManager JWKS | < 5ms | Cached |
 
 ### Scalability
 
-- **Requests per second per DO**: ~1,000 (Cloudflare limit)
-- **Total global capacity**: Unlimited (auto-scaling via DO namespace)
-- **Concurrent operations**: Single-threaded per DO (strong consistency)
+| Metric | Value |
+|--------|-------|
+| Requests per DO | ~1,000/sec |
+| Global capacity | Unlimited (auto-scaling) |
+| Concurrent ops | Single-threaded per DO |
 
 ---
 
-## Monitoring & Observability
+## Related Documents
 
-### Metrics to Track
-
-```typescript
-export const DO_METRICS = {
-  // Request counts
-  'do.requests.session_store': counter(),
-  'do.requests.auth_code_store': counter(),
-  'do.requests.token_rotator': counter(),
-
-  // Latencies
-  'do.latency.session_get': histogram(),
-  'do.latency.code_consume': histogram(),
-  'do.latency.token_rotate': histogram(),
-
-  // Security events
-  'do.security.replay_attacks': counter(),
-  'do.security.token_theft': counter(),
-
-  // Cache metrics
-  'do.cache.session_hot_hits': counter(),
-  'do.cache.session_cold_hits': counter(),
-};
-```
-
-### Health Checks
-
-```typescript
-export async function healthCheckDOs(env: Env) {
-  const results = {
-    keyManager: await checkDO(env.KEY_MANAGER, 'default'),
-    sessionStore: await checkDO(env.SESSION_STORE, 'health'),
-    authCodeStore: await checkDO(env.AUTH_CODE_STORE, 'health'),
-    tokenRotator: await checkDO(env.REFRESH_TOKEN_ROTATOR, 'health'),
-  };
-
-  return {
-    healthy: Object.values(results).every(r => r.healthy),
-    details: results,
-  };
-}
-```
+| Document | Description |
+|----------|-------------|
+| [Architecture Overview](./overview.md) | System architecture |
+| [Storage Strategy](./storage-strategy.md) | Multi-tier storage design |
+| [DO Sharding](./durable-objects-sharding.md) | Sharding patterns |
+| [Refresh Token Sharding](./refresh-token-sharding.md) | RTR sharding spec |
 
 ---
 
 ## References
 
-### Related Documents
-- [storage-strategy.md](./storage-strategy.md) - Hybrid storage architecture
-- [database-schema.md](./database-schema.md) - D1 schema and integration
-- [refresh-token-sharding.md](./refresh-token-sharding.md) - RefreshTokenRotator sharding specification
-- [PHASE5_PLANNING.md](../project-management/PHASE5_PLANNING.md) - Phase 5 implementation plan
-
-### External Resources
-- [Cloudflare Durable Objects Documentation](https://developers.cloudflare.com/durable-objects/)
-- [OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics)
-- [OpenID Connect Core Spec - Key Rotation](https://openid.net/specs/openid-connect-core-1_0.html#RotateSigKeys)
-- [JWK Specification (RFC 7517)](https://datatracker.ietf.org/doc/html/rfc7517)
+- [Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)
+- [OAuth 2.0 Security BCP](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics)
+- [OIDC Core - Key Rotation](https://openid.net/specs/openid-connect-core-1_0.html#RotateSigKeys)
 
 ---
 
-**Change History**:
-- 2025-12-05: V2.2.0 - Added RefreshTokenRotator V3 sharding support documentation
-- 2025-11-13: V2.1.0 - Added SessionStore, AuthorizationCodeStore, RefreshTokenRotator (Phase 5 design)
-- Phase 3: V1.0.0 - Initial KeyManager implementation
+**Last Updated**: 2025-12-20
+**Status**: Production
+**DO Count**: 16

@@ -1,540 +1,453 @@
 # Dynamic Client Registration (DCR)
 
+Automate OAuth 2.0/OpenID Connect client onboarding with programmatic registration for scalable identity infrastructure.
+
 ## Overview
 
-**OpenID Connect Dynamic Client Registration 1.0**
+| Specification | Status | Endpoint |
+|---------------|--------|----------|
+| [OpenID Connect DCR 1.0](https://openid.net/specs/openid-connect-registration-1_0.html) | ✅ Implemented | `POST /register` |
+| [RFC 7591](https://tools.ietf.org/html/rfc7591) | ✅ Implemented | OAuth 2.0 DCR Protocol |
 
-Authrim implements Dynamic Client Registration (DCR), allowing OAuth 2.0 and OpenID Connect clients to register dynamically with the authorization server without requiring manual pre-registration or administrator intervention.
+Dynamic Client Registration (DCR) enables OAuth 2.0 and OpenID Connect clients to register programmatically without manual administrator intervention, supporting:
 
-## Specification
-
-- **Specification**: [OpenID Connect Dynamic Client Registration 1.0](https://openid.net/specs/openid-connect-registration-1_0.html)
-- **Status**: ✅ Implemented
-- **Endpoint**: `POST /register`
-
----
-
-## Why Use Dynamic Client Registration?
-
-### Benefits
-
-1. **🚀 Automated Onboarding**
-   - No manual administrator intervention required
-   - Instant client provisioning
-   - Self-service client registration
-   - Reduced time-to-market for new applications
-
-2. **🔄 Scalability**
-   - Supports thousands of clients without bottlenecks
-   - API-driven client management
-   - Automated testing and CI/CD integration
-   - Multi-environment deployments (dev, staging, prod)
-
-3. **🏗️ Microservices Architecture**
-   - Each service can register its own client
-   - Dynamic service discovery
-   - Ephemeral client support (containers, serverless)
-   - Cloud-native friendly
-
-4. **🔐 Security**
-   - Cryptographically secure client credentials
-   - Unique client ID per registration (~135 characters)
-   - Strong client secret (32 bytes, base64url-encoded)
-   - Automatic credential rotation support
-
-### Use Cases
-
-- **Developer Self-Service**: Developers register clients without waiting for admin approval
-- **SaaS Platforms**: Multi-tenant applications with per-tenant clients
-- **Microservices**: Each service automatically registers on startup
-- **Mobile Apps**: Dynamic client registration for app instances
-- **Testing & CI/CD**: Automated test client creation and cleanup
-- **IoT Devices**: Large-scale device provisioning
+- **Self-service client provisioning** for developers
+- **Automated CI/CD pipelines** with ephemeral clients
+- **Multi-tenant SaaS** with per-tenant isolation
+- **Microservices** with dynamic discovery
 
 ---
 
-## How Dynamic Client Registration Works
+## Benefits
 
-### Flow Diagram
+| Benefit | Description |
+|---------|-------------|
+| **Zero-Touch Onboarding** | Clients register instantly without admin approval |
+| **CI/CD Compatible** | Automated test client creation and cleanup |
+| **Scalable Architecture** | Supports thousands of clients without bottlenecks |
+| **Secure Credentials** | Cryptographically strong client ID (~135 chars) and secret |
+| **Standards Compliant** | Full OpenID Connect DCR 1.0 compatibility |
+
+---
+
+## Practical Use Cases
+
+### Use Case 1: Developer Self-Service Portal
+
+**Scenario**: A platform provides OAuth-protected APIs. Developers need to register their applications to get API credentials without waiting for manual approval.
+
+**Why DCR**: Eliminates bottleneck of manual credential provisioning. Developers get immediate access during hackathons, trials, or prototyping.
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant AS as Authorization Server
+    participant Dev as Developer
+    participant Portal as Dev Portal
+    participant DCR as Authrim DCR
+    participant Store as Client Store
 
-    Client->>AS: 1. POST /register<br/>{redirect_uris, client_name, grant_types, ...}
-    Note over AS: 2. Validate Metadata
-    Note over AS: 3. Generate Credentials<br/>(client_id, client_secret)
-    Note over AS: 4. Store in KV
-    AS-->>Client: 5. 201 Created<br/>{client_id, client_secret, ...}
-    Note over Client: 6. Client can now use OAuth/OIDC flows
+    Dev->>Portal: Fill app registration form
+    Portal->>Portal: Validate developer quota
+
+    Portal->>DCR: POST /register<br/>redirect_uris, client_name, scopes
+    DCR->>DCR: Generate secure credentials
+    DCR->>Store: Save client metadata
+    DCR-->>Portal: 201 Created<br/>client_id, client_secret
+
+    Portal->>Portal: Encrypt and store secret
+    Portal-->>Dev: Display client_id<br/>Reveal secret once
+
+    Note over Dev: Can immediately start<br/>OAuth integration
 ```
 
-### Step-by-Step Process
-
-1. **Client submits registration request**: Client sends metadata to registration endpoint
-2. **Server validates metadata**: Validates redirect URIs, grant types, and other parameters
-3. **Server generates credentials**: Creates unique client ID and secret
-4. **Server stores metadata**: Saves client configuration to KV storage
-5. **Server returns credentials**: Responds with client ID, secret, and metadata
-6. **Client uses credentials**: Client can immediately use OAuth/OIDC flows
-
----
-
-## API Reference
-
-### Registration Endpoint
-
-**POST /register**
-
-#### Request Format
-
-**Headers**:
-```http
-Content-Type: application/json
-```
-
-**Body Parameters**:
-
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `redirect_uris` | ✅ Yes | string[] | Array of registered redirect URIs (must be HTTPS, except `http://localhost` for dev) |
-| `client_name` | ❌ No | string | Human-readable client name |
-| `client_uri` | ❌ No | string | URL of client's homepage |
-| `logo_uri` | ❌ No | string | URL of client's logo image |
-| `contacts` | ❌ No | string[] | Array of contact email addresses |
-| `tos_uri` | ❌ No | string | URL of client's terms of service |
-| `policy_uri` | ❌ No | string | URL of client's privacy policy |
-| `jwks_uri` | ❌ No | string | URL of client's JSON Web Key Set |
-| `software_id` | ❌ No | string | Unique software identifier |
-| `software_version` | ❌ No | string | Software version string |
-| `token_endpoint_auth_method` | ❌ No | string | Token endpoint authentication method: `client_secret_basic` (default), `client_secret_post`, `none` |
-| `grant_types` | ❌ No | string[] | OAuth grant types: `authorization_code` (default), `refresh_token`, `implicit` |
-| `response_types` | ❌ No | string[] | OAuth response types: `code` (default), `id_token`, `token` |
-| `application_type` | ❌ No | string | Application type: `web` (default), `native` |
-| `scope` | ❌ No | string | Space-separated list of scope values |
-| `subject_type` | ❌ No | string | Subject identifier type: `public` (default), `pairwise` |
-| `sector_identifier_uri` | ❌ No | string | HTTPS URI for pairwise subject type (required for pairwise with multiple redirect URIs from different hosts) |
-
-#### Success Response
-
-**Status**: `201 Created`
-
-```json
-{
-  "client_id": "client_AbCdEfGh...",
-  "client_secret": "XyZ123...",
-  "client_id_issued_at": 1699876543,
-  "client_secret_expires_at": 0,
-  "redirect_uris": ["https://myapp.example.com/callback"],
-  "token_endpoint_auth_method": "client_secret_basic",
-  "grant_types": ["authorization_code"],
-  "response_types": ["code"],
-  "application_type": "web",
-  "subject_type": "public"
-}
-```
-
-**Response Fields**:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `client_id` | string | Unique client identifier (~135 characters) |
-| `client_secret` | string | Client secret for authentication |
-| `client_id_issued_at` | number | Unix timestamp when client ID was issued |
-| `client_secret_expires_at` | number | Unix timestamp when secret expires (0 = never) |
-| `redirect_uris` | string[] | Registered redirect URIs |
-| `token_endpoint_auth_method` | string | Token endpoint authentication method |
-| `grant_types` | string[] | Allowed OAuth grant types |
-| `response_types` | string[] | Allowed OAuth response types |
-| `application_type` | string | Application type (web or native) |
-| `subject_type` | string | Subject identifier type |
-
-Plus any optional fields that were provided in the request.
-
-#### Error Responses
-
-**400 Bad Request**:
-
-```json
-{
-  "error": "invalid_redirect_uri",
-  "error_description": "redirect_uris is required and must be a non-empty array"
-}
-```
-
-**Common Error Codes**:
-
-| Error Code | Description |
-|------------|-------------|
-| `invalid_request` | Request body is not valid JSON |
-| `invalid_redirect_uri` | Missing, invalid, or insecure redirect URI |
-| `invalid_client_metadata` | Invalid client metadata field |
-
-**500 Internal Server Error**:
-
-```json
-{
-  "error": "server_error",
-  "error_description": "An unexpected error occurred during registration"
-}
-```
-
----
-
-## Usage Examples
-
-### Example 1: Minimal Registration
-
-#### Request
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": ["https://myapp.example.com/callback"]
-  }'
-```
-
-#### Response
-
-```json
-{
-  "client_id": "client_AbCdEfGhIjKlMnOpQrStUvWxYz...",
-  "client_secret": "XyZ123AbC456DeF789GhI...",
-  "client_id_issued_at": 1699876543,
-  "client_secret_expires_at": 0,
-  "redirect_uris": ["https://myapp.example.com/callback"],
-  "token_endpoint_auth_method": "client_secret_basic",
-  "grant_types": ["authorization_code"],
-  "response_types": ["code"],
-  "application_type": "web",
-  "subject_type": "public"
-}
-```
-
----
-
-### Example 2: Full Registration with Optional Fields
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": [
-      "https://myapp.example.com/callback",
-      "https://myapp.example.com/callback2"
-    ],
-    "client_name": "My Awesome App",
-    "client_uri": "https://myapp.example.com",
-    "logo_uri": "https://myapp.example.com/logo.png",
-    "contacts": ["admin@example.com", "support@example.com"],
-    "tos_uri": "https://myapp.example.com/tos",
-    "policy_uri": "https://myapp.example.com/privacy",
-    "token_endpoint_auth_method": "client_secret_post",
-    "grant_types": ["authorization_code", "refresh_token"],
-    "response_types": ["code"],
-    "application_type": "web",
-    "scope": "openid profile email"
-  }'
-```
-
----
-
-### Example 3: Native Mobile App Registration
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": ["myapp://callback"],
-    "client_name": "My Mobile App",
-    "application_type": "native",
-    "token_endpoint_auth_method": "none",
-    "grant_types": ["authorization_code", "refresh_token"]
-  }'
-```
-
-**Note**: Native apps typically use `token_endpoint_auth_method: "none"` (public client) and rely on PKCE for security.
-
----
-
-### Example 4: Development with localhost
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": ["http://localhost:3000/callback"],
-    "client_name": "Local Development App"
-  }'
-```
-
-**Note**: `http://localhost` is allowed for development purposes. In production, always use HTTPS.
-
----
-
-### Example 5: Pairwise Subject Type
-
-```bash
-curl -X POST https://authrim.sgrastar.workers.dev/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "redirect_uris": ["https://myapp.example.com/callback"],
-    "client_name": "Privacy-Focused App",
-    "subject_type": "pairwise"
-  }'
-```
-
-**Note**: Pairwise subject identifiers provide user privacy by issuing different `sub` (subject) values for the same user across different clients.
-
----
-
-## Implementation Details
-
-### Client ID Generation
-
-Authrim generates cryptographically secure client IDs:
+**Implementation**:
 
 ```typescript
-function generateClientId(): string {
-  // 96 bytes → ~128 characters in base64url
-  return `client_${generateSecureRandomString(96)}`;
-}
-```
+// Developer Portal Backend
+import { Hono } from 'hono';
 
-**Format**: `client_[128 random characters]`
+const portal = new Hono();
 
-**Total Length**: ~135 characters
-
-**Example**: `client_AbCdEfGhIjKlMnOpQrStUvWxYz123456789...`
-
-### Client Secret Generation
-
-```typescript
-function generateClientSecret(): string {
-  // 32 bytes of cryptographically secure random data
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-
-  // Convert to base64url
-  const base64 = btoa(String.fromCharCode(...array));
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-```
-
-**Length**: ~43 characters (32 bytes base64url-encoded)
-
-**Example**: `XyZ123AbC456DeF789GhI012JkL345MnO678PqR901`
-
-### Storage
-
-**KV Namespace**: `CLIENTS`
-
-**Key Format**: `{client_id}`
-
-**Value**: JSON object containing client metadata
-
-**Example Stored Data**:
-```json
-{
-  "client_id": "client_AbCdEfGh...",
-  "client_secret": "XyZ123...",
-  "client_id_issued_at": 1699876543,
-  "client_secret_expires_at": 0,
-  "redirect_uris": ["https://myapp.example.com/callback"],
-  "token_endpoint_auth_method": "client_secret_basic",
-  "grant_types": ["authorization_code"],
-  "response_types": ["code"],
-  "application_type": "web",
-  "subject_type": "public",
-  "created_at": 1699876543,
-  "updated_at": 1699876543
-}
-```
-
-**TTL**: No expiration (clients persist indefinitely)
-
----
-
-## Security Considerations
-
-### 1. Redirect URI Validation
-
-Authrim enforces strict redirect URI validation:
-
-- ✅ **HTTPS Required**: All redirect URIs must use HTTPS (except `http://localhost` for development)
-- ✅ **No Fragments**: Fragment identifiers (`#`) are not allowed in redirect URIs
-- ✅ **URL Format**: All URIs must be valid, well-formed URLs
-- ✅ **Exact Matching**: During authorization, redirect URIs are matched exactly (no wildcards)
-
-```typescript
-// HTTPS validation
-if (parsed.protocol !== 'https:' &&
-    !(parsed.protocol === 'http:' && parsed.hostname === 'localhost')) {
-  return error('invalid_redirect_uri',
-    'redirect_uris must use HTTPS (except http://localhost for development)');
-}
-
-// Fragment validation
-if (parsed.hash) {
-  return error('invalid_redirect_uri',
-    'redirect_uris must not contain fragment identifiers');
-}
-```
-
-### 2. Credential Security
-
-- ✅ **Long Client IDs**: ~135 characters to prevent enumeration attacks
-- ✅ **Strong Secrets**: 32 bytes of cryptographically secure random data
-- ✅ **Base64url Encoding**: URL-safe encoding for credentials
-- ✅ **No Secret Expiration**: Client secrets never expire by default (configurable in future)
-
-### 3. Metadata Validation
-
-All client metadata fields are strictly validated:
-
-- ✅ **Type Checking**: Ensures correct data types (string, array, etc.)
-- ✅ **Enum Validation**: Validates allowed values for enums (grant_types, response_types, etc.)
-- ✅ **URI Validation**: All URI fields are validated as proper URLs
-- ✅ **Array Validation**: Ensures arrays contain valid elements
-
-### 4. Pairwise Subject Type
-
-For pairwise subject types:
-
-- ✅ **Sector Identifier Validation**: Required when multiple redirect URIs have different hosts
-- ✅ **HTTPS Only**: sector_identifier_uri must use HTTPS
-- ✅ **Privacy Protection**: Different `sub` values for same user across clients
-
----
-
-## Configuration
-
-### Supported Authentication Methods
-
-| Method | Description | Security |
-|--------|-------------|----------|
-| `client_secret_basic` | HTTP Basic authentication (default) | High |
-| `client_secret_post` | Secret in POST body | Medium |
-| `none` | No authentication (public client) | Low (use PKCE!) |
-
-### Supported Grant Types
-
-| Grant Type | Description | Use Case |
-|------------|-------------|----------|
-| `authorization_code` | Standard OAuth flow (default) | Web apps, mobile apps |
-| `refresh_token` | Token refresh | Long-lived sessions |
-| `implicit` | Direct token issuance | Legacy SPAs (not recommended) |
-
-### Supported Response Types
-
-| Response Type | Description | Use Case |
-|---------------|-------------|----------|
-| `code` | Authorization code (default) | Standard OAuth flow |
-| `id_token` | ID token only | OIDC implicit flow |
-| `token` | Access token only | OAuth implicit flow |
-
-### Supported Application Types
-
-| Application Type | Description |
-|------------------|-------------|
-| `web` | Server-side web applications (default) |
-| `native` | Native mobile/desktop applications |
-
----
-
-## Discovery Metadata
-
-DCR endpoints are advertised in the OpenID Provider metadata:
-
-```json
-{
-  "registration_endpoint": "https://authrim.sgrastar.workers.dev/register",
-  "token_endpoint_auth_methods_supported": [
-    "client_secret_basic",
-    "client_secret_post",
-    "none"
-  ],
-  "grant_types_supported": [
-    "authorization_code",
-    "refresh_token",
-    "implicit"
-  ],
-  "response_types_supported": [
-    "code",
-    "id_token",
-    "token"
-  ],
-  "subject_types_supported": [
-    "public",
-    "pairwise"
-  ]
-}
-```
-
----
-
-## Testing
-
-### Test Coverage
-
-Authrim includes comprehensive tests for Dynamic Client Registration:
-
-**Test File**: `test/handlers/register.test.ts`
-
-**Test Scenarios**:
-- ✅ Minimal registration (required fields only)
-- ✅ Full registration (all optional fields)
-- ✅ Client ID generation and format validation
-- ✅ Client secret generation and encoding
-- ✅ Metadata storage in KV
-- ✅ HTTP localhost redirect URI (development)
-- ✅ Redirect URI validation (missing, empty, invalid)
-- ✅ HTTPS enforcement (except localhost)
-- ✅ Fragment identifier rejection
-- ✅ Metadata field validation (contacts, URIs, grant_types, etc.)
-- ✅ Token endpoint authentication method validation
-- ✅ Grant type validation
-- ✅ Response type validation
-- ✅ Application type validation
-- ✅ Subject type validation (public, pairwise)
-- ✅ Sector identifier URI validation
-- ✅ Pairwise configuration validation
-- ✅ Cache-Control headers (no-store, no-cache)
-
-**Total**: 56+ test cases
-
-### Running Tests
-
-```bash
-npm test -- register.test.ts
-```
-
----
-
-## Client Libraries
-
-### JavaScript/TypeScript
-
-```typescript
-async function registerClient(config: {
+interface AppRegistrationRequest {
+  appName: string;
   redirectUris: string[];
-  clientName?: string;
-  grantTypes?: string[];
-  scope?: string;
-}) {
-  const response = await fetch('https://authrim.sgrastar.workers.dev/register', {
+  scopes: string[];
+  environment: 'development' | 'production';
+}
+
+portal.post('/apps', async (c) => {
+  const developer = c.get('developer');
+  const body = await c.req.json<AppRegistrationRequest>();
+
+  // Check developer quota
+  const existingApps = await getAppsForDeveloper(c.env, developer.id);
+  if (existingApps.length >= developer.appQuota) {
+    return c.json({ error: 'App quota exceeded' }, 429);
+  }
+
+  // Register with Authrim DCR
+  const dcrResponse = await fetch(`${c.env.AUTHRIM_ISSUER}/register`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      redirect_uris: config.redirectUris,
-      client_name: config.clientName,
-      grant_types: config.grantTypes || ['authorization_code'],
-      scope: config.scope || 'openid profile email',
-    }),
+      redirect_uris: body.redirectUris,
+      client_name: body.appName,
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      scope: body.scopes.join(' '),
+      token_endpoint_auth_method:
+        body.environment === 'development' ? 'none' : 'client_secret_basic',
+      application_type: 'web',
+      contacts: [developer.email]
+    })
+  });
+
+  if (!dcrResponse.ok) {
+    const error = await dcrResponse.json();
+    return c.json({ error: error.error_description }, 400);
+  }
+
+  const client = await dcrResponse.json();
+
+  // Store developer-to-client mapping
+  await c.env.DEVELOPER_APPS.put(
+    `${developer.id}:${client.client_id}`,
+    JSON.stringify({
+      developerId: developer.id,
+      clientId: client.client_id,
+      appName: body.appName,
+      environment: body.environment,
+      createdAt: new Date().toISOString()
+    })
+  );
+
+  // Encrypt secret for storage (display once to developer)
+  const encryptedSecret = await encryptForStorage(client.client_secret);
+  await c.env.CLIENT_SECRETS.put(client.client_id, encryptedSecret);
+
+  return c.json({
+    clientId: client.client_id,
+    clientSecret: client.client_secret, // Only returned on first registration
+    message: 'Save your client secret now. It cannot be retrieved again.'
+  }, 201);
+});
+```
+
+**Developer Portal Frontend**:
+
+```typescript
+// React component for app registration
+function RegisterApp() {
+  const [credentials, setCredentials] = useState<{
+    clientId: string;
+    clientSecret: string;
+  } | null>(null);
+
+  const handleSubmit = async (data: FormData) => {
+    const response = await fetch('/api/apps', {
+      method: 'POST',
+      body: JSON.stringify({
+        appName: data.get('appName'),
+        redirectUris: [data.get('redirectUri')],
+        scopes: ['openid', 'profile', 'email'],
+        environment: data.get('environment')
+      })
+    });
+
+    const result = await response.json();
+    setCredentials(result);
+  };
+
+  return (
+    <div>
+      {!credentials ? (
+        <form onSubmit={handleSubmit}>
+          <input name="appName" placeholder="Application Name" required />
+          <input name="redirectUri" placeholder="Redirect URI" required />
+          <select name="environment">
+            <option value="development">Development</option>
+            <option value="production">Production</option>
+          </select>
+          <button type="submit">Register Application</button>
+        </form>
+      ) : (
+        <div className="credentials-display">
+          <h3>Your Application Credentials</h3>
+          <div className="warning">
+            Save your client secret now. It cannot be retrieved later.
+          </div>
+          <code>Client ID: {credentials.clientId}</code>
+          <code>Client Secret: {credentials.clientSecret}</code>
+          <button onClick={() => navigator.clipboard.writeText(
+            `CLIENT_ID=${credentials.clientId}\nCLIENT_SECRET=${credentials.clientSecret}`
+          )}>
+            Copy as .env format
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+### Use Case 2: Microservices Auto-Registration
+
+**Scenario**: A cloud-native platform runs ephemeral microservices that need to authenticate to other services. Each service instance registers on startup and deregisters on shutdown.
+
+**Why DCR**: Services can self-provision credentials without pre-configuration. Supports container orchestration, auto-scaling, and blue-green deployments.
+
+```mermaid
+sequenceDiagram
+    participant K8s as Kubernetes
+    participant Svc as Service Pod
+    participant DCR as Authrim DCR
+    participant API as Protected API
+
+    K8s->>Svc: Start pod
+    Svc->>Svc: Read service identity<br/>from mounted secret
+
+    Svc->>DCR: POST /register<br/>service-name, service-version
+    DCR-->>Svc: client_id, client_secret
+
+    Svc->>Svc: Store credentials in memory
+
+    loop API Calls
+        Svc->>DCR: POST /token (client_credentials)
+        DCR-->>Svc: access_token
+        Svc->>API: GET /data<br/>Authorization: Bearer token
+        API-->>Svc: Data
+    end
+
+    K8s->>Svc: Stop pod (SIGTERM)
+    Note over Svc: Credentials expire<br/>with pod lifecycle
+```
+
+**Implementation**:
+
+```typescript
+// Service startup registration
+import { randomUUID } from 'crypto';
+
+interface ServiceConfig {
+  serviceName: string;
+  serviceVersion: string;
+  authrimIssuer: string;
+  requiredScopes: string[];
+}
+
+class ServiceAuthClient {
+  private clientId: string | null = null;
+  private clientSecret: string | null = null;
+  private accessToken: string | null = null;
+  private tokenExpiry: number = 0;
+
+  constructor(private config: ServiceConfig) {}
+
+  async initialize(): Promise<void> {
+    // Generate unique instance identifier
+    const instanceId = randomUUID().slice(0, 8);
+    const hostname = process.env.HOSTNAME || 'localhost';
+
+    // Register this service instance
+    const response = await fetch(`${this.config.authrimIssuer}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        redirect_uris: [`https://${hostname}/oauth/callback`],
+        client_name: `${this.config.serviceName}-${instanceId}`,
+        grant_types: ['client_credentials'],
+        response_types: [],
+        scope: this.config.requiredScopes.join(' '),
+        token_endpoint_auth_method: 'client_secret_basic',
+        software_id: this.config.serviceName,
+        software_version: this.config.serviceVersion,
+        contacts: ['platform-team@company.com']
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Service registration failed: ${await response.text()}`);
+    }
+
+    const client = await response.json();
+    this.clientId = client.client_id;
+    this.clientSecret = client.client_secret;
+
+    console.log(`Service registered with client_id: ${this.clientId}`);
+
+    // Pre-fetch initial access token
+    await this.refreshAccessToken();
+  }
+
+  async getAccessToken(): Promise<string> {
+    // Refresh if expired or expiring soon (5 minute buffer)
+    if (Date.now() >= this.tokenExpiry - 300000) {
+      await this.refreshAccessToken();
+    }
+    return this.accessToken!;
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    const credentials = Buffer.from(
+      `${this.clientId}:${this.clientSecret}`
+    ).toString('base64');
+
+    const response = await fetch(`${this.config.authrimIssuer}/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${credentials}`
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: this.config.requiredScopes.join(' ')
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Token refresh failed: ${await response.text()}`);
+    }
+
+    const token = await response.json();
+    this.accessToken = token.access_token;
+    this.tokenExpiry = Date.now() + (token.expires_in * 1000);
+  }
+}
+
+// Usage in service startup
+const authClient = new ServiceAuthClient({
+  serviceName: 'order-service',
+  serviceVersion: '2.1.0',
+  authrimIssuer: process.env.AUTHRIM_ISSUER!,
+  requiredScopes: ['inventory:read', 'payments:create']
+});
+
+await authClient.initialize();
+
+// Use in API calls
+const token = await authClient.getAccessToken();
+const response = await fetch('https://api.internal/inventory/items', {
+  headers: { 'Authorization': `Bearer ${token}` }
+});
+```
+
+**Kubernetes Deployment**:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: order-service
+          image: order-service:2.1.0
+          env:
+            - name: AUTHRIM_ISSUER
+              value: "https://auth.company.com"
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+```
+
+---
+
+### Use Case 3: Multi-Tenant SaaS with Customer-Owned Clients
+
+**Scenario**: A B2B SaaS platform allows enterprise customers to integrate their own applications. Each customer can register OAuth clients that only work with their tenant's data.
+
+**Why DCR**: Customers manage their own integrations without platform admin involvement. Tenant isolation is enforced at registration time.
+
+```mermaid
+sequenceDiagram
+    participant Admin as Customer Admin
+    participant SaaS as SaaS Platform
+    participant DCR as Authrim DCR
+    participant Policy as Policy Engine
+
+    Admin->>SaaS: Request new integration<br/>for Tenant ABC
+
+    SaaS->>SaaS: Validate admin permissions
+    SaaS->>SaaS: Generate tenant-scoped metadata
+
+    SaaS->>DCR: POST /register<br/>tenant_id in software_id
+    DCR-->>SaaS: client_id, client_secret
+
+    SaaS->>Policy: Register client-tenant binding
+    Policy-->>SaaS: Binding stored
+
+    SaaS-->>Admin: Integration credentials
+
+    Note over Admin: Later: Use credentials
+
+    Admin->>DCR: POST /token
+    DCR->>Policy: Check tenant binding
+    Policy-->>DCR: Tenant ABC confirmed
+    DCR-->>Admin: access_token<br/>(with tenant_id claim)
+```
+
+**Implementation**:
+
+```typescript
+// SaaS Platform: Tenant Integration Management
+interface TenantIntegration {
+  name: string;
+  description: string;
+  scopes: string[];
+  redirectUris: string[];
+}
+
+async function createTenantIntegration(
+  tenantId: string,
+  adminUserId: string,
+  integration: TenantIntegration
+): Promise<{ clientId: string; clientSecret: string }> {
+  // Validate admin has permission for this tenant
+  const hasPermission = await checkTenantAdminPermission(tenantId, adminUserId);
+  if (!hasPermission) {
+    throw new Error('Not authorized to manage tenant integrations');
+  }
+
+  // Limit integrations per tenant
+  const existingIntegrations = await getTenantIntegrations(tenantId);
+  const tenantPlan = await getTenantPlan(tenantId);
+  if (existingIntegrations.length >= tenantPlan.maxIntegrations) {
+    throw new Error('Integration limit reached for tenant plan');
+  }
+
+  // Register client with tenant-specific metadata
+  const response = await fetch(`${process.env.AUTHRIM_ISSUER}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      redirect_uris: integration.redirectUris,
+      client_name: `${integration.name} (Tenant: ${tenantId})`,
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      scope: integration.scopes.join(' '),
+      token_endpoint_auth_method: 'client_secret_basic',
+
+      // Tenant identification in software_id
+      software_id: `tenant:${tenantId}`,
+      software_version: '1.0',
+
+      // Contact for this integration
+      contacts: [await getTenantAdminEmail(tenantId)],
+
+      // Tenant-specific URIs
+      client_uri: `https://${tenantId}.saas.example.com`,
+      tos_uri: `https://${tenantId}.saas.example.com/terms`,
+      policy_uri: `https://${tenantId}.saas.example.com/privacy`
+    })
   });
 
   if (!response.ok) {
@@ -544,276 +457,288 @@ async function registerClient(config: {
 
   const client = await response.json();
 
-  // Store credentials securely
-  // DO NOT expose client_secret to frontend!
+  // Store tenant-client binding for authorization
+  await storeIntegrationBinding({
+    clientId: client.client_id,
+    tenantId: tenantId,
+    createdBy: adminUserId,
+    name: integration.name,
+    description: integration.description,
+    allowedScopes: integration.scopes,
+    createdAt: new Date().toISOString()
+  });
+
+  // Audit log
+  await createAuditLog({
+    action: 'integration.created',
+    tenantId,
+    actorId: adminUserId,
+    resourceId: client.client_id,
+    details: { name: integration.name }
+  });
+
   return {
     clientId: client.client_id,
-    clientSecret: client.client_secret,
+    clientSecret: client.client_secret
   };
 }
 
-// Usage
-const client = await registerClient({
-  redirectUris: ['https://myapp.example.com/callback'],
-  clientName: 'My Application',
-  scope: 'openid profile email',
-});
+// Token endpoint middleware: Add tenant claim
+async function addTenantClaimToToken(
+  clientId: string,
+  token: TokenPayload
+): Promise<TokenPayload> {
+  const binding = await getIntegrationBinding(clientId);
 
-console.log('Client ID:', client.clientId);
-// Store client.clientSecret securely (e.g., environment variable)
-```
-
-### Python
-
-```python
-import requests
-import json
-
-def register_client(
-    redirect_uris: list[str],
-    client_name: str = None,
-    grant_types: list[str] = None,
-    scope: str = None
-):
-    """Register a new OAuth/OIDC client"""
-
-    data = {
-        'redirect_uris': redirect_uris,
-    }
-
-    if client_name:
-        data['client_name'] = client_name
-    if grant_types:
-        data['grant_types'] = grant_types
-    else:
-        data['grant_types'] = ['authorization_code']
-    if scope:
-        data['scope'] = scope
-    else:
-        data['scope'] = 'openid profile email'
-
-    response = requests.post(
-        'https://authrim.sgrastar.workers.dev/register',
-        json=data,
-        headers={'Content-Type': 'application/json'}
-    )
-
-    if response.status_code != 201:
-        error = response.json()
-        raise Exception(f"Registration failed: {error['error_description']}")
-
-    client = response.json()
-
-    return {
-        'client_id': client['client_id'],
-        'client_secret': client['client_secret'],
-    }
-
-# Usage
-client = register_client(
-    redirect_uris=['https://myapp.example.com/callback'],
-    client_name='My Python App',
-    scope='openid profile email'
-)
-
-print(f"Client ID: {client['client_id']}")
-# Store client['client_secret'] securely (e.g., environment variable)
-```
-
-### Node.js (with axios)
-
-```javascript
-const axios = require('axios');
-
-async function registerClient({ redirectUris, clientName, grantTypes, scope }) {
-  try {
-    const response = await axios.post(
-      'https://authrim.sgrastar.workers.dev/register',
-      {
-        redirect_uris: redirectUris,
-        client_name: clientName,
-        grant_types: grantTypes || ['authorization_code'],
-        scope: scope || 'openid profile email',
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    return {
-      clientId: response.data.client_id,
-      clientSecret: response.data.client_secret,
-    };
-  } catch (error) {
-    if (error.response) {
-      throw new Error(`Registration failed: ${error.response.data.error_description}`);
-    }
-    throw error;
+  if (!binding) {
+    throw new Error('Unknown client');
   }
+
+  return {
+    ...token,
+    tenant_id: binding.tenantId,
+    allowed_scopes: binding.allowedScopes
+  };
 }
+```
 
-// Usage
-(async () => {
-  const client = await registerClient({
-    redirectUris: ['https://myapp.example.com/callback'],
-    clientName: 'My Node.js App',
-    scope: 'openid profile email',
-  });
+**Customer Admin UI**:
 
-  console.log('Client ID:', client.clientId);
-  // Store client.clientSecret securely
-})();
+```typescript
+// React: Customer Integration Dashboard
+function IntegrationDashboard({ tenantId }: { tenantId: string }) {
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const createIntegration = async (data: IntegrationFormData) => {
+    const response = await fetch(`/api/tenants/${tenantId}/integrations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    // Show credentials modal (one-time display)
+    showCredentialsModal({
+      clientId: result.clientId,
+      clientSecret: result.clientSecret,
+      warning: 'Save these credentials securely. The secret cannot be retrieved again.'
+    });
+
+    // Refresh list
+    fetchIntegrations();
+  };
+
+  return (
+    <div className="integration-dashboard">
+      <h2>API Integrations</h2>
+      <p>Create OAuth clients for your custom integrations</p>
+
+      <button onClick={() => setShowCreateModal(true)}>
+        + New Integration
+      </button>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Client ID</th>
+            <th>Scopes</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {integrations.map(integration => (
+            <tr key={integration.clientId}>
+              <td>{integration.name}</td>
+              <td><code>{integration.clientId.slice(0, 20)}...</code></td>
+              <td>{integration.scopes.join(', ')}</td>
+              <td>{formatDate(integration.createdAt)}</td>
+              <td>
+                <button onClick={() => rotateSecret(integration.clientId)}>
+                  Rotate Secret
+                </button>
+                <button onClick={() => deleteIntegration(integration.clientId)}>
+                  Delete
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+```
+
+---
+
+## API Reference
+
+### Registration Endpoint
+
+**POST /register**
+
+#### Request
+
+```http
+POST /register HTTP/1.1
+Content-Type: application/json
+
+{
+  "redirect_uris": ["https://myapp.example.com/callback"],
+  "client_name": "My Application",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "scope": "openid profile email"
+}
+```
+
+#### Request Parameters
+
+| Parameter | Required | Type | Description |
+|-----------|----------|------|-------------|
+| `redirect_uris` | ✅ Yes | string[] | Redirect URIs (HTTPS required, except localhost) |
+| `client_name` | ❌ No | string | Human-readable name |
+| `grant_types` | ❌ No | string[] | OAuth grant types (default: `authorization_code`) |
+| `response_types` | ❌ No | string[] | OAuth response types (default: `code`) |
+| `token_endpoint_auth_method` | ❌ No | string | Auth method: `client_secret_basic`, `client_secret_post`, `none` |
+| `scope` | ❌ No | string | Requested scopes (space-separated) |
+| `application_type` | ❌ No | string | `web` (default) or `native` |
+| `subject_type` | ❌ No | string | `public` (default) or `pairwise` |
+| `contacts` | ❌ No | string[] | Contact email addresses |
+| `jwks_uri` | ❌ No | string | JWKS endpoint for client keys |
+| `software_id` | ❌ No | string | Unique software identifier |
+| `software_version` | ❌ No | string | Software version |
+
+#### Success Response
+
+**Status**: `201 Created`
+
+```json
+{
+  "client_id": "client_AbCdEfGhIjKlMnOpQrStUvWxYz...",
+  "client_secret": "XyZ123AbC456DeF789GhI...",
+  "client_id_issued_at": 1734681600,
+  "client_secret_expires_at": 0,
+  "redirect_uris": ["https://myapp.example.com/callback"],
+  "token_endpoint_auth_method": "client_secret_basic",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"]
+}
+```
+
+#### Error Responses
+
+| Error | HTTP Status | Description |
+|-------|-------------|-------------|
+| `invalid_redirect_uri` | 400 | Missing, invalid, or insecure redirect URI |
+| `invalid_client_metadata` | 400 | Invalid metadata field |
+| `invalid_request` | 400 | Malformed JSON body |
+
+---
+
+## Security Considerations
+
+| Consideration | Implementation |
+|---------------|----------------|
+| **HTTPS Required** | All redirect URIs must use HTTPS (except `localhost`) |
+| **Strong Credentials** | Client ID ~135 chars, Secret 32 bytes (base64url) |
+| **No Fragments** | Redirect URIs cannot contain `#` fragments |
+| **Exact Matching** | Redirect URIs matched exactly during authorization |
+| **Sector Identifier** | Required for pairwise with multi-host redirect URIs |
+
+---
+
+## Configuration
+
+### Supported Authentication Methods
+
+| Method | Use Case | Security Level |
+|--------|----------|----------------|
+| `client_secret_basic` | Server-side apps (default) | High |
+| `client_secret_post` | Limited HTTP basic support | Medium |
+| `none` | Public clients (mobile, SPA) | Use with PKCE |
+
+### Supported Grant Types
+
+| Grant Type | Use Case |
+|------------|----------|
+| `authorization_code` | Standard OAuth flow |
+| `refresh_token` | Long-lived sessions |
+| `client_credentials` | Service-to-service |
+| `implicit` | Legacy SPAs (not recommended) |
+
+---
+
+## Discovery Metadata
+
+```json
+{
+  "registration_endpoint": "https://auth.example.com/register",
+  "token_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "none"
+  ],
+  "grant_types_supported": [
+    "authorization_code",
+    "refresh_token",
+    "client_credentials"
+  ]
+}
 ```
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
-#### "redirect_uris is required and must be a non-empty array"
-
-**Cause**: Missing or empty `redirect_uris` field
-
-**Solution**:
-```json
-{
-  "redirect_uris": ["https://myapp.example.com/callback"]
-}
-```
+### Common Errors
 
 #### "redirect_uris must use HTTPS"
 
-**Cause**: Using HTTP for redirect URIs (except localhost)
-
-**Solution**:
-- Use HTTPS in production: `https://myapp.example.com/callback`
-- For development, use localhost: `http://localhost:3000/callback`
-
-#### "redirect_uris must not contain fragment identifiers"
-
-**Cause**: Redirect URI contains a fragment (`#`)
-
-**Solution**:
-```
-❌ https://myapp.example.com/callback#section
-✅ https://myapp.example.com/callback
+Use HTTPS for production. For development:
+```json
+{ "redirect_uris": ["http://localhost:3000/callback"] }
 ```
 
-#### "token_endpoint_auth_method must be one of: ..."
+#### "sector_identifier_uri is required"
 
-**Cause**: Invalid authentication method specified
-
-**Solution**: Use one of the supported methods:
-- `client_secret_basic` (recommended for confidential clients)
-- `client_secret_post`
-- `none` (for public clients with PKCE)
-
-#### "Unsupported grant_type: ..."
-
-**Cause**: Invalid or unsupported grant type
-
-**Solution**: Use only supported grant types:
-- `authorization_code`
-- `refresh_token`
-- `implicit` (not recommended)
-
-#### "sector_identifier_uri is required when using pairwise subject type..."
-
-**Cause**: Using pairwise with multiple redirect URIs from different hosts
-
-**Solution**: Provide a `sector_identifier_uri`:
+Required when using `pairwise` with multiple redirect URI hosts:
 ```json
 {
-  "redirect_uris": [
-    "https://app1.example.com/callback",
-    "https://app2.example.com/callback"
-  ],
+  "redirect_uris": ["https://app1.com/cb", "https://app2.com/cb"],
   "subject_type": "pairwise",
-  "sector_identifier_uri": "https://example.com/.well-known/sector-uris.json"
+  "sector_identifier_uri": "https://example.com/.well-known/sector.json"
 }
 ```
 
 ---
 
-## Best Practices
+## Implementation Files
 
-### For Clients
-
-1. **Store Credentials Securely**
-   - Never expose client secrets in frontend code
-   - Use environment variables or secure key management
-   - Rotate credentials regularly
-
-2. **Use HTTPS**
-   - Always use HTTPS redirect URIs in production
-   - Only use HTTP localhost for local development
-
-3. **Specify Minimal Scopes**
-   - Request only the scopes you need
-   - Follow principle of least privilege
-
-4. **Use Public Clients Wisely**
-   - For public clients (mobile, SPA), use `token_endpoint_auth_method: "none"`
-   - Always use PKCE with public clients
-
-5. **Provide Metadata**
-   - Include `client_name` for better UX in consent screens
-   - Provide `logo_uri` for visual identification
-   - Include `tos_uri` and `policy_uri` for transparency
-
-### For Security
-
-1. **Validate Redirect URIs Strictly**
-   - Register exact redirect URIs (no wildcards)
-   - Use HTTPS for all production URIs
-   - Avoid dynamic redirect URIs
-
-2. **Rotate Credentials**
-   - Implement client credential rotation policy
-   - Monitor for compromised credentials
-
-3. **Monitor Registrations**
-   - Log all client registrations for auditing
-   - Implement rate limiting on registration endpoint
-   - Alert on suspicious registration patterns
-
-4. **Use Pairwise for Privacy**
-   - Use pairwise subject type for privacy-sensitive applications
-   - Comply with GDPR and other privacy regulations
-
----
-
-## Future Enhancements
-
-### Planned Features (Phase 5+)
-
-- [ ] **Client Configuration Management**: `GET /register/{client_id}` (RFC 7592)
-- [ ] **Client Update**: `PUT /register/{client_id}` (RFC 7592)
-- [ ] **Client Deletion**: `DELETE /register/{client_id}` (RFC 7592)
-- [ ] **Initial Access Tokens**: Require authentication for registration
-- [ ] **Client Secret Rotation**: Automatic credential rotation
-- [ ] **Software Statement**: JWT-based client metadata (RFC 7591 Section 2.3)
-- [ ] **Rate Limiting**: Prevent registration abuse
-- [ ] **Admin Dashboard**: Web UI for client management
-- [ ] **Client Analytics**: Usage statistics per client
+| Component | File | Description |
+|-----------|------|-------------|
+| Registration Handler | `packages/op-auth/src/register.ts` | DCR endpoint |
+| Client Storage | `packages/shared/src/repositories/client.ts` | KV storage |
+| Validation | `packages/op-auth/src/validation/client.ts` | Metadata validation |
+| Discovery | `packages/op-discovery/src/discovery.ts` | Metadata endpoint |
 
 ---
 
 ## References
 
-- [OpenID Connect Dynamic Client Registration 1.0](https://openid.net/specs/openid-connect-registration-1_0.html)
-- [RFC 7591 - OAuth 2.0 Dynamic Client Registration Protocol](https://tools.ietf.org/html/rfc7591)
-- [RFC 7592 - OAuth 2.0 Dynamic Client Registration Management Protocol](https://tools.ietf.org/html/rfc7592)
-- [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html)
+- [OpenID Connect DCR 1.0](https://openid.net/specs/openid-connect-registration-1_0.html)
+- [RFC 7591: OAuth 2.0 DCR Protocol](https://tools.ietf.org/html/rfc7591)
+- [RFC 7592: DCR Management Protocol](https://tools.ietf.org/html/rfc7592)
 - [OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics)
 
 ---
 
-**Last Updated**: 2025-11-12
-**Status**: ✅ Implemented and Tested
+**Last Updated**: 2025-12-20
+**Status**: ✅ Fully Implemented
 **Tests**: 56+ passing tests
-**Implementation**: `src/handlers/register.ts`
-**Discovery**: `src/handlers/discovery.ts` (line 10)
+**Implementation**: `packages/op-auth/src/register.ts`
