@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import type { Env } from '@authrim/shared/types/env';
+import type { Env } from '@authrim/ar-lib-core/types/env';
 import {
   createMockEnv,
   testClients,
@@ -29,7 +29,7 @@ import { parHandler } from '../../packages/op-auth/src/par';
 import { tokenHandler } from '../../packages/op-token/src/token';
 import { discoveryHandler } from '../../packages/op-discovery/src/discovery';
 import { generateKeyPair, exportJWK, SignJWT, calculateJwkThumbprint, jwtVerify, importJWK, type JWK } from 'jose';
-import { generateCodeChallenge } from '@authrim/shared/utils/crypto';
+import { generateCodeChallenge } from '@authrim/ar-lib-core/utils/crypto';
 
 describe('FAPI 2.0 Security Profile Compliance', () => {
   let app: Hono;

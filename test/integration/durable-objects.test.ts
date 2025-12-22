@@ -12,10 +12,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SessionStore } from '@authrim/shared/durable-objects/SessionStore';
-import { AuthorizationCodeStore } from '@authrim/shared/durable-objects/AuthorizationCodeStore';
-import { RefreshTokenRotator } from '@authrim/shared/durable-objects/RefreshTokenRotator';
-import type { Env } from '@authrim/shared/types/env';
+import { SessionStore } from '@authrim/ar-lib-core/durable-objects/SessionStore';
+import { AuthorizationCodeStore } from '@authrim/ar-lib-core/durable-objects/AuthorizationCodeStore';
+import { RefreshTokenRotator } from '@authrim/ar-lib-core/durable-objects/RefreshTokenRotator';
+import type { Env } from '@authrim/ar-lib-core/types/env';
 
 // Mock DurableObjectState for testing
 class MockDurableObjectState implements DurableObjectState {

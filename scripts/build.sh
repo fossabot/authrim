@@ -270,8 +270,8 @@ check_conflicts() {
 
   # Check Router Worker
   if [[ "$USE_ROUTER" == "true" ]]; then
-    if wrangler deployments list --name="authrim-router" &>/dev/null; then
-      log_warn "Worker 'authrim-router' already exists"
+    if wrangler deployments list --name="ar-router" &>/dev/null; then
+      log_warn "Worker 'ar-router' already exists"
       if [[ "$MODE" == "new" ]]; then
         CONFLICTS=true
       fi
@@ -601,7 +601,7 @@ setup_secrets() {
   fi
 
   # Check for existing remote keys
-  if wrangler secret list --name="authrim-shared" 2>/dev/null | grep -q "RSA_PRIVATE_KEY"; then
+  if wrangler secret list --name="ar-lib-core" 2>/dev/null | grep -q "RSA_PRIVATE_KEY"; then
     log_info "Existing keys found on remote"
     read -p "Use existing remote keys? [Y/n]: " use_remote
     if [[ ! "$use_remote" =~ ^[Nn]$ ]]; then
@@ -624,8 +624,8 @@ setup_secrets() {
   # Upload to remote
   if [[ "$REUSE_REMOTE_KEYS" != "true" && -f ".keys/private.pem" ]]; then
     log_info "Uploading secrets to Cloudflare..."
-    cat .keys/private.pem | wrangler secret put RSA_PRIVATE_KEY --name="authrim-shared" 2>/dev/null || true
-    cat .keys/public.pem | wrangler secret put RSA_PUBLIC_KEY --name="authrim-shared" 2>/dev/null || true
+    cat .keys/private.pem | wrangler secret put RSA_PRIVATE_KEY --name="ar-lib-core" 2>/dev/null || true
+    cat .keys/public.pem | wrangler secret put RSA_PUBLIC_KEY --name="ar-lib-core" 2>/dev/null || true
     log_success "Secrets uploaded"
   fi
 
@@ -706,7 +706,7 @@ deploy_workers() {
     ./scripts/deploy-with-retry.sh
   else
     # Sequential deployment
-    WORKERS=("shared" "op-discovery" "op-auth" "op-token" "op-userinfo" "op-management" "op-async" "policy-service")
+    WORKERS=("ar-lib-core" "ar-discovery" "ar-auth" "ar-token" "ar-userinfo" "ar-management" "ar-async" "ar-policy")
 
     if [[ "$USE_ROUTER" == "true" ]]; then
       WORKERS+=("router")

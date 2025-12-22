@@ -4,14 +4,12 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@authrim/shared": ["./packages/shared/src/index.ts"],
-      "@authrim/shared/*": ["./packages/shared/src/*"]
+      "@authrim/ar-lib-core": ["./packages/ar-lib-core/src/index.ts"],
+      "@authrim/ar-lib-core/*": ["./packages/ar-lib-core/src/*"]
     }
   },
   "include": [
-    "packages/op-*/src/**/*",
-    "packages/router/src/**/*",
-    "packages/shared/src/**/*",
+    "packages/ar-*/src/**/*",
     "test/setup.ts"
   ],
   "exclude": [

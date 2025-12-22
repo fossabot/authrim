@@ -165,7 +165,7 @@ if [ "$DEPLOYMENT_MODE" = "test" ] && [ -z "$SUBDOMAIN" ]; then
         echo ""
         echo "Please enter your workers.dev subdomain:"
         echo "  (This is from your Cloudflare account)"
-        echo "  Example: If your workers are at 'authrim-op-discovery.sgrastar.workers.dev',"
+        echo "  Example: If your workers are at 'ar-discovery.sgrastar.workers.dev',"
         echo "           enter 'sgrastar'"
         echo ""
         read -p "Your subdomain: " SUBDOMAIN
@@ -376,20 +376,24 @@ add_routes_to_worker() {
     local routes=""
 
     case $package_name in
-        op-discovery)
+        ar-discovery)
             routes="
 [[routes]]
 pattern = \"$DOMAIN_ONLY/.well-known/*\"
 zone_name = \"$ZONE_NAME\""
             ;;
-        op-auth)
+        ar-auth)
             routes="
 [[routes]]
 pattern = \"$DOMAIN_ONLY/authorize*\"
 zone_name = \"$ZONE_NAME\"
 
 [[routes]]
-pattern = \"$DOMAIN_ONLY/as/*\"
+pattern = \"$DOMAIN_ONLY/par*\"
+zone_name = \"$ZONE_NAME\"
+
+[[routes]]
+pattern = \"$DOMAIN_ONLY/flow/*\"
 zone_name = \"$ZONE_NAME\"
 
 [[routes]]
@@ -409,26 +413,26 @@ pattern = \"$DOMAIN_ONLY/logged-out\"
 zone_name = \"$ZONE_NAME\"
 
 [[routes]]
-pattern = \"$DOMAIN_ONLY/auth/consent*\"
+pattern = \"$DOMAIN_ONLY/session/*\"
 zone_name = \"$ZONE_NAME\"
 
 [[routes]]
 pattern = \"$DOMAIN_ONLY/_internal/*\"
 zone_name = \"$ZONE_NAME\""
             ;;
-        op-token)
+        ar-token)
             routes="
 [[routes]]
 pattern = \"$DOMAIN_ONLY/token*\"
 zone_name = \"$ZONE_NAME\""
             ;;
-        op-userinfo)
+        ar-userinfo)
             routes="
 [[routes]]
 pattern = \"$DOMAIN_ONLY/userinfo*\"
 zone_name = \"$ZONE_NAME\""
             ;;
-        op-management)
+        ar-management)
             routes="
 [[routes]]
 pattern = \"$DOMAIN_ONLY/register*\"
@@ -448,9 +452,17 @@ zone_name = \"$ZONE_NAME\"
 
 [[routes]]
 pattern = \"$DOMAIN_ONLY/api/internal/*\"
+zone_name = \"$ZONE_NAME\"
+
+[[routes]]
+pattern = \"$DOMAIN_ONLY/scim/*\"
+zone_name = \"$ZONE_NAME\"
+
+[[routes]]
+pattern = \"$DOMAIN_ONLY/api/avatars/*\"
 zone_name = \"$ZONE_NAME\""
             ;;
-        op-async)
+        ar-async)
             routes="
 [[routes]]
 pattern = \"$DOMAIN_ONLY/device_authorization*\"
@@ -465,44 +477,36 @@ pattern = \"$DOMAIN_ONLY/bc-authorize*\"
 zone_name = \"$ZONE_NAME\"
 
 [[routes]]
-pattern = \"$DOMAIN_ONLY/api/device/*\"
+pattern = \"$DOMAIN_ONLY/api/devices/*\"
 zone_name = \"$ZONE_NAME\"
 
 [[routes]]
 pattern = \"$DOMAIN_ONLY/api/ciba/*\"
-zone_name = \"$ZONE_NAME\"
-
-[[routes]]
-pattern = \"$DOMAIN_ONLY/ciba/*\"
 zone_name = \"$ZONE_NAME\""
             ;;
-        op-saml)
+        ar-saml)
             routes="
 [[routes]]
 pattern = \"$DOMAIN_ONLY/saml/*\"
 zone_name = \"$ZONE_NAME\""
             ;;
-        external-idp)
+        ar-bridge)
             routes="
 [[routes]]
-pattern = \"$DOMAIN_ONLY/auth/external/*\"
-zone_name = \"$ZONE_NAME\"
-
-[[routes]]
-pattern = \"$DOMAIN_ONLY/external-idp/*\"
+pattern = \"$DOMAIN_ONLY/api/external/*\"
 zone_name = \"$ZONE_NAME\""
             ;;
-        policy-service)
+        ar-policy)
             routes="
 [[routes]]
-pattern = \"$DOMAIN_ONLY/policy/*\"
+pattern = \"$DOMAIN_ONLY/api/policy/*\"
 zone_name = \"$ZONE_NAME\"
 
 [[routes]]
 pattern = \"$DOMAIN_ONLY/api/rebac/*\"
 zone_name = \"$ZONE_NAME\""
             ;;
-        vc)
+        ar-vc)
             routes="
 [[routes]]
 pattern = \"$DOMAIN_ONLY/.well-known/openid-credential-verifier\"
@@ -526,6 +530,10 @@ zone_name = \"$ZONE_NAME\"
 
 [[routes]]
 pattern = \"$DOMAIN_ONLY/did/*\"
+zone_name = \"$ZONE_NAME\"
+
+[[routes]]
+pattern = \"$DOMAIN_ONLY/api/health\"
 zone_name = \"$ZONE_NAME\""
             ;;
     esac
@@ -544,10 +552,10 @@ zone_name = \"$ZONE_NAME\""
 }
 
 # Generate shared worker wrangler file
-if [ ! -f "packages/shared/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating shared/wrangler.${DEPLOY_ENV}.toml (Durable Objects)..."
-    cat > "packages/shared/wrangler.${DEPLOY_ENV}.toml" << EOF
-name = "${DEPLOY_ENV}-authrim-shared"
+    cat > "packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml" << EOF
+name = "${DEPLOY_ENV}-ar-lib-core"
 main = "src/durable-objects/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -673,9 +681,9 @@ EOF
 fi
 
 # Generate op-discovery wrangler file
-if [ ! -f "packages/op-discovery/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-discovery/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating op-discovery/wrangler.${DEPLOY_ENV}.toml..."
-    generate_base_wrangler "op-discovery" "[[kv_namespaces]]
+    generate_base_wrangler "ar-discovery" "[[kv_namespaces]]
 binding = \"SETTINGS\"
 id = \"placeholder\"
 preview_id = \"placeholder\"
@@ -688,23 +696,23 @@ database_id = \"placeholder\"
 " "" "[[durable_objects.bindings]]
 name = \"KEY_MANAGER\"
 class_name = \"KeyManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"RATE_LIMITER\"
 class_name = \"RateLimiterCounter\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\""
+script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
 # Generate op-auth wrangler file
-if [ ! -f "packages/op-auth/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-auth/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating op-auth/wrangler.${DEPLOY_ENV}.toml..."
-    generate_base_wrangler "op-auth" "[[kv_namespaces]]
+    generate_base_wrangler "ar-auth" "[[kv_namespaces]]
 binding = \"CLIENTS_CACHE\"
 id = \"placeholder\"
 preview_id = \"placeholder\"
@@ -731,43 +739,43 @@ bucket_name = \"${DEPLOY_ENV}-authrim-avatars\"
 " "[[durable_objects.bindings]]
 name = \"KEY_MANAGER\"
 class_name = \"KeyManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"SESSION_STORE\"
 class_name = \"SessionStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"AUTH_CODE_STORE\"
 class_name = \"AuthorizationCodeStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"CHALLENGE_STORE\"
 class_name = \"ChallengeStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"RATE_LIMITER\"
 class_name = \"RateLimiterCounter\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"PAR_REQUEST_STORE\"
 class_name = \"PARRequestStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\""
+script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
 # Generate op-token wrangler file
-if [ ! -f "packages/op-token/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-token/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating op-token/wrangler.${DEPLOY_ENV}.toml..."
-    generate_base_wrangler "op-token" "[[kv_namespaces]]
+    generate_base_wrangler "ar-token" "[[kv_namespaces]]
 binding = \"CLIENTS_CACHE\"
 id = \"placeholder\"
 preview_id = \"placeholder\"
@@ -800,48 +808,48 @@ database_id = \"placeholder\"
 " "" "[[durable_objects.bindings]]
 name = \"KEY_MANAGER\"
 class_name = \"KeyManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"SESSION_STORE\"
 class_name = \"SessionStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"AUTH_CODE_STORE\"
 class_name = \"AuthorizationCodeStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"REFRESH_TOKEN_ROTATOR\"
 class_name = \"RefreshTokenRotator\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"RATE_LIMITER\"
 class_name = \"RateLimiterCounter\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"DPOP_JTI_STORE\"
 class_name = \"DPoPJTIStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"TOKEN_REVOCATION_STORE\"
 class_name = \"TokenRevocationStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\""
+script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
 # Generate op-userinfo wrangler file
-if [ ! -f "packages/op-userinfo/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-userinfo/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating op-userinfo/wrangler.${DEPLOY_ENV}.toml..."
-    generate_base_wrangler "op-userinfo" "[[kv_namespaces]]
+    generate_base_wrangler "ar-userinfo" "[[kv_namespaces]]
 binding = \"CLIENTS_CACHE\"
 id = \"placeholder\"
 preview_id = \"placeholder\"
@@ -854,38 +862,38 @@ database_id = \"placeholder\"
 " "" "[[durable_objects.bindings]]
 name = \"KEY_MANAGER\"
 class_name = \"KeyManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"SESSION_STORE\"
 class_name = \"SessionStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"RATE_LIMITER\"
 class_name = \"RateLimiterCounter\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"DPOP_JTI_STORE\"
 class_name = \"DPoPJTIStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"TOKEN_REVOCATION_STORE\"
 class_name = \"TokenRevocationStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\""
+script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
 # Generate op-async wrangler file
-if [ ! -f "packages/op-async/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-async/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating op-async/wrangler.${DEPLOY_ENV}.toml..."
-    generate_base_wrangler "op-async" "" "[[d1_databases]]
+    generate_base_wrangler "ar-async" "" "[[d1_databases]]
 binding = \"DB\"
 database_name = \"${DEPLOY_ENV}-authrim-users-db\"
 database_id = \"placeholder\"
@@ -893,28 +901,28 @@ database_id = \"placeholder\"
 " "" "[[durable_objects.bindings]]
 name = \"DEVICE_CODE_STORE\"
 class_name = \"DeviceCodeStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"CIBA_REQUEST_STORE\"
 class_name = \"CIBARequestStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"USER_CODE_RATE_LIMITER\"
 class_name = \"RateLimiterCounter\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\""
+script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
 # Generate op-management wrangler file
-if [ ! -f "packages/op-management/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating op-management/wrangler.${DEPLOY_ENV}.toml..."
-    generate_base_wrangler "op-management" "[[kv_namespaces]]
+    generate_base_wrangler "ar-management" "[[kv_namespaces]]
 binding = \"CLIENTS_CACHE\"
 id = \"placeholder\"
 preview_id = \"placeholder\"
@@ -942,38 +950,38 @@ database_id = \"placeholder\"
 " "" "[[durable_objects.bindings]]
 name = \"KEY_MANAGER\"
 class_name = \"KeyManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"REFRESH_TOKEN_ROTATOR\"
 class_name = \"RefreshTokenRotator\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"RATE_LIMITER\"
 class_name = \"RateLimiterCounter\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"SESSION_STORE\"
 class_name = \"SessionStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"TOKEN_REVOCATION_STORE\"
 class_name = \"TokenRevocationStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\""
+script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
 # Generate policy-service wrangler file (ReBAC)
-if [ ! -f "packages/policy-service/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-policy/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating policy-service/wrangler.${DEPLOY_ENV}.toml..."
-    generate_base_wrangler "policy-service" "[[kv_namespaces]]
+    generate_base_wrangler "ar-policy" "[[kv_namespaces]]
 binding = \"REBAC_CACHE\"
 id = \"placeholder\"
 preview_id = \"placeholder\"
@@ -986,13 +994,13 @@ database_id = \"placeholder\"
 " "" "[[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\""
+script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
 # Generate op-saml wrangler file (SAML 2.0)
-if [ ! -f "packages/op-saml/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-saml/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating op-saml/wrangler.${DEPLOY_ENV}.toml..."
-    generate_base_wrangler "op-saml" "" "[[d1_databases]]
+    generate_base_wrangler "ar-saml" "" "[[d1_databases]]
 binding = \"DB\"
 database_name = \"${DEPLOY_ENV}-authrim-users-db\"
 database_id = \"placeholder\"
@@ -1000,28 +1008,28 @@ database_id = \"placeholder\"
 " "" "[[durable_objects.bindings]]
 name = \"SAML_REQUEST_STORE\"
 class_name = \"SAMLRequestStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"KEY_MANAGER\"
 class_name = \"KeyManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"SESSION_STORE\"
 class_name = \"SessionStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\""
+script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
 # Generate external-idp wrangler file (External IdP / Social Login)
-if [ ! -f "packages/external-idp/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ ! -f "packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating external-idp/wrangler.${DEPLOY_ENV}.toml..."
-    generate_base_wrangler "external-idp" "[[kv_namespaces]]
+    generate_base_wrangler "ar-bridge" "[[kv_namespaces]]
 binding = \"SETTINGS\"
 id = \"placeholder\"
 preview_id = \"placeholder\"
@@ -1039,20 +1047,20 @@ database_id = \"placeholder\"
 " "" "[[durable_objects.bindings]]
 name = \"SESSION_STORE\"
 class_name = \"SessionStore\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"RATE_LIMITER\"
 class_name = \"RateLimiterCounter\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 
 [[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
-script_name = \"${DEPLOY_ENV}-authrim-shared\""
+script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 
     # Add external-idp specific vars
-    cat >> "packages/external-idp/wrangler.${DEPLOY_ENV}.toml" << EXTERNAL_IDP_VARS
+    cat >> "packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml" << EXTERNAL_IDP_VARS
 # Identity Stitching
 IDENTITY_STITCHING_ENABLED = "false"
 IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL = "true"
@@ -1061,13 +1069,13 @@ EXTERNAL_IDP_VARS
 fi
 
 # Generate vc wrangler file (OpenID4VP/VCI/DID)
-if [ -d "packages/vc" ] && [ ! -f "packages/vc/wrangler.${DEPLOY_ENV}.toml" ]; then
+if [ -d "packages/ar-vc" ] && [ ! -f "packages/ar-vc/wrangler.${DEPLOY_ENV}.toml" ]; then
     echo "  • Generating vc/wrangler.${DEPLOY_ENV}.toml (OpenID4VP/VCI/DID)..."
 
     # Extract domain for DID identifiers
     DOMAIN_FOR_DID=$(echo "$ISSUER_URL" | sed 's|https://||' | sed 's|/.*||')
 
-    cat > "packages/vc/wrangler.${DEPLOY_ENV}.toml" << EOF
+    cat > "packages/ar-vc/wrangler.${DEPLOY_ENV}.toml" << EOF
 # =============================================================================
 # VC Worker Configuration - ${DEPLOY_ENV} Environment
 # =============================================================================
@@ -1076,7 +1084,7 @@ if [ -d "packages/vc" ] && [ ! -f "packages/vc/wrangler.${DEPLOY_ENV}.toml" ]; t
 # - OpenID4VCI Issuer: issues VCs to wallets
 # - DID Resolver: resolves did:web, did:key
 
-name = "${DEPLOY_ENV}-authrim-vc"
+name = "${DEPLOY_ENV}-ar-vc"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -1111,17 +1119,17 @@ class_name = "CredentialOfferStore"
 [[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "VERSION_MANAGER"
 class_name = "VersionManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 # Service Bindings
 [[services]]
 binding = "POLICY_SERVICE"
-service = "${DEPLOY_ENV}-authrim-policy-service"
+service = "${DEPLOY_ENV}-ar-policy"
 
 # Migrations for local DOs
 [[migrations]]
@@ -1158,7 +1166,7 @@ for pkg_dir in packages/*/; do
         package_name=$(basename $(dirname "$toml_file"))
 
         # Skip router in production mode
-        if [ "$DEPLOYMENT_MODE" = "production" ] && [ "$package_name" = "router" ]; then
+        if [ "$DEPLOYMENT_MODE" = "production" ] && [ "$package_name" = "ar-router" ]; then
             echo "  ⊗ Skipping router (not needed in production mode)"
             continue
         fi
@@ -1171,7 +1179,7 @@ for pkg_dir in packages/*/; do
         # Update workers_dev based on deployment mode
         if [ "$DEPLOYMENT_MODE" = "test" ]; then
             # Test mode: only router is public
-            if [ "$package_name" = "router" ]; then
+            if [ "$package_name" = "ar-router" ]; then
                 update_workers_dev "$toml_file" "true" "$OSTYPE"
             else
                 update_workers_dev "$toml_file" "false" "$OSTYPE"
@@ -1182,7 +1190,7 @@ for pkg_dir in packages/*/; do
         fi
 
         # Add Cloudflare Routes for production mode
-        if [ "$DEPLOYMENT_MODE" = "production" ] && [ "$package_name" != "router" ]; then
+        if [ "$DEPLOYMENT_MODE" = "production" ] && [ "$package_name" != "ar-router" ]; then
             add_routes_to_worker "$toml_file"
         fi
     fi
@@ -1191,10 +1199,10 @@ done
 # Handle router wrangler.toml
 if [ "$DEPLOYMENT_MODE" = "test" ]; then
     # Test mode: generate router wrangler.${DEPLOY_ENV}.toml with Service Bindings
-    if [ ! -f "packages/router/wrangler.${DEPLOY_ENV}.toml" ]; then
+    if [ ! -f "packages/ar-router/wrangler.${DEPLOY_ENV}.toml" ]; then
         echo "  • Generating router (with Service Bindings)..."
-        cat > "packages/router/wrangler.${DEPLOY_ENV}.toml" << EOF
-name = "${DEPLOY_ENV}-authrim-router"
+        cat > "packages/ar-router/wrangler.${DEPLOY_ENV}.toml" << EOF
+name = "${DEPLOY_ENV}-ar-router"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -1203,43 +1211,43 @@ workers_dev = true
 # Service Bindings to backend workers
 [[services]]
 binding = "OP_DISCOVERY"
-service = "${DEPLOY_ENV}-authrim-op-discovery"
+service = "${DEPLOY_ENV}-ar-discovery"
 
 [[services]]
 binding = "OP_AUTH"
-service = "${DEPLOY_ENV}-authrim-op-auth"
+service = "${DEPLOY_ENV}-ar-auth"
 
 [[services]]
 binding = "OP_TOKEN"
-service = "${DEPLOY_ENV}-authrim-op-token"
+service = "${DEPLOY_ENV}-ar-token"
 
 [[services]]
 binding = "OP_USERINFO"
-service = "${DEPLOY_ENV}-authrim-op-userinfo"
+service = "${DEPLOY_ENV}-ar-userinfo"
 
 [[services]]
 binding = "OP_MANAGEMENT"
-service = "${DEPLOY_ENV}-authrim-op-management"
+service = "${DEPLOY_ENV}-ar-management"
 
 [[services]]
 binding = "OP_ASYNC"
-service = "${DEPLOY_ENV}-authrim-op-async"
+service = "${DEPLOY_ENV}-ar-async"
 
 [[services]]
 binding = "OP_SAML"
-service = "${DEPLOY_ENV}-authrim-op-saml"
+service = "${DEPLOY_ENV}-ar-saml"
 
 [[services]]
 binding = "EXTERNAL_IDP"
-service = "${DEPLOY_ENV}-authrim-external-idp"
+service = "${DEPLOY_ENV}-ar-bridge"
 
 [[services]]
 binding = "POLICY_SERVICE"
-service = "${DEPLOY_ENV}-authrim-policy-service"
+service = "${DEPLOY_ENV}-ar-policy"
 
 [[services]]
 binding = "VC_SERVICE"
-service = "${DEPLOY_ENV}-authrim-vc"
+service = "${DEPLOY_ENV}-ar-vc"
 
 [vars]
 KEY_ID = "{{KEY_ID}}"
@@ -1250,18 +1258,18 @@ EOF
 
         # Replace placeholders with actual values
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s|{{KEY_ID}}|$KEY_ID|" "packages/router/wrangler.${DEPLOY_ENV}.toml"
-            sed -i '' "s|{{ALLOWED_ORIGINS}}|$ALLOWED_ORIGINS|" "packages/router/wrangler.${DEPLOY_ENV}.toml"
+            sed -i '' "s|{{KEY_ID}}|$KEY_ID|" "packages/ar-router/wrangler.${DEPLOY_ENV}.toml"
+            sed -i '' "s|{{ALLOWED_ORIGINS}}|$ALLOWED_ORIGINS|" "packages/ar-router/wrangler.${DEPLOY_ENV}.toml"
         else
-            sed -i "s|{{KEY_ID}}|$KEY_ID|" "packages/router/wrangler.${DEPLOY_ENV}.toml"
-            sed -i "s|{{ALLOWED_ORIGINS}}|$ALLOWED_ORIGINS|" "packages/router/wrangler.${DEPLOY_ENV}.toml"
+            sed -i "s|{{KEY_ID}}|$KEY_ID|" "packages/ar-router/wrangler.${DEPLOY_ENV}.toml"
+            sed -i "s|{{ALLOWED_ORIGINS}}|$ALLOWED_ORIGINS|" "packages/ar-router/wrangler.${DEPLOY_ENV}.toml"
         fi
     fi
 else
     # Production mode: remove router wrangler.toml if it exists
-    if [ -f "packages/router/wrangler.toml" ]; then
+    if [ -f "packages/ar-router/wrangler.toml" ]; then
         echo "  • Removing router/wrangler.toml (not needed in production mode)"
-        rm packages/router/wrangler.toml
+        rm packages/ar-router/wrangler.toml
     fi
 fi
 

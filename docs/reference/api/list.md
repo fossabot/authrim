@@ -1,103 +1,159 @@
 # Authrim API Endpoints List
 
-**Last Updated**: 2025-12-20
-**Total Endpoints**: 110
+**Last Updated**: 2025-12-22
+**Total Endpoints**: 150+
 
 This document provides a concise list of all available API endpoints in Authrim OIDC Provider.
+
+> **Complete Reference**: See `private/docs/url-structure.csv` for the authoritative endpoint list.
 
 ---
 
 ## OIDC Discovery
 
-| Method | Endpoint                            | Description                             |
-| ------ | ----------------------------------- | --------------------------------------- |
-| GET    | `/.well-known/openid-configuration` | OpenID Connect discovery document       |
-| GET    | `/.well-known/jwks.json`            | JSON Web Key Set for token verification |
+| Method | Endpoint                            | Worker       | Description                             |
+| ------ | ----------------------------------- | ------------ | --------------------------------------- |
+| GET    | `/.well-known/openid-configuration` | ar-discovery | OpenID Connect discovery document       |
+| GET    | `/.well-known/jwks.json`            | ar-discovery | JSON Web Key Set for token verification |
 
 ---
 
 ## OIDC Core
 
-| Method    | Endpoint     | Description                                                          |
-| --------- | ------------ | -------------------------------------------------------------------- |
-| GET, POST | `/authorize` | OAuth 2.0/OIDC authorization endpoint                                |
-| POST      | `/token`     | Token endpoint for exchanging authorization codes and refresh tokens |
-| GET, POST | `/userinfo`  | User information endpoint (requires access token)                    |
+| Method    | Endpoint     | Worker      | Description                                                          |
+| --------- | ------------ | ----------- | -------------------------------------------------------------------- |
+| GET, POST | `/authorize` | ar-auth     | OAuth 2.0/OIDC authorization endpoint                                |
+| POST      | `/token`     | ar-token    | Token endpoint for exchanging authorization codes and refresh tokens |
+| GET, POST | `/userinfo`  | ar-userinfo | User information endpoint (requires access token)                    |
 
 ---
 
 ## OIDC Extensions
 
-| Method | Endpoint      | Description                             |
-| ------ | ------------- | --------------------------------------- |
-| POST   | `/as/par`     | Pushed Authorization Request (RFC 9126) |
-| POST   | `/register`   | Dynamic Client Registration (RFC 7591)  |
-| POST   | `/introspect` | Token introspection (RFC 7662)          |
-| POST   | `/revoke`     | Token revocation (RFC 7009)             |
+| Method | Endpoint      | Worker        | Description                             |
+| ------ | ------------- | ------------- | --------------------------------------- |
+| POST   | `/par`        | ar-auth       | Pushed Authorization Request (RFC 9126) |
+| POST   | `/register`   | ar-management | Dynamic Client Registration (RFC 7591)  |
+| POST   | `/introspect` | ar-management | Token introspection (RFC 7662)          |
+| POST   | `/revoke`     | ar-management | Token revocation (RFC 7009)             |
 
 ---
 
 ## Device Flow (RFC 8628)
 
-| Method | Endpoint                | Description                                                                            |
-| ------ | ----------------------- | -------------------------------------------------------------------------------------- |
-| POST   | `/device_authorization` | Initiate device authorization flow, returns device code and user code                  |
-| GET    | `/device`               | Device verification page (minimal HTML for conformance, redirects to UI in production) |
-| POST   | `/api/device/verify`    | Verify and approve/deny device code (headless JSON API)                                |
-| POST   | `/token`                | Token endpoint with `grant_type=urn:ietf:params:oauth:grant-type:device_code`          |
-
-**Documentation**: See [Device Flow Guide](./features/device-flow.md) for comprehensive documentation.
+| Method | Endpoint                 | Worker   | Description                                                                            |
+| ------ | ------------------------ | -------- | -------------------------------------------------------------------------------------- |
+| POST   | `/device_authorization`  | ar-async | Initiate device authorization flow, returns device code and user code                  |
+| GET    | `/device`                | ar-async | Device verification page (minimal HTML for conformance, redirects to UI in production) |
+| POST   | `/api/devices/verify`    | ar-async | Verify and approve/deny device code (headless JSON API)                                |
+| POST   | `/token`                 | ar-token | Token endpoint with `grant_type=urn:ietf:params:oauth:grant-type:device_code`          |
 
 ---
 
-## Authentication
+## CIBA (Client Initiated Backchannel Authentication)
+
+| Method | Endpoint                          | Worker   | Description               |
+| ------ | --------------------------------- | -------- | ------------------------- |
+| POST   | `/bc-authorize`                   | ar-async | CIBA authorization        |
+| GET    | `/api/ciba/pending`               | ar-async | List pending CIBA requests |
+| GET    | `/api/ciba/requests/:auth_req_id` | ar-async | Get CIBA request details  |
+| POST   | `/api/ciba/approve`               | ar-async | Approve CIBA request      |
+| POST   | `/api/ciba/deny`                  | ar-async | Deny CIBA request         |
+
+---
+
+## Internal Flow (HTML)
+
+| Method    | Endpoint         | Worker  | Description                                        |
+| --------- | ---------------- | ------- | -------------------------------------------------- |
+| GET, POST | `/flow/login`    | ar-auth | Login form (HTML) - OIDC authorize collision avoid |
+| GET, POST | `/flow/confirm`  | ar-auth | Consent confirm form (HTML)                        |
+
+---
+
+## Authentication APIs
 
 ### Passkey (WebAuthn/FIDO2)
 
-| Method | Endpoint                             | Description                              |
-| ------ | ------------------------------------ | ---------------------------------------- |
-| POST   | `/api/auth/passkey/register/options` | Generate passkey registration options    |
-| POST   | `/api/auth/passkey/register/verify`  | Verify and complete passkey registration |
-| POST   | `/api/auth/passkey/login/options`    | Generate passkey authentication options  |
-| POST   | `/api/auth/passkey/login/verify`     | Verify passkey authentication response   |
+| Method | Endpoint                              | Worker  | Description                              |
+| ------ | ------------------------------------- | ------- | ---------------------------------------- |
+| POST   | `/api/auth/passkeys/register/options` | ar-auth | Generate passkey registration options    |
+| POST   | `/api/auth/passkeys/register/verify`  | ar-auth | Verify and complete passkey registration |
+| POST   | `/api/auth/passkeys/login/options`    | ar-auth | Generate passkey authentication options  |
+| POST   | `/api/auth/passkeys/login/verify`     | ar-auth | Verify passkey authentication response   |
 
-### Magic Link
+### Email Code (Magic Link)
 
-| Method | Endpoint                      | Description                                   |
-| ------ | ----------------------------- | --------------------------------------------- |
-| POST   | `/api/auth/magic-link/send`   | Send magic link email for passwordless login  |
-| GET    | `/api/auth/magic-link/verify` | Verify magic link token and authenticate user |
+| Method | Endpoint                       | Worker  | Description             |
+| ------ | ------------------------------ | ------- | ----------------------- |
+| POST   | `/api/auth/email-codes/send`   | ar-auth | Send verification email |
+| POST   | `/api/auth/email-codes/verify` | ar-auth | Verify email code       |
+
+### DID Authentication
+
+| Method | Endpoint                            | Worker  | Description               |
+| ------ | ----------------------------------- | ------- | ------------------------- |
+| POST   | `/api/auth/dids/challenge`          | ar-auth | DID authentication challenge |
+| POST   | `/api/auth/dids/verify`             | ar-auth | DID authentication verify |
+| POST   | `/api/auth/dids/register/challenge` | ar-auth | DID registration challenge |
+| POST   | `/api/auth/dids/register/verify`    | ar-auth | DID registration verify   |
+| GET    | `/api/auth/dids`                    | ar-auth | List user's DIDs          |
+| DELETE | `/api/auth/dids/:did`               | ar-auth | Unlink DID                |
 
 ### Consent
 
-| Method | Endpoint            | Description                                    |
-| ------ | ------------------- | ---------------------------------------------- |
-| GET    | `/api/auth/consent` | Retrieve consent screen data for authorization |
-| POST   | `/api/auth/consent` | Submit user consent decision (allow/deny)      |
+| Method | Endpoint             | Worker  | Description                                    |
+| ------ | -------------------- | ------- | ---------------------------------------------- |
+| GET    | `/api/auth/consents` | ar-auth | Retrieve consent screen data for authorization |
+| POST   | `/api/auth/consents` | ar-auth | Submit user consent decision (allow/deny)      |
 
 ---
 
 ## Session Management
 
-| Method | Endpoint                | Description                              |
-| ------ | ----------------------- | ---------------------------------------- |
-| POST   | `/api/sessions/issue`   | Issue session token for cross-domain SSO |
-| POST   | `/api/sessions/verify`  | Verify session token validity            |
-| GET    | `/api/sessions/status`  | Check current session status             |
-| POST   | `/api/sessions/refresh` | Refresh and extend session expiration    |
+| Method | Endpoint                | Worker  | Description                              |
+| ------ | ----------------------- | ------- | ---------------------------------------- |
+| POST   | `/api/sessions`         | ar-auth | Issue session token for cross-domain SSO |
+| POST   | `/api/sessions/verify`  | ar-auth | Verify session token validity            |
+| GET    | `/api/sessions/status`  | ar-auth | Check current session status             |
+| POST   | `/api/sessions/refresh` | ar-auth | Refresh and extend session expiration    |
 
 ---
 
 ## Logout
 
-| Method | Endpoint              | Description                    |
-| ------ | --------------------- | ------------------------------ |
-| GET    | `/logout`             | Front-channel logout endpoint  |
-| POST   | `/logout/backchannel` | Back-channel logout (RFC 8725) |
+| Method | Endpoint              | Worker  | Description                    |
+| ------ | --------------------- | ------- | ------------------------------ |
+| GET    | `/logout`             | ar-auth | Front-channel logout endpoint  |
+| POST   | `/logout/backchannel` | ar-auth | Back-channel logout (RFC 8725) |
 
 ---
 
-## Admin API
+## External IdP (ar-bridge)
+
+| Method | Endpoint                                    | Description                  |
+| ------ | ------------------------------------------- | ---------------------------- |
+| GET    | `/api/external/providers`                   | List available providers     |
+| GET    | `/api/external/:provider/start`             | Start external login         |
+| GET/POST | `/api/external/:provider/callback`        | OAuth callback               |
+| POST   | `/api/external/:provider/backchannel-logout`| Backchannel logout           |
+| GET    | `/api/external/links`                       | List linked identities       |
+| POST   | `/api/external/links`                       | Start identity linking       |
+| DELETE | `/api/external/links/:id`                   | Unlink identity              |
+
+### Admin - External Providers
+
+| Method | Endpoint                          | Description           |
+| ------ | --------------------------------- | --------------------- |
+| GET    | `/api/admin/external-providers`      | List providers        |
+| POST   | `/api/admin/external-providers`      | Create provider       |
+| GET    | `/api/admin/external-providers/:id`  | Get provider details  |
+| PUT    | `/api/admin/external-providers/:id`  | Update provider       |
+| DELETE | `/api/admin/external-providers/:id`  | Delete provider       |
+
+---
+
+## Admin API (ar-management)
 
 ### Users
 
@@ -116,10 +172,14 @@ This document provides a concise list of all available API endpoints in Authrim 
 
 ### Clients
 
-| Method | Endpoint                 | Description                       |
-| ------ | ------------------------ | --------------------------------- |
-| GET    | `/api/admin/clients`     | List all registered OAuth clients |
-| GET    | `/api/admin/clients/:id` | Get specific client details by ID |
+| Method | Endpoint                  | Description                       |
+| ------ | ------------------------- | --------------------------------- |
+| GET    | `/api/admin/clients`      | List all registered OAuth clients |
+| POST   | `/api/admin/clients`      | Create new OAuth client           |
+| GET    | `/api/admin/clients/:id`  | Get specific client details by ID |
+| PUT    | `/api/admin/clients/:id`  | Update client                     |
+| DELETE | `/api/admin/clients/:id`  | Delete client                     |
+| DELETE | `/api/admin/clients/bulk` | Bulk delete clients               |
 
 ### Sessions
 
@@ -128,6 +188,13 @@ This document provides a concise list of all available API endpoints in Authrim 
 | GET    | `/api/admin/sessions`     | List all active sessions with filtering |
 | GET    | `/api/admin/sessions/:id` | Get specific session details by ID      |
 | DELETE | `/api/admin/sessions/:id` | Revoke specific session                 |
+
+### Audit Logs
+
+| Method | Endpoint                    | Description            |
+| ------ | --------------------------- | ---------------------- |
+| GET    | `/api/admin/audit-logs`     | List audit logs        |
+| GET    | `/api/admin/audit-logs/:id` | Get audit log details  |
 
 ### Statistics
 
@@ -171,47 +238,42 @@ This document provides a concise list of all available API endpoints in Authrim 
 
 ### RBAC - Relationships
 
-| Method | Endpoint                                             | Description                                 |
-| ------ | ---------------------------------------------------- | ------------------------------------------- |
-| GET    | `/api/admin/users/:id/relationships`                 | List user's relationships (parent/guardian) |
-| POST   | `/api/admin/users/:id/relationships`                 | Create relationship between users           |
-| DELETE | `/api/admin/users/:id/relationships/:relationshipId` | Delete relationship                         |
+| Method | Endpoint                             | Description                                 |
+| ------ | ------------------------------------ | ------------------------------------------- |
+| GET    | `/api/admin/users/:id/relationships` | List user's relationships (parent/guardian) |
+| POST   | `/api/admin/users/:id/relationships` | Create relationship between users           |
 
 ### Settings - Dynamic Configuration
 
-System configuration that can be changed at runtime without redeployment.
-
-| Method | Endpoint                                             | Description                                                           |
-| ------ | ---------------------------------------------------- | --------------------------------------------------------------------- |
-| GET    | `/api/admin/settings`                                | Get all system settings                                               |
-| PUT    | `/api/admin/settings`                                | Update system settings                                                |
-| GET    | `/api/admin/settings/code-shards`                    | Get authorization code shard configuration                            |
-| PUT    | `/api/admin/settings/code-shards`                    | Update authorization code shard count                                 |
-| GET    | `/api/admin/settings/oauth-config`                   | Get OAuth/OIDC configuration (TOKEN_EXPIRY, CONFIG_CACHE_TTL, etc.)   |
-| PUT    | `/api/admin/settings/oauth-config/:name`             | Update specific OAuth config value                                    |
-| DELETE | `/api/admin/settings/oauth-config/:name`             | Reset specific OAuth config to default                                |
-| DELETE | `/api/admin/settings/oauth-config`                   | Reset all OAuth config overrides to defaults                          |
-| GET    | `/api/admin/settings/rate-limit`                     | Get all rate limit profiles configuration                             |
-| GET    | `/api/admin/settings/rate-limit/:profile`            | Get specific rate limit profile (strict, moderate, lenient, loadTest) |
-| PUT    | `/api/admin/settings/rate-limit/:profile`            | Update rate limit profile settings                                    |
-| DELETE | `/api/admin/settings/rate-limit/:profile`            | Reset rate limit profile to default                                   |
-| GET    | `/api/admin/settings/refresh-token-sharding`         | Get refresh token sharding configuration                              |
-| PUT    | `/api/admin/settings/refresh-token-sharding`         | Update refresh token sharding settings                                |
-| GET    | `/api/admin/settings/refresh-token-sharding/stats`   | Get refresh token shard distribution statistics                       |
-| DELETE | `/api/admin/settings/refresh-token-sharding/cleanup` | Cleanup old generation shards                                         |
-| GET    | `/api/admin/settings/pii-partitions`                 | Get PII partition configuration                                       |
-| PUT    | `/api/admin/settings/pii-partitions`                 | Update PII partition settings                                         |
-| POST   | `/api/admin/settings/pii-partitions/test`            | Test partition routing for given attributes                           |
-| GET    | `/api/admin/settings/pii-partitions/stats`           | Get PII partition distribution statistics                             |
-| GET    | `/api/admin/settings/region-shards`                  | Get region sharding configuration (V2 with groups)                    |
-| PUT    | `/api/admin/settings/region-shards`                  | Update region sharding settings                                       |
-| DELETE | `/api/admin/settings/region-shards`                  | Reset region shards to defaults                                       |
-| POST   | `/api/admin/settings/region-shards/migrate`          | Create new generation (rolling migration)                             |
-| GET    | `/api/admin/settings/region-shards/validate`         | Validate current configuration                                        |
+| Method | Endpoint                                              | Description                                                           |
+| ------ | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| GET    | `/api/admin/settings`                                 | Get all system settings                                               |
+| PUT    | `/api/admin/settings`                                 | Update system settings                                                |
+| GET    | `/api/admin/settings/code-shards`                     | Get authorization code shard configuration                            |
+| PUT    | `/api/admin/settings/code-shards`                     | Update authorization code shard count                                 |
+| GET    | `/api/admin/settings/oauth-config`                    | Get OAuth/OIDC configuration                                          |
+| PUT    | `/api/admin/settings/oauth-config/:name`              | Update specific OAuth config value                                    |
+| DELETE | `/api/admin/settings/oauth-config/:name`              | Reset specific OAuth config to default                                |
+| DELETE | `/api/admin/settings/oauth-config`                    | Reset all OAuth config overrides to defaults                          |
+| GET    | `/api/admin/settings/rate-limits`                     | Get all rate limit profiles configuration                             |
+| GET    | `/api/admin/settings/rate-limits/:profile`            | Get specific rate limit profile                                       |
+| PUT    | `/api/admin/settings/rate-limits/:profile`            | Update rate limit profile settings                                    |
+| DELETE | `/api/admin/settings/rate-limits/:profile`            | Reset rate limit profile to default                                   |
+| GET    | `/api/admin/settings/refresh-token-sharding`          | Get refresh token sharding configuration                              |
+| PUT    | `/api/admin/settings/refresh-token-sharding`          | Update refresh token sharding settings                                |
+| GET    | `/api/admin/settings/refresh-token-sharding/stats`    | Get refresh token shard distribution statistics                       |
+| DELETE | `/api/admin/settings/refresh-token-sharding/cleanup`  | Cleanup old generation shards                                         |
+| GET    | `/api/admin/settings/pii-partitions`                  | Get PII partition configuration                                       |
+| PUT    | `/api/admin/settings/pii-partitions`                  | Update PII partition settings                                         |
+| POST   | `/api/admin/settings/pii-partitions/test`             | Test partition routing for given attributes                           |
+| GET    | `/api/admin/settings/pii-partitions/stats`            | Get PII partition distribution statistics                             |
+| GET    | `/api/admin/settings/region-shards`                   | Get region sharding configuration                                     |
+| PUT    | `/api/admin/settings/region-shards`                   | Update region sharding settings                                       |
+| DELETE | `/api/admin/settings/region-shards`                   | Reset region shards to defaults                                       |
+| POST   | `/api/admin/settings/region-shards/migrate`           | Create new generation (rolling migration)                             |
+| GET    | `/api/admin/settings/region-shards/validate`          | Validate current configuration                                        |
 
 ### Settings - JIT Provisioning
-
-Configuration for Just-In-Time user provisioning from external IdPs.
 
 | Method | Endpoint                               | Description                        |
 | ------ | -------------------------------------- | ---------------------------------- |
@@ -220,8 +282,6 @@ Configuration for Just-In-Time user provisioning from external IdPs.
 | DELETE | `/api/admin/settings/jit-provisioning` | Reset JIT provisioning to defaults |
 
 ### Settings - Domain Hash Keys (Key Rotation)
-
-Manage email domain hash secrets for key rotation support.
 
 | Method | Endpoint                                        | Description                                 |
 | ------ | ----------------------------------------------- | ------------------------------------------- |
@@ -232,8 +292,6 @@ Manage email domain hash secrets for key rotation support.
 | DELETE | `/api/admin/settings/domain-hash-keys/:version` | Delete deprecated secret version            |
 
 ### Role Assignment Rules
-
-Dynamic role assignment based on IdP claims and email domain.
 
 | Method | Endpoint                                    | Description                        |
 | ------ | ------------------------------------------- | ---------------------------------- |
@@ -246,8 +304,6 @@ Dynamic role assignment based on IdP claims and email domain.
 | POST   | `/api/admin/role-assignment-rules/evaluate` | Evaluate all rules against context |
 
 ### Organization Domain Mappings
-
-Map email domains to organizations for automatic org membership.
 
 | Method | Endpoint                                           | Description                           |
 | ------ | -------------------------------------------------- | ------------------------------------- |
@@ -267,24 +323,58 @@ Map email domains to organizations for automatic org membership.
 | GET    | `/api/admin/tombstones/:id`     | Get specific tombstone details         |
 | GET    | `/api/admin/tombstones/stats`   | Get tombstone statistics               |
 | POST   | `/api/admin/tombstones/cleanup` | Cleanup expired tombstone records      |
+| DELETE | `/api/admin/tombstones/:id`     | Delete tombstone                       |
+
+### Signing Keys
+
+| Method | Endpoint                               | Description                    |
+| ------ | -------------------------------------- | ------------------------------ |
+| GET    | `/api/admin/signing-keys/status`       | Get signing key status         |
+| POST   | `/api/admin/signing-keys/rotate`       | Rotate signing keys            |
+| POST   | `/api/admin/signing-keys/emergency-rotate` | Emergency key rotation     |
 
 ---
 
-## Policy Service
+## Policy Service (ar-policy)
 
 Internal service for policy evaluation (service-to-service communication).
 
-| Method | Endpoint        | Description                                  |
-| ------ | --------------- | -------------------------------------------- |
-| POST   | `/evaluate`     | Evaluate policy for a given context          |
-| POST   | `/check-role`   | Quick role check for subject                 |
-| POST   | `/check-access` | Check access for resource/action combination |
-| POST   | `/is-admin`     | Check if subject has admin privileges        |
-| GET    | `/health`       | Policy service health check                  |
+| Method | Endpoint                | Description                                  |
+| ------ | ----------------------- | -------------------------------------------- |
+| POST   | `/api/policy/evaluate`  | Evaluate policy for a given context          |
+| POST   | `/api/policy/check-role`| Quick role check for subject                 |
+| POST   | `/api/policy/check-access` | Check access for resource/action combination |
+| POST   | `/api/policy/is-admin`  | Check if subject has admin privileges        |
+| GET    | `/api/policy/health`    | Policy service health check                  |
+| GET    | `/api/policy/flags`     | Get all feature flags                        |
+| PUT    | `/api/policy/flags/:name` | Set feature flag                           |
+| DELETE | `/api/policy/flags/:name` | Clear feature flag override                |
+
+### ReBAC (Zanzibar-style)
+
+| Method | Endpoint                   | Description                    |
+| ------ | -------------------------- | ------------------------------ |
+| GET    | `/api/rebac/health`        | ReBAC health check             |
+| POST   | `/api/rebac/check`         | Single relationship check      |
+| POST   | `/api/rebac/batch-check`   | Batch relationship check       |
+| POST   | `/api/rebac/list-objects`  | List accessible objects        |
+| POST   | `/api/rebac/list-users`    | List users with access         |
+| POST   | `/api/rebac/write`         | Create relationship tuple      |
+| DELETE | `/api/rebac/tuples`        | Delete relationship tuple      |
+| POST   | `/api/rebac/invalidate`    | Invalidate ReBAC cache         |
+
+### Check API
+
+| Method | Endpoint                    | Description             |
+| ------ | --------------------------- | ----------------------- |
+| POST   | `/api/check`                | Permission check        |
+| POST   | `/api/check/batch`          | Batch permission check  |
+| GET    | `/api/check/subscribe`      | Subscribe to changes    |
+| GET    | `/api/check/subscribe/stats`| Subscription statistics |
 
 ---
 
-## SAML 2.0
+## SAML 2.0 (ar-saml)
 
 ### IdP Endpoints
 
@@ -292,8 +382,8 @@ Internal service for policy evaluation (service-to-service communication).
 | --------- | -------------------- | ---------------------------------- |
 | GET       | `/saml/idp/metadata` | IdP metadata document              |
 | GET, POST | `/saml/idp/sso`      | Single Sign-On service             |
+| GET       | `/saml/idp/init`     | IdP-initiated SSO                  |
 | GET, POST | `/saml/idp/slo`      | Single Logout service              |
-| POST      | `/saml/idp/artifact` | Artifact resolution service (SOAP) |
 
 ### SP Endpoints
 
@@ -302,27 +392,86 @@ Internal service for policy evaluation (service-to-service communication).
 | GET       | `/saml/sp/metadata` | SP metadata document       |
 | POST      | `/saml/sp/acs`      | Assertion Consumer Service |
 | GET, POST | `/saml/sp/slo`      | Single Logout service      |
-| GET       | `/saml/sp/init`     | SP-initiated SSO start     |
+| GET       | `/saml/sp/login`    | SP-initiated SSO start     |
 
 ### Admin (SAML Providers)
 
-| Method | Endpoint                        | Description           |
-| ------ | ------------------------------- | --------------------- |
-| GET    | `/api/admin/saml/providers`     | List SAML providers   |
-| POST   | `/api/admin/saml/providers`     | Register new provider |
-| GET    | `/api/admin/saml/providers/:id` | Get provider details  |
-| PUT    | `/api/admin/saml/providers/:id` | Update provider       |
-| DELETE | `/api/admin/saml/providers/:id` | Delete provider       |
+| Method | Endpoint                                    | Description                |
+| ------ | ------------------------------------------- | -------------------------- |
+| GET    | `/api/admin/saml-providers`                 | List SAML providers        |
+| POST   | `/api/admin/saml-providers`                 | Register new provider      |
+| GET    | `/api/admin/saml-providers/:id`             | Get provider details       |
+| PUT    | `/api/admin/saml-providers/:id`             | Update provider            |
+| DELETE | `/api/admin/saml-providers/:id`             | Delete provider            |
+| POST   | `/api/admin/saml-providers/:id/import-metadata` | Import metadata        |
 
-**Documentation**: See [SAML 2.0 Guide](../features/saml.md) for comprehensive documentation.
+---
+
+## VC/DID (ar-vc)
+
+### Verifiable Credentials Issuer (OID4VCI)
+
+| Method | Endpoint                             | Description              |
+| ------ | ------------------------------------ | ------------------------ |
+| GET    | `/.well-known/openid-credential-issuer` | Issuer metadata       |
+| POST   | `/vci/token`                         | Credential token         |
+| GET    | `/vci/offers/:id`                    | Credential offer         |
+| POST   | `/vci/credential`                    | Issue credential         |
+| POST   | `/vci/deferred`                      | Deferred credential      |
+| GET    | `/vci/status-lists/:listId`          | Status list              |
+| GET    | `/vci/status-lists/:listId/json`     | Status list JSON         |
+
+### Verifiable Presentations (OID4VP)
+
+| Method | Endpoint                               | Description            |
+| ------ | -------------------------------------- | ---------------------- |
+| GET    | `/.well-known/openid-credential-verifier` | Verifier metadata   |
+| POST   | `/vp/authorize`                        | VP authorization       |
+| POST   | `/vp/response`                         | VP response            |
+| GET    | `/vp/requests/:id`                     | VP request status      |
+
+### DID
+
+| Method | Endpoint                  | Description        |
+| ------ | ------------------------- | ------------------ |
+| GET    | `/.well-known/did.json`   | DID document       |
+| GET    | `/did/resolve/:did`       | DID resolution     |
+
+---
+
+## SCIM 2.0 (ar-management)
+
+| Method | Endpoint                | Description         |
+| ------ | ----------------------- | ------------------- |
+| GET    | `/scim/v2/Users`        | List/search users   |
+| POST   | `/scim/v2/Users`        | Create user         |
+| GET    | `/scim/v2/Users/:id`    | Get user            |
+| PUT    | `/scim/v2/Users/:id`    | Replace user        |
+| PATCH  | `/scim/v2/Users/:id`    | Update user         |
+| DELETE | `/scim/v2/Users/:id`    | Delete user         |
+| GET    | `/scim/v2/Groups`       | List/search groups  |
+| POST   | `/scim/v2/Groups`       | Create group        |
+| GET    | `/scim/v2/Groups/:id`   | Get group           |
+| PUT    | `/scim/v2/Groups/:id`   | Replace group       |
+| PATCH  | `/scim/v2/Groups/:id`   | Update group        |
+| DELETE | `/scim/v2/Groups/:id`   | Delete group        |
 
 ---
 
 ## Health Check
 
-| Method | Endpoint      | Description                                      |
-| ------ | ------------- | ------------------------------------------------ |
-| GET    | `/api/health` | Health check endpoint (available on all workers) |
+| Method | Endpoint           | Worker        | Description  |
+| ------ | ------------------ | ------------- | ------------ |
+| GET    | `/api/health`      | ar-router     | Router health |
+| GET    | `/api/auth/health` | ar-auth       | Auth health  |
+| GET    | `/api/health`      | ar-token      | Token health |
+| GET    | `/api/health`      | ar-userinfo   | Userinfo health |
+| GET    | `/api/health`      | ar-discovery  | Discovery health |
+| GET    | `/api/health`      | ar-management | Management health |
+| GET    | `/api/health`      | ar-bridge     | Bridge health |
+| GET    | `/api/health`      | ar-vc         | VC health    |
+| GET    | `/api/policy/health` | ar-policy   | Policy health |
+| GET    | `/saml/health`     | ar-saml       | SAML health  |
 
 ---
 
@@ -340,16 +489,7 @@ Internal service for policy evaluation (service-to-service communication).
 
 ### Rate Limiting
 
-All endpoints are protected by rate limiting. See [API Documentation](./api/README.md#rate-limiting) for details.
-
-### Detailed Documentation
-
-For comprehensive API documentation including request/response examples, error codes, and authentication details, refer to:
-
-- [Complete API Documentation](./api/README.md)
-- [OpenAPI Specification](./api/openapi.yaml)
-- [Admin API Documentation](./api/admin/)
-- [Auth API Documentation](./api/auth/)
+All endpoints are protected by rate limiting. See [API Documentation](./README.md#rate-limiting) for details.
 
 ---
 
@@ -361,7 +501,9 @@ For comprehensive API documentation including request/response examples, error c
 - **RFC 7662**: OAuth 2.0 Token Introspection
 - **RFC 7009**: OAuth 2.0 Token Revocation
 - **RFC 9126**: OAuth 2.0 Pushed Authorization Requests
+- **RFC 8628**: OAuth 2.0 Device Authorization Grant
 - **RFC 8725**: JSON Web Token Best Current Practices
 - **WebAuthn Level 2**: https://www.w3.org/TR/webauthn-2/
 - **SAML 2.0 Core**: https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf
-- **SAML 2.0 Bindings**: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
+- **OID4VCI**: https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html
+- **OID4VP**: https://openid.net/specs/openid-4-verifiable-presentations-1_0.html

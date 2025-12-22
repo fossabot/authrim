@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import app from '../../src/index';
-import type { Env } from '@authrim/shared/types/env';
+import type { Env } from '@authrim/ar-lib-core/types/env';
 import { createMockEnv } from './fixtures';
 
 describe('Form Post Response Mode', () => {

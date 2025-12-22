@@ -37,7 +37,7 @@ import {
   parseAuthorizationResponse,
   buildTokenRequestBody,
 } from './fixtures';
-import type { Env } from '@authrim/shared/types/env';
+import type { Env } from '@authrim/ar-lib-core/types/env';
 import { authorizeHandler } from '../../packages/op-auth/src/authorize';
 import { tokenHandler } from '../../packages/op-token/src/token';
 import { discoveryHandler } from '../../packages/op-discovery/src/discovery';

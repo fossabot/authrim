@@ -104,13 +104,13 @@ echo ""
 
 # Define the worker names for Authrim project
 AUTHRIM_WORKER_NAMES=(
-    "authrim-shared"
-    "authrim-op-auth"
-    "authrim-op-discovery"
-    "authrim-op-management"
-    "authrim-op-token"
-    "authrim-op-userinfo"
-    "authrim-router"
+    "ar-lib-core"
+    "authrim-ar-auth"
+    "authrim-ar-discovery"
+    "authrim-ar-management"
+    "authrim-ar-token"
+    "authrim-ar-userinfo"
+    "ar-router"
 )
 
 # Arrays to store workers to delete

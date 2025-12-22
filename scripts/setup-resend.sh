@@ -216,8 +216,8 @@ else
 
     # Upload secrets to each worker that needs them
     BASE_WORKERS=(
-        "op-auth"
-        "op-management"
+        "ar-auth"
+        "ar-management"
     )
 
     for base_worker in "${BASE_WORKERS[@]}"; do

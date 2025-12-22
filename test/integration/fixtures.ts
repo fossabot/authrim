@@ -5,8 +5,8 @@
  * for integration testing of OIDC flows.
  */
 
-import type { Env } from '@authrim/shared/types/env';
-import { generateSecureRandomString, generateCodeChallenge } from '@authrim/shared/utils/crypto';
+import type { Env } from '@authrim/ar-lib-core/types/env';
+import { generateSecureRandomString, generateCodeChallenge } from '@authrim/ar-lib-core/utils/crypto';
 
 /**
  * Shared key set for all tests in the suite.
@@ -32,7 +32,7 @@ async function getSharedKeySet(): Promise<{
     return sharedKeySet;
   }
 
-  const { generateKeySet } = await import('@authrim/shared/utils/keys');
+  const { generateKeySet } = await import('@authrim/ar-lib-core/utils/keys');
   const kid = `test-key-shared-${Date.now()}`;
   const keySet = await generateKeySet(kid, 2048);
 

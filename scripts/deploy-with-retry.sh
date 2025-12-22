@@ -20,16 +20,16 @@ INTER_DEPLOY_DELAY=10    # Delay between deployments to avoid rate limits
 DEPLOY_ENV=""
 API_ONLY=false
 VERSIONED_WORKERS=(
-    "op-auth"
-    "op-token"
-    "op-management"
-    "op-userinfo"
-    "op-async"
-    "op-discovery"
-    "policy-service"
-    "op-saml"
-    "external-idp"
-    "vc"
+    "ar-auth"
+    "ar-token"
+    "ar-management"
+    "ar-userinfo"
+    "ar-async"
+    "ar-discovery"
+    "ar-policy"
+    "ar-saml"
+    "ar-bridge"
+    "ar-vc"
 )
 
 # Parse command line arguments
@@ -104,7 +104,7 @@ deploy_package() {
     local deploy_cmd="pnpm exec wrangler deploy --config wrangler.${DEPLOY_ENV}.toml"
 
     # Add version vars for non-shared packages (workers that use version check)
-    if [ "$package_name" != "shared" ] && [ "$package_name" != "router" ]; then
+    if [ "$package_name" != "ar-lib-core" ] && [ "$package_name" != "ar-router" ]; then
         deploy_cmd="$deploy_cmd --var CODE_VERSION_UUID:${VERSION_UUID} --var DEPLOY_TIME_UTC:${DEPLOY_TIME}"
     fi
 
@@ -141,7 +141,7 @@ register_versions() {
         local registered=false
 
         while [ $attempt -le $max_retries ] && [ "$registered" = false ]; do
-            local response=$(curl -s -w "\n%{http_code}" -X POST "${issuer_url}/api/internal/version/${worker}" \
+            local response=$(curl -s -w "\n%{http_code}" -X POST "${issuer_url}/api/internal/versions/${worker}" \
                 -H "Authorization: Bearer ${admin_secret}" \
                 -H "Content-Type: application/json" \
                 -d "{\"uuid\":\"${VERSION_UUID}\",\"deployTime\":\"${DEPLOY_TIME}\"}" \
@@ -281,17 +281,17 @@ for pkg_dir in packages/*/; do
         toml_file="${pkg_dir}wrangler.${DEPLOY_ENV}.toml"
 
         # Skip router if not needed
-        if [ "$package_name" = "router" ]; then
+        if [ "$package_name" = "ar-router" ]; then
             continue
         fi
 
         # Skip UI package
-        if [ "$package_name" = "ui" ]; then
+        if [ "$package_name" = "ar-ui" ]; then
             continue
         fi
 
         # Skip library packages (not deployable workers)
-        if [ "$package_name" = "policy-core" ] || [ "$package_name" = "scim" ]; then
+        if [ "$package_name" = "ar-lib-policy" ] || [ "$package_name" = "ar-lib-scim" ]; then
             continue
         fi
 
@@ -359,18 +359,18 @@ echo ""
 # 2. Other workers depend on shared package for DO bindings
 # 3. Router must be deployed LAST as it depends on all other workers via Service Bindings
 PACKAGES=(
-    "shared:packages/shared"
-    "op-discovery:packages/op-discovery"
-    "op-management:packages/op-management"
-    "op-auth:packages/op-auth"
-    "op-token:packages/op-token"
-    "op-userinfo:packages/op-userinfo"
-    "op-async:packages/op-async"
-    "policy-service:packages/policy-service"
-    "op-saml:packages/op-saml"
-    "external-idp:packages/external-idp"
-    "vc:packages/vc"
-    "router:packages/router"
+    "ar-lib-core:packages/ar-lib-core"
+    "ar-discovery:packages/ar-discovery"
+    "ar-management:packages/ar-management"
+    "ar-auth:packages/ar-auth"
+    "ar-token:packages/ar-token"
+    "ar-userinfo:packages/ar-userinfo"
+    "ar-async:packages/ar-async"
+    "ar-policy:packages/ar-policy"
+    "ar-saml:packages/ar-saml"
+    "ar-bridge:packages/ar-bridge"
+    "ar-vc:packages/ar-vc"
+    "ar-router:packages/ar-router"
 )
 
 FAILED_PACKAGES=()
@@ -380,8 +380,8 @@ for pkg in "${PACKAGES[@]}"; do
     IFS=':' read -r name path <<< "$pkg"
 
     # Skip router if environment-specific wrangler config doesn't exist
-    if [ "$name" = "router" ] && [ ! -f "$path/wrangler.${DEPLOY_ENV}.toml" ]; then
-        echo "⊗ Skipping router (wrangler.${DEPLOY_ENV}.toml not found - not needed when using custom domains)"
+    if [ "$name" = "ar-router" ] && [ ! -f "$path/wrangler.${DEPLOY_ENV}.toml" ]; then
+        echo "⊗ Skipping ar-router (wrangler.${DEPLOY_ENV}.toml not found - not needed when using custom domains)"
         echo ""
         continue
     fi
@@ -413,14 +413,14 @@ if [ ${#FAILED_PACKAGES[@]} -eq 0 ]; then
     # Extract ISSUER_URL and ADMIN_API_SECRET from environment-specific wrangler.toml
     ISSUER_URL=""
     ADMIN_API_SECRET=""
-    if [ -f "packages/op-discovery/wrangler.${DEPLOY_ENV}.toml" ]; then
-        ISSUER_URL=$(grep 'ISSUER_URL = ' "packages/op-discovery/wrangler.${DEPLOY_ENV}.toml" | head -1 | sed 's/.*ISSUER_URL = "\(.*\)"/\1/')
+    if [ -f "packages/ar-discovery/wrangler.${DEPLOY_ENV}.toml" ]; then
+        ISSUER_URL=$(grep 'ISSUER_URL = ' "packages/ar-discovery/wrangler.${DEPLOY_ENV}.toml" | head -1 | sed 's/.*ISSUER_URL = "\(.*\)"/\1/')
     fi
-    if [ -f "packages/op-management/wrangler.${DEPLOY_ENV}.toml" ]; then
-        ADMIN_API_SECRET=$(grep 'ADMIN_API_SECRET = ' "packages/op-management/wrangler.${DEPLOY_ENV}.toml" | head -1 | sed 's/.*ADMIN_API_SECRET = "\(.*\)"/\1/')
+    if [ -f "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" ]; then
+        ADMIN_API_SECRET=$(grep 'ADMIN_API_SECRET = ' "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" | head -1 | sed 's/.*ADMIN_API_SECRET = "\(.*\)"/\1/')
         # Fallback to KEY_MANAGER_SECRET if ADMIN_API_SECRET not found
         if [ -z "$ADMIN_API_SECRET" ]; then
-            ADMIN_API_SECRET=$(grep 'KEY_MANAGER_SECRET = ' "packages/op-management/wrangler.${DEPLOY_ENV}.toml" | head -1 | sed 's/.*KEY_MANAGER_SECRET = "\(.*\)"/\1/')
+            ADMIN_API_SECRET=$(grep 'KEY_MANAGER_SECRET = ' "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" | head -1 | sed 's/.*KEY_MANAGER_SECRET = "\(.*\)"/\1/')
         fi
     fi
 
@@ -452,10 +452,10 @@ if [ ${#FAILED_PACKAGES[@]} -eq 0 ]; then
                 echo "   Active key: $ACTIVE_KID"
 
                 # Workers that need PUBLIC_JWK_JSON
-                WORKERS_NEEDING_JWK=("op-token" "op-management" "op-userinfo" "op-auth")
+                WORKERS_NEEDING_JWK=("ar-token" "ar-management" "ar-userinfo" "ar-auth")
 
                 for worker in "${WORKERS_NEEDING_JWK[@]}"; do
-                    WORKER_NAME="${DEPLOY_ENV}-authrim-${worker}"
+                    WORKER_NAME="${DEPLOY_ENV}-${worker}"
                     echo "   Setting PUBLIC_JWK_JSON for ${worker}..."
                     # Use printf with pipe to avoid interactive input issues
                     if printf '%s' "$ACTIVE_KEY" | wrangler secret put PUBLIC_JWK_JSON --name "$WORKER_NAME" 2>/dev/null; then
@@ -497,7 +497,7 @@ if [ ${#FAILED_PACKAGES[@]} -eq 0 ]; then
         echo "  • Token Revocation:      $ISSUER_URL/revoke"
         echo ""
         echo "Advanced:"
-        echo "  • PAR (Pushed AuthZ):    $ISSUER_URL/as/par"
+        echo "  • PAR (Pushed AuthZ):    $ISSUER_URL/par"
         echo ""
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "🧪 Quick Test:"

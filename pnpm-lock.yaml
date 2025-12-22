@@ -77,39 +77,11 @@ importers:
         specifier: ^4.53.0
         version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
 
-  packages/external-idp:
+  packages/ar-async:
     dependencies:
-      '@authrim/shared':
+      '@authrim/ar-lib-core':
         specifier: workspace:*
-        version: link:../shared
-      hono:
-        specifier: ^4.10.6
-        version: 4.10.6
-      jose:
-        specifier: ^6.1.2
-        version: 6.1.2
-      tslib:
-        specifier: ^2.8.1
-        version: 2.8.1
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: ^4.20251121.0
-        version: 4.20251121.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.8
-        version: 2.1.9(@types/node@20.19.25)(@vitest/ui@4.0.13)(jsdom@27.2.0)
-      wrangler:
-        specifier: ^4.53.0
-        version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
-
-  packages/op-async:
-    dependencies:
-      '@authrim/shared':
-        specifier: workspace:*
-        version: link:../shared
+        version: link:../ar-lib-core
       hono:
         specifier: ^4.10.6
         version: 4.10.6
@@ -133,11 +105,11 @@ importers:
         specifier: ^4.53.0
         version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
 
-  packages/op-auth:
+  packages/ar-auth:
     dependencies:
-      '@authrim/shared':
+      '@authrim/ar-lib-core':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../ar-lib-core
       '@simplewebauthn/server':
         specifier: ^13.2.2
         version: 13.2.2
@@ -167,11 +139,39 @@ importers:
         specifier: ^4.53.0
         version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
 
-  packages/op-discovery:
+  packages/ar-bridge:
     dependencies:
-      '@authrim/shared':
+      '@authrim/ar-lib-core':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../ar-lib-core
+      hono:
+        specifier: ^4.10.6
+        version: 4.10.6
+      jose:
+        specifier: ^6.1.2
+        version: 6.1.2
+      tslib:
+        specifier: ^2.8.1
+        version: 2.8.1
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20251121.0
+        version: 4.20251121.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@20.19.25)(@vitest/ui@4.0.13)(jsdom@27.2.0)
+      wrangler:
+        specifier: ^4.53.0
+        version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
+
+  packages/ar-discovery:
+    dependencies:
+      '@authrim/ar-lib-core':
+        specifier: workspace:*
+        version: link:../ar-lib-core
       hono:
         specifier: ^4.10.6
         version: 4.10.6
@@ -189,14 +189,68 @@ importers:
         specifier: ^4.53.0
         version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
 
-  packages/op-management:
+  packages/ar-lib-core:
     dependencies:
-      '@authrim/scim':
+      hono:
+        specifier: ^4.10.6
+        version: 4.10.6
+      jose:
+        specifier: ^6.1.2
+        version: 6.1.2
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20251121.0
+        version: 4.20251121.0
+      '@types/node':
+        specifier: ^20.19.25
+        version: 20.19.25
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/ar-lib-policy:
+    dependencies:
+      '@authrim/ar-lib-core':
         specifier: workspace:*
-        version: link:../scim
-      '@authrim/shared':
+        version: link:../ar-lib-core
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20251121.0
+        version: 4.20251121.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.13
+        version: 4.0.13(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
+
+  packages/ar-lib-scim:
+    dependencies:
+      '@authrim/ar-lib-core':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../ar-lib-core
+      hono:
+        specifier: ^4.10.6
+        version: 4.10.6
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20251121.0
+        version: 4.20251121.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@20.19.25)(@vitest/ui@4.0.13)(jsdom@27.2.0)
+
+  packages/ar-management:
+    dependencies:
+      '@authrim/ar-lib-core':
+        specifier: workspace:*
+        version: link:../ar-lib-core
+      '@authrim/ar-lib-scim':
+        specifier: workspace:*
+        version: link:../ar-lib-scim
       hono:
         specifier: ^4.10.6
         version: 4.10.6
@@ -217,11 +271,58 @@ importers:
         specifier: ^4.53.0
         version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
 
-  packages/op-saml:
+  packages/ar-policy:
     dependencies:
-      '@authrim/shared':
+      '@authrim/ar-lib-core':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../ar-lib-core
+      '@authrim/ar-lib-policy':
+        specifier: workspace:*
+        version: link:../ar-lib-policy
+      hono:
+        specifier: ^4.10.6
+        version: 4.10.6
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20251121.0
+        version: 4.20251121.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.13
+        version: 4.0.13(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
+      wrangler:
+        specifier: ^4.53.0
+        version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
+
+  packages/ar-router:
+    dependencies:
+      '@authrim/ar-lib-core':
+        specifier: workspace:*
+        version: link:../ar-lib-core
+      hono:
+        specifier: ^4.10.6
+        version: 4.10.6
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20251121.0
+        version: 4.20251121.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.4(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
+      wrangler:
+        specifier: ^4.53.0
+        version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
+
+  packages/ar-saml:
+    dependencies:
+      '@authrim/ar-lib-core':
+        specifier: workspace:*
+        version: link:../ar-lib-core
       '@xmldom/xmldom':
         specifier: ^0.9.6
         version: 0.9.8
@@ -257,11 +358,11 @@ importers:
         specifier: ^4.53.0
         version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
 
-  packages/op-token:
+  packages/ar-token:
     dependencies:
-      '@authrim/shared':
+      '@authrim/ar-lib-core':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../ar-lib-core
       hono:
         specifier: ^4.10.6
         version: 4.10.6
@@ -279,133 +380,7 @@ importers:
         specifier: ^4.53.0
         version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
 
-  packages/op-userinfo:
-    dependencies:
-      '@authrim/shared':
-        specifier: workspace:*
-        version: link:../shared
-      hono:
-        specifier: ^4.10.6
-        version: 4.10.6
-      jose:
-        specifier: ^6.1.2
-        version: 6.1.2
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: ^4.20251121.0
-        version: 4.20251121.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.0
-        version: 3.2.4(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
-      wrangler:
-        specifier: ^4.53.0
-        version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
-
-  packages/policy-core:
-    dependencies:
-      '@authrim/shared':
-        specifier: workspace:*
-        version: link:../shared
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: ^4.20251121.0
-        version: 4.20251121.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^4.0.13
-        version: 4.0.13(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
-
-  packages/policy-service:
-    dependencies:
-      '@authrim/policy-core':
-        specifier: workspace:*
-        version: link:../policy-core
-      '@authrim/shared':
-        specifier: workspace:*
-        version: link:../shared
-      hono:
-        specifier: ^4.10.6
-        version: 4.10.6
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: ^4.20251121.0
-        version: 4.20251121.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^4.0.13
-        version: 4.0.13(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
-      wrangler:
-        specifier: ^4.53.0
-        version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
-
-  packages/router:
-    dependencies:
-      '@authrim/shared':
-        specifier: workspace:*
-        version: link:../shared
-      hono:
-        specifier: ^4.10.6
-        version: 4.10.6
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: ^4.20251121.0
-        version: 4.20251121.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.0
-        version: 3.2.4(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
-      wrangler:
-        specifier: ^4.53.0
-        version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
-
-  packages/scim:
-    dependencies:
-      '@authrim/shared':
-        specifier: workspace:*
-        version: link:../shared
-      hono:
-        specifier: ^4.10.6
-        version: 4.10.6
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: ^4.20251121.0
-        version: 4.20251121.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.8
-        version: 2.1.9(@types/node@20.19.25)(@vitest/ui@4.0.13)(jsdom@27.2.0)
-
-  packages/shared:
-    dependencies:
-      hono:
-        specifier: ^4.10.6
-        version: 4.10.6
-      jose:
-        specifier: ^6.1.2
-        version: 6.1.2
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: ^4.20251121.0
-        version: 4.20251121.0
-      '@types/node':
-        specifier: ^20.19.25
-        version: 20.19.25
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
-  packages/ui:
+  packages/ar-ui:
     dependencies:
       '@simplewebauthn/browser':
         specifier: ^13.2.2
@@ -499,11 +474,36 @@ importers:
         specifier: ^4.0.13
         version: 4.0.13(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
 
-  packages/vc:
+  packages/ar-userinfo:
     dependencies:
-      '@authrim/shared':
+      '@authrim/ar-lib-core':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../ar-lib-core
+      hono:
+        specifier: ^4.10.6
+        version: 4.10.6
+      jose:
+        specifier: ^6.1.2
+        version: 6.1.2
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20251121.0
+        version: 4.20251121.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.4(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
+      wrangler:
+        specifier: ^4.53.0
+        version: 4.53.0(@cloudflare/workers-types@4.20251121.0)
+
+  packages/ar-vc:
+    dependencies:
+      '@authrim/ar-lib-core':
+        specifier: workspace:*
+        version: link:../ar-lib-core
       hono:
         specifier: ^4.10.6
         version: 4.10.6
@@ -1720,9 +1720,6 @@ packages:
 
   '@types/node@22.19.1':
     resolution: {integrity: sha512-LCCV0HdSZZZb34qifBsyWlUmok6W7ouER+oQIGBScS8EsZsQbrtFTUrDX4hOl+CS6p7cnNC4td+qrSVGSCTUfQ==}
-
-  '@types/node@24.10.1':
-    resolution: {integrity: sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ==}
 
   '@types/pako@2.0.4':
     resolution: {integrity: sha512-VWDCbrLeVXJM9fihYodcLiIv0ku+AlOa/TQ1SvYOaBuyrSKgEcro95LJyIsJ4vSo6BXIxOKxiJAat04CmST9Fw==}
@@ -4025,9 +4022,6 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
-  undici-types@7.16.0:
-    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
-
   undici@7.14.0:
     resolution: {integrity: sha512-Vqs8HTzjpQXZeXdpsfChQTlafcMQaaIwnGwLam1wudSSjlJeQ3bw1j+TLPePgrCnCpUXx7Ba5Pdpf5OBih62NQ==}
     engines: {node: '>=20.18.1'}
@@ -4527,14 +4521,14 @@ snapshots:
   '@babel/template@7.27.2':
     dependencies:
       '@babel/code-frame': 7.27.1
-      '@babel/parser': 7.27.7
+      '@babel/parser': 7.28.5
       '@babel/types': 7.28.5
 
   '@babel/traverse@7.27.7':
     dependencies:
       '@babel/code-frame': 7.27.1
       '@babel/generator': 7.28.5
-      '@babel/parser': 7.27.7
+      '@babel/parser': 7.28.5
       '@babel/template': 7.27.2
       '@babel/types': 7.28.5
       debug: 4.4.3
@@ -5495,15 +5489,11 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/node@24.10.1':
-    dependencies:
-      undici-types: 7.16.0
-
   '@types/pako@2.0.4': {}
 
   '@types/qrcode@1.5.6':
     dependencies:
-      '@types/node': 24.10.1
+      '@types/node': 20.19.25
 
   '@types/yauzl@2.10.3':
     dependencies:
@@ -8096,8 +8086,6 @@ snapshots:
       unconfig-core: 7.4.1
 
   undici-types@6.21.0: {}
-
-  undici-types@7.16.0: {}
 
   undici@7.14.0: {}
 

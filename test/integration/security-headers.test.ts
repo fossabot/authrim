@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { Env } from '@authrim/shared/types/env';
+import type { Env } from '@authrim/ar-lib-core/types/env';
 import app from '../../packages/op-discovery/src/index';
 
 // Mock environment

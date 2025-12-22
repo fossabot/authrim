@@ -87,8 +87,8 @@ echo "  • Private key (.keys/private.pem)"
 echo "  • Public key (.keys/public.jwk.json)"
 echo ""
 echo "These keys will be uploaded as secrets to Cloudflare Workers:"
-echo "  • PRIVATE_KEY_PEM - Used by op-token and op-discovery to sign JWTs"
-echo "  • PUBLIC_JWK_JSON - Used by op-auth and op-userinfo to verify JWTs"
+echo "  • PRIVATE_KEY_PEM - Used by ar-token and ar-discovery to sign JWTs"
+echo "  • PUBLIC_JWK_JSON - Used by ar-auth and ar-userinfo to verify JWTs"
 echo ""
 
 # Prepare the public JWK as compact JSON
@@ -121,22 +121,22 @@ upload_secrets() {
 echo "🚀 Uploading secrets to workers..."
 echo ""
 
-# op-discovery: Needs both keys (for JWKS endpoint and token signing)
-upload_secrets "op-discovery" "true" "true"
+# ar-discovery: Needs both keys (for JWKS endpoint and token signing)
+upload_secrets "ar-discovery" "true" "true"
 
-# op-auth: Needs public key (for token verification)
-upload_secrets "op-auth" "false" "true"
+# ar-auth: Needs public key (for token verification)
+upload_secrets "ar-auth" "false" "true"
 
-# op-token: Needs private key (for token signing)
-upload_secrets "op-token" "true" "false"
+# ar-token: Needs private key (for token signing)
+upload_secrets "ar-token" "true" "false"
 
-# op-userinfo: Needs public key (for token verification)
-upload_secrets "op-userinfo" "false" "true"
+# ar-userinfo: Needs public key (for token verification)
+upload_secrets "ar-userinfo" "false" "true"
 
-# op-management: Needs both keys (for registration token signing and verification)
-upload_secrets "op-management" "true" "true"
+# ar-management: Needs both keys (for registration token signing and verification)
+upload_secrets "ar-management" "true" "true"
 
-# Email configuration for op-auth (Magic Link support)
+# Email configuration for ar-auth (Magic Link support)
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📧 Email Configuration for Magic Links"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -149,7 +149,7 @@ read -p "Do you want to configure Resend API Key? (y/N): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo ""
-    echo "📦 Uploading email configuration to ${DEPLOY_ENV}-authrim-op-auth..."
+    echo "📦 Uploading email configuration to ${DEPLOY_ENV}-authrim-ar-auth..."
 
     echo "  • Enter your Resend API Key:"
     read -s -p "    RESEND_API_KEY: " RESEND_API_KEY
@@ -159,10 +159,10 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     read -p "    EMAIL_FROM: " EMAIL_FROM
 
     # Upload secrets
-    echo "$RESEND_API_KEY" | wrangler secret put RESEND_API_KEY --name="${DEPLOY_ENV}-authrim-op-auth"
-    echo "$EMAIL_FROM" | wrangler secret put EMAIL_FROM --name="${DEPLOY_ENV}-authrim-op-auth"
+    echo "$RESEND_API_KEY" | wrangler secret put RESEND_API_KEY --name="${DEPLOY_ENV}-authrim-ar-auth"
+    echo "$EMAIL_FROM" | wrangler secret put EMAIL_FROM --name="${DEPLOY_ENV}-authrim-ar-auth"
 
-    echo "✅ Email configuration uploaded to ${DEPLOY_ENV}-authrim-op-auth"
+    echo "✅ Email configuration uploaded to ${DEPLOY_ENV}-authrim-ar-auth"
     echo ""
 else
     echo "⊗ Email configuration skipped (magic links will return URLs)"

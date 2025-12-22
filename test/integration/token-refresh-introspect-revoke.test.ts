@@ -7,12 +7,12 @@
 
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import { Hono } from 'hono';
-import type { Env } from '@authrim/shared/types/env';
+import type { Env } from '@authrim/ar-lib-core/types/env';
 import { tokenHandler } from '../../packages/op-token/src/token';
 import { introspectHandler } from '../../packages/op-management/src/introspect';
 import { revokeHandler } from '../../packages/op-management/src/revoke';
-import { generateKeySet } from '@authrim/shared/utils/keys';
-import { generateSecureRandomString } from '@authrim/shared/utils/crypto';
+import { generateKeySet } from '@authrim/ar-lib-core/utils/keys';
+import { generateSecureRandomString } from '@authrim/ar-lib-core/utils/crypto';
 
 // Store generated test key
 let testPrivateKey: string;

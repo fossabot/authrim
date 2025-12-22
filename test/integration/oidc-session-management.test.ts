@@ -11,8 +11,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createMockEnv, testClients, generateState, generateNonce } from './fixtures';
-import type { Env } from '@authrim/shared/types/env';
-import { calculateSessionState, extractOrigin, validateSessionState } from '@authrim/shared';
+import type { Env } from '@authrim/ar-lib-core/types/env';
+import { calculateSessionState, extractOrigin, validateSessionState } from '@authrim/ar-lib-core';
 
 describe('OIDC Session Management', () => {
   let env: Env;

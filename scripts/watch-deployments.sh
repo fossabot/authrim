@@ -32,14 +32,14 @@ fi
 
 # Workers to monitor
 WORKERS=(
-    "op-async"
-    "op-auth"
-    "op-discovery"
-    "op-management"
-    "op-token"
-    "op-userinfo"
-    "external-idp"
-    "shared"
+    "ar-async"
+    "ar-auth"
+    "ar-discovery"
+    "ar-management"
+    "ar-token"
+    "ar-userinfo"
+    "ar-bridge"
+    "ar-lib-core"
     "router"
 )
 

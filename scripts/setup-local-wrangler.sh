@@ -116,7 +116,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # Generate wrangler.toml for shared package (Durable Objects)
-SHARED_FILE="packages/shared/wrangler.${DEPLOY_ENV}.toml"
+SHARED_FILE="packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml"
 if [ -f "$SHARED_FILE" ]; then
     echo "  ⚠️  $SHARED_FILE already exists"
     read -p "    Overwrite? This will reset Durable Objects configuration (y/N): " -n 1 -r
@@ -125,8 +125,8 @@ if [ -f "$SHARED_FILE" ]; then
         echo "    ⊗ Skipping shared (keeping existing configuration)"
     else
         echo "    ✓ Overwriting shared/wrangler.${DEPLOY_ENV}.toml"
-        cat > "packages/shared/wrangler.${DEPLOY_ENV}.toml" << SHARED_TOML_EOF
-name = "${DEPLOY_ENV}-authrim-shared"
+        cat > "packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml" << SHARED_TOML_EOF
+name = "${DEPLOY_ENV}-ar-lib-core"
 main = "src/durable-objects/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -195,8 +195,8 @@ SHARED_TOML_EOF
     fi
 else
     echo "  ✅ shared/wrangler.${DEPLOY_ENV}.toml (Durable Objects)"
-    cat > "packages/shared/wrangler.${DEPLOY_ENV}.toml" << SHARED_TOML_EOF
-name = "${DEPLOY_ENV}-authrim-shared"
+    cat > "packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml" << SHARED_TOML_EOF
+name = "${DEPLOY_ENV}-ar-lib-core"
 main = "src/durable-objects/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -266,18 +266,18 @@ fi
 echo ""
 
 # Generate wrangler.toml for op-discovery
-generate_wrangler_toml "op-discovery" 8787 '' '[[durable_objects.bindings]]
+generate_wrangler_toml "ar-discovery" 8787 '' '[[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiterCounter"
-script_name = "${DEPLOY_ENV}-authrim-shared"'
+script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for op-auth
-generate_wrangler_toml "op-auth" 8788 '[[kv_namespaces]]
+generate_wrangler_toml "ar-auth" 8788 '[[kv_namespaces]]
 binding = "CLIENTS_CACHE"
 id = "placeholder"
 preview_id = "placeholder"
@@ -294,35 +294,35 @@ binding = "AVATARS"
 bucket_name = "authrim-avatars"' '[[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "SESSION_STORE"
 class_name = "SessionStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "AUTH_CODE_STORE"
 class_name = "AuthorizationCodeStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "CHALLENGE_STORE"
 class_name = "ChallengeStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiterCounter"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "PAR_REQUEST_STORE"
 class_name = "PARRequestStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"'
+script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for op-token
-generate_wrangler_toml "op-token" 8789 '[[kv_namespaces]]
+generate_wrangler_toml "ar-token" 8789 '[[kv_namespaces]]
 binding = "CLIENTS_CACHE"
 id = "placeholder"
 preview_id = "placeholder"
@@ -351,35 +351,35 @@ database_id = "placeholder"
 # Durable Objects Bindings' '[[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "SESSION_STORE"
 class_name = "SessionStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "AUTH_CODE_STORE"
 class_name = "AuthorizationCodeStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "REFRESH_TOKEN_ROTATOR"
 class_name = "RefreshTokenRotator"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiterCounter"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "DPOP_JTI_STORE"
 class_name = "DPoPJTIStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"'
+script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for op-userinfo
-generate_wrangler_toml "op-userinfo" 8790 '[[kv_namespaces]]
+generate_wrangler_toml "ar-userinfo" 8790 '[[kv_namespaces]]
 binding = "CLIENTS_CACHE"
 id = "placeholder"
 preview_id = "placeholder"
@@ -391,25 +391,25 @@ database_name = "authrim-users-db"
 database_id = "placeholder"' '[[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "SESSION_STORE"
 class_name = "SessionStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiterCounter"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "DPOP_JTI_STORE"
 class_name = "DPoPJTIStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"'
+script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for op-management
-generate_wrangler_toml "op-management" 8791 '[[kv_namespaces]]
+generate_wrangler_toml "ar-management" 8791 '[[kv_namespaces]]
 binding = "CLIENTS_CACHE"
 id = "placeholder"
 preview_id = "placeholder"
@@ -433,25 +433,25 @@ database_id = "placeholder"
 # Durable Objects Bindings' '[[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "REFRESH_TOKEN_ROTATOR"
 class_name = "RefreshTokenRotator"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiterCounter"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "SESSION_STORE"
 class_name = "SessionStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"'
+script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for policy-service (ReBAC)
-generate_wrangler_toml "policy-service" 8792 '[[kv_namespaces]]
+generate_wrangler_toml "ar-policy" 8792 '[[kv_namespaces]]
 binding = "REBAC_CACHE"
 id = "placeholder"
 preview_id = "placeholder"
@@ -463,47 +463,47 @@ database_name = "authrim-users-db"
 database_id = "placeholder"' '[[durable_objects.bindings]]
 name = "VERSION_MANAGER"
 class_name = "VersionManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"'
+script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for op-async (Device Flow / CIBA)
-generate_wrangler_toml "op-async" 8793 '' '[[durable_objects.bindings]]
+generate_wrangler_toml "ar-async" 8793 '' '[[durable_objects.bindings]]
 name = "DEVICE_CODE_STORE"
 class_name = "DeviceCodeStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "CIBA_REQUEST_STORE"
 class_name = "CIBARequestStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "USER_CODE_RATE_LIMITER"
 class_name = "RateLimiterCounter"
-script_name = "${DEPLOY_ENV}-authrim-shared"'
+script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for op-saml (SAML 2.0)
-generate_wrangler_toml "op-saml" 8794 '' '[[durable_objects.bindings]]
+generate_wrangler_toml "ar-saml" 8794 '' '[[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "SESSION_STORE"
 class_name = "SessionStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "SAML_REQUEST_STORE"
 class_name = "SAMLRequestStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiterCounter"
-script_name = "${DEPLOY_ENV}-authrim-shared"'
+script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for external-idp (Social Login)
-generate_wrangler_toml "external-idp" 8795 '[[kv_namespaces]]
+generate_wrangler_toml "ar-bridge" 8795 '[[kv_namespaces]]
 binding = "SETTINGS"
 id = "placeholder"
 preview_id = "placeholder"
@@ -520,20 +520,20 @@ database_name = "authrim-users-db"
 database_id = "placeholder"' '[[durable_objects.bindings]]
 name = "SESSION_STORE"
 class_name = "SessionStore"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
 class_name = "RateLimiterCounter"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 [[durable_objects.bindings]]
 name = "VERSION_MANAGER"
 class_name = "VersionManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"'
+script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Add external-idp specific vars
-cat >> "packages/external-idp/wrangler.${DEPLOY_ENV}.toml" << EXTERNAL_IDP_VARS
+cat >> "packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml" << EXTERNAL_IDP_VARS
 # Identity Stitching
 IDENTITY_STITCHING_ENABLED = "false"
 IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL = "true"
@@ -541,8 +541,8 @@ IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL = "true"
 EXTERNAL_IDP_VARS
 
 # Generate wrangler.toml for vc (OpenID4VP/VCI/DID)
-VC_FILE="packages/vc/wrangler.${DEPLOY_ENV}.toml"
-if [ -d "packages/vc" ]; then
+VC_FILE="packages/ar-vc/wrangler.${DEPLOY_ENV}.toml"
+if [ -d "packages/ar-vc" ]; then
     if [ -f "$VC_FILE" ]; then
         echo "  ⚠️  $VC_FILE already exists"
         read -p "    Overwrite? This will reset VC configuration (y/N): " -n 1 -r
@@ -560,7 +560,7 @@ if [ -d "packages/vc" ]; then
 # - OpenID4VCI Issuer: issues VCs to wallets
 # - DID Resolver: resolves did:web, did:key
 
-name = "${DEPLOY_ENV}-authrim-vc"
+name = "${DEPLOY_ENV}-ar-vc"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -595,12 +595,12 @@ class_name = "CredentialOfferStore"
 [[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 # Service Bindings
 [[services]]
 binding = "POLICY_SERVICE"
-service = "${DEPLOY_ENV}-authrim-policy-service"
+service = "${DEPLOY_ENV}-ar-policy"
 
 # Migrations for local DOs
 [[migrations]]
@@ -634,7 +634,7 @@ VC_TOML_EOF
 # - OpenID4VCI Issuer: issues VCs to wallets
 # - DID Resolver: resolves did:web, did:key
 
-name = "${DEPLOY_ENV}-authrim-vc"
+name = "${DEPLOY_ENV}-ar-vc"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -669,12 +669,12 @@ class_name = "CredentialOfferStore"
 [[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
-script_name = "${DEPLOY_ENV}-authrim-shared"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
 
 # Service Bindings
 [[services]]
 binding = "POLICY_SERVICE"
-service = "${DEPLOY_ENV}-authrim-policy-service"
+service = "${DEPLOY_ENV}-ar-policy"
 
 # Migrations for local DOs
 [[migrations]]
@@ -701,7 +701,7 @@ fi
 
 # Generate wrangler.toml for router (with Service Bindings)
 echo "  ✅ router/wrangler.toml (with Service Bindings)"
-cat > packages/router/wrangler.toml << 'ROUTER_TOML_EOF'
+cat > packages/ar-router/wrangler.toml << 'ROUTER_TOML_EOF'
 name = "authrim"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
@@ -710,43 +710,43 @@ compatibility_flags = ["nodejs_compat"]
 # Service Bindings to other workers
 [[services]]
 binding = "OP_DISCOVERY"
-service = "${DEPLOY_ENV}-authrim-op-discovery"
+service = "${DEPLOY_ENV}-ar-discovery"
 
 [[services]]
 binding = "OP_AUTH"
-service = "${DEPLOY_ENV}-authrim-op-auth"
+service = "${DEPLOY_ENV}-ar-auth"
 
 [[services]]
 binding = "OP_TOKEN"
-service = "${DEPLOY_ENV}-authrim-op-token"
+service = "${DEPLOY_ENV}-ar-token"
 
 [[services]]
 binding = "OP_USERINFO"
-service = "${DEPLOY_ENV}-authrim-op-userinfo"
+service = "${DEPLOY_ENV}-ar-userinfo"
 
 [[services]]
 binding = "OP_MANAGEMENT"
-service = "${DEPLOY_ENV}-authrim-op-management"
+service = "${DEPLOY_ENV}-ar-management"
 
 [[services]]
 binding = "OP_ASYNC"
-service = "${DEPLOY_ENV}-authrim-op-async"
+service = "${DEPLOY_ENV}-ar-async"
 
 [[services]]
 binding = "OP_SAML"
-service = "${DEPLOY_ENV}-authrim-op-saml"
+service = "${DEPLOY_ENV}-ar-saml"
 
 [[services]]
 binding = "EXTERNAL_IDP"
-service = "${DEPLOY_ENV}-authrim-external-idp"
+service = "${DEPLOY_ENV}-ar-bridge"
 
 [[services]]
 binding = "POLICY_SERVICE"
-service = "${DEPLOY_ENV}-authrim-policy-service"
+service = "${DEPLOY_ENV}-ar-policy"
 
 [[services]]
 binding = "VC_SERVICE"
-service = "${DEPLOY_ENV}-authrim-vc"
+service = "${DEPLOY_ENV}-ar-vc"
 
 # Development configuration
 [dev]

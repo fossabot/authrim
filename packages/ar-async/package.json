@@ -1,0 +1,27 @@
+{
+  "name": "@authrim/ar-async",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'op-async: lint skipped'",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@authrim/ar-lib-core": "workspace:*",
+    "hono": "^4.10.6",
+    "jose": "^6.1.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251121.0",
+    "@vitest/ui": "^4.0.13",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.13",
+    "wrangler": "^4.53.0"
+  }
+}

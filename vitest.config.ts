@@ -35,7 +35,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@authrim/shared': path.resolve(__dirname, 'packages/shared/src'),
+      '@authrim/ar-lib-core': path.resolve(__dirname, 'packages/ar-lib-core/src'),
     },
   },
 });
