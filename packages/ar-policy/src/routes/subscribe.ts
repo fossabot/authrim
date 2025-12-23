@@ -20,6 +20,12 @@ import { Hono } from 'hono';
 import type { KVNamespace, DurableObjectNamespace } from '@cloudflare/workers-types';
 import type { Env as SharedEnv } from '@authrim/ar-lib-core';
 import {
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
+import {
   authenticateCheckApiRequest,
   isOperationAllowed,
   type CheckAuthContext,
@@ -82,61 +88,49 @@ const subscribeRoutes = new Hono<{ Bindings: Env }>();
 subscribeRoutes.get('/subscribe', async (c) => {
   // Check if Check API is enabled
   if (!isCheckApiEnabled(c.env)) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'Check API is not enabled',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.ACCESS_DENIED,
+      403,
+      'Check API is not enabled'
     );
   }
 
   // Check if WebSocket Push is enabled
   if (!isWebSocketEnabled(c.env)) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description:
-          'WebSocket Push is not enabled. Set CHECK_API_WEBSOCKET_ENABLED=true to enable.',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.ACCESS_DENIED,
+      403,
+      'WebSocket Push is not enabled. Set CHECK_API_WEBSOCKET_ENABLED=true to enable.'
     );
   }
 
   // Check if PermissionChangeHub DO is available
   if (!c.env.PERMISSION_CHANGE_HUB) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'PermissionChangeHub Durable Object not configured',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'PermissionChangeHub Durable Object not configured'
     );
   }
 
   // Check for WebSocket upgrade request
   const upgradeHeader = c.req.header('Upgrade');
   if (upgradeHeader !== 'websocket') {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description:
-          'WebSocket upgrade required. This endpoint only accepts WebSocket connections.',
-      },
-      426
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      426,
+      'WebSocket upgrade required. This endpoint only accepts WebSocket connections.'
     );
   }
 
   // Get token from query parameter (WebSocket can't send custom headers during upgrade)
   const token = c.req.query('token');
   if (!token) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Token is required as query parameter',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Authenticate using the token
@@ -150,23 +144,16 @@ subscribeRoutes.get('/subscribe', async (c) => {
   const auth = await authenticateCheckApiRequest(`Bearer ${token}`, authContext);
 
   if (!auth.authenticated) {
-    return c.json(
-      {
-        error: auth.error || 'unauthorized',
-        error_description: auth.errorDescription || 'Authentication failed',
-      },
-      (auth.statusCode || 401) as 400 | 401 | 403 | 500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check if subscribe operation is allowed
   if (!isOperationAllowed(auth, 'subscribe')) {
-    return c.json(
-      {
-        error: 'forbidden',
-        error_description: 'API key does not have permission for subscribe operation',
-      },
-      403
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.ACCESS_DENIED,
+      403,
+      'API key does not have permission for subscribe operation'
     );
   }
 
@@ -198,13 +185,7 @@ subscribeRoutes.get('/subscribe', async (c) => {
     );
   } catch (error) {
     console.error('[Subscribe] WebSocket upgrade error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to establish WebSocket connection',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -215,12 +196,11 @@ subscribeRoutes.get('/subscribe', async (c) => {
 subscribeRoutes.get('/subscribe/stats', async (c) => {
   // Check if Check API is enabled
   if (!isCheckApiEnabled(c.env)) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'Check API is not enabled',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.ACCESS_DENIED,
+      403,
+      'Check API is not enabled'
     );
   }
 
@@ -233,23 +213,16 @@ subscribeRoutes.get('/subscribe/stats', async (c) => {
   });
 
   if (!auth.authenticated) {
-    return c.json(
-      {
-        error: auth.error || 'unauthorized',
-        error_description: auth.errorDescription || 'Authentication failed',
-      },
-      (auth.statusCode || 401) as 400 | 401 | 403 | 500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check if PermissionChangeHub DO is available
   if (!c.env.PERMISSION_CHANGE_HUB) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'PermissionChangeHub Durable Object not configured',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'PermissionChangeHub Durable Object not configured'
     );
   }
 
@@ -276,13 +249,7 @@ subscribeRoutes.get('/subscribe/stats', async (c) => {
     });
   } catch (error) {
     console.error('[Subscribe] Stats error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to get subscription stats',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 

@@ -75,7 +75,8 @@ export async function verifyVPToken(
     const issuerTrusted = trustResult.trusted;
 
     if (!issuerTrusted && policy.requireIssuerTrust) {
-      errors.push(`Issuer not trusted: ${issuerDid}`);
+      // SECURITY: Do not expose DID value in error message to prevent enumeration
+      errors.push('Issuer is not trusted');
     }
 
     // 4. Get issuer public key
@@ -121,8 +122,9 @@ export async function verifyVPToken(
           // CRITICAL: Reject status lists from different issuers
           // This prevents attackers from hosting their own status list that always returns "valid"
           if (statusIssuer !== issuerDid) {
+            // SECURITY: Do not expose DID values in error message
             throw new Error(
-              `Status List issuer mismatch: credential issued by ${issuerDid} but status list issued by ${statusIssuer}`
+              'Status List issuer mismatch: credential and status list have different issuers'
             );
           }
           // Use the credential issuer's public key
@@ -204,12 +206,14 @@ export async function verifyVPToken(
       haipCompliant: haipResult.haipCompliant,
     };
   } catch (error) {
+    console.error('[verifyVPToken] Verification error:', error);
+    // SECURITY: Do not expose internal error details in response
     return {
       verified: false,
       holderBindingVerified: false,
       issuerTrusted: false,
       statusValid: false,
-      errors: [`Verification error: ${error instanceof Error ? error.message : 'Unknown'}`],
+      errors: ['Verification failed'],
       warnings,
       haipCompliant: false,
     };

@@ -5,6 +5,7 @@
 The Admin Statistics API provides aggregated metrics and analytics for administrators to monitor the health and usage of the Authrim OIDC Provider.
 
 **Key Features:**
+
 - Real-time statistics (active users, total users, clients)
 - Daily metrics (new users today, logins today)
 - Recent activity feed
@@ -13,6 +14,7 @@ The Admin Statistics API provides aggregated metrics and analytics for administr
 - Client usage statistics (Phase 6)
 
 **Authentication:**
+
 - Requires admin privileges (Phase 6)
 - Bearer token authentication (Phase 6)
 - RBAC permissions: `stats:read` (Phase 6)
@@ -32,6 +34,7 @@ Retrieve a comprehensive overview of system statistics.
 **Endpoint:** `GET /admin/stats`
 
 **Response (200 OK):**
+
 ```json
 {
   "stats": {
@@ -64,45 +67,47 @@ Retrieve a comprehensive overview of system statistics.
 
 #### stats Object
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `activeUsers` | number | Users logged in within last 30 days |
-| `totalUsers` | number | Total registered users |
-| `registeredClients` | number | Total OAuth clients |
-| `newUsersToday` | number | Users created today (since midnight) |
-| `loginsToday` | number | Unique logins today (since midnight) |
+| Field               | Type   | Description                          |
+| ------------------- | ------ | ------------------------------------ |
+| `activeUsers`       | number | Users logged in within last 30 days  |
+| `totalUsers`        | number | Total registered users               |
+| `registeredClients` | number | Total OAuth clients                  |
+| `newUsersToday`     | number | Users created today (since midnight) |
+| `loginsToday`       | number | Unique logins today (since midnight) |
 
 #### recentActivity Array
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | string | Activity type ("user_registration") |
-| `userId` | string | User ID |
-| `email` | string | User email |
-| `name` | string | User name |
-| `timestamp` | number | Unix timestamp (milliseconds) |
+| Field       | Type   | Description                         |
+| ----------- | ------ | ----------------------------------- |
+| `type`      | string | Activity type ("user_registration") |
+| `userId`    | string | User ID                             |
+| `email`     | string | User email                          |
+| `name`      | string | User name                           |
+| `timestamp` | number | Unix timestamp (milliseconds)       |
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 500 | `server_error` | Failed to retrieve statistics |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 500         | `server_error` | Failed to retrieve statistics           |
 
 **Example:**
+
 ```bash
 curl "https://your-domain.com/admin/stats" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 async function getStatistics() {
   const response = await fetch('/admin/stats', {
     headers: {
-      'Authorization': `Bearer ${getAdminToken()}`
-    }
+      Authorization: `Bearer ${getAdminToken()}`,
+    },
   });
 
   if (!response.ok) {
@@ -128,6 +133,7 @@ console.log('New Users Today:', data.stats.newUsersToday);
 **Definition:** Users who have logged in within the last 30 days.
 
 **SQL Query:**
+
 ```sql
 SELECT COUNT(*) as count
 FROM users
@@ -135,6 +141,7 @@ WHERE last_login_at > ?
 ```
 
 **Calculation:**
+
 ```typescript
 const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 ```
@@ -144,6 +151,7 @@ const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 **Definition:** All registered user accounts.
 
 **SQL Query:**
+
 ```sql
 SELECT COUNT(*) as count
 FROM users
@@ -154,6 +162,7 @@ FROM users
 **Definition:** All registered OAuth clients (applications).
 
 **SQL Query:**
+
 ```sql
 SELECT COUNT(*) as count
 FROM oauth_clients
@@ -164,6 +173,7 @@ FROM oauth_clients
 **Definition:** Users created today (since midnight local time).
 
 **SQL Query:**
+
 ```sql
 SELECT COUNT(*) as count
 FROM users
@@ -171,6 +181,7 @@ WHERE created_at >= ?
 ```
 
 **Calculation:**
+
 ```typescript
 const todayStart = new Date().setHours(0, 0, 0, 0);
 ```
@@ -180,6 +191,7 @@ const todayStart = new Date().setHours(0, 0, 0, 0);
 **Definition:** Unique users who logged in today (since midnight local time).
 
 **SQL Query:**
+
 ```sql
 SELECT COUNT(*) as count
 FROM users
@@ -195,9 +207,11 @@ WHERE last_login_at >= ?
 ### Activity Types
 
 Currently supported:
+
 - `user_registration` - New user account created
 
 **Future Activity Types (Phase 6):**
+
 - `user_login` - User logged in
 - `client_registration` - New OAuth client registered
 - `token_issued` - Access token issued
@@ -210,6 +224,7 @@ Currently supported:
 The API returns the **last 10 activity entries**.
 
 **SQL Query:**
+
 ```sql
 SELECT id, email, name, created_at
 FROM users
@@ -227,7 +242,7 @@ LIMIT 10
 interface StatCard {
   title: string;
   value: number;
-  change?: string;  // "+12.5%" or "-3.2%"
+  change?: string; // "+12.5%" or "-3.2%"
   icon: string;
 }
 
@@ -235,28 +250,28 @@ const statCards: StatCard[] = [
   {
     title: 'Active Users',
     value: stats.activeUsers,
-    icon: '👥'
+    icon: '👥',
   },
   {
     title: 'Total Users',
     value: stats.totalUsers,
-    icon: '👤'
+    icon: '👤',
   },
   {
     title: 'OAuth Clients',
     value: stats.registeredClients,
-    icon: '🔑'
+    icon: '🔑',
   },
   {
     title: 'New Users Today',
     value: stats.newUsersToday,
-    icon: '✨'
+    icon: '✨',
   },
   {
     title: 'Logins Today',
     value: stats.loginsToday,
-    icon: '🔐'
-  }
+    icon: '🔐',
+  },
 ];
 ```
 
@@ -268,7 +283,7 @@ function ActivityFeed({ activities }: { activities: Activity[] }) {
     <div className="activity-feed">
       <h3>Recent Activity</h3>
       <ul>
-        {activities.map(activity => (
+        {activities.map((activity) => (
           <li key={activity.userId}>
             <div className="activity-icon">👤</div>
             <div className="activity-content">
@@ -314,7 +329,7 @@ async function getCachedStatistics() {
 
   const stats = await computeStatistics();
   await KV_CACHE.put('admin_stats', JSON.stringify(stats), {
-    expirationTtl: CACHE_TTL
+    expirationTtl: CACHE_TTL,
   });
 
   return stats;
@@ -323,14 +338,14 @@ async function getCachedStatistics() {
 
 ### Estimated Query Performance
 
-| Query | Average Time | Notes |
-|-------|--------------|-------|
-| Active Users | < 50ms | Indexed query |
-| Total Users | < 10ms | Simple COUNT(*) |
-| Registered Clients | < 10ms | Simple COUNT(*) |
-| New Users Today | < 30ms | Indexed query |
-| Logins Today | < 30ms | Indexed query |
-| Recent Activity | < 20ms | LIMIT 10 with index |
+| Query              | Average Time | Notes               |
+| ------------------ | ------------ | ------------------- |
+| Active Users       | < 50ms       | Indexed query       |
+| Total Users        | < 10ms       | Simple COUNT(\*)    |
+| Registered Clients | < 10ms       | Simple COUNT(\*)    |
+| New Users Today    | < 30ms       | Indexed query       |
+| Logins Today       | < 30ms       | Indexed query       |
+| Recent Activity    | < 20ms       | LIMIT 10 with index |
 
 **Total API Response Time:** < 150ms (without caching)
 
@@ -341,6 +356,7 @@ async function getCachedStatistics() {
 ### Phase 6: Advanced Statistics
 
 **User Growth Trends:**
+
 ```json
 {
   "userGrowth": {
@@ -362,6 +378,7 @@ async function getCachedStatistics() {
 ```
 
 **Authentication Method Breakdown:**
+
 ```json
 {
   "authMethods": {
@@ -373,6 +390,7 @@ async function getCachedStatistics() {
 ```
 
 **Client Usage Statistics:**
+
 ```json
 {
   "topClients": [
@@ -418,9 +436,9 @@ Authorization: Bearer admin_key_abc123...
 
 ```typescript
 interface AdminPermissions {
-  'stats:read': boolean;        // View statistics
-  'stats:export': boolean;      // Export statistics data
-  'stats:detailed': boolean;    // View detailed breakdowns
+  'stats:read': boolean; // View statistics
+  'stats:export': boolean; // Export statistics data
+  'stats:detailed': boolean; // View detailed breakdowns
 }
 ```
 
@@ -430,9 +448,9 @@ interface AdminPermissions {
 
 Recommended rate limits for statistics endpoint:
 
-| Endpoint | Limit | Period | Unit |
-|----------|-------|--------|------|
-| `GET /admin/stats` | 60 | 1 min | admin token |
+| Endpoint           | Limit | Period | Unit        |
+| ------------------ | ----- | ------ | ----------- |
+| `GET /admin/stats` | 60    | 1 min  | admin token |
 
 Statistics queries are relatively expensive, so rate limiting prevents abuse.
 
@@ -443,6 +461,7 @@ Statistics queries are relatively expensive, so rate limiting prevents abuse.
 **Unit Tests:** `/packages/op-management/src/__tests__/admin.test.ts`
 
 **Manual Testing:**
+
 ```bash
 # Get statistics
 curl "http://localhost:8787/admin/stats"
@@ -461,6 +480,7 @@ curl "http://localhost:8787/admin/stats"
 ```
 
 **Load Testing:**
+
 ```bash
 # Test query performance
 ab -n 1000 -c 10 \
@@ -475,17 +495,20 @@ ab -n 1000 -c 10 \
 ### Key Metrics to Monitor
 
 **Health Indicators:**
+
 - Active user rate (active / total)
 - Daily signup rate
 - Login success rate (Phase 6)
 - Client registration rate
 
 **Alert Thresholds:**
+
 - Active users < 10% of total users (engagement issue)
 - New users today = 0 (signup flow broken)
 - Logins today = 0 (authentication issue)
 
 **Example Monitoring:**
+
 ```typescript
 async function checkHealth() {
   const stats = await getStatistics();
@@ -493,7 +516,10 @@ async function checkHealth() {
   // Alert if engagement is low
   const engagementRate = stats.activeUsers / stats.totalUsers;
   if (engagementRate < 0.1) {
-    sendAlert('Low user engagement', `Only ${(engagementRate * 100).toFixed(1)}% of users are active`);
+    sendAlert(
+      'Low user engagement',
+      `Only ${(engagementRate * 100).toFixed(1)}% of users are active`
+    );
   }
 
   // Alert if no signups today
@@ -520,6 +546,7 @@ Future endpoint for exporting statistics data:
 | `metrics` | string | Comma-separated metrics to include |
 
 **Example:**
+
 ```bash
 curl "https://your-domain.com/admin/stats/export?format=csv&start_date=2025-11-01&end_date=2025-11-30" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \

@@ -7,6 +7,12 @@
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core/types/env';
 import { generateScimToken, revokeScimToken, listScimTokens } from '@authrim/ar-lib-scim';
+import {
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 
 /**
  * Validation constraints for SCIM token creation
@@ -102,13 +108,7 @@ export async function adminScimTokensListHandler(c: Context<{ Bindings: Env }>) 
     });
   } catch (error) {
     console.error('List SCIM tokens error:', error);
-    return c.json(
-      {
-        error: 'internal_server_error',
-        message: 'Failed to list SCIM tokens',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -122,12 +122,11 @@ export async function adminScimTokenCreateHandler(c: Context<{ Bindings: Env }>)
     try {
       body = await c.req.json();
     } catch {
-      return c.json(
-        {
-          error: 'invalid_request',
-          message: 'Invalid JSON in request body',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Invalid JSON in request body'
       );
     }
 
@@ -135,13 +134,11 @@ export async function adminScimTokenCreateHandler(c: Context<{ Bindings: Env }>)
     const validation = validateScimTokenInput(body);
 
     if (!validation.valid) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          message: 'Validation failed',
-          details: validation.errors,
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `Validation failed: ${validation.errors.join(', ')}`
       );
     }
 
@@ -167,13 +164,7 @@ export async function adminScimTokenCreateHandler(c: Context<{ Bindings: Env }>)
     );
   } catch (error) {
     console.error('Create SCIM token error:', error);
-    return c.json(
-      {
-        error: 'internal_server_error',
-        message: 'Failed to create SCIM token',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -185,25 +176,18 @@ export async function adminScimTokenRevokeHandler(c: Context<{ Bindings: Env }>)
     const tokenHash = c.req.param('tokenHash');
 
     if (!tokenHash) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          message: 'Token hash is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Token hash is required'
       );
     }
 
     const success = await revokeScimToken(c.env, tokenHash);
 
     if (!success) {
-      return c.json(
-        {
-          error: 'not_found',
-          message: 'Token not found',
-        },
-        404
-      );
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 404, 'Token not found');
     }
 
     return c.json({
@@ -211,12 +195,6 @@ export async function adminScimTokenRevokeHandler(c: Context<{ Bindings: Env }>)
     });
   } catch (error) {
     console.error('Revoke SCIM token error:', error);
-    return c.json(
-      {
-        error: 'internal_server_error',
-        message: 'Failed to revoke SCIM token',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

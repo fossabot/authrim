@@ -8,11 +8,11 @@ Authrim implements Device Flow, an OAuth 2.0 extension designed for input-constr
 
 ### Specification
 
-| Attribute | Value |
-|-----------|-------|
-| **RFC** | [RFC 8628 - Device Authorization Grant](https://datatracker.ietf.org/doc/html/rfc8628) |
-| **Status** | ✅ Implemented |
-| **Endpoints** | `/device_authorization`, `/device`, `/token` |
+| Attribute     | Value                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------- |
+| **RFC**       | [RFC 8628 - Device Authorization Grant](https://datatracker.ietf.org/doc/html/rfc8628) |
+| **Status**    | ✅ Implemented                                                                         |
+| **Endpoints** | `/device_authorization`, `/device`, `/token`                                           |
 
 ---
 
@@ -47,6 +47,7 @@ Authrim implements Device Flow, an OAuth 2.0 extension designed for input-constr
 **Challenge**: TV remotes have limited input capabilities. Entering complex passwords character-by-character is poor UX and leads to abandoned logins.
 
 **Device Flow Solution**:
+
 ```typescript
 // Smart TV app initiates device flow
 const response = await fetch('https://streaming.authrim.com/device_authorization', {
@@ -54,8 +55,8 @@ const response = await fetch('https://streaming.authrim.com/device_authorization
   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   body: new URLSearchParams({
     client_id: 'smart_tv_app',
-    scope: 'openid profile streaming:watch'
-  })
+    scope: 'openid profile streaming:watch',
+  }),
 });
 
 const { device_code, user_code, verification_uri_complete, interval } = await response.json();
@@ -83,6 +84,7 @@ const { device_code, user_code, verification_uri_complete, interval } = await re
 **Challenge**: CLI tools run in terminals without browsers. Storing credentials in config files is insecure. OAuth typically requires a browser redirect, which CLI tools can't handle easily.
 
 **Device Flow Solution**:
+
 ```bash
 $ mycloud-cli login
 
@@ -107,6 +109,7 @@ Enter code: WDJB-MJHT
 ```
 
 **Implementation**:
+
 ```python
 import qrcode
 
@@ -146,21 +149,22 @@ def cli_login():
 **Challenge**: IoT devices often lack displays and input capabilities entirely. Users need to link devices to their accounts securely without typing on the device.
 
 **Device Flow Solution**:
+
 ```javascript
 // Camera firmware initiates device flow
 const deviceAuth = await fetch('https://smarthome.authrim.com/device_authorization', {
   method: 'POST',
   body: new URLSearchParams({
     client_id: 'security_camera_v2',
-    scope: 'device:register camera:upload'
-  })
+    scope: 'device:register camera:upload',
+  }),
 });
 
 const { device_code, user_code, interval } = await deviceAuth.json();
 
 // Camera blinks LED pattern representing the code
 // Or displays code on companion mobile app via Bluetooth
-blinkUserCode(user_code);  // e.g., "W-D-J-B" in LED blinks
+blinkUserCode(user_code); // e.g., "W-D-J-B" in LED blinks
 
 // User enters code in mobile app or website
 // Camera polls until authorized
@@ -171,6 +175,7 @@ await registerDevice(tokens.access_token);
 ```
 
 **Mobile App Flow**:
+
 ```
 ┌─────────────────────────────────────────────┐
 │ Add New Device                               │
@@ -224,12 +229,13 @@ sequenceDiagram
 
 **POST /device_authorization**
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `client_id` | ✅ Yes | Client identifier |
-| `scope` | ✅ Yes | Requested scopes |
+| Parameter   | Required | Description       |
+| ----------- | -------- | ----------------- |
+| `client_id` | ✅ Yes   | Client identifier |
+| `scope`     | ✅ Yes   | Requested scopes  |
 
 **Success Response** (200 OK):
+
 ```json
 {
   "device_code": "4c9a8e6f-b2d1-4a7c-9e3f-1d2b4a7c9e3f",
@@ -258,13 +264,13 @@ grant_type=urn:ietf:params:oauth:grant-type:device_code
 
 **Response States**:
 
-| State | Error | Action |
-|-------|-------|--------|
-| Pending | `authorization_pending` | Keep polling |
-| Too fast | `slow_down` | Increase interval by 5s |
-| Denied | `access_denied` | Stop, show error |
-| Expired | `expired_token` | Start over |
-| Success | - | Tokens returned |
+| State    | Error                   | Action                  |
+| -------- | ----------------------- | ----------------------- |
+| Pending  | `authorization_pending` | Keep polling            |
+| Too fast | `slow_down`             | Increase interval by 5s |
+| Denied   | `access_denied`         | Stop, show error        |
+| Expired  | `expired_token`         | Start over              |
+| Success  | -                       | Tokens returned         |
 
 ---
 
@@ -278,7 +284,7 @@ async function deviceLogin(clientId: string, scope: string) {
   const authResponse = await fetch('/device_authorization', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: clientId, scope })
+    body: new URLSearchParams({ client_id: clientId, scope }),
   });
 
   const { device_code, user_code, verification_uri_complete, interval, expires_in } =
@@ -288,11 +294,11 @@ async function deviceLogin(clientId: string, scope: string) {
   console.log(`Code: ${user_code}`);
 
   // Step 2: Poll for authorization
-  const deadline = Date.now() + (expires_in * 1000);
+  const deadline = Date.now() + expires_in * 1000;
   let pollInterval = interval * 1000;
 
   while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, pollInterval));
+    await new Promise((r) => setTimeout(r, pollInterval));
 
     const tokenResponse = await fetch('/token', {
       method: 'POST',
@@ -300,8 +306,8 @@ async function deviceLogin(clientId: string, scope: string) {
       body: new URLSearchParams({
         grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
         device_code,
-        client_id: clientId
-      })
+        client_id: clientId,
+      }),
     });
 
     if (tokenResponse.ok) {
@@ -326,12 +332,12 @@ async function deviceLogin(clientId: string, scope: string) {
 
 ### Device Code Security
 
-| Requirement | Implementation |
-|-------------|----------------|
-| Entropy | UUID v4 (122 bits) |
-| Expiration | 10 minutes default |
-| Single-use | Deleted after token issuance |
-| Rate limiting | 5-second polling interval |
+| Requirement   | Implementation               |
+| ------------- | ---------------------------- |
+| Entropy       | UUID v4 (122 bits)           |
+| Expiration    | 10 minutes default           |
+| Single-use    | Deleted after token issuance |
+| Rate limiting | 5-second polling interval    |
 
 ### User Code Design
 
@@ -354,10 +360,10 @@ async function deviceLogin(clientId: string, scope: string) {
 
 ### Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `device_code_expiry` | `600` | Device code lifetime (10 min) |
-| `polling_interval` | `5` | Minimum polling interval (seconds) |
+| Setting              | Default | Description                        |
+| -------------------- | ------- | ---------------------------------- |
+| `device_code_expiry` | `600`   | Device code lifetime (10 min)      |
+| `polling_interval`   | `5`     | Minimum polling interval (seconds) |
 
 ---
 
@@ -365,14 +371,14 @@ async function deviceLogin(clientId: string, scope: string) {
 
 ### Test Scenarios
 
-| Scenario | Expected Result |
-|----------|-----------------|
+| Scenario                  | Expected Result                 |
+| ------------------------- | ------------------------------- |
 | Valid device auth request | 200 with device_code, user_code |
-| Poll before user approval | 400 authorization_pending |
-| Poll too fast | 400 slow_down |
-| User approves | 200 with tokens |
-| User denies | 400 access_denied |
-| Code expires | 400 expired_token |
+| Poll before user approval | 400 authorization_pending       |
+| Poll too fast             | 400 slow_down                   |
+| User approves             | 200 with tokens                 |
+| User denies               | 400 access_denied               |
+| Code expires              | 400 expired_token               |
 
 ### Running Tests
 

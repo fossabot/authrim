@@ -17,20 +17,22 @@ This document analyzes Authrim's current implementation to evaluate the feasibil
 ## Executive Summary
 
 ### Question
+
 Can Authrim dynamically adjust shard counts without service disruption?
 
 ### Answer: ✅ **Yes, technically feasible**
 
 Authrim's current implementation fully supports dynamic shard adjustment through:
 
-| Feature | Status | Impact |
-|---------|--------|--------|
-| Generation Management | ✅ Implemented | Non-destructive shard changes |
-| Short-lived Auth Codes | ✅ Implemented | Natural migration (60s TTL) |
-| Family-level Revoke | ✅ Implemented | Cross-generation token management |
+| Feature                 | Status         | Impact                            |
+| ----------------------- | -------------- | --------------------------------- |
+| Generation Management   | ✅ Implemented | Non-destructive shard changes     |
+| Short-lived Auth Codes  | ✅ Implemented | Natural migration (60s TTL)       |
+| Family-level Revoke     | ✅ Implemented | Cross-generation token management |
 | JTI-embedded Generation | ✅ Implemented | Accurate routing to legacy shards |
 
 **Current Capability:**
+
 ```bash
 # Change shard count without deployment
 PUT /api/admin/settings/refresh-token-sharding
@@ -57,9 +59,10 @@ Example: v2_7_rt_abc123-def456
 
 ```typescript
 interface RefreshTokenShardConfig {
-  currentGeneration: number;        // Current active generation
-  currentShardCount: number;        // Shard count for new tokens
-  previousGenerations: Array<{      // Historical configurations
+  currentGeneration: number; // Current active generation
+  currentShardCount: number; // Shard count for new tokens
+  previousGenerations: Array<{
+    // Historical configurations
     generation: number;
     shardCount: number;
     deprecatedAt: number;
@@ -70,18 +73,19 @@ interface RefreshTokenShardConfig {
 ```
 
 **Storage:**
+
 - **KV (Primary):** `refresh-token-shards:{clientId}` or `refresh-token-shards:__global__`
 - **D1 (Audit):** `refresh_token_shard_configs` table for change history
 
 #### Key Implementation Points
 
-| Component | File | Line | Description |
-|-----------|------|------|-------------|
-| Generation field | RefreshTokenRotator.ts | L119-121 | Private generation/shardIndex properties |
-| JTI parsing | refresh-token-sharding.ts | L105-144 | `parseRefreshTokenJti()` extracts gen/shard |
-| JTI creation | refresh-token-sharding.ts | L145-160 | `createRefreshTokenJti()` embeds gen/shard |
-| Gen bump | refresh-token-sharding.ts | L430-454 | `createNewGeneration()` for shard changes |
-| Config cache | refresh-token-sharding.ts | L328-383 | 3-tier caching (Memory→KV→Default) |
+| Component        | File                      | Line     | Description                                 |
+| ---------------- | ------------------------- | -------- | ------------------------------------------- |
+| Generation field | RefreshTokenRotator.ts    | L119-121 | Private generation/shardIndex properties    |
+| JTI parsing      | refresh-token-sharding.ts | L105-144 | `parseRefreshTokenJti()` extracts gen/shard |
+| JTI creation     | refresh-token-sharding.ts | L145-160 | `createRefreshTokenJti()` embeds gen/shard  |
+| Gen bump         | refresh-token-sharding.ts | L430-454 | `createNewGeneration()` for shard changes   |
+| Config cache     | refresh-token-sharding.ts | L328-383 | 3-tier caching (Memory→KV→Default)          |
 
 ### 2. Authorization Code: ✅ Fully Implemented
 
@@ -89,10 +93,10 @@ Auth Codes are designed with short TTL, enabling natural migration during shard 
 
 #### TTL Configuration
 
-| Setting | Default | Min | Max | Override Key |
-|---------|---------|-----|-----|--------------|
-| AUTH_CODE_TTL | 60s | 10s | 86400s | `oauth:config:AUTH_CODE_TTL` |
-| CLEANUP_INTERVAL | 30s | - | - | `AUTH_CODE_CLEANUP_INTERVAL` |
+| Setting          | Default | Min | Max    | Override Key                 |
+| ---------------- | ------- | --- | ------ | ---------------------------- |
+| AUTH_CODE_TTL    | 60s     | 10s | 86400s | `oauth:config:AUTH_CODE_TTL` |
+| CLEANUP_INTERVAL | 30s     | -   | -      | `AUTH_CODE_CLEANUP_INTERVAL` |
 
 #### Shard Remapping
 
@@ -100,15 +104,13 @@ When shard count changes, existing auth codes are automatically remapped:
 
 ```typescript
 // tenant-context.ts L209-214
-export function remapShardIndex(
-  parsedShardIndex: number,
-  currentShardCount: number
-): number {
+export function remapShardIndex(parsedShardIndex: number, currentShardCount: number): number {
   return parsedShardIndex % currentShardCount;
 }
 ```
 
 **Example: 64→32 shard reduction**
+
 ```
 Shard 0-31:  No change (0-31 % 32 = 0-31)
 Shard 32-63: Remapped (32 % 32 = 0, 33 % 32 = 1, ..., 63 % 32 = 31)
@@ -130,12 +132,12 @@ Token families can be revoked across generations, ensuring security during shard
 
 #### Revoke Capabilities
 
-| Scope | Method | File |
-|-------|--------|------|
-| Single family | `revokeFamily(userId)` | RefreshTokenRotator.ts L455-476 |
-| By JTI | `revokeByJti(jti)` | RefreshTokenRotator.ts L490-514 |
-| Batch | `batchRevoke(jtis)` | RefreshTokenRotator.ts L524-567 |
-| User-wide | `revokeAllUserRefreshTokens()` | refresh-token-sharding.ts L270-400 |
+| Scope         | Method                         | File                               |
+| ------------- | ------------------------------ | ---------------------------------- |
+| Single family | `revokeFamily(userId)`         | RefreshTokenRotator.ts L455-476    |
+| By JTI        | `revokeByJti(jti)`             | RefreshTokenRotator.ts L490-514    |
+| Batch         | `batchRevoke(jtis)`            | RefreshTokenRotator.ts L524-567    |
+| User-wide     | `revokeAllUserRefreshTokens()` | refresh-token-sharding.ts L270-400 |
 
 #### Cross-Generation Revoke Flow
 
@@ -243,6 +245,7 @@ curl -X PUT https://api.authrim.com/api/admin/settings/refresh-token-sharding \
 ```
 
 **What Happens:**
+
 1. New generation created (gen N+1)
 2. Current config moved to `previousGenerations`
 3. KV updated immediately
@@ -252,23 +255,23 @@ curl -X PUT https://api.authrim.com/api/admin/settings/refresh-token-sharding \
 
 ### Why It's Safe
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                  | Mitigation                                     |
+| --------------------- | ---------------------------------------------- |
 | Existing tokens break | JTI contains generation → routes to correct DO |
-| Revoke fails | Family-level revoke works across generations |
-| Auth codes fail | Short TTL (60s) + modulo remapping |
-| Data loss | Previous generations preserved (up to 5) |
-| Rollback needed | Can restore from `previousGenerations` |
+| Revoke fails          | Family-level revoke works across generations   |
+| Auth codes fail       | Short TTL (60s) + modulo remapping             |
+| Data loss             | Previous generations preserved (up to 5)       |
+| Rollback needed       | Can restore from `previousGenerations`         |
 
 ### Shard Change Impact Matrix
 
-| Component | Impact | Migration Time |
-|-----------|--------|----------------|
+| Component          | Impact                    | Migration Time               |
+| ------------------ | ------------------------- | ---------------------------- |
 | **Refresh Tokens** | None (generation routing) | Gradual (RT expiry: 30 days) |
-| **Auth Codes** | Minimal (modulo remap) | Fast (TTL: 60 seconds) |
-| **Sessions** | None (separate DO) | N/A |
-| **Device Codes** | None (separate DO) | N/A |
-| **CIBA Requests** | None (separate DO) | N/A |
+| **Auth Codes**     | Minimal (modulo remap)    | Fast (TTL: 60 seconds)       |
+| **Sessions**       | None (separate DO)        | N/A                          |
+| **Device Codes**   | None (separate DO)        | N/A                          |
+| **CIBA Requests**  | None (separate DO)        | N/A                          |
 
 ---
 
@@ -313,12 +316,12 @@ flowchart TB
 
 ### Metrics to Monitor
 
-| Metric | Source | Threshold (Example) | Action |
-|--------|--------|---------------------|--------|
-| DO WallTime p99 | CF Analytics | > 300ms | Scale Up |
-| Lock Timeout Rate | DO Logs | > 0.5% | Scale Up |
-| KV Cache Hit Rate | KV Analytics | < 75% | Scale Down |
-| RT Rotation Failures | Audit Logs | > 0.1% | Alert |
+| Metric               | Source       | Threshold (Example) | Action     |
+| -------------------- | ------------ | ------------------- | ---------- |
+| DO WallTime p99      | CF Analytics | > 300ms             | Scale Up   |
+| Lock Timeout Rate    | DO Logs      | > 0.5%              | Scale Up   |
+| KV Cache Hit Rate    | KV Analytics | < 75%               | Scale Down |
+| RT Rotation Failures | Audit Logs   | > 0.1%              | Alert      |
 
 ### Decision Algorithm (Pseudocode)
 
@@ -358,14 +361,14 @@ def apply_scaling(action):
 
 ### Safety Mechanisms
 
-| Mechanism | Description |
-|-----------|-------------|
-| **Hysteresis** | Minimum 30-minute interval between changes |
-| **Bounds** | MIN_SHARDS=4, MAX_SHARDS=128 |
-| **Canary** | Apply to specific client first |
-| **Rollback** | Auto-revert if error rate spikes |
-| **Audit Trail** | All changes logged to D1 |
-| **Manual Override** | Disable auto-scaling per client |
+| Mechanism           | Description                                |
+| ------------------- | ------------------------------------------ |
+| **Hysteresis**      | Minimum 30-minute interval between changes |
+| **Bounds**          | MIN_SHARDS=4, MAX_SHARDS=128               |
+| **Canary**          | Apply to specific client first             |
+| **Rollback**        | Auto-revert if error rate spikes           |
+| **Audit Trail**     | All changes logged to D1                   |
+| **Manual Override** | Disable auto-scaling per client            |
 
 ---
 
@@ -373,12 +376,12 @@ def apply_scaling(action):
 
 ### Current Limitations
 
-| Limitation | Description | Workaround |
-|------------|-------------|------------|
-| **5 Generation Limit** | Only 5 previous generations kept | Cleanup old generations regularly |
-| **No Auto-Scaling** | Manual trigger required | Future enhancement |
-| **Cache Delay** | 10s before changes propagate | Acceptable for most use cases |
-| **Client-Specific Only** | Per-client config, no global auto-tune | Use `__global__` key for default |
+| Limitation               | Description                            | Workaround                        |
+| ------------------------ | -------------------------------------- | --------------------------------- |
+| **5 Generation Limit**   | Only 5 previous generations kept       | Cleanup old generations regularly |
+| **No Auto-Scaling**      | Manual trigger required                | Future enhancement                |
+| **Cache Delay**          | 10s before changes propagate           | Acceptable for most use cases     |
+| **Client-Specific Only** | Per-client config, no global auto-tune | Use `__global__` key for default  |
 
 ### When NOT to Change Shards
 
@@ -410,32 +413,32 @@ Example:
 
 ### Core Implementation
 
-| File | Purpose |
-|------|---------|
-| `packages/shared/src/utils/refresh-token-sharding.ts` | Sharding utilities, config management |
-| `packages/shared/src/durable-objects/RefreshTokenRotator.ts` | Token family management, rotation |
-| `packages/shared/src/utils/tenant-context.ts` | Shard calculation, instance naming |
-| `packages/op-management/src/routes/settings/refresh-token-sharding.ts` | Admin API for shard management |
+| File                                                                   | Purpose                               |
+| ---------------------------------------------------------------------- | ------------------------------------- |
+| `packages/shared/src/utils/refresh-token-sharding.ts`                  | Sharding utilities, config management |
+| `packages/shared/src/durable-objects/RefreshTokenRotator.ts`           | Token family management, rotation     |
+| `packages/shared/src/utils/tenant-context.ts`                          | Shard calculation, instance naming    |
+| `packages/op-management/src/routes/settings/refresh-token-sharding.ts` | Admin API for shard management        |
 
 ### Auth Code Related
 
-| File | Purpose |
-|------|---------|
-| `packages/shared/src/durable-objects/AuthorizationCodeStore.ts` | Code storage, TTL, cleanup |
-| `packages/op-auth/src/authorize.ts` | Code generation with sharding |
-| `packages/op-token/src/token.ts` | Code validation with remap |
+| File                                                            | Purpose                       |
+| --------------------------------------------------------------- | ----------------------------- |
+| `packages/shared/src/durable-objects/AuthorizationCodeStore.ts` | Code storage, TTL, cleanup    |
+| `packages/op-auth/src/authorize.ts`                             | Code generation with sharding |
+| `packages/op-token/src/token.ts`                                | Code validation with remap    |
 
 ### Configuration
 
-| File | Purpose |
-|------|---------|
-| `packages/shared/src/utils/oauth-config.ts` | TTL and config management |
-| `packages/shared/src/types/env.ts` | Environment variable types |
+| File                                        | Purpose                    |
+| ------------------------------------------- | -------------------------- |
+| `packages/shared/src/utils/oauth-config.ts` | TTL and config management  |
+| `packages/shared/src/types/env.ts`          | Environment variable types |
 
 ### Database Schema
 
-| Migration | Tables |
-|-----------|--------|
+| Migration                        | Tables                                               |
+| -------------------------------- | ---------------------------------------------------- |
 | `021_refresh_token_sharding.sql` | `user_token_families`, `refresh_token_shard_configs` |
 
 ---

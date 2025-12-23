@@ -22,6 +22,10 @@ import {
   generateId,
   createAuthContextFromHono,
   createPIIContextFromHono,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import { ResendEmailProvider } from './utils/email/resend-provider';
 import { getEmailCodeHtml, getEmailCodeText } from './utils/email/templates';
@@ -49,24 +53,17 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
     const { email, name } = body;
 
     if (!email) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Email is required',
-        },
-        400
-      );
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Email is required');
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Invalid email format',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Invalid email format'
       );
     }
 
@@ -80,14 +77,9 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
     });
 
     if (!rateLimitResult.allowed) {
-      return c.json(
-        {
-          error: 'rate_limit_exceeded',
-          error_description: 'Too many code requests. Please try again later.',
-          retry_after: rateLimitResult.retryAfter,
-        },
-        429
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.RATE_LIMIT_EXCEEDED, {
+        variables: { retry_after: rateLimitResult.retryAfter },
+      });
     }
 
     // Check if user exists, if not create a new user via Repository
@@ -257,13 +249,7 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
     if (!emailResult.success) {
       // PII Protection: Don't log full error (may contain email details)
       console.error('Failed to send email code');
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to send verification code',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     return c.json({
@@ -274,13 +260,7 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
   } catch (error) {
     // PII Protection: Don't log full error (may contain email/user data)
     console.error('Email code send error:', error instanceof Error ? error.name : 'Unknown error');
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to send verification code',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -298,37 +278,24 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
     const { code, email } = body;
 
     if (!code || !email) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Code and email are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Code and email are required'
       );
     }
 
     // Validate code format (6 digits)
     if (!/^\d{6}$/.test(code)) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Invalid code format',
-        },
-        400
-      );
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Invalid code format');
     }
 
     // Get OTP session ID from cookie
     const otpSessionId = getCookie(c, OTP_SESSION_COOKIE);
 
     if (!otpSessionId) {
-      return c.json(
-        {
-          error: 'invalid_session',
-          error_description: 'Session expired or invalid. Please request a new code.',
-        },
-        400
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_SESSION_EXPIRED);
     }
 
     // Get challenge from ChallengeStore (RPC)
@@ -358,34 +325,26 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       // Map specific errors to appropriate responses
       if (errorMessage.includes('not found') || errorMessage.includes('expired')) {
-        return c.json({ error: 'invalid_code', error_description: 'Invalid or expired code' }, 400);
+        return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
       }
       if (errorMessage.includes('already consumed')) {
-        return c.json(
-          { error: 'invalid_code', error_description: 'Code has already been used' },
-          400
-        );
+        // Security: Generic message to prevent confirming code existence/state
+        return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
       }
       // PII Protection: Don't log full error
       console.error(
         'Challenge store error:',
         error instanceof Error ? error.name : 'Unknown error'
       );
-      return c.json({ error: 'server_error', error_description: 'Failed to verify code' }, 500);
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     // Verify session binding and email match
     if (challengeData.metadata?.otp_session_id !== otpSessionId) {
-      return c.json(
-        {
-          error: 'session_mismatch',
-          error_description: 'Session mismatch. Please request a new code.',
-        },
-        400
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.SESSION_INVALID_STATE);
     }
     if (challengeData.email?.toLowerCase() !== email.toLowerCase()) {
-      return c.json({ error: 'invalid_code', error_description: 'Invalid code' }, 400);
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
     }
 
     // Parallel: Verify code hash AND fetch user details from both DBs (independent operations)
@@ -412,11 +371,11 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
     ]);
 
     if (!isValidCode) {
-      return c.json({ error: 'invalid_code', error_description: 'Invalid or expired code' }, 400);
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
     }
 
     if (!userCore || !userCore.is_active) {
-      return c.json({ error: 'invalid_request', error_description: 'User not found' }, 400);
+      return createErrorResponse(c, AR_ERROR_CODES.USER_INVALID_CREDENTIALS);
     }
 
     // Merge Core and PII data
@@ -453,13 +412,7 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
         'Failed to create session:',
         error instanceof Error ? error.name : 'Unknown error'
       );
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to create session. Please try again.',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.SESSION_STORE_ERROR);
     }
 
     // Update user's email_verified and last_login_at in Core DB (fire-and-forget)
@@ -512,12 +465,6 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
       'Email code verify error:',
       error instanceof Error ? error.name : 'Unknown error'
     );
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to verify code',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

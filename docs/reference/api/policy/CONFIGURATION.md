@@ -20,15 +20,15 @@ Authrim's policy system uses a **hybrid configuration approach**:
 
 ### Available Flags
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `ENABLE_ABAC` | `false` | Enable Attribute-Based Access Control |
-| `ENABLE_REBAC` | `false` | Enable Relationship-Based Access Control |
-| `ENABLE_POLICY_LOGGING` | `false` | Enable detailed policy evaluation logging |
-| `ENABLE_VERIFIED_ATTRIBUTES` | `false` | Enable verified attributes checking |
-| `ENABLE_CUSTOM_RULES` | `true` | Enable custom policy rules |
-| `ENABLE_SD_JWT` | `false` | Enable Selective Disclosure JWT |
-| `ENABLE_POLICY_EMBEDDING` | `false` | Enable permission embedding in Access Token |
+| Flag                         | Default | Description                                 |
+| ---------------------------- | ------- | ------------------------------------------- |
+| `ENABLE_ABAC`                | `false` | Enable Attribute-Based Access Control       |
+| `ENABLE_REBAC`               | `false` | Enable Relationship-Based Access Control    |
+| `ENABLE_POLICY_LOGGING`      | `false` | Enable detailed policy evaluation logging   |
+| `ENABLE_VERIFIED_ATTRIBUTES` | `false` | Enable verified attributes checking         |
+| `ENABLE_CUSTOM_RULES`        | `true`  | Enable custom policy rules                  |
+| `ENABLE_SD_JWT`              | `false` | Enable Selective Disclosure JWT             |
+| `ENABLE_POLICY_EMBEDDING`    | `false` | Enable permission embedding in Access Token |
 
 ### Flag Behavior
 
@@ -100,6 +100,7 @@ wrangler kv:key delete --namespace-id=<SETTINGS_KV_ID> \
 Navigate to `/admin/policy` in the Admin Dashboard.
 
 #### Features:
+
 - Toggle Feature Flags on/off
 - Configure Token Claims
 - View current settings with their sources (KV/Env/Default)
@@ -117,6 +118,7 @@ curl -X GET https://your-domain.com/api/admin/settings \
 ```
 
 **Response:**
+
 ```json
 {
   "settings": {
@@ -165,6 +167,7 @@ curl -X GET https://your-domain.com/policy/flags \
 ```
 
 **Response:**
+
 ```json
 {
   "flags": {
@@ -198,44 +201,47 @@ curl -X DELETE https://your-domain.com/policy/flags/ENABLE_POLICY_EMBEDDING \
 
 ### ID Token Claims
 
-| Key | Description |
-|-----|-------------|
-| `roles` | User's effective role names |
-| `scoped_roles` | Roles with scope information |
-| `user_type` | User type classification |
-| `org_id` | Primary organization ID |
-| `org_name` | Organization name |
-| `plan` | Subscription plan |
-| `org_type` | Organization type |
-| `orgs` | All user's organizations |
-| `relationships_summary` | Relationship summary |
+| Key                     | Description                  |
+| ----------------------- | ---------------------------- |
+| `roles`                 | User's effective role names  |
+| `scoped_roles`          | Roles with scope information |
+| `user_type`             | User type classification     |
+| `org_id`                | Primary organization ID      |
+| `org_name`              | Organization name            |
+| `plan`                  | Subscription plan            |
+| `org_type`              | Organization type            |
+| `orgs`                  | All user's organizations     |
+| `relationships_summary` | Relationship summary         |
 
 ### Access Token Claims
 
-| Key | Description |
-|-----|-------------|
-| `roles` | User's effective role names |
-| `scoped_roles` | Roles with scope information |
-| `org_id` | Primary organization ID |
-| `org_type` | Organization type |
-| `permissions` | Evaluated permissions (requires `ENABLE_POLICY_EMBEDDING`) |
-| `org_context` | Acting organization context |
+| Key            | Description                                                |
+| -------------- | ---------------------------------------------------------- |
+| `roles`        | User's effective role names                                |
+| `scoped_roles` | Roles with scope information                               |
+| `org_id`       | Primary organization ID                                    |
+| `org_type`     | Organization type                                          |
+| `permissions`  | Evaluated permissions (requires `ENABLE_POLICY_EMBEDDING`) |
+| `org_context`  | Acting organization context                                |
 
 ### Configuration Examples
 
 **Minimal (Default):**
+
 ```toml
 RBAC_ID_TOKEN_CLAIMS = "roles,user_type,org_id,plan,org_type"
 RBAC_ACCESS_TOKEN_CLAIMS = "roles,org_id,org_type"
 ```
 
 **Full Claims:**
+
 ```toml
 RBAC_ID_TOKEN_CLAIMS = "roles,scoped_roles,user_type,org_id,org_name,plan,org_type,orgs,relationships_summary"
 RBAC_ACCESS_TOKEN_CLAIMS = "roles,scoped_roles,org_id,org_type,permissions,org_context"
 ```
 
 **Permission-focused:**
+
 ```toml
 RBAC_ID_TOKEN_CLAIMS = "roles,org_id"
 RBAC_ACCESS_TOKEN_CLAIMS = "permissions"  # Requires ENABLE_POLICY_EMBEDDING=true
@@ -247,11 +253,11 @@ RBAC_ACCESS_TOKEN_CLAIMS = "permissions"  # Requires ENABLE_POLICY_EMBEDDING=tru
 
 ### Required KV Namespaces
 
-| Binding Name | Purpose |
-|--------------|---------|
-| `SETTINGS` | System settings storage |
+| Binding Name      | Purpose                                           |
+| ----------------- | ------------------------------------------------- |
+| `SETTINGS`        | System settings storage                           |
 | `POLICY_FLAGS_KV` | Policy feature flags (optional, can use SETTINGS) |
-| `REBAC_CACHE` | RBAC claims cache |
+| `REBAC_CACHE`     | RBAC claims cache                                 |
 
 ### Wrangler Configuration
 
@@ -273,12 +279,14 @@ id = "your-rebac-cache-kv-id"
 ### Safe to Enable
 
 These flags don't affect OIDC conformance:
+
 - `ENABLE_POLICY_LOGGING`
 - `ENABLE_CUSTOM_RULES`
 
 ### Use with Caution
 
 These flags add custom claims (use `authrim_` prefix, so technically safe):
+
 - `ENABLE_POLICY_EMBEDDING` - Adds `authrim_permissions` to Access Token
 - `ENABLE_SD_JWT` - Changes ID Token format
 
@@ -308,6 +316,7 @@ These flags add custom claims (use `authrim_` prefix, so technically safe):
 ### Cache Issues
 
 Clear cache by calling:
+
 ```bash
 # Policy Service restart clears in-memory cache
 # Or wait for 60-second TTL to expire

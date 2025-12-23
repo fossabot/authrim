@@ -19,6 +19,10 @@ import {
   generateId,
   D1Adapter,
   type DatabaseAdapter,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import type { UserCore, UserPII } from '@authrim/ar-lib-core';
 
@@ -220,13 +224,7 @@ export async function serveAvatarHandler(c: Context<{ Bindings: Env }>) {
     const object = await c.env.AVATARS.get(filePath);
 
     if (!object) {
-      return c.json(
-        {
-          error: 'not_found',
-          error_description: 'Avatar not found',
-        },
-        404
-      );
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 404, 'Avatar not found');
     }
 
     // Return the image with proper headers
@@ -240,13 +238,7 @@ export async function serveAvatarHandler(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     logSanitizedError('Serve avatar error', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to serve avatar',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -375,14 +367,7 @@ export async function adminStatsHandler(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     logSanitizedError('Admin stats error', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to retrieve statistics',
-        ...getErrorDetailsForResponse(error, c.env),
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -571,14 +556,7 @@ export async function adminUsersListHandler(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     logSanitizedError('Admin users list error', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to retrieve users',
-        ...getErrorDetailsForResponse(error, c.env),
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -603,7 +581,7 @@ export async function adminUserGetHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -753,10 +731,11 @@ export async function adminUserCreateHandler(c: Context<{ Bindings: Env }>) {
       const emailExists = await piiCtx.piiRepositories.userPII.emailExists(tenantId, email);
 
       if (emailExists) {
+        // Security: Generic message to prevent email enumeration
         return c.json(
           {
             error: 'conflict',
-            error_description: 'User with this email already exists',
+            error_description: 'Unable to create user with the provided information',
           },
           409
         );
@@ -892,7 +871,7 @@ export async function adminUserUpdateHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1032,7 +1011,7 @@ export async function adminUserDeleteHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1122,7 +1101,7 @@ export async function adminUserRetryPiiHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1287,7 +1266,7 @@ export async function adminUserDeletePiiHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1613,7 +1592,7 @@ export async function adminClientGetHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Client not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1669,7 +1648,7 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Client not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1771,7 +1750,7 @@ export async function adminClientDeleteHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Client not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1895,7 +1874,7 @@ export async function adminUserAvatarUploadHandler(c: Context<{ Bindings: Env }>
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -2001,7 +1980,7 @@ export async function adminUserAvatarDeleteHandler(c: Context<{ Bindings: Env }>
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -2374,7 +2353,7 @@ export async function adminUserRevokeAllSessionsHandler(c: Context<{ Bindings: E
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -3266,7 +3245,7 @@ export async function adminTestSessionCreateHandler(c: Context<{ Bindings: Env }
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );

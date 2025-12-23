@@ -521,7 +521,8 @@ export class RefreshTokenRotator extends DurableObject<Env> {
       const requestedScopes = request.requestedScope.split(' ');
       for (const scope of requestedScopes) {
         if (!allowedScopes.has(scope)) {
-          throw new Error(`invalid_scope: Scope '${scope}' not allowed`);
+          // SECURITY: Do not expose scope name in error to prevent scope enumeration
+          throw new Error('invalid_scope: Requested scope is not allowed');
         }
       }
     }
@@ -888,13 +889,25 @@ export class RefreshTokenRotator extends DurableObject<Env> {
             headers: { 'Content-Type': 'application/json' },
           });
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          const isTheft = message.includes('theft detected');
+          console.error('[RefreshTokenRotator] rotateToken error:', error);
+          const message = error instanceof Error ? error.message : '';
+          const isTheft = message.includes('theft detected') || message.includes('theft');
+
+          // SECURITY: Use generic error descriptions
+          let errorDescription = 'Refresh token is invalid or expired';
+
+          if (isTheft || message.includes('revoked')) {
+            errorDescription = 'Refresh token has been revoked';
+          } else if (message.includes('version mismatch')) {
+            errorDescription = 'Refresh token version mismatch';
+          } else if (message.includes('expired')) {
+            errorDescription = 'Refresh token has expired';
+          }
 
           return new Response(
             JSON.stringify({
               error: 'invalid_grant',
-              error_description: message.replace('invalid_grant: ', ''),
+              error_description: errorDescription,
               ...(isTheft && { action: 'family_revoked' }),
             }),
             { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -1043,11 +1056,13 @@ export class RefreshTokenRotator extends DurableObject<Env> {
 
       return new Response('Not Found', { status: 404 });
     } catch (error) {
+      // Log full error for debugging but don't expose to client
       console.error('RefreshTokenRotator error:', error);
+      // SECURITY: Do not expose internal error details in response
       return new Response(
         JSON.stringify({
           error: 'server_error',
-          error_description: error instanceof Error ? error.message : 'Internal Server Error',
+          error_description: 'Internal server error',
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );

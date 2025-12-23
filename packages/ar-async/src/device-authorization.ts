@@ -12,6 +12,10 @@ import {
   getVerificationUriComplete,
   DEVICE_FLOW_CONSTANTS,
   getClient,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -29,12 +33,11 @@ export async function deviceAuthorizationHandler(c: Context<{ Bindings: Env }>) 
 
     // Validate client_id
     if (!client_id) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'client_id is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'client_id is required'
       );
     }
 
@@ -43,24 +46,22 @@ export async function deviceAuthorizationHandler(c: Context<{ Bindings: Env }>) 
     // but we MUST verify the client is registered
     const clientMetadata = await getClient(c.env, client_id);
     if (!clientMetadata) {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Client not found or not registered',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_CLIENT,
+        401,
+        'Client authentication failed'
       );
     }
 
     // Verify client is authorized to use device flow grant type
     const grantTypes = clientMetadata.grant_types as string[] | undefined;
     if (grantTypes && !grantTypes.includes('urn:ietf:params:oauth:grant-type:device_code')) {
-      return c.json(
-        {
-          error: 'unauthorized_client',
-          error_description: 'Client is not authorized to use device flow',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.UNAUTHORIZED_CLIENT,
+        400,
+        'Client is not authorized to use device flow'
       );
     }
 
@@ -100,13 +101,7 @@ export async function deviceAuthorizationHandler(c: Context<{ Bindings: Env }>) 
     if (!storeResponse.ok) {
       const error = await storeResponse.json();
       console.error('DeviceCodeStore error:', error);
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to store device code',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     // Build verification URIs
@@ -130,12 +125,6 @@ export async function deviceAuthorizationHandler(c: Context<{ Bindings: Env }>) 
     );
   } catch (error) {
     console.error('Device authorization error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

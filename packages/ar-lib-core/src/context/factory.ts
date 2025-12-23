@@ -35,6 +35,7 @@ import {
   SessionRepository,
   PasskeyRepository,
   RoleRepository,
+  SessionClientRepository,
 } from '../repositories/core';
 import {
   UserPIIRepository,
@@ -201,6 +202,7 @@ export class ContextFactory implements IContextFactory {
       session: new SessionRepository(this.coreAdapter),
       passkey: new PasskeyRepository(this.coreAdapter),
       role: new RoleRepository(this.coreAdapter),
+      sessionClient: new SessionClientRepository(this.coreAdapter),
       // Future: organization: new OrganizationRepository(this.coreAdapter),
     };
   }

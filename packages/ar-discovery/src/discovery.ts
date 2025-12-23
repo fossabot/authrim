@@ -1,6 +1,13 @@
 import type { Context } from 'hono';
 import type { Env, OIDCProviderMetadata } from '@authrim/ar-lib-core';
-import { SUPPORTED_JWE_ALG, SUPPORTED_JWE_ENC, buildIssuerUrl } from '@authrim/ar-lib-core';
+import {
+  SUPPORTED_JWE_ALG,
+  SUPPORTED_JWE_ENC,
+  buildIssuerUrl,
+  DEFAULT_LOGOUT_CONFIG,
+  LOGOUT_SETTINGS_KEY,
+} from '@authrim/ar-lib-core';
+import type { LogoutConfig } from '@authrim/ar-lib-core';
 
 // Cache for metadata to improve performance
 let cachedMetadata: OIDCProviderMetadata | null = null;
@@ -19,6 +26,7 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
   // Load dynamic configuration from SETTINGS KV
   let oidcConfig: any = {};
   let fapiConfig: any = {};
+  let logoutConfig: LogoutConfig = DEFAULT_LOGOUT_CONFIG;
   let currentSettingsJson = '';
 
   try {
@@ -28,6 +36,20 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
       const settings = JSON.parse(settingsJson);
       oidcConfig = settings.oidc || {};
       fapiConfig = settings.fapi || {};
+    }
+
+    // Load logout configuration
+    const logoutSettingsJson = await c.env.SETTINGS?.get(LOGOUT_SETTINGS_KEY);
+    if (logoutSettingsJson) {
+      const parsed = JSON.parse(logoutSettingsJson);
+      logoutConfig = {
+        backchannel: { ...DEFAULT_LOGOUT_CONFIG.backchannel, ...(parsed.backchannel || {}) },
+        frontchannel: { ...DEFAULT_LOGOUT_CONFIG.frontchannel, ...(parsed.frontchannel || {}) },
+        session_management: {
+          ...DEFAULT_LOGOUT_CONFIG.session_management,
+          ...(parsed.session_management || {}),
+        },
+      };
     }
   } catch (error) {
     console.error('Failed to load settings from KV:', error);
@@ -52,7 +74,8 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
     oidcConfig.clientCredentials?.enabled ?? c.env.ENABLE_CLIENT_CREDENTIALS === 'true';
 
   // Check if cached metadata is still valid (include feature flags in cache key)
-  const currentHash = `${issuer}:${currentSettingsJson}:te=${tokenExchangeEnabled}:cc=${clientCredentialsEnabled}`;
+  const logoutHash = `bc=${logoutConfig.backchannel.enabled}:fc=${logoutConfig.frontchannel.enabled}:sm=${logoutConfig.session_management.enabled}`;
+  const currentHash = `${issuer}:${currentSettingsJson}:te=${tokenExchangeEnabled}:cc=${clientCredentialsEnabled}:${logoutHash}`;
   if (cachedMetadata && cachedSettingsHash === currentHash) {
     // Cache hit - return cached metadata
     c.header('Cache-Control', 'public, max-age=300');
@@ -196,16 +219,19 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
     ui_locales_supported: ['en', 'ja'],
     claims_locales_supported: ['en', 'ja'],
     display_values_supported: ['page', 'popup'],
-    // OIDC Session Management 1.0
-    check_session_iframe: `${issuer}/session/check`,
-    // OIDC RP-Initiated Logout 1.0
+    // OIDC RP-Initiated Logout 1.0 (always enabled)
     end_session_endpoint: `${issuer}/logout`,
-    // OIDC Front-Channel Logout 1.0
-    frontchannel_logout_supported: true,
-    frontchannel_logout_session_supported: true,
-    // OIDC Back-Channel Logout 1.0
-    backchannel_logout_supported: true,
-    backchannel_logout_session_supported: true,
+    // OIDC Session Management 1.0 (configurable via KV)
+    ...(logoutConfig.session_management.enabled &&
+    logoutConfig.session_management.check_session_iframe_enabled
+      ? { check_session_iframe: `${issuer}/session/check` }
+      : {}),
+    // OIDC Front-Channel Logout 1.0 (configurable via KV)
+    frontchannel_logout_supported: logoutConfig.frontchannel.enabled,
+    frontchannel_logout_session_supported: logoutConfig.frontchannel.enabled,
+    // OIDC Back-Channel Logout 1.0 (configurable via KV)
+    backchannel_logout_supported: logoutConfig.backchannel.enabled,
+    backchannel_logout_session_supported: logoutConfig.backchannel.enabled,
   };
 
   // Update cache

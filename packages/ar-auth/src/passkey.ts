@@ -15,6 +15,10 @@ import {
   generateId,
   createAuthContextFromHono,
   createPIIContextFromHono,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import {
   generateRegistrationOptions,
@@ -93,13 +97,7 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
     const { email, userId, name } = body;
 
     if (!email) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Email is required',
-        },
-        400
-      );
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Email is required');
     }
 
     // Validate Origin header against allowlist
@@ -109,12 +107,11 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
 
     // Reject unauthorized origins
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
-      return c.json(
-        {
-          error: 'unauthorized_origin',
-          error_description: 'Origin not allowed for WebAuthn operations',
-        },
-        403
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.ACCESS_DENIED,
+        403,
+        'Origin not allowed for WebAuthn operations'
       );
     }
 
@@ -283,13 +280,7 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
       'Passkey registration options error:',
       error instanceof Error ? error.name : 'Unknown error'
     );
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to generate registration options',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -308,12 +299,11 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
     const { userId, credential, deviceName } = body;
 
     if (!userId || !credential) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'User ID and credential are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'User ID and credential are required'
       );
     }
 
@@ -331,13 +321,7 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
       })) as { challenge: string };
       challenge = challengeData.challenge;
     } catch {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Challenge not found or expired',
-        },
-        400
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_SESSION_EXPIRED);
     }
 
     // Validate Origin header against allowlist
@@ -347,12 +331,11 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
 
     // Reject unauthorized origins
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
-      return c.json(
-        {
-          error: 'unauthorized_origin',
-          error_description: 'Origin not allowed for WebAuthn operations',
-        },
-        403
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.ACCESS_DENIED,
+        403,
+        'Origin not allowed for WebAuthn operations'
       );
     }
 
@@ -376,25 +359,13 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
         'Registration verification failed:',
         error instanceof Error ? error.name : 'Unknown error'
       );
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Registration verification failed',
-        },
-        400
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_PASSKEY_FAILED);
     }
 
     const { verified, registrationInfo } = verification;
 
     if (!verified || !registrationInfo) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Registration could not be verified',
-        },
-        400
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_PASSKEY_FAILED);
     }
 
     const registrationInfoAny = registrationInfo as any;
@@ -404,13 +375,7 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
     const counter = registrationInfoAny.counter || registrationInfoAny.credential?.counter || 0;
 
     if (!credentialID || !credentialPublicKey) {
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Registration response missing credential information',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     // Convert credentialPublicKey (Uint8Array) to base64
@@ -442,13 +407,7 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
         'Failed to create session:',
         error instanceof Error ? error.name : 'Unknown error'
       );
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to create session',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.SESSION_STORE_ERROR);
     }
 
     // Step 2: Store passkey via Repository
@@ -514,13 +473,7 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
       'Passkey registration verify error:',
       error instanceof Error ? error.name : 'Unknown error'
     );
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to verify registration',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -543,12 +496,11 @@ export async function passkeyLoginOptionsHandler(c: Context<{ Bindings: Env }>) 
 
     // Reject unauthorized origins
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
-      return c.json(
-        {
-          error: 'unauthorized_origin',
-          error_description: 'Origin not allowed for WebAuthn operations',
-        },
-        403
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.ACCESS_DENIED,
+        403,
+        'Origin not allowed for WebAuthn operations'
       );
     }
 
@@ -633,13 +585,7 @@ export async function passkeyLoginOptionsHandler(c: Context<{ Bindings: Env }>) 
       'Passkey login options error:',
       error instanceof Error ? error.name : 'Unknown error'
     );
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to generate authentication options',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -657,12 +603,11 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
     const { challengeId, credential } = body;
 
     if (!challengeId || !credential) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Challenge ID and credential are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Challenge ID and credential are required'
       );
     }
 
@@ -678,13 +623,7 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
       })) as { challenge: string };
       challenge = challengeData.challenge;
     } catch {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Challenge not found or expired',
-        },
-        400
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_SESSION_EXPIRED);
     }
 
     // Get credential ID from response
@@ -712,13 +651,8 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
     }
 
     if (!passkey) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Passkey not found',
-        },
-        400
-      );
+      // Security: Generic message to prevent passkey enumeration
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_PASSKEY_FAILED);
     }
 
     // Validate Origin header against allowlist
@@ -728,12 +662,11 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
 
     // Reject unauthorized origins
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
-      return c.json(
-        {
-          error: 'unauthorized_origin',
-          error_description: 'Origin not allowed for WebAuthn operations',
-        },
-        403
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.ACCESS_DENIED,
+        403,
+        'Origin not allowed for WebAuthn operations'
       );
     }
 
@@ -747,13 +680,7 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
     if (!normalizedCredentialId) {
       // PII Protection: Don't log passkey.id
       console.error('Stored credential ID could not be normalized');
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Stored credential is corrupted',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
     const publicKey = Uint8Array.from(Buffer.from(passkey.public_key as string, 'base64'));
 
@@ -777,25 +704,13 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
         'Authentication verification failed:',
         error instanceof Error ? error.name : 'Unknown error'
       );
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Authentication verification failed',
-        },
-        400
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_PASSKEY_FAILED);
     }
 
     const { verified, authenticationInfo } = verification;
 
     if (!verified) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Authentication could not be verified',
-        },
-        400
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_PASSKEY_FAILED);
     }
 
     const now = Date.now();
@@ -822,13 +737,7 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
         'Failed to create session:',
         error instanceof Error ? error.name : 'Unknown error'
       );
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to create session',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.SESSION_STORE_ERROR);
     }
 
     // Step 2: Update counter and last_used_at via Repository
@@ -881,12 +790,6 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
       'Passkey login verify error:',
       error instanceof Error ? error.name : 'Unknown error'
     );
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to verify authentication',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

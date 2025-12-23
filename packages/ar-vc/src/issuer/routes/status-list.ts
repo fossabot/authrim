@@ -196,10 +196,11 @@ export async function statusListRoute(c: Context<{ Bindings: Env }>): Promise<Re
   const listData = await getStatusList(c.env, listId);
 
   if (!listData) {
+    // SECURITY: Do not expose status list ID in error message to prevent enumeration
     return c.json(
       {
         error: 'not_found',
-        error_description: `Status list not found: ${listId}`,
+        error_description: 'Status list not found',
       },
       404
     );
@@ -270,10 +271,11 @@ export async function statusListJsonRoute(c: Context<{ Bindings: Env }>): Promis
   const listData = await getStatusList(c.env, listId);
 
   if (!listData) {
+    // SECURITY: Do not expose status list ID in error message to prevent enumeration
     return c.json(
       {
         error: 'not_found',
-        error_description: `Status list not found: ${listId}`,
+        error_description: 'Status list not found',
       },
       404
     );

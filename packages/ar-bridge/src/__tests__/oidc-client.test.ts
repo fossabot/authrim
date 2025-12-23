@@ -1281,9 +1281,10 @@ describe('OIDCRPClient', () => {
           mockCreateLocalJWKSet.mockReturnValueOnce(() => {});
 
           const client = new OIDCRPClient(mockConfig);
+          // SECURITY: Error message must not expose actual azp/client_id values
           await expect(
             client.validateIdToken('mock-id-token', { nonce: 'test-nonce' })
-          ).rejects.toThrow('azp (different-client-id) does not match client_id (test-client-id)');
+          ).rejects.toThrow('ID token azp does not match expected client_id');
         });
 
         it('should accept multiple audiences with valid azp', async () => {

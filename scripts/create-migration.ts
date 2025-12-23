@@ -22,7 +22,9 @@ function main() {
 
   // Validate description format (snake_case)
   if (!/^[a-z0-9_]+$/.test(description)) {
-    console.error('❌ Error: Description must be snake_case (lowercase letters, numbers, underscores only)');
+    console.error(
+      '❌ Error: Description must be snake_case (lowercase letters, numbers, underscores only)'
+    );
     console.error(`   Got: "${description}"\n`);
     process.exit(1);
   }
@@ -30,7 +32,9 @@ function main() {
   const migrationsDir = join(process.cwd(), 'migrations');
 
   // Find next version number
-  const files = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort();
+  const files = readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
 
   let nextVersion = 1;
   if (files.length > 0) {

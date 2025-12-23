@@ -5,6 +5,7 @@
 UserCache is a Read-Through cache implementation for user metadata. It minimizes D1 reads and reduces latency in hot paths such as the Token Endpoint.
 
 **Design Principles:**
+
 - Read-Through pattern (automatically fetch from D1 on cache miss)
 - 1 hour TTL + Invalidation Hook
 - Uses KV Namespace (`USER_CACHE`)
@@ -68,13 +69,14 @@ Example: `user:550e8400-e29b-41d4-a716-446655440000`
 
 ## TTL Design
 
-| Cache | TTL | Reason |
-|-----------|-----|------|
-| UserCache | 1 hour | Safe to use longer TTL with Invalidation Hook |
-| PolicyCache | 5 minutes | May change frequently, no invalidation hook |
-| SigningKeyCache | 10 minutes | Support key rotation |
+| Cache           | TTL        | Reason                                        |
+| --------------- | ---------- | --------------------------------------------- |
+| UserCache       | 1 hour     | Safe to use longer TTL with Invalidation Hook |
+| PolicyCache     | 5 minutes  | May change frequently, no invalidation hook   |
+| SigningKeyCache | 10 minutes | Support key rotation                          |
 
 **Rationale for 1-hour TTL:**
+
 - User information updates are infrequent (profile edits are rare)
 - Invalidation Hook clears cache immediately on update
 - Significant p95 latency reduction for Token Endpoint
@@ -86,19 +88,18 @@ Example: `user:550e8400-e29b-41d4-a716-446655440000`
 ### getCachedUser
 
 ```typescript
-async function getCachedUser(
-  env: Env,
-  userId: string
-): Promise<CachedUser | null>
+async function getCachedUser(env: Env, userId: string): Promise<CachedUser | null>;
 ```
 
 **Behavior:**
+
 1. Try `USER_CACHE.get(`user:${userId}`)`
 2. Cache hit → parse and return
 3. Cache miss → fetch from D1 → save to KV (1 hour TTL) → return
 4. Not found in D1 either → return `null`
 
 **Usage Example:**
+
 ```typescript
 // op-token/token.ts
 const user = await getCachedUser(c.env, userId);
@@ -119,17 +120,16 @@ const idTokenClaims = {
 ### invalidateUserCache
 
 ```typescript
-async function invalidateUserCache(
-  env: Env,
-  userId: string
-): Promise<void>
+async function invalidateUserCache(env: Env, userId: string): Promise<void>;
 ```
 
 **Behavior:**
+
 1. Execute `USER_CACHE.delete(`user:${userId}`)`
 2. Succeeds even if not exists (idempotent)
 
 **Usage Example:**
+
 ```typescript
 // op-management/admin.ts - after user update
 await invalidateUserCache(env, userId);
@@ -141,20 +141,21 @@ await invalidateUserCache(env, userId);
 
 ### op-management/admin.ts
 
-| Endpoint | Timing |
-|---------------|-----------|
-| `PATCH /api/admin/users/:id` | After user information update |
-| `PUT /api/admin/users/:id/avatar` | After avatar upload |
-| `DELETE /api/admin/users/:id/avatar` | After avatar deletion |
+| Endpoint                             | Timing                        |
+| ------------------------------------ | ----------------------------- |
+| `PATCH /api/admin/users/:id`         | After user information update |
+| `PUT /api/admin/users/:id/avatar`    | After avatar upload           |
+| `DELETE /api/admin/users/:id/avatar` | After avatar deletion         |
 
 ### op-management/scim.ts
 
-| Endpoint | Timing |
-|---------------|-----------|
-| `PUT /scim/v2/Users/:id` | After SCIM Replace |
-| `PATCH /scim/v2/Users/:id` | After SCIM Modify |
+| Endpoint                   | Timing             |
+| -------------------------- | ------------------ |
+| `PUT /scim/v2/Users/:id`   | After SCIM Replace |
+| `PATCH /scim/v2/Users/:id` | After SCIM Modify  |
 
 **Implementation Pattern:**
+
 ```typescript
 // admin.ts
 app.patch('/api/admin/users/:id', async (c) => {
@@ -186,10 +187,7 @@ export interface CachedUser {
   // ... (all fields)
 }
 
-export async function getCachedUser(
-  env: Env,
-  userId: string
-): Promise<CachedUser | null> {
+export async function getCachedUser(env: Env, userId: string): Promise<CachedUser | null> {
   // 1. Try cache first
   if (env.USER_CACHE) {
     const cached = await env.USER_CACHE.get(`user:${userId}`);
@@ -208,7 +206,9 @@ export async function getCachedUser(
             nickname, preferred_username, picture, locale, zoneinfo,
             phone_number, phone_number_verified, address, birthdate, gender, updated_at
      FROM users WHERE id = ?`
-  ).bind(userId).first<CachedUser>();
+  )
+    .bind(userId)
+    .first<CachedUser>();
 
   if (!user) {
     return null;
@@ -216,20 +216,15 @@ export async function getCachedUser(
 
   // 3. Store in cache
   if (env.USER_CACHE) {
-    await env.USER_CACHE.put(
-      `user:${userId}`,
-      JSON.stringify(user),
-      { expirationTtl: USER_CACHE_TTL }
-    );
+    await env.USER_CACHE.put(`user:${userId}`, JSON.stringify(user), {
+      expirationTtl: USER_CACHE_TTL,
+    });
   }
 
   return user;
 }
 
-export async function invalidateUserCache(
-  env: Env,
-  userId: string
-): Promise<void> {
+export async function invalidateUserCache(env: Env, userId: string): Promise<void> {
   if (env.USER_CACHE) {
     await env.USER_CACHE.delete(`user:${userId}`);
   }
@@ -289,6 +284,7 @@ Token Endpoint Latency:
 ```
 
 **Expected Cache Hit Rate:**
+
 - Consecutive requests from same user: 99%+
 - Requests within 1 hour: 95%+
 - Overall: 80-90%
@@ -302,6 +298,7 @@ Token Endpoint Latency:
 Always implement Invalidation Hooks. Missing hooks may result in stale user information being included in ID Tokens.
 
 **Checklist:**
+
 - [ ] `PATCH /api/admin/users/:id`
 - [ ] `PUT /api/admin/users/:id/avatar`
 - [ ] `DELETE /api/admin/users/:id/avatar`
@@ -322,10 +319,12 @@ Combining both achieves both safety and performance.
 ### 4. Separation from Policy Cache
 
 UserCache and PolicyCache use separate KV Namespaces:
+
 - `USER_CACHE`: User metadata (1 hour TTL)
 - `POLICY_CACHE`: Policy configuration (5 minute TTL)
 
 Separation reasons:
+
 - Different update frequencies
 - Different invalidation requirements
 - Fault isolation
@@ -337,6 +336,7 @@ Separation reasons:
 ### KV Metrics
 
 Check in Cloudflare Dashboard:
+
 - Cache hit rate
 - Read/Write operations
 - Storage usage
@@ -351,11 +351,13 @@ console.log(`UserCache: ${cached ? 'HIT' : 'MISS'} for ${userId}`);
 ### Troubleshooting
 
 **Symptom: Stale user information returned**
+
 1. Verify Invalidation Hook is implemented
 2. Manually delete KV `user:{userId}` entry
 3. Wait for TTL to expire (max 1 hour)
 
 **Symptom: High cache miss rate**
+
 1. Verify KV Namespace binding
 2. Confirm `USER_CACHE` is not undefined
 3. Verify D1 query is working correctly

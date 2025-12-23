@@ -13,6 +13,7 @@
  */
 
 import type { Context } from 'hono';
+import type { Env } from '@authrim/ar-lib-core';
 import {
   type RegionShardConfig,
   type RegionShardConfigV2,
@@ -28,6 +29,8 @@ import {
   DEFAULT_TOTAL_SHARDS,
   DEFAULT_REGION_DISTRIBUTION,
   DEFAULT_COLOCATION_GROUPS,
+  createRFCErrorResponse,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -114,27 +117,37 @@ export async function getRegionShards(c: Context) {
  * - Each region with percentage > 0 must get at least 1 shard
  * - Regions with 0% are allowed (disabled regions)
  */
-export async function updateRegionShards(c: Context) {
+export async function updateRegionShards(c: Context<{ Bindings: Env }>) {
   let body: UpdateRegionShardsRequest;
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Invalid JSON body');
   }
 
   // Basic field validation
   if (typeof body.totalShards !== 'number' || body.totalShards <= 0) {
-    return c.json({ error: 'totalShards must be a positive number' }, 400);
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'totalShards must be a positive number'
+    );
   }
 
   if (!body.regionDistribution || typeof body.regionDistribution !== 'object') {
-    return c.json({ error: 'regionDistribution is required and must be an object' }, 400);
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'regionDistribution is required and must be an object'
+    );
   }
 
   // Validate region distribution
   const requestValidation = validateRegionShardRequest(body);
   if (!requestValidation.valid) {
-    return c.json({ error: requestValidation.error }, 400);
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, requestValidation.error);
   }
 
   // Get current config
@@ -193,13 +206,11 @@ export async function updateRegionShards(c: Context) {
   // Validate colocation groups before saving
   const colocationValidation = validateColocationGroups(newConfig);
   if (!colocationValidation.valid) {
-    return c.json(
-      {
-        error: 'Colocation group validation failed',
-        details: colocationValidation.errors,
-        warnings: colocationValidation.warnings,
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      `Colocation group validation failed: ${colocationValidation.errors.join(', ')}`
     );
   }
 

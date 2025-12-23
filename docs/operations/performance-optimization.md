@@ -6,27 +6,27 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 
 ### Current Challenges
 
-| Worker | Current CPU Time | Free Plan Compliance | Priority |
-|--------|-----------------|---------------------|----------|
-| op-discovery | P999 8.77ms | Warning: Marginal | High |
-| op-token | P90 14.95ms | Exceeded | Highest |
-| op-auth | 20-250ms | Significantly Exceeded | Highest |
-| op-management | 20-50ms | Exceeded | High |
-| op-userinfo | 20-100ms | Exceeded | High |
-| op-async | 8-20ms | Warning: Marginal | Medium |
-| router | 3-10ms | OK | Low |
+| Worker        | Current CPU Time | Free Plan Compliance   | Priority |
+| ------------- | ---------------- | ---------------------- | -------- |
+| op-discovery  | P999 8.77ms      | Warning: Marginal      | High     |
+| op-token      | P90 14.95ms      | Exceeded               | Highest  |
+| op-auth       | 20-250ms         | Significantly Exceeded | Highest  |
+| op-management | 20-50ms          | Exceeded               | High     |
+| op-userinfo   | 20-100ms         | Exceeded               | High     |
+| op-async      | 8-20ms           | Warning: Marginal      | Medium   |
+| router        | 3-10ms           | OK                     | Low      |
 
 ### Expected Results After Optimization
 
-| Worker | Optimized CPU Time | Reduction | Free Plan Compliance |
-|--------|-------------------|-----------|---------------------|
-| op-discovery | 3-4ms | 60% | OK |
-| op-token | 8-10ms | 35-45% | Warning: Marginal |
-| op-auth | 10-40ms | 50-84% | Warning: Conditional |
-| op-management | 10-25ms | 40-50% | Warning: Marginal |
-| op-userinfo | 10-50ms | 40-50% | Warning: Conditional |
-| op-async | 5-12ms | 35-40% | OK |
-| router | 2-6ms | 40% | OK |
+| Worker        | Optimized CPU Time | Reduction | Free Plan Compliance |
+| ------------- | ------------------ | --------- | -------------------- |
+| op-discovery  | 3-4ms              | 60%       | OK                   |
+| op-token      | 8-10ms             | 35-45%    | Warning: Marginal    |
+| op-auth       | 10-40ms            | 50-84%    | Warning: Conditional |
+| op-management | 10-25ms            | 40-50%    | Warning: Marginal    |
+| op-userinfo   | 10-50ms            | 40-50%    | Warning: Conditional |
+| op-async      | 5-12ms             | 35-40%    | OK                   |
+| router        | 2-6ms              | 40%       | OK                   |
 
 ---
 
@@ -35,6 +35,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 ### 1. JWT Processing (Common to All Workers)
 
 **Problem**:
+
 - RSA private/public key import (`importPKCS8`, `importJWK`) is very heavy (5-10ms)
 - Executed on every request
 - Same processing duplicated across all Workers
@@ -42,6 +43,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Estimated CPU Time**: 5-20ms (depending on Worker)
 
 **Solution**:
+
 - **Implement global key cache** (common to all Workers)
 - TTL-based caching strategy (60 seconds recommended)
 - Overlap period configuration for key rotation
@@ -49,6 +51,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 ### 2. Durable Object Calls (Common to All Workers)
 
 **Problem**:
+
 - Heavily used for Rate Limiting, authorization code verification, token management, etc.
 - JSON.stringify/parse occurs on each call (1-2ms)
 - Often executed sequentially
@@ -56,6 +59,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Estimated CPU Time**: 5-15ms (depending on number of calls)
 
 **Solution**:
+
 - **Utilize parallel execution** (execute multiple DO calls simultaneously)
 - **Batch processing** (where possible)
 - **Caching strategy** (read-through cache)
@@ -63,6 +67,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 ### 3. Middleware Processing (Common to All Workers)
 
 **Problem**:
+
 - logger: Debug log output (0.5-1ms)
 - secureHeaders: Security header configuration (0.5-1ms)
 - CORS: Origin verification (1-2ms)
@@ -71,6 +76,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Estimated CPU Time**: 7-14ms
 
 **Solution**:
+
 - **Disable logger in production**
 - **Optimize middleware execution order** (place rate limit first)
 - **Remove unnecessary middleware** (eliminate duplication in router layer)
@@ -78,6 +84,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 ### 4. D1 Queries (Used by Some Workers)
 
 **Problem**:
+
 - Possible missing indexes
 - SELECTing unnecessary columns
 - Room for transaction optimization
@@ -85,6 +92,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Estimated CPU Time**: 2-15ms (depending on query)
 
 **Solution**:
+
 - **Index optimization** (client_id, jti, user_id, etc.)
 - **SELECT only required columns**
 - **Batch queries** (combine multiple queries into one)
@@ -98,10 +106,12 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Status**: P999 8.77ms → Target 3-4ms
 
 **Implemented Optimizations**:
+
 1. Discovery metadata caching
 2. Excluded Rate Limiting from discovery endpoint
 
 **Additional Recommendations**:
+
 - Disable Logger (production environment)
 
 **Details**: `docs/PERFORMANCE_OPTIMIZATION_OP_DISCOVERY.md` (recommended to create)
@@ -115,6 +125,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Priority: Highest**
 
 **Key Optimization Strategies**:
+
 1. **Signing key caching** (Most Important)
    - Cache in global variables
    - TTL 60 seconds
@@ -142,6 +153,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Priority: Highest**
 
 **Main Bottlenecks**:
+
 1. **HTTPS request_uri fetch** (50-200ms)
 2. **Request Object (JWT) verification** (10-20ms)
 3. **Passkey verification** (15-25ms)
@@ -150,6 +162,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Recommended Optimization Strategies**:
 
 1. **HTTPS request_uri optimization**
+
    ```typescript
    // Strict timeout configuration
    const controller = new AbortController();
@@ -158,7 +171,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
    try {
      const response = await fetch(request_uri, {
        signal: controller.signal,
-       headers: { 'User-Agent': 'Authrim/1.0' }
+       headers: { 'User-Agent': 'Authrim/1.0' },
      });
    } catch (error) {
      if (error.name === 'AbortError') {
@@ -168,9 +181,11 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
      clearTimeout(timeoutId);
    }
    ```
+
    - Expected Effect: Limit timeout duration (currently may be unlimited)
 
 2. **Request Object verification optimization**
+
    ```typescript
    // Global cache
    let cachedClientPublicKeys: Map<string, CryptoKey> = new Map();
@@ -194,9 +209,11 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
      return publicKey;
    }
    ```
+
    - Expected Effect: 5-10ms reduction
 
 3. **Passkey verification optimization**
+
    ```typescript
    // Execute SimpleWebAuthn processing in parallel
    const [verificationResult, challengeData] = await Promise.all([
@@ -208,9 +225,10 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
        authenticator: authenticator,
      }),
      // Execute challenge deletion in parallel
-     deleteChallenge(c.env, challengeId)
+     deleteChallenge(c.env, challengeId),
    ]);
    ```
+
    - Expected Effect: 2-5ms reduction
 
 4. **Middleware order optimization**
@@ -234,6 +252,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Priority: High**
 
 **Main Bottlenecks**:
+
 1. **JWT verification (Introspection)** (10-20ms)
 2. **D1 writes** (5-15ms)
 3. **Rate Limiting** (5-10ms)
@@ -241,6 +260,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Recommended Optimization Strategies**:
 
 1. **JWT verification optimization**
+
    ```typescript
    // Cache PUBLIC_JWK_JSON parse result
    let cachedPublicJWK: CryptoKey | null = null;
@@ -256,9 +276,11 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
      return cachedPublicJWK;
    }
    ```
+
    - Expected Effect: 5-10ms reduction
 
 2. **D1 query optimization**
+
    ```sql
    -- Add indexes
    CREATE INDEX IF NOT EXISTS idx_oauth_clients_client_id ON oauth_clients(client_id);
@@ -269,17 +291,17 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
    SELECT id, client_id, client_secret FROM oauth_clients WHERE client_id = ?;
    -- Avoid SELECT *
    ```
+
    - Expected Effect: 2-5ms reduction
 
 3. **Async test user creation**
    ```typescript
    // When OIDC conformance test detected, execute in background
    if (isOIDCConformanceTest(client_id)) {
-     c.executionCtx.waitUntil(
-       createTestUser(c.env, client_id)
-     );
+     c.executionCtx.waitUntil(createTestUser(c.env, client_id));
    }
    ```
+
    - Expected Effect: 5-10ms reduction
 
 **Expected Improvement**: 20-50ms → 10-25ms (40-50% reduction)
@@ -293,6 +315,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Priority: High**
 
 **Main Bottlenecks**:
+
 1. **JWE encryption** (15-25ms)
 2. **JWT signing** (10-15ms)
 3. **JWT verification (introspection)** (10-20ms)
@@ -301,15 +324,18 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Recommended Optimization Strategies**:
 
 1. **KeyManager signing key cache** (same as op-token)
+
    ```typescript
    // Global cache
    let cachedSigningKey: { privateKey: CryptoKey; kid: string } | null = null;
    let cachedKeyTimestamp = 0;
    const KEY_CACHE_TTL = 60000; // 60 seconds
    ```
+
    - Expected Effect: 5-10ms reduction
 
 2. **Client public key cache** (for JWE encryption)
+
    ```typescript
    let cachedClientPublicKeys: Map<string, { key: CryptoKey; kid?: string }> = new Map();
 
@@ -330,6 +356,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
      return publicKey;
    }
    ```
+
    - Expected Effect: 5-10ms reduction
 
 3. **D1 query optimization**
@@ -340,8 +367,11 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
              email_verified, phone_number, phone_number_verified,
              address_json, locale, zoneinfo
       FROM users WHERE id = ?`
-   ).bind(tokenPayload.sub).first();
+   )
+     .bind(tokenPayload.sub)
+     .first();
    ```
+
    - Expected Effect: 1-2ms reduction
 
 **Expected Improvement**: 20-100ms → 10-50ms (40-50% reduction)
@@ -355,20 +385,23 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Priority: Medium**
 
 **Main Bottlenecks**:
+
 1. **DO writes** (5-10ms × 2)
 2. **getClient() D1 query** (2-5ms)
 
 **Recommended Optimization Strategies**:
 
 1. **Utilize parallel processing**
+
    ```typescript
    // Execute client verification and code generation in parallel
    const [clientMetadata, deviceCode, userCode] = await Promise.all([
      getClient(c.env, client_id),
      generateDeviceCode(),
-     generateUserCode()
+     generateUserCode(),
    ]);
    ```
+
    - Expected Effect: 2-3ms reduction
 
 2. **Strengthen getClient() caching** (already implemented, but adjust TTL)
@@ -386,6 +419,7 @@ We conducted a performance analysis of all Authrim Workers (7 total) and develop
 **Recommended Optimization Strategies**:
 
 1. **Middleware order optimization**
+
    ```typescript
    // Make logger conditional
    if (c.env.ENVIRONMENT === 'development') {
@@ -426,27 +460,24 @@ export class JWTKeyCache {
     const cached = this.privateKeyCache.get(kid);
     const now = Date.now();
 
-    if (cached && (now - cached.timestamp) < this.TTL) {
+    if (cached && now - cached.timestamp < this.TTL) {
       return cached.key;
     }
 
-    const key = typeof pemOrJWK === 'string'
-      ? await importPKCS8(pemOrJWK, algorithm)
-      : await importJWK(pemOrJWK, algorithm);
+    const key =
+      typeof pemOrJWK === 'string'
+        ? await importPKCS8(pemOrJWK, algorithm)
+        : await importJWK(pemOrJWK, algorithm);
 
     this.privateKeyCache.set(kid, { key, timestamp: now });
     return key;
   }
 
-  static async getPublicKey(
-    kid: string,
-    jwk: JWK,
-    algorithm: string
-  ): Promise<CryptoKey> {
+  static async getPublicKey(kid: string, jwk: JWK, algorithm: string): Promise<CryptoKey> {
     const cached = this.publicKeyCache.get(kid);
     const now = Date.now();
 
-    if (cached && (now - cached.timestamp) < this.TTL) {
+    if (cached && now - cached.timestamp < this.TTL) {
       return cached.key;
     }
 
@@ -465,6 +496,7 @@ export class JWTKeyCache {
 ### 2. Unified Middleware Execution Order
 
 **Recommended Order** (common to all Workers):
+
 1. Rate Limiting (reject invalid requests early)
 2. CORS (origin verification)
 3. Secure Headers (security headers)
@@ -473,6 +505,7 @@ export class JWTKeyCache {
 ### 3. D1 Index Optimization
 
 **Required Indexes**:
+
 ```sql
 -- oauth_clients
 CREATE INDEX IF NOT EXISTS idx_oauth_clients_client_id ON oauth_clients(client_id);
@@ -507,6 +540,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 4. **op-userinfo**: Signing key cache
 
 **Expected Results**:
+
 - op-token: 14.95ms → 9-10ms
 - op-auth: 50-100ms → 20-40ms (normal flow)
 - op-management: 30-40ms → 15-25ms
@@ -523,6 +557,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 5. **KeyManager DO extension** (key rotation support)
 
 **Expected Results**:
+
 - Additional 10-20% reduction across all Workers
 - Improved code maintainability
 - Reduced operational burden
@@ -537,6 +572,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 4. **Consider paid plan migration** (if needed)
 
 **Expected Results**:
+
 - With ES256: Additional 30-50% CPU reduction
 - Latency improvement
 - Improved scalability
@@ -548,6 +584,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 ### Metrics Monitoring (Cloudflare Dashboard)
 
 **Key Indicators**:
+
 - **CPU Time**: P50, P90, P99, P999
 - **Error Rate**: 4xx, 5xx
 - **Request Count**: Traffic patterns
@@ -555,13 +592,13 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 
 ### Alert Configuration
 
-| Worker | Threshold | Action |
-|--------|-----------|--------|
-| op-token | P90 > 10ms (for 30+ min) | Notify + Investigate |
-| op-auth | P90 > 50ms (for 30+ min) | Notify |
-| op-management | P90 > 30ms (for 30+ min) | Notify |
-| op-userinfo | P90 > 40ms (for 30+ min) | Notify |
-| All Workers | Error Rate > 5% (for 10+ min) | Emergency Response |
+| Worker        | Threshold                     | Action               |
+| ------------- | ----------------------------- | -------------------- |
+| op-token      | P90 > 10ms (for 30+ min)      | Notify + Investigate |
+| op-auth       | P90 > 50ms (for 30+ min)      | Notify               |
+| op-management | P90 > 30ms (for 30+ min)      | Notify               |
+| op-userinfo   | P90 > 40ms (for 30+ min)      | Notify               |
+| All Workers   | Error Rate > 5% (for 10+ min) | Emergency Response   |
 
 ### Regular Reviews
 
@@ -575,11 +612,11 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 
 ### Free Plan vs Paid Plan
 
-| Plan | CPU Limit | Request Limit | Price |
-|------|-----------|---------------|-------|
-| Free | 10ms | 100,000/day | $0 |
-| Bundled | 50ms | 10M/month | $5/month~ |
-| Unbound | 30 seconds | 1M/month | $0.15/M requests |
+| Plan    | CPU Limit  | Request Limit | Price            |
+| ------- | ---------- | ------------- | ---------------- |
+| Free    | 10ms       | 100,000/day   | $0               |
+| Bundled | 50ms       | 10M/month     | $5/month~        |
+| Unbound | 30 seconds | 1M/month      | $0.15/M requests |
 
 ### Recommended Approach
 
@@ -594,12 +631,14 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 We have developed a performance analysis and optimization plan for all 7 Workers.
 
 **Key Points**:
+
 1. **JWT processing optimization is most effective** (key caching)
 2. **op-token, op-auth, op-management are highest priority**
 3. **Free plan compliance possible with Phase 1**
 4. **Consider ES256 migration in the long term**
 
 **Next Steps**:
+
 1. Start Phase 1 implementation (signing key cache, Logger disable)
 2. Measure performance in test environment
 3. Deploy to production gradually

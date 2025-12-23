@@ -8,11 +8,11 @@ Authrim implements Pushed Authorization Requests (PAR), an OAuth 2.0 security ex
 
 ### Specification
 
-| Attribute | Value |
-|-----------|-------|
-| **RFC** | [RFC 9126 - Pushed Authorization Requests](https://datatracker.ietf.org/doc/html/rfc9126) |
-| **Status** | ✅ Implemented |
-| **Endpoint** | `POST /as/par` |
+| Attribute    | Value                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| **RFC**      | [RFC 9126 - Pushed Authorization Requests](https://datatracker.ietf.org/doc/html/rfc9126) |
+| **Status**   | ✅ Implemented                                                                            |
+| **Endpoint** | `POST /as/par`                                                                            |
 
 ---
 
@@ -51,13 +51,14 @@ Authrim implements Pushed Authorization Requests (PAR), an OAuth 2.0 security ex
 **Challenge**: FAPI 2.0 mandates that authorization parameters cannot be exposed or tampered with. Traditional OAuth flows put all parameters in the URL, which is logged in browser history, server logs, and potentially intercepted.
 
 **PAR Solution**:
+
 ```typescript
 // Bank's mobile app backend pushes authorization request
 const parResponse = await fetch('https://bank.authrim.com/as/par', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/x-www-form-urlencoded',
-    'Authorization': `Basic ${btoa(clientId + ':' + clientSecret)}`
+    Authorization: `Basic ${btoa(clientId + ':' + clientSecret)}`,
   },
   body: new URLSearchParams({
     response_type: 'code',
@@ -68,8 +69,8 @@ const parResponse = await fetch('https://bank.authrim.com/as/par', {
     code_challenge: pkceChallenge,
     code_challenge_method: 'S256',
     // FAPI requires these to be sent via PAR
-    acr_values: 'urn:openbanking:psd2:sca'
-  })
+    acr_values: 'urn:openbanking:psd2:sca',
+  }),
 });
 
 // Only request_uri is exposed in browser
@@ -88,6 +89,7 @@ window.location.href = `https://bank.authrim.com/authorize?request_uri=${request
 **Challenge**: Many browsers and web servers truncate or reject URLs longer than 2,048 characters. When applications request detailed claims, the URL exceeds this limit.
 
 **PAR Solution**:
+
 ```javascript
 const claims = {
   userinfo: {
@@ -98,12 +100,12 @@ const claims = {
     employee_id: { essential: true },
     permissions: null,
     groups: null,
-    entitlements: null
+    entitlements: null,
   },
   id_token: {
     auth_time: { essential: true },
-    acr: { values: ['urn:enterprise:mfa:required'] }
-  }
+    acr: { values: ['urn:enterprise:mfa:required'] },
+  },
 };
 
 // Complex request pushed via PAR (no URL length issues)
@@ -118,8 +120,8 @@ const parResponse = await fetch('/as/par', {
     claims: JSON.stringify(claims),
     acr_values: 'urn:enterprise:mfa:required',
     state: generateState(),
-    nonce: generateNonce()
-  })
+    nonce: generateNonce(),
+  }),
 });
 
 // Short, clean authorization URL
@@ -138,6 +140,7 @@ redirect(`/authorize?request_uri=${request_uri}&client_id=hr_portal_app`);
 **Challenge**: HIPAA regulations prohibit exposing PHI in URLs. Browser history, bookmarks, and server logs could inadvertently store patient identifiers if they appear in authorization URLs.
 
 **PAR Solution**:
+
 ```python
 # Healthcare app backend pushes request with sensitive hints
 par_response = requests.post(
@@ -202,6 +205,7 @@ sequenceDiagram
 **POST /as/par**
 
 **Headers**:
+
 ```http
 Content-Type: application/x-www-form-urlencoded
 Authorization: Basic <base64(client_id:client_secret)>  # Optional
@@ -209,23 +213,24 @@ Authorization: Basic <base64(client_id:client_secret)>  # Optional
 
 **Body Parameters**:
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `client_id` | ✅ Yes | The client identifier |
-| `response_type` | ✅ Yes | OAuth response type (e.g., `code`) |
-| `redirect_uri` | ✅ Yes | Client's registered redirect URI |
-| `scope` | ✅ Yes | Requested scopes (space-separated) |
-| `state` | Recommended | Opaque value for CSRF protection |
-| `nonce` | Recommended | Nonce for ID token binding (OIDC) |
-| `code_challenge` | Recommended | PKCE code challenge |
-| `code_challenge_method` | Recommended | PKCE method (must be `S256`) |
-| `response_mode` | Optional | Response mode (query, fragment, form_post) |
-| `prompt` | Optional | OIDC prompt parameter |
-| `login_hint` | Optional | Login hint (email, username) |
-| `acr_values` | Optional | Authentication Context Class References |
-| `claims` | Optional | OIDC claims parameter (JSON) |
+| Parameter               | Required    | Description                                |
+| ----------------------- | ----------- | ------------------------------------------ |
+| `client_id`             | ✅ Yes      | The client identifier                      |
+| `response_type`         | ✅ Yes      | OAuth response type (e.g., `code`)         |
+| `redirect_uri`          | ✅ Yes      | Client's registered redirect URI           |
+| `scope`                 | ✅ Yes      | Requested scopes (space-separated)         |
+| `state`                 | Recommended | Opaque value for CSRF protection           |
+| `nonce`                 | Recommended | Nonce for ID token binding (OIDC)          |
+| `code_challenge`        | Recommended | PKCE code challenge                        |
+| `code_challenge_method` | Recommended | PKCE method (must be `S256`)               |
+| `response_mode`         | Optional    | Response mode (query, fragment, form_post) |
+| `prompt`                | Optional    | OIDC prompt parameter                      |
+| `login_hint`            | Optional    | Login hint (email, username)               |
+| `acr_values`            | Optional    | Authentication Context Class References    |
+| `claims`                | Optional    | OIDC claims parameter (JSON)               |
 
 **Success Response** (201 Created):
+
 ```json
 {
   "request_uri": "urn:ietf:params:oauth:request_uri:6esc_11ACC5bwc014ltc14eY22c",
@@ -235,13 +240,13 @@ Authorization: Basic <base64(client_id:client_secret)>  # Optional
 
 **Error Responses**:
 
-| HTTP Status | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Missing or invalid required parameters |
-| 400 | `invalid_client` | Client not found or not authorized |
-| 400 | `invalid_scope` | Invalid or unauthorized scope |
-| 400 | `unsupported_response_type` | Response type not supported |
-| 405 | `invalid_request` | PAR endpoint only accepts POST |
+| HTTP Status | Error                       | Description                            |
+| ----------- | --------------------------- | -------------------------------------- |
+| 400         | `invalid_request`           | Missing or invalid required parameters |
+| 400         | `invalid_client`            | Client not found or not authorized     |
+| 400         | `invalid_scope`             | Invalid or unauthorized scope          |
+| 400         | `unsupported_response_type` | Response type not supported            |
+| 405         | `invalid_request`           | PAR endpoint only accepts POST         |
 
 ---
 
@@ -249,17 +254,19 @@ Authorization: Basic <base64(client_id:client_secret)>  # Optional
 
 **GET /authorize**
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `request_uri` | ✅ Yes | The request URI from PAR response |
-| `client_id` | ✅ Yes | Must match client_id from PAR request |
+| Parameter     | Required | Description                           |
+| ------------- | -------- | ------------------------------------- |
+| `request_uri` | ✅ Yes   | The request URI from PAR response     |
+| `client_id`   | ✅ Yes   | Must match client_id from PAR request |
 
 **Example**:
+
 ```http
 GET /authorize?request_uri=urn:ietf:params:oauth:request_uri:6esc_11ACC5bwc014ltc14eY22c&client_id=my_client_id
 ```
 
 **Validation**:
+
 - `request_uri` must start with `urn:ietf:params:oauth:request_uri:`
 - `request_uri` must exist in storage and not be expired
 - `client_id` must match the one from PAR request
@@ -272,11 +279,7 @@ GET /authorize?request_uri=urn:ietf:params:oauth:request_uri:6esc_11ACC5bwc014lt
 ### JavaScript/TypeScript
 
 ```typescript
-async function authorizeWithPAR(config: {
-  clientId: string;
-  redirectUri: string;
-  scope: string;
-}) {
+async function authorizeWithPAR(config: { clientId: string; redirectUri: string; scope: string }) {
   // Generate PKCE
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -294,8 +297,8 @@ async function authorizeWithPAR(config: {
       state: crypto.randomUUID(),
       nonce: crypto.randomUUID(),
       code_challenge: codeChallenge,
-      code_challenge_method: 'S256'
-    })
+      code_challenge_method: 'S256',
+    }),
   });
 
   const { request_uri } = await parResponse.json();
@@ -372,12 +375,12 @@ curl -X POST https://your-tenant.authrim.com/as/par \
 
 ### Request URI Security
 
-| Security Feature | Description |
-|-----------------|-------------|
+| Security Feature  | Description                                               |
+| ----------------- | --------------------------------------------------------- |
 | Random Generation | Uses cryptographically secure random strings (~128 chars) |
-| URN Format | Follows `urn:ietf:params:oauth:request_uri:` scheme |
-| Short Lifetime | Default 10 minutes (600 seconds) |
-| Single-Use | Deleted immediately after retrieval |
+| URN Format        | Follows `urn:ietf:params:oauth:request_uri:` scheme       |
+| Short Lifetime    | Default 10 minutes (600 seconds)                          |
+| Single-Use        | Deleted immediately after retrieval                       |
 
 ### Client ID Matching
 
@@ -392,6 +395,7 @@ if (client_id !== storedData.client_id) {
 ### PKCE Support
 
 PAR fully supports PKCE parameters:
+
 - `code_challenge` and `code_challenge_method` are stored with the request
 - Verification occurs during token exchange
 
@@ -412,23 +416,23 @@ PAR endpoints are advertised in OpenID Provider metadata:
 
 ### Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `par_expiry_seconds` | `600` | Request URI lifetime (10 minutes) |
-| `require_par` | `false` | Whether PAR is required for all clients |
+| Setting              | Default | Description                             |
+| -------------------- | ------- | --------------------------------------- |
+| `par_expiry_seconds` | `600`   | Request URI lifetime (10 minutes)       |
+| `require_par`        | `false` | Whether PAR is required for all clients |
 
 ---
 
 ## Comparison: Traditional vs PAR
 
-| Aspect | Traditional | PAR |
-|--------|------------|-----|
-| Parameter transmission | URL query string | Backend POST |
-| Browser history exposure | ✅ Visible | ❌ Hidden |
-| URL length limits | Subject to limits | No limits |
-| Parameter tampering | Possible | Prevented |
-| Client authentication | Not possible | Supported |
-| FAPI 2.0 compliance | ❌ No | ✅ Yes |
+| Aspect                   | Traditional       | PAR          |
+| ------------------------ | ----------------- | ------------ |
+| Parameter transmission   | URL query string  | Backend POST |
+| Browser history exposure | ✅ Visible        | ❌ Hidden    |
+| URL length limits        | Subject to limits | No limits    |
+| Parameter tampering      | Possible          | Prevented    |
+| Client authentication    | Not possible      | Supported    |
+| FAPI 2.0 compliance      | ❌ No             | ✅ Yes       |
 
 ---
 
@@ -436,14 +440,14 @@ PAR endpoints are advertised in OpenID Provider metadata:
 
 ### Test Scenarios
 
-| Scenario | Expected Result |
-|----------|-----------------|
-| Successful PAR request | 201 with request_uri |
-| Missing client_id | 400 invalid_request |
-| Invalid redirect_uri | 400 invalid_request |
-| Request URI expiration | 400 invalid_request_uri |
-| Request URI reuse | 400 invalid_request_uri |
-| client_id mismatch at /authorize | 400 invalid_request |
+| Scenario                         | Expected Result         |
+| -------------------------------- | ----------------------- |
+| Successful PAR request           | 201 with request_uri    |
+| Missing client_id                | 400 invalid_request     |
+| Invalid redirect_uri             | 400 invalid_request     |
+| Request URI expiration           | 400 invalid_request_uri |
+| Request URI reuse                | 400 invalid_request_uri |
+| client_id mismatch at /authorize | 400 invalid_request     |
 
 ### Running Tests
 
@@ -458,6 +462,7 @@ pnpm --filter @authrim/op-auth run test
 ### "Invalid or expired request_uri"
 
 **Causes**:
+
 - Request URI expired (> 10 minutes old)
 - Request URI already used (single-use)
 - Invalid request URI format

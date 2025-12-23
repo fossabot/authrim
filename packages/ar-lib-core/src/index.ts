@@ -16,6 +16,9 @@ export * from './types/did';
 export * from './types/openid4vp';
 export * from './types/openid4vci';
 
+// Phase A-6: Logout Types
+export * from './types/logout';
+
 // Utils
 export * from './utils/audit-log';
 export * from './utils/client-authentication';
@@ -62,6 +65,49 @@ export * from './utils/email-domain-hash';
 export * from './utils/claim-normalizer';
 export * from './utils/feature-flags';
 
+// Error System (Phase 10 - SDK public types)
+// Note: Exported with namespace to avoid conflicts with legacy error types
+// Types are also re-exported individually for convenience
+export * as errors from './errors';
+export type {
+  ErrorDescriptor,
+  ErrorMeta,
+  UserAction,
+  Severity,
+  ErrorLocale,
+  ErrorIdMode,
+  ErrorResponseFormat,
+  ErrorSecurityLevel,
+  ErrorCodeDefinition,
+  ErrorFactoryOptions,
+  SerializeOptions,
+  ProblemDetailsResponse,
+} from './errors';
+export { SECURITY_TRACKED_ERRORS, OIDC_CORE_ENDPOINTS } from './errors';
+export {
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+  ERROR_DEFINITIONS,
+  type RFCErrorCode,
+  type ARErrorCode,
+} from './errors';
+export { configureFactory, createError, createRFCError, Errors } from './errors';
+export {
+  serializeError,
+  serializeToOAuth,
+  serializeToProblemDetails,
+  serializeToRedirect,
+} from './errors';
+export { errorResponse, redirectErrorResponse, determineFormat, createSerializer } from './errors';
+export {
+  AuthrimError,
+  RFCError,
+  errorMiddleware,
+  createErrorFactoryFromContext,
+  createErrorResponse,
+  createRFCErrorResponse,
+} from './errors';
+
 // Phase 9: VC (Verifiable Credentials)
 export * from './vc/haip-policy';
 export * from './vc/sd-jwt-vc';
@@ -74,6 +120,8 @@ export * from './services/org-domain-resolver';
 export * from './services/token-claim-evaluator';
 export * from './services/unified-check-service';
 export * from './services/permission-change-notifier';
+export * from './services/backchannel-logout-sender';
+export * from './services/frontchannel-logout';
 
 // Middleware
 export * from './middleware/admin-auth';

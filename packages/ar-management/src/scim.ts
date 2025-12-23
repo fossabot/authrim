@@ -590,7 +590,7 @@ app.get('/ResourceTypes/:name', (c) => {
     });
   }
 
-  return scimError(c, 404, `ResourceType ${name} not found`);
+  return scimError(c, 404, 'The requested resource was not found');
 });
 
 /**
@@ -926,7 +926,7 @@ app.get('/Schemas/:id', (c) => {
     });
   }
 
-  return scimError(c, 404, `Schema ${schemaId} not found`);
+  return scimError(c, 404, 'The requested resource was not found');
 });
 
 // ============================================================================
@@ -1017,12 +1017,10 @@ app.get('/Users', async (c) => {
           sqlParams.push(...whereParams);
         }
       } catch (error) {
-        return scimError(
-          c,
-          400,
-          `Invalid filter: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          'invalidFilter'
-        );
+        // Log full error for debugging but don't expose to client
+        console.error('[SCIM] Invalid filter:', error);
+        // SECURITY: Do not expose filter parsing error details
+        return scimError(c, 400, 'Invalid filter syntax', 'invalidFilter');
       }
     }
 
@@ -1093,7 +1091,7 @@ app.get('/Users/:id', async (c) => {
     const user = await fetchUserWithPII(coreAdapter, piiAdapter, userId);
 
     if (!user) {
-      return scimError(c, 404, `User ${userId} not found`);
+      return scimError(c, 404, 'The requested resource was not found');
     }
 
     // Check ETag if If-None-Match header is present
@@ -1287,7 +1285,7 @@ app.put('/Users/:id', async (c) => {
     const existingUser = await fetchUserWithPII(coreAdapter, piiAdapter, userId);
 
     if (!existingUser) {
-      return scimError(c, 404, `User ${userId} not found`);
+      return scimError(c, 404, 'The requested resource was not found');
     }
 
     // Check ETag if If-Match header is present
@@ -1403,7 +1401,7 @@ app.patch('/Users/:id', async (c) => {
     const existingUser = await fetchUserWithPII(coreAdapter, piiAdapter, userId);
 
     if (!existingUser) {
-      return scimError(c, 404, `User ${userId} not found`);
+      return scimError(c, 404, 'The requested resource was not found');
     }
 
     // Check ETag if If-Match header is present
@@ -1530,7 +1528,7 @@ app.delete('/Users/:id', async (c) => {
     const existingUser = await fetchUserWithPII(coreAdapter, piiAdapter, userId);
 
     if (!existingUser) {
-      return scimError(c, 404, `User ${userId} not found`);
+      return scimError(c, 404, 'The requested resource was not found');
     }
 
     // Check ETag if If-Match header is present
@@ -1613,12 +1611,10 @@ app.get('/Groups', async (c) => {
         sql += ` WHERE ${whereSql}`;
         sqlParams.push(...whereParams);
       } catch (error) {
-        return scimError(
-          c,
-          400,
-          `Invalid filter: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          'invalidFilter'
-        );
+        // Log full error for debugging but don't expose to client
+        console.error('[SCIM] Invalid filter:', error);
+        // SECURITY: Do not expose filter parsing error details
+        return scimError(c, 400, 'Invalid filter syntax', 'invalidFilter');
       }
     }
 
@@ -1689,7 +1685,7 @@ app.get('/Groups/:id', async (c) => {
     ]);
 
     if (!group) {
-      return scimError(c, 404, `Group ${groupId} not found`);
+      return scimError(c, 404, 'The requested resource was not found');
     }
 
     // Check ETag
@@ -1822,7 +1818,7 @@ app.put('/Groups/:id', async (c) => {
     );
 
     if (!existingGroup) {
-      return scimError(c, 404, `Group ${groupId} not found`);
+      return scimError(c, 404, 'The requested resource was not found');
     }
 
     // Check ETag
@@ -1899,7 +1895,7 @@ app.patch('/Groups/:id', async (c) => {
     );
 
     if (!existingGroup) {
-      return scimError(c, 404, `Group ${groupId} not found`);
+      return scimError(c, 404, 'The requested resource was not found');
     }
 
     // Check ETag
@@ -1995,7 +1991,7 @@ app.delete('/Groups/:id', async (c) => {
     );
 
     if (!existingGroup) {
-      return scimError(c, 404, `Group ${groupId} not found`);
+      return scimError(c, 404, 'The requested resource was not found');
     }
 
     // Check ETag

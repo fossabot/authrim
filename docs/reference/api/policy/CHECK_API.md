@@ -118,6 +118,7 @@ resource:id:action        # ID-level permission
 ```
 
 **Examples:**
+
 ```
 documents:read            # Can read any document (type-level)
 documents:doc_123:read    # Can read specific document doc_123 (ID-level)
@@ -126,6 +127,7 @@ billing:invoices:write    # Can write to billing invoices
 ```
 
 **Constraints:**
+
 - Components must contain only URL-safe characters: `[a-zA-Z0-9_-]`
 - Colons (`:`) are reserved as delimiters
 
@@ -159,6 +161,7 @@ documents:*              # All actions on documents
 Evaluate a single permission check.
 
 **Request:**
+
 ```http
 POST /api/check
 Authorization: Bearer chk_xxxxxxxxxxxxxxxxxxxx
@@ -171,6 +174,7 @@ Content-Type: application/json
 ```
 
 **Full Request Schema:**
+
 ```json
 {
   "subject_id": "user_123",
@@ -195,16 +199,17 @@ Content-Type: application/json
 
 **Request Fields:**
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `subject_id` | string | Yes | - | Subject (user/service) identifier |
-| `subject_type` | string | No | `user` | `user` or `service` |
-| `permission` | string\|object | Yes | - | Permission to check |
-| `tenant_id` | string | No | `default` | Tenant identifier |
-| `resource_context` | object | No | - | Additional context for ABAC |
-| `rebac` | object | No | - | Optional ReBAC check parameters |
+| Field              | Type           | Required | Default   | Description                       |
+| ------------------ | -------------- | -------- | --------- | --------------------------------- |
+| `subject_id`       | string         | Yes      | -         | Subject (user/service) identifier |
+| `subject_type`     | string         | No       | `user`    | `user` or `service`               |
+| `permission`       | string\|object | Yes      | -         | Permission to check               |
+| `tenant_id`        | string         | No       | `default` | Tenant identifier                 |
+| `resource_context` | object         | No       | -         | Additional context for ABAC       |
+| `rebac`            | object         | No       | -         | Optional ReBAC check parameters   |
 
 **Response:**
+
 ```json
 {
   "allowed": true,
@@ -216,14 +221,14 @@ Content-Type: application/json
 
 **Response Fields:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `allowed` | boolean | Whether access is permitted |
-| `resolved_via` | string[] | How permission was resolved (`direct`, `role`, `rebac`, `id_level`, `computed`) |
-| `final_decision` | string | `allow` or `deny` |
-| `cache_ttl` | number | Recommended cache TTL in seconds |
-| `reason` | string | Reason for denial (only on deny) |
-| `debug` | object | Debug info (when `CHECK_API_DEBUG_MODE=true`) |
+| Field            | Type     | Description                                                                     |
+| ---------------- | -------- | ------------------------------------------------------------------------------- |
+| `allowed`        | boolean  | Whether access is permitted                                                     |
+| `resolved_via`   | string[] | How permission was resolved (`direct`, `role`, `rebac`, `id_level`, `computed`) |
+| `final_decision` | string   | `allow` or `deny`                                                               |
+| `cache_ttl`      | number   | Recommended cache TTL in seconds                                                |
+| `reason`         | string   | Reason for denial (only on deny)                                                |
+| `debug`          | object   | Debug info (when `CHECK_API_DEBUG_MODE=true`)                                   |
 
 ---
 
@@ -232,6 +237,7 @@ Content-Type: application/json
 Evaluate multiple permission checks in a single request.
 
 **Request:**
+
 ```http
 POST /api/check/batch
 Authorization: Bearer chk_xxxxxxxxxxxxxxxxxxxx
@@ -249,12 +255,13 @@ Content-Type: application/json
 
 **Request Fields:**
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `checks` | CheckApiRequest[] | Yes | - | Array of check requests (max 100) |
-| `stop_on_deny` | boolean | No | `false` | Stop processing on first deny |
+| Field          | Type              | Required | Default | Description                       |
+| -------------- | ----------------- | -------- | ------- | --------------------------------- |
+| `checks`       | CheckApiRequest[] | Yes      | -       | Array of check requests (max 100) |
+| `stop_on_deny` | boolean           | No       | `false` | Stop processing on first deny     |
 
 **Response:**
+
 ```json
 {
   "results": [
@@ -287,6 +294,7 @@ Content-Type: application/json
 **Rate Limiting Note:**
 
 Batch requests consume rate limit proportionally to the number of checks:
+
 ```
 rate_limit_cost = checks.length
 ```
@@ -298,6 +306,7 @@ rate_limit_cost = checks.length
 WebSocket endpoint for real-time permission change notifications.
 
 **Connection:**
+
 ```
 wss://policy.example.com/api/check/subscribe?token=chk_xxxxxxxxxxxx&tenant_id=default
 ```
@@ -372,12 +381,12 @@ wss://policy.example.com/api/check/subscribe?token=chk_xxxxxxxxxxxx&tenant_id=de
 
 Subscriptions support pattern matching:
 
-| Pattern | Matches |
-|---------|---------|
-| `user_123` | Exact subject match |
-| `*` | All subjects |
-| `document:*` | All documents (wildcard prefix) |
-| `document:doc_456` | Exact resource match |
+| Pattern            | Matches                         |
+| ------------------ | ------------------------------- |
+| `user_123`         | Exact subject match             |
+| `*`                | All subjects                    |
+| `document:*`       | All documents (wildcard prefix) |
+| `document:doc_456` | Exact resource match            |
 
 ---
 
@@ -386,12 +395,14 @@ Subscriptions support pattern matching:
 Get WebSocket hub statistics.
 
 **Request:**
+
 ```http
 GET /api/check/subscribe/stats?tenant_id=default
 Authorization: Bearer chk_xxxxxxxxxxxxxxxxxxxx
 ```
 
 **Response:**
+
 ```json
 {
   "tenant_id": "default",
@@ -424,6 +435,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "id": "key_xxxxxxxx",
@@ -467,11 +479,11 @@ Authorization: Bearer <ADMIN_API_SECRET>
 
 ### Tiers
 
-| Tier | Requests/min | Use Case |
-|------|--------------|----------|
-| `strict` | 100 | Testing, development |
-| `moderate` | 500 | Standard production |
-| `lenient` | 2000 | High-volume services |
+| Tier       | Requests/min | Use Case             |
+| ---------- | ------------ | -------------------- |
+| `strict`   | 100          | Testing, development |
+| `moderate` | 500          | Standard production  |
+| `lenient`  | 2000         | High-volume services |
 
 ### Rate Limit Headers
 
@@ -495,12 +507,12 @@ X-RateLimit-Reset: 1702579260
 
 ## Feature Flags
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `ENABLE_CHECK_API` | `false` | Enable Check API functionality |
-| `CHECK_API_DEBUG_MODE` | `false` | Include debug info in responses |
-| `CHECK_API_WEBSOCKET_ENABLED` | `false` | Enable WebSocket Push |
-| `CHECK_API_AUDIT_ENABLED` | `true` | Enable audit logging |
+| Flag                          | Default | Description                     |
+| ----------------------------- | ------- | ------------------------------- |
+| `ENABLE_CHECK_API`            | `false` | Enable Check API functionality  |
+| `CHECK_API_DEBUG_MODE`        | `false` | Include debug info in responses |
+| `CHECK_API_WEBSOCKET_ENABLED` | `false` | Enable WebSocket Push           |
+| `CHECK_API_AUDIT_ENABLED`     | `true`  | Enable audit logging            |
 
 ---
 
@@ -549,6 +561,7 @@ X-RateLimit-Reset: 1702579260
 ### cURL
 
 **Single Check:**
+
 ```bash
 curl -X POST https://policy.example.com/api/check \
   -H "Authorization: Bearer chk_your_api_key" \
@@ -560,6 +573,7 @@ curl -X POST https://policy.example.com/api/check \
 ```
 
 **Batch Check:**
+
 ```bash
 curl -X POST https://policy.example.com/api/check/batch \
   -H "Authorization: Bearer chk_your_api_key" \
@@ -648,11 +662,7 @@ class CheckApiWebSocketClient {
     });
   }
 
-  subscribe(options: {
-    subjects?: string[];
-    resources?: string[];
-    relations?: string[];
-  }): void {
+  subscribe(options: { subjects?: string[]; resources?: string[]; relations?: string[] }): void {
     this.ws?.send(
       JSON.stringify({
         type: 'subscribe',
@@ -676,10 +686,7 @@ class CheckApiWebSocketClient {
 }
 
 // Usage
-const wsClient = new CheckApiWebSocketClient(
-  'https://policy.example.com',
-  'chk_your_api_key'
-);
+const wsClient = new CheckApiWebSocketClient('https://policy.example.com', 'chk_your_api_key');
 
 await wsClient.connect();
 
@@ -700,13 +707,13 @@ wsClient.onPermissionChange((event) => {
 
 ## Comparison with Other Authorization Models
 
-| Feature | Check API | Token Embedding (8.2) | ReBAC API |
-|---------|-----------|----------------------|-----------|
-| Latency | Low (~10ms) | Zero (embedded) | Medium (~20ms) |
-| Real-time Updates | Yes (WebSocket) | No (token refresh) | Yes |
-| Offline Support | No | Yes | No |
-| Dynamic Permissions | Yes | Limited | Yes |
-| Use Case | Real-time checks | Cached permissions | Relationship queries |
+| Feature             | Check API        | Token Embedding (8.2) | ReBAC API            |
+| ------------------- | ---------------- | --------------------- | -------------------- |
+| Latency             | Low (~10ms)      | Zero (embedded)       | Medium (~20ms)       |
+| Real-time Updates   | Yes (WebSocket)  | No (token refresh)    | Yes                  |
+| Offline Support     | No               | Yes                   | No                   |
+| Dynamic Permissions | Yes              | Limited               | Yes                  |
+| Use Case            | Real-time checks | Cached permissions    | Relationship queries |
 
 ### When to Use Check API
 

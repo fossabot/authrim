@@ -15,14 +15,17 @@ This directory contains setup and deletion scripts for managing Cloudflare resou
 ## Setup Scripts
 
 ### setup-keys.sh
+
 Generate RSA key pair for JWT signing and OpenID Connect operations.
 
 **Usage:**
+
 ```bash
 ./scripts/setup-keys.sh [--kid=custom-key-id]
 ```
 
 **What it does:**
+
 - Generates RSA 2048-bit key pair
 - Saves private key as PEM (`.keys/private.pem`)
 - Saves public key as JWK (`.keys/public.jwk.json`)
@@ -30,28 +33,34 @@ Generate RSA key pair for JWT signing and OpenID Connect operations.
 - Required for all environments (local and remote)
 
 **Output:**
+
 - `.keys/private.pem` - Private key for JWT signing
 - `.keys/public.jwk.json` - Public key in JWK format (for JWKS endpoint)
 - `.keys/metadata.json` - Key metadata including Key ID
 
 ### setup-local-vars.sh
+
 Generate `.dev.vars` file for local development environment variables.
 
 **Usage:**
+
 ```bash
 ./scripts/setup-local-vars.sh
 ```
 
 **What it does:**
+
 - Loads RSA keys from `.keys/` directory
 - Creates `.dev.vars` file with JWT keys
 - Optionally configures Resend API for email (magic links)
 - Sets local development configuration
 
 **Requirements:**
+
 - Requires `setup-keys.sh` to have been run first
 
 **Environment Variables:**
+
 - `PRIVATE_KEY_PEM` - JWT signing key
 - `PUBLIC_JWK_JSON` - JWT verification key
 - `KEY_ID` - JWT key identifier
@@ -59,14 +68,17 @@ Generate `.dev.vars` file for local development environment variables.
 - `EMAIL_FROM` (optional) - Sender email address
 
 ### setup-local-wrangler.sh
+
 Generate `wrangler.toml` files for local development environment.
 
 **Usage:**
+
 ```bash
 ./scripts/setup-local-wrangler.sh
 ```
 
 **What it does:**
+
 - Generates `wrangler.toml` for all worker packages
 - Sets ISSUER_URL to `http://localhost:8787` for local development
 - Configures Durable Objects bindings
@@ -74,17 +86,21 @@ Generate `wrangler.toml` files for local development environment.
 - Sets D1 database placeholders (to be filled by setup-d1.sh)
 
 **ISSUER_URL:**
+
 - Local: `http://localhost:8787`
 
 **Requirements:**
+
 - Requires `setup-keys.sh` to have been run first (for KEY_ID)
 
 ### setup-remote-wrangler.sh
+
 Generate `wrangler.toml` files for remote Cloudflare Workers deployment.
 
 Supports two deployment modes with automatic routing configuration:
 
 **Usage:**
+
 ```bash
 # Interactive mode (prompts for deployment mode)
 ./scripts/setup-remote-wrangler.sh
@@ -97,6 +113,7 @@ Supports two deployment modes with automatic routing configuration:
 **Deployment Modes:**
 
 #### 1) Test Environment (workers.dev + Router Worker)
+
 - Uses Router Worker with Service Bindings
 - Unified endpoint: `https://authrim.{subdomain}.workers.dev`
 - All backend workers hidden (workers_dev=false)
@@ -104,11 +121,13 @@ Supports two deployment modes with automatic routing configuration:
 - Automatically generates `packages/router/wrangler.toml`
 
 **When to use:**
+
 - Development and testing
 - Quick setup without custom domain
 - OpenID Connect compliant
 
 #### 2) Production Environment (Custom Domain + Cloudflare Routes)
+
 - Direct routing via Cloudflare Routes
 - Custom domain endpoint: `https://id.yourdomain.com`
 - Optimal performance (no extra router hop)
@@ -117,11 +136,13 @@ Supports two deployment modes with automatic routing configuration:
 - Removes router configuration (not needed)
 
 **When to use:**
+
 - Production deployments
 - Custom domain with Cloudflare DNS
 - Optimal performance required
 
 **What it does:**
+
 - Interactive deployment mode selection
 - workers.dev subdomain detection/input (for test mode)
 - ISSUER_URL configuration
@@ -131,39 +152,48 @@ Supports two deployment modes with automatic routing configuration:
 - Sets workers_dev appropriately for each worker
 
 **Configuration Examples:**
+
 - Test: `https://authrim.sgrastar.workers.dev` (Router Worker)
 - Production: `https://id.yourdomain.com` (Cloudflare Routes)
 
 **Requirements:**
+
 - Requires `setup-keys.sh` to have been run first (for KEY_ID)
 - For production mode: Cloudflare-managed domain required
 
 ### setup-resend.sh
+
 Configure Resend email service for sending magic link emails.
 
 **Usage:**
+
 ```bash
 ./scripts/setup-resend.sh [--env=local|remote]
 ```
 
 **What it does:**
+
 - Prompts for Resend API key (optional)
 - Configures email sender address
 - For local: adds configuration to `.dev.vars`
 - For remote: uploads as Cloudflare Secrets
 
 **Environments:**
+
 - `local` - Stores in `.dev.vars` (for local development)
 - `remote` - Uploads to Cloudflare Secrets (for remote workers)
 
 **Optional:** This script is optional. Without Resend:
+
 - Magic links return URLs instead of sending emails
 - Useful for development and testing
 
 ### setup-kv.sh
+
 Create and configure KV namespaces for Authrim.
 
 **Usage:**
+
 ```bash
 # Setup with environment
 ./scripts/setup-kv.sh --env=dev
@@ -173,17 +203,20 @@ Create and configure KV namespaces for Authrim.
 ```
 
 **What it does:**
+
 - Creates KV namespaces for the specified environment
 - Each namespace includes both production and preview versions
 - **Automatically initializes default settings** by calling `setup-default-settings.sh`
 - Updates wrangler.toml files with namespace IDs
 
 **KV Namespaces created:**
+
 - `{ENV}-CLIENTS` - Registered OAuth clients
 - `{ENV}-INITIAL_ACCESS_TOKENS` - Dynamic Client Registration tokens
 - `{ENV}-SETTINGS` - System settings (initialized with basic-op profile)
 
 **Note:** Many KV stores have been migrated to Durable Objects for better consistency:
+
 - AUTH_CODES → AuthorizationCodeStore DO
 - REFRESH_TOKENS → RefreshTokenRotator DO
 - STATE_STORE → PARRequestStore DO
@@ -191,9 +224,11 @@ Create and configure KV namespaces for Authrim.
 - RATE_LIMIT → RateLimiterCounter DO
 
 ### setup-default-settings.sh
+
 Initialize default system settings in SETTINGS KV.
 
 **Usage:**
+
 ```bash
 # Initialize with basic-op profile
 ./scripts/setup-default-settings.sh --env=dev
@@ -203,12 +238,14 @@ Initialize default system settings in SETTINGS KV.
 ```
 
 **What it does:**
+
 - Writes default system settings to SETTINGS KV
 - Uses "basic-op" certification profile as the base
 - Initializes FAPI, OIDC, and general configuration
 - Automatically called by `setup-kv.sh`
 
 **Default Configuration:**
+
 - Profile: basic-op (Standard OpenID Connect Provider)
 - FAPI: Disabled
 - PAR: Not required
@@ -219,9 +256,11 @@ Initialize default system settings in SETTINGS KV.
 **Note:** This script is automatically called by `setup-kv.sh`. You only need to run it manually if you want to reset settings to defaults.
 
 ### setup-d1.sh
+
 Create and configure D1 databases for Authrim.
 
 **Usage:**
+
 ```bash
 # Interactive mode
 ./scripts/setup-d1.sh
@@ -231,14 +270,17 @@ Create and configure D1 databases for Authrim.
 ```
 
 **What it does:**
+
 - Creates D1 database (default: `authrim-users-db`, customizable)
 - Updates wrangler.toml files with D1 bindings
 - Optionally runs database migrations
 
 ### setup-durable-objects.sh
+
 Deploy Durable Objects for session and state management.
 
 **Usage:**
+
 ```bash
 # Deploy Durable Objects
 ./scripts/setup-durable-objects.sh
@@ -248,38 +290,46 @@ Deploy Durable Objects for session and state management.
 ```
 
 **Durable Objects deployed:**
+
 - `SessionStore` - User session management with hot/cold storage
 - `AuthorizationCodeStore` - OAuth authorization code management
 - `RefreshTokenRotator` - Atomic refresh token rotation
 - `KeyManager` - Cryptographic key management
 
 ### setup-secrets.sh
+
 Configure secrets and environment variables for remote workers.
 
 **Usage:**
+
 ```bash
 ./scripts/setup-secrets.sh
 ```
 
 **What it does:**
+
 - Uploads `PRIVATE_KEY_PEM` to Cloudflare Secrets
 - Uploads `KEY_ID` as environment variable
 - Applies to all worker packages
 
 **Requirements:**
+
 - Requires `setup-keys.sh` to have been run first
 - Requires authentication with Cloudflare: `wrangler login`
 
 ### setup-remote-cors.sh
+
 Configure CORS settings for remote Cloudflare Workers.
 
 **Usage:**
+
 ```bash
 ./scripts/setup-remote-cors.sh
 ./scripts/setup-remote-cors.sh --origins="https://app.example.com"
 ```
 
 **What it does:**
+
 - Interactive CORS configuration
 - Stores settings in `SETTINGS_KV` namespace
 - Configurable:
@@ -289,15 +339,18 @@ Configure CORS settings for remote Cloudflare Workers.
   - Max Age (default: 86400 seconds)
 
 **Requirements:**
+
 - Requires authentication with Cloudflare: `wrangler login`
 - SETTINGS_KV namespace must exist (created by setup-kv.sh)
 
 **Note:** Can be called automatically by `deploy-remote-ui.sh`
 
 ### setup-github.sh
+
 Configure GitHub integration and CI/CD settings.
 
 **Usage:**
+
 ```bash
 ./scripts/setup-github.sh
 ```
@@ -309,9 +362,11 @@ Configure GitHub integration and CI/CD settings.
 ⚠️ **WARNING**: These scripts permanently delete resources. Use with caution!
 
 ### delete-kv.sh
+
 Delete KV namespaces for Authrim.
 
 **Usage:**
+
 ```bash
 # Interactive mode (with confirmation)
 ./scripts/delete-kv.sh
@@ -324,19 +379,23 @@ Delete KV namespaces for Authrim.
 ```
 
 **What it deletes:**
+
 - All Authrim KV namespaces (production and preview)
 - Only deletes namespaces with names matching the Authrim pattern
 
 **Safety features:**
+
 - Requires typing 'DELETE' to confirm
 - Only targets Authrim-specific namespaces
 - Provides detailed summary before deletion
 - Handles namespace-in-use errors gracefully
 
 ### delete-d1.sh
+
 Delete D1 databases by environment.
 
 **Usage:**
+
 ```bash
 # Interactive mode (prompts for environment)
 ./scripts/delete-d1.sh
@@ -353,19 +412,23 @@ Delete D1 databases by environment.
 ```
 
 **What it deletes:**
+
 - D1 database for specified environment (default: `authrim-users-db`)
 - Shows table contents before deletion
 - Remote databases require typing 'DELETE REMOTE' to confirm
 
 **Safety features:**
+
 - Environment-specific deletion (won't delete all databases)
 - Extra confirmation required for remote environment
 - Shows database contents before deletion
 
 ### delete-workers.sh
+
 Delete Cloudflare Workers and associated Durable Objects.
 
 **Usage:**
+
 ```bash
 # Interactive mode (select workers to delete)
 ./scripts/delete-workers.sh
@@ -384,15 +447,18 @@ Delete Cloudflare Workers and associated Durable Objects.
 ```
 
 **What it deletes:**
+
 - Selected Cloudflare Workers
 - Associated Durable Objects (automatically deleted with workers)
 - Only deletes workers with names matching the Authrim pattern
 
 **Requirements:**
+
 - Requires `CLOUDFLARE_API_TOKEN` environment variable
 - API token must have 'Workers Scripts:Edit' permission
 
 **How to get API token:**
+
 1. Go to https://dash.cloudflare.com/profile/api-tokens
 2. Create a token with 'Workers Scripts:Edit' permission
 3. Set as environment variable:
@@ -401,15 +467,18 @@ Delete Cloudflare Workers and associated Durable Objects.
    ```
 
 **Safety features:**
+
 - Uses Cloudflare REST API for reliable deletion
 - Requires typing 'DELETE' to confirm
-- Only targets Authrim-specific workers (authrim-*)
+- Only targets Authrim-specific workers (authrim-\*)
 - Uses `force=true` parameter to cleanly delete associated Durable Objects
 
 ### delete-all.sh
+
 Master script to delete all Authrim resources in the correct order.
 
 **Usage:**
+
 ```bash
 # Interactive mode (prompts for environment)
 ./scripts/delete-all.sh
@@ -426,17 +495,20 @@ Master script to delete all Authrim resources in the correct order.
 ```
 
 **Deletion order:**
+
 1. Workers and Durable Objects
 2. KV Namespaces (production and preview)
 3. D1 Database
 
 **What it deletes:**
+
 - All Cloudflare Workers (7 workers)
 - All KV namespaces (16 namespaces: 8 production + 8 preview)
 - D1 database for specified environment
 - Associated Durable Objects (deleted automatically with workers)
 
 **Safety features:**
+
 - Environment-specific deletion
 - Requires typing 'DELETE ALL' to confirm
 - Remote environment requires typing 'DELETE REMOTE' + additional 'YES' confirmation
@@ -444,6 +516,7 @@ Master script to delete all Authrim resources in the correct order.
 - Provides detailed summary before and after deletion
 
 **When to use this:**
+
 - Clean slate for testing new deployment
 - Environment teardown
 - Troubleshooting deployment issues
@@ -453,9 +526,11 @@ Master script to delete all Authrim resources in the correct order.
 ## Deployment Scripts
 
 ### deploy-with-retry.sh
+
 Deploy workers with retry logic and proper sequencing.
 
 **Usage:**
+
 ```bash
 # Deploy all workers with retries
 ./scripts/deploy-with-retry.sh
@@ -465,19 +540,23 @@ pnpm run deploy:retry
 ```
 
 **What it does:**
+
 - Deploys workers in correct order
 - Retries failed deployments automatically
 - Waits between deployments to avoid rate limits
 
 ### deploy-remote-ui.sh
+
 Deploy SvelteKit UI (Login/Admin Pages) to Cloudflare Pages.
 
 **Usage:**
+
 ```bash
 ./scripts/deploy-remote-ui.sh
 ```
 
 **What it does:**
+
 - Interactive domain configuration
 - Supports custom domains or Cloudflare Pages auto-generated URLs
 - Creates `.env` file with API Base URL
@@ -487,6 +566,7 @@ Deploy SvelteKit UI (Login/Admin Pages) to Cloudflare Pages.
 - Shows deployed URLs after completion
 
 **Configuration Options:**
+
 1. Domain Type:
    - Custom Domain (e.g., `https://login.example.com`)
    - Cloudflare Pages auto-generated URL (assigned after deployment)
@@ -498,6 +578,7 @@ Deploy SvelteKit UI (Login/Admin Pages) to Cloudflare Pages.
 4. Project names (defaults: `authrim-login`, `authrim-admin`)
 
 **Requirements:**
+
 - Requires authentication with Cloudflare: `wrangler login`
 - Requires `setup-remote-cors.sh` to exist (for CORS auto-configuration)
 
@@ -508,25 +589,31 @@ Deploy SvelteKit UI (Login/Admin Pages) to Cloudflare Pages.
 ## Utility Scripts
 
 ### generate-initial-access-token.sh
+
 Generate initial access tokens for Dynamic Client Registration.
 
 **Usage:**
+
 ```bash
 ./scripts/generate-initial-access-token.sh
 ```
 
 ### performance-test.sh
+
 Run performance tests against deployed workers.
 
 **Usage:**
+
 ```bash
 ./scripts/performance-test.sh
 ```
 
 ### create-phase1-issues.sh
+
 Create GitHub issues for Phase 1 implementation tasks.
 
 **Usage:**
+
 ```bash
 ./scripts/create-phase1-issues.sh
 ```
@@ -538,6 +625,7 @@ Create GitHub issues for Phase 1 implementation tasks.
 ### General Principles
 
 1. **Always use dry-run mode first** when using deletion scripts
+
    ```bash
    ./scripts/delete-all.sh local --dry-run
    ```
@@ -608,6 +696,7 @@ pnpm run deploy:retry
 **Note:** `setup-kv.sh` automatically initializes system settings with the basic-op profile. You can change the profile later using `./scripts/switch-certification-profile.sh`.
 
 **Notes:**
+
 - `deploy-remote-ui.sh` handles domain selection and CORS configuration
 - For custom domains: Enter your domain URLs directly
 - For Pages.dev URLs: Deployment generates the URLs automatically
@@ -750,6 +839,7 @@ For issues or questions:
 ## Setup Flow Summary
 
 ### Local Development Environment
+
 ```
 setup-keys.sh
     ↓
@@ -767,6 +857,7 @@ pnpm run dev
 ```
 
 ### Remote Environment Deployment
+
 ```
 setup-keys.sh
     ↓
@@ -788,6 +879,7 @@ setup-resend.sh --env=remote (optional)
 **Note:** The `setup-kv.sh` script now automatically initializes default system settings (FAPI, OIDC configuration) using the basic-op certification profile.
 
 **OR manually configure CORS:**
+
 ```
 deploy-remote-ui.sh
     ↓

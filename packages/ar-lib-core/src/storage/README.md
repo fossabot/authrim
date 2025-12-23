@@ -8,14 +8,14 @@ The storage abstraction layer integrates multiple storage backends and provides 
 
 ### Routing Strategy
 
-| Prefix | Routing Target | Description |
-|--------|---------------|-------------|
-| `session:*` | SessionStore Durable Object + D1 fallback | Hot data in DO, cold data in D1 |
-| `client:*` | D1 + KV Cache | Read-through cache pattern |
-| `user:*` | D1 Database | User data |
-| `authcode:*` | AuthorizationCodeStore Durable Object | One-time use guarantee |
-| `refreshtoken:*` | RefreshTokenRotator Durable Object | Atomic rotation |
-| Others | KV Storage | Fallback |
+| Prefix           | Routing Target                            | Description                     |
+| ---------------- | ----------------------------------------- | ------------------------------- |
+| `session:*`      | SessionStore Durable Object + D1 fallback | Hot data in DO, cold data in D1 |
+| `client:*`       | D1 + KV Cache                             | Read-through cache pattern      |
+| `user:*`         | D1 Database                               | User data                       |
+| `authcode:*`     | AuthorizationCodeStore Durable Object     | One-time use guarantee          |
+| `refreshtoken:*` | RefreshTokenRotator Durable Object        | Atomic rotation                 |
+| Others           | KV Storage                                | Fallback                        |
 
 ## Architecture
 
@@ -73,7 +73,8 @@ import type { Env } from '@authrim/shared/types/env';
 // Create storage adapter in handler
 export default {
   async fetch(request: Request, env: Env) {
-    const { adapter, userStore, clientStore, sessionStore, passkeyStore } = createStorageAdapter(env);
+    const { adapter, userStore, clientStore, sessionStore, passkeyStore } =
+      createStorageAdapter(env);
 
     // Get user
     const user = await userStore.get('user_123');
@@ -103,7 +104,9 @@ await adapter.set('custom:key', 'value', 3600); // TTL: 1 hour
 await adapter.delete('session:abc123');
 
 // D1 SQL queries (PII/Non-PII separation: users_core for non-PII, users_pii for PII)
-const users = await adapter.query<UserPII>('SELECT * FROM users_pii WHERE email = ?', ['user@example.com']);
+const users = await adapter.query<UserPII>('SELECT * FROM users_pii WHERE email = ?', [
+  'user@example.com',
+]);
 await adapter.execute('DELETE FROM sessions WHERE expires_at < ?', [Date.now()]);
 ```
 

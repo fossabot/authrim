@@ -13,6 +13,8 @@ import {
   isShardedSessionId,
   D1Adapter,
   type DatabaseAdapter,
+  createErrorResponse,
+  AR_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import { generateSAMLId, nowAsDateTime, offsetDateTime } from '../common/xml-utils';
 import { NAMEID_FORMATS, AUTHN_CONTEXT, DEFAULTS, STATUS_CODES } from '../common/constants';
@@ -40,7 +42,7 @@ export async function handleIdPInitiated(c: Context<{ Bindings: Env }>): Promise
     // Get SP configuration
     const spConfig = await getSPConfig(env, spEntityId);
     if (!spConfig) {
-      return c.json({ error: 'Unknown Service Provider' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Check user authentication
@@ -59,7 +61,7 @@ export async function handleIdPInitiated(c: Context<{ Bindings: Env }>): Promise
     // Get user information
     const userInfo = await getUserInfo(env, userId);
     if (!userInfo) {
-      return c.json({ error: 'User not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Generate SAML Response (no InResponseTo since this is IdP-initiated)
@@ -69,13 +71,7 @@ export async function handleIdPInitiated(c: Context<{ Bindings: Env }>): Promise
     return sendSAMLResponse(c, spConfig, responseXml);
   } catch (error) {
     console.error('IdP-Initiated SSO Error:', error);
-    return c.json(
-      {
-        error: 'idp_init_error',
-        message: error instanceof Error ? error.message : 'IdP-initiated SSO failed',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 

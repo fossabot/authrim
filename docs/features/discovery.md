@@ -4,10 +4,10 @@ Auto-configure OIDC clients with standardized metadata discovery.
 
 ## Overview
 
-| Specification | Status | Endpoints |
-|---------------|--------|-----------|
+| Specification                                                                    | Status         | Endpoints                           |
+| -------------------------------------------------------------------------------- | -------------- | ----------------------------------- |
 | [OIDC Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html) | ✅ Implemented | `/.well-known/openid-configuration` |
-| [JWK (RFC 7517)](https://datatracker.ietf.org/doc/html/rfc7517) | ✅ Implemented | `/.well-known/jwks.json` |
+| [JWK (RFC 7517)](https://datatracker.ietf.org/doc/html/rfc7517)                  | ✅ Implemented | `/.well-known/jwks.json`            |
 
 OpenID Connect Discovery allows clients to automatically discover authorization server capabilities, endpoints, and signing keys without manual configuration.
 
@@ -15,13 +15,13 @@ OpenID Connect Discovery allows clients to automatically discover authorization 
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Zero Configuration** | Clients auto-discover all endpoints |
-| **Dynamic Updates** | Configuration changes propagate automatically |
-| **Key Rotation** | JWKS enables seamless key rotation |
-| **Interoperability** | Standard format works with any OIDC library |
-| **Reduced Errors** | No manual endpoint configuration mistakes |
+| Benefit                | Description                                   |
+| ---------------------- | --------------------------------------------- |
+| **Zero Configuration** | Clients auto-discover all endpoints           |
+| **Dynamic Updates**    | Configuration changes propagate automatically |
+| **Key Rotation**       | JWKS enables seamless key rotation            |
+| **Interoperability**   | Standard format works with any OIDC library   |
+| **Reduced Errors**     | No manual endpoint configuration mistakes     |
 
 ---
 
@@ -78,7 +78,7 @@ async function initializeOIDC() {
     client_id: 'my-app',
     client_secret: 'secret',
     redirect_uris: ['https://app.example.com/callback'],
-    response_types: ['code']
+    response_types: ['code'],
   });
 
   return client;
@@ -88,10 +88,10 @@ async function initializeOIDC() {
 import { UserManager } from 'oidc-client-ts';
 
 const userManager = new UserManager({
-  authority: 'https://auth.example.com',  // Discovery URL
+  authority: 'https://auth.example.com', // Discovery URL
   client_id: 'spa-client',
   redirect_uri: 'https://app.example.com/callback',
-  scope: 'openid profile email'
+  scope: 'openid profile email',
   // All other endpoints auto-discovered!
 });
 ```
@@ -136,7 +136,7 @@ async function getTenantOIDCClient(tenantId: string) {
 
   // Discover tenant-specific configuration
   const discoveryUrl = `${issuerUrl}/.well-known/openid-configuration`;
-  const config = await fetch(discoveryUrl).then(r => r.json());
+  const config = await fetch(discoveryUrl).then((r) => r.json());
 
   // Validate tenant has required capabilities
   if (!config.scopes_supported?.includes('openid')) {
@@ -147,7 +147,7 @@ async function getTenantOIDCClient(tenantId: string) {
   const requirements = {
     pkce: config.code_challenge_methods_supported?.includes('S256'),
     refreshTokens: config.grant_types_supported?.includes('refresh_token'),
-    claims: config.claims_parameter_supported
+    claims: config.claims_parameter_supported,
   };
 
   console.log(`Tenant ${tenantId} capabilities:`, requirements);
@@ -156,7 +156,7 @@ async function getTenantOIDCClient(tenantId: string) {
     config,
     issuer: issuerUrl,
     authorizationEndpoint: config.authorization_endpoint,
-    tokenEndpoint: config.token_endpoint
+    tokenEndpoint: config.token_endpoint,
   };
 }
 
@@ -174,7 +174,7 @@ async function getCachedDiscovery(tenantId: string) {
 
   discoveryCache.set(tenantId, {
     config,
-    expiresAt: Date.now() + 3600000 // Cache for 1 hour
+    expiresAt: Date.now() + 3600000, // Cache for 1 hour
   });
 
   return config;
@@ -223,7 +223,7 @@ const client = jwksClient({
   cache: true,
   cacheMaxAge: 600000, // 10 minutes
   rateLimit: true,
-  jwksRequestsPerMinute: 10
+  jwksRequestsPerMinute: 10,
 });
 
 // Get signing key by kid
@@ -248,18 +248,23 @@ async function validateJWT(req: Request, res: Response, next: NextFunction) {
 
   const token = authHeader.substring(7);
 
-  jwt.verify(token, getKey, {
-    issuer: 'https://auth.example.com',
-    audience: 'https://api.example.com',
-    algorithms: ['RS256']
-  }, (err, decoded) => {
-    if (err) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
+  jwt.verify(
+    token,
+    getKey,
+    {
+      issuer: 'https://auth.example.com',
+      audience: 'https://api.example.com',
+      algorithms: ['RS256'],
+    },
+    (err, decoded) => {
+      if (err) {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
 
-    req.user = decoded;
-    next();
-  });
+      req.user = decoded;
+      next();
+    }
+  );
 }
 
 // Handle key rotation gracefully
@@ -297,13 +302,53 @@ async function handleKeyRotation() {
   "backchannel_authentication_endpoint": "https://auth.example.com/bc-authorize",
 
   "scopes_supported": ["openid", "profile", "email", "address", "phone", "offline_access"],
-  "response_types_supported": ["code", "id_token", "id_token token", "code id_token", "code token", "code id_token token"],
-  "response_modes_supported": ["query", "fragment", "form_post", "jwt", "query.jwt", "fragment.jwt", "form_post.jwt"],
-  "grant_types_supported": ["authorization_code", "implicit", "refresh_token", "client_credentials", "urn:ietf:params:oauth:grant-type:device_code", "urn:ietf:params:oauth:grant-type:jwt-bearer", "urn:openid:params:grant-type:ciba"],
+  "response_types_supported": [
+    "code",
+    "id_token",
+    "id_token token",
+    "code id_token",
+    "code token",
+    "code id_token token"
+  ],
+  "response_modes_supported": [
+    "query",
+    "fragment",
+    "form_post",
+    "jwt",
+    "query.jwt",
+    "fragment.jwt",
+    "form_post.jwt"
+  ],
+  "grant_types_supported": [
+    "authorization_code",
+    "implicit",
+    "refresh_token",
+    "client_credentials",
+    "urn:ietf:params:oauth:grant-type:device_code",
+    "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    "urn:openid:params:grant-type:ciba"
+  ],
   "subject_types_supported": ["public", "pairwise"],
   "id_token_signing_alg_values_supported": ["RS256"],
-  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "client_secret_jwt", "private_key_jwt"],
-  "claims_supported": ["sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "acr", "name", "email", "email_verified"],
+  "token_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "client_secret_post",
+    "client_secret_jwt",
+    "private_key_jwt"
+  ],
+  "claims_supported": [
+    "sub",
+    "iss",
+    "aud",
+    "exp",
+    "iat",
+    "auth_time",
+    "nonce",
+    "acr",
+    "name",
+    "email",
+    "email_verified"
+  ],
   "code_challenge_methods_supported": ["S256"],
   "claims_parameter_supported": true,
   "request_parameter_supported": true,
@@ -345,13 +390,13 @@ async function handleKeyRotation() {
 
 ### Key Fields
 
-| Field | Description |
-|-------|-------------|
-| `kty` | Key type (RSA, EC) |
-| `use` | Key usage (`sig` for signing) |
-| `kid` | Key ID (referenced in JWT header) |
-| `alg` | Algorithm (RS256, ES256) |
-| `n`, `e` | RSA modulus and exponent |
+| Field    | Description                       |
+| -------- | --------------------------------- |
+| `kty`    | Key type (RSA, EC)                |
+| `use`    | Key usage (`sig` for signing)     |
+| `kid`    | Key ID (referenced in JWT header) |
+| `alg`    | Algorithm (RS256, ES256)          |
+| `n`, `e` | RSA modulus and exponent          |
 
 ---
 
@@ -379,32 +424,32 @@ Host: auth.example.com
 
 ## Caching Recommendations
 
-| Resource | Cache Duration | Notes |
-|----------|---------------|-------|
-| Discovery | 1-24 hours | Rarely changes |
-| JWKS | 10-60 minutes | Keys may rotate |
+| Resource        | Cache Duration    | Notes           |
+| --------------- | ----------------- | --------------- |
+| Discovery       | 1-24 hours        | Rarely changes  |
+| JWKS            | 10-60 minutes     | Keys may rotate |
 | Individual keys | Until unknown kid | Refresh on miss |
 
 ---
 
 ## Security Considerations
 
-| Consideration | Implementation |
-|---------------|----------------|
-| **HTTPS Required** | All discovery URLs must use TLS |
-| **Issuer Validation** | Verify `issuer` matches expected |
-| **JWKS Pinning** | Consider key pinning for high-security |
-| **Rate Limiting** | Don't fetch JWKS on every request |
+| Consideration         | Implementation                         |
+| --------------------- | -------------------------------------- |
+| **HTTPS Required**    | All discovery URLs must use TLS        |
+| **Issuer Validation** | Verify `issuer` matches expected       |
+| **JWKS Pinning**      | Consider key pinning for high-security |
+| **Rate Limiting**     | Don't fetch JWKS on every request      |
 
 ---
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Discovery | `packages/op-discovery/src/discovery.ts` | Metadata generation |
-| JWKS | `packages/op-discovery/src/jwks.ts` | Key set endpoint |
-| Key Manager | `packages/shared/src/durable-objects/KeyManager.ts` | Key storage |
+| Component   | File                                                | Description         |
+| ----------- | --------------------------------------------------- | ------------------- |
+| Discovery   | `packages/op-discovery/src/discovery.ts`            | Metadata generation |
+| JWKS        | `packages/op-discovery/src/jwks.ts`                 | Key set endpoint    |
+| Key Manager | `packages/shared/src/durable-objects/KeyManager.ts` | Key storage         |
 
 ---
 

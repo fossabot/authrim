@@ -4,12 +4,12 @@ OAuth 2.0 compliant error responses with structured logging and security conside
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| **Format** | OAuth 2.0 / OpenID Connect standard |
-| **Localization** | `error_description` in English |
-| **Security** | No sensitive data in responses |
-| **Logging** | Structured JSON with context |
+| Aspect           | Description                         |
+| ---------------- | ----------------------------------- |
+| **Format**       | OAuth 2.0 / OpenID Connect standard |
+| **Localization** | `error_description` in English      |
+| **Security**     | No sensitive data in responses      |
+| **Logging**      | Structured JSON with context        |
 
 Authrim follows OAuth 2.0 and OpenID Connect error response specifications, providing clear error information while protecting sensitive implementation details.
 
@@ -29,12 +29,12 @@ Authrim follows OAuth 2.0 and OpenID Connect error response specifications, prov
 
 ### Response Structure
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `error` | ✅ | Error code (ASCII, no spaces) |
-| `error_description` | ❌ | Human-readable description |
-| `error_uri` | ❌ | URI to error documentation |
-| `state` | ❌ | Client state (if provided) |
+| Field               | Required | Description                   |
+| ------------------- | -------- | ----------------------------- |
+| `error`             | ✅       | Error code (ASCII, no spaces) |
+| `error_description` | ❌       | Human-readable description    |
+| `error_uri`         | ❌       | URI to error documentation    |
+| `state`             | ❌       | Client state (if provided)    |
 
 ---
 
@@ -51,15 +51,15 @@ https://client.example.com/callback?
   state=abc123
 ```
 
-| Error | HTTP | Description |
-|-------|------|-------------|
-| `invalid_request` | 302 | Missing/invalid parameters |
-| `unauthorized_client` | 302 | Client not authorized |
-| `access_denied` | 302 | User denied authorization |
-| `unsupported_response_type` | 302 | Response type not supported |
-| `invalid_scope` | 302 | Invalid scope |
-| `server_error` | 302 | Internal server error |
-| `temporarily_unavailable` | 302 | Temporary unavailability |
+| Error                       | HTTP | Description                 |
+| --------------------------- | ---- | --------------------------- |
+| `invalid_request`           | 302  | Missing/invalid parameters  |
+| `unauthorized_client`       | 302  | Client not authorized       |
+| `access_denied`             | 302  | User denied authorization   |
+| `unsupported_response_type` | 302  | Response type not supported |
+| `invalid_scope`             | 302  | Invalid scope               |
+| `server_error`              | 302  | Internal server error       |
+| `temporarily_unavailable`   | 302  | Temporary unavailability    |
 
 ### Token Endpoint Errors
 
@@ -75,14 +75,14 @@ Content-Type: application/json
 }
 ```
 
-| Error | HTTP | Description |
-|-------|------|-------------|
-| `invalid_request` | 400 | Missing/invalid parameters |
-| `invalid_client` | 401 | Client authentication failed |
-| `invalid_grant` | 400 | Invalid/expired grant |
-| `unauthorized_client` | 400 | Client not authorized |
-| `unsupported_grant_type` | 400 | Grant type not supported |
-| `invalid_scope` | 400 | Invalid scope |
+| Error                    | HTTP | Description                  |
+| ------------------------ | ---- | ---------------------------- |
+| `invalid_request`        | 400  | Missing/invalid parameters   |
+| `invalid_client`         | 401  | Client authentication failed |
+| `invalid_grant`          | 400  | Invalid/expired grant        |
+| `unauthorized_client`    | 400  | Client not authorized        |
+| `unsupported_grant_type` | 400  | Grant type not supported     |
+| `invalid_scope`          | 400  | Invalid scope                |
 
 ### UserInfo Endpoint Errors
 
@@ -97,10 +97,10 @@ WWW-Authenticate: Bearer error="invalid_token",
 }
 ```
 
-| Error | HTTP | Description |
-|-------|------|-------------|
-| `invalid_token` | 401 | Token invalid/expired |
-| `insufficient_scope` | 403 | Insufficient permissions |
+| Error                | HTTP | Description              |
+| -------------------- | ---- | ------------------------ |
+| `invalid_token`      | 401  | Token invalid/expired    |
+| `insufficient_scope` | 403  | Insufficient permissions |
 
 ---
 
@@ -129,20 +129,20 @@ flowchart TB
 
 ### Standard Mappings
 
-| Status | Usage |
-|--------|-------|
-| **200** | Success |
-| **201** | Resource created (DCR) |
-| **204** | Success, no content (revoke) |
-| **302** | Authorization redirect |
-| **400** | Bad request, invalid parameters |
-| **401** | Authentication required/failed |
+| Status  | Usage                               |
+| ------- | ----------------------------------- |
+| **200** | Success                             |
+| **201** | Resource created (DCR)              |
+| **204** | Success, no content (revoke)        |
+| **302** | Authorization redirect              |
+| **400** | Bad request, invalid parameters     |
+| **401** | Authentication required/failed      |
 | **403** | Forbidden, insufficient permissions |
-| **404** | Resource not found |
-| **429** | Rate limit exceeded |
-| **500** | Internal server error |
-| **501** | Feature not implemented/disabled |
-| **503** | Service temporarily unavailable |
+| **404** | Resource not found                  |
+| **429** | Rate limit exceeded                 |
+| **500** | Internal server error               |
+| **501** | Feature not implemented/disabled    |
+| **503** | Service temporarily unavailable     |
 
 ### Error-Status Mapping
 
@@ -181,10 +181,10 @@ const ERROR_STATUS_MAP: Record<string, number> = {
 
 ### DPoP Error Codes
 
-| Error | Description |
-|-------|-------------|
-| `invalid_dpop_proof` | DPoP proof validation failed |
-| `use_dpop_nonce` | Nonce required (replay prevention) |
+| Error                | Description                        |
+| -------------------- | ---------------------------------- |
+| `invalid_dpop_proof` | DPoP proof validation failed       |
+| `use_dpop_nonce`     | Nonce required (replay prevention) |
 
 ### DPoP Error Response
 
@@ -211,11 +211,7 @@ interface OAuthError {
   error_uri?: string;
 }
 
-function createOAuthError(
-  error: string,
-  description?: string,
-  uri?: string
-): OAuthError {
+function createOAuthError(error: string, description?: string, uri?: string): OAuthError {
   return {
     error,
     error_description: description,
@@ -225,10 +221,7 @@ function createOAuthError(
 
 // Usage
 return new Response(
-  JSON.stringify(createOAuthError(
-    'invalid_grant',
-    'The authorization code has expired'
-  )),
+  JSON.stringify(createOAuthError('invalid_grant', 'The authorization code has expired')),
   {
     status: 400,
     headers: { 'Content-Type': 'application/json' },
@@ -280,12 +273,12 @@ flowchart TB
 
 ### Safe Error Messages
 
-| Scenario | Bad (Reveals Info) | Good (Safe) |
-|----------|-------------------|-------------|
-| User not found | "User not found" | "Invalid credentials" |
-| Invalid password | "Wrong password" | "Invalid credentials" |
-| Client not found | "Client ID xxx not found" | "Invalid client" |
-| Expired token | "Token expired at 10:30" | "Token invalid or expired" |
+| Scenario         | Bad (Reveals Info)        | Good (Safe)                |
+| ---------------- | ------------------------- | -------------------------- |
+| User not found   | "User not found"          | "Invalid credentials"      |
+| Invalid password | "Wrong password"          | "Invalid credentials"      |
+| Client not found | "Client ID xxx not found" | "Invalid client"           |
+| Expired token    | "Token expired at 10:30"  | "Token invalid or expired" |
 
 ### Consistent Timing
 
@@ -359,11 +352,11 @@ try {
 
 ### Log Levels
 
-| Level | Usage |
-|-------|-------|
-| `debug` | Development debugging |
-| `info` | Normal operations |
-| `warn` | Potential issues |
+| Level   | Usage                      |
+| ------- | -------------------------- |
+| `debug` | Development debugging      |
+| `info`  | Normal operations          |
+| `warn`  | Potential issues           |
 | `error` | Errors requiring attention |
 
 ---
@@ -377,26 +370,26 @@ For errors that cannot redirect (invalid `redirect_uri`):
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Authorization Error</title>
-</head>
-<body>
-  <h1>Authorization Error</h1>
-  <p>Error: <code>invalid_redirect_uri</code></p>
-  <p>The redirect URI provided is not registered for this client.</p>
-  <p>Please contact the application developer.</p>
-</body>
+  <head>
+    <title>Authorization Error</title>
+  </head>
+  <body>
+    <h1>Authorization Error</h1>
+    <p>Error: <code>invalid_redirect_uri</code></p>
+    <p>The redirect URI provided is not registered for this client.</p>
+    <p>Please contact the application developer.</p>
+  </body>
 </html>
 ```
 
 ### Error Display Conditions
 
-| Condition | Response |
-|-----------|----------|
-| Valid `redirect_uri` | Redirect with error |
-| Invalid `redirect_uri` | Display error page |
-| Missing `client_id` | Display error page |
-| Invalid `client_id` | Display error page |
+| Condition              | Response            |
+| ---------------------- | ------------------- |
+| Valid `redirect_uri`   | Redirect with error |
+| Invalid `redirect_uri` | Display error page  |
+| Missing `client_id`    | Display error page  |
+| Invalid `client_id`    | Display error page  |
 
 ---
 
@@ -404,12 +397,12 @@ For errors that cannot redirect (invalid `redirect_uri`):
 
 ### Key Error Metrics
 
-| Metric | Alert Threshold |
-|--------|-----------------|
-| `error.invalid_client` | >5% of requests |
-| `error.invalid_grant` | >10% of requests |
-| `error.server_error` | Any occurrence |
-| `error.rate_limit` | >100/minute |
+| Metric                 | Alert Threshold  |
+| ---------------------- | ---------------- |
+| `error.invalid_client` | >5% of requests  |
+| `error.invalid_grant`  | >10% of requests |
+| `error.server_error`   | Any occurrence   |
+| `error.rate_limit`     | >100/minute      |
 
 ### Error Aggregation
 
@@ -426,10 +419,10 @@ flowchart LR
 
 ## Related Documents
 
-| Document | Description |
-|----------|-------------|
-| [Security](./security.md) | Security architecture |
-| [Protocol Flow](./protocol-flow.md) | OAuth/OIDC flows |
+| Document                            | Description                 |
+| ----------------------------------- | --------------------------- |
+| [Security](./security.md)           | Security architecture       |
+| [Protocol Flow](./protocol-flow.md) | OAuth/OIDC flows            |
 | [Configuration](./configuration.md) | Error message configuration |
 
 ---

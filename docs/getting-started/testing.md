@@ -19,15 +19,15 @@ This guide covers Authrim's comprehensive testing strategy including unit tests,
 
 ## Test Overview
 
-| Test Type | Tool | Purpose | Location |
-|-----------|------|---------|----------|
-| **Unit** | Vitest | Backend API, DOs, Components | `packages/*/test/` |
-| **Integration** | Vitest | Authorization flows, security | `test/integration/` |
-| **E2E** | Playwright | User flows, UI functionality | `test-e2e/` |
-| **Accessibility** | axe-core | WCAG 2.1 AA compliance | `test-e2e/` |
-| **Performance** | Lighthouse CI | Core Web Vitals | `lighthouserc.json` |
-| **Conformance** | OIDC Foundation | OpenID certification | `conformance/` |
-| **Load** | k6 | Performance at scale | `load-testing/` |
+| Test Type         | Tool            | Purpose                       | Location            |
+| ----------------- | --------------- | ----------------------------- | ------------------- |
+| **Unit**          | Vitest          | Backend API, DOs, Components  | `packages/*/test/`  |
+| **Integration**   | Vitest          | Authorization flows, security | `test/integration/` |
+| **E2E**           | Playwright      | User flows, UI functionality  | `test-e2e/`         |
+| **Accessibility** | axe-core        | WCAG 2.1 AA compliance        | `test-e2e/`         |
+| **Performance**   | Lighthouse CI   | Core Web Vitals               | `lighthouserc.json` |
+| **Conformance**   | OIDC Foundation | OpenID certification          | `conformance/`      |
+| **Load**          | k6              | Performance at scale          | `load-testing/`     |
 
 ---
 
@@ -69,12 +69,14 @@ packages/
 ### Key Test Suites
 
 **Durable Objects** (~50+ tests):
+
 - `AuthorizationCodeStore`: Code issuance, validation, replay prevention
 - `SessionStore`: Session lifecycle, hot/cold storage, multi-device
 - `RefreshTokenRotator`: Token rotation, theft detection, audit logging
 - `KeyManager`: JWK management, key rotation
 
 **Handlers** (~300+ tests):
+
 - Authorization endpoint flows
 - Token endpoint (all grant types)
 - UserInfo claims handling
@@ -92,11 +94,11 @@ pnpm test -- --filter=integration
 
 **Key Test Suites**:
 
-| Suite | Description |
-|-------|-------------|
-| `authorization-flow.test.ts` | Complete OAuth 2.0/OIDC flows with PKCE |
-| `durable-objects.test.ts` | Cross-DO communication, state consistency |
-| `security-headers.test.ts` | CSP, HSTS, X-Frame-Options, CORS |
+| Suite                        | Description                               |
+| ---------------------------- | ----------------------------------------- |
+| `authorization-flow.test.ts` | Complete OAuth 2.0/OIDC flows with PKCE   |
+| `durable-objects.test.ts`    | Cross-DO communication, state consistency |
+| `security-headers.test.ts`   | CSP, HSTS, X-Frame-Options, CORS          |
 
 ---
 
@@ -148,6 +150,7 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 ```
 
 **Coverage**:
+
 - Color contrast (4.5:1 normal, 3:1 large text)
 - Keyboard navigation (tab order, focus indicators)
 - ARIA attributes validation
@@ -172,21 +175,21 @@ pnpm test:lighthouse:assert
 
 ### Target Scores
 
-| Metric | Target |
-|--------|--------|
-| Performance | 90+ |
-| Accessibility | 90+ |
-| Best Practices | 90+ |
-| SEO | 90+ |
+| Metric         | Target |
+| -------------- | ------ |
+| Performance    | 90+    |
+| Accessibility  | 90+    |
+| Best Practices | 90+    |
+| SEO            | 90+    |
 
 ### Core Web Vitals
 
-| Metric | Target |
-|--------|--------|
-| First Contentful Paint (FCP) | < 2000ms |
+| Metric                         | Target   |
+| ------------------------------ | -------- |
+| First Contentful Paint (FCP)   | < 2000ms |
 | Largest Contentful Paint (LCP) | < 2500ms |
-| Cumulative Layout Shift (CLS) | < 0.1 |
-| Total Blocking Time (TBT) | < 300ms |
+| Cumulative Layout Shift (CLS)  | < 0.1    |
+| Total Blocking Time (TBT)      | < 300ms  |
 
 ---
 
@@ -213,12 +216,12 @@ pnpm conformance:errors    # Failed tests only
 
 ### Test Plans
 
-| Plan | Description | Module Count |
-|------|-------------|--------------|
-| `basic-op` | Standard OIDC Provider | ~60 modules |
-| `config-op` | Configuration endpoint | ~30 modules |
-| `dynamic-op` | Dynamic client registration | ~40 modules |
-| `fapi2-op` | Financial-grade API 2.0 | ~50 modules |
+| Plan         | Description                 | Module Count |
+| ------------ | --------------------------- | ------------ |
+| `basic-op`   | Standard OIDC Provider      | ~60 modules  |
+| `config-op`  | Configuration endpoint      | ~30 modules  |
+| `dynamic-op` | Dynamic client registration | ~40 modules  |
+| `fapi2-op`   | Financial-grade API 2.0     | ~50 modules  |
 
 ### How It Works
 
@@ -231,10 +234,12 @@ pnpm conformance:errors    # Failed tests only
 ### Configuration
 
 **Files**:
+
 - `conformance/config/*.json` - Test plan configurations
 - `conformance/scripts/` - Automation scripts
 
 **Environment Variables** (optional):
+
 ```bash
 CONFORMANCE_SUITE_URL=https://www.certification.openid.net
 ```
@@ -268,23 +273,23 @@ k6 run \
 
 ### Available Benchmarks
 
-| Benchmark | Endpoint | Seed Script |
-|-----------|----------|-------------|
-| Token Introspection | `POST /introspect` | `seed-access-tokens.js` |
-| Token Exchange | `POST /token` | `seed-access-tokens.js` |
-| UserInfo | `GET /userinfo` | `seed-access-tokens.js` |
-| Silent Auth | `GET /authorize?prompt=none` | `seed-otp-users.js` |
-| Mail OTP Login | 5-step OAuth flow | `seed-otp-users.js` |
-| Passkey Login | 6-step OAuth flow | `seed-passkey-users.js` |
+| Benchmark           | Endpoint                     | Seed Script             |
+| ------------------- | ---------------------------- | ----------------------- |
+| Token Introspection | `POST /introspect`           | `seed-access-tokens.js` |
+| Token Exchange      | `POST /token`                | `seed-access-tokens.js` |
+| UserInfo            | `GET /userinfo`              | `seed-access-tokens.js` |
+| Silent Auth         | `GET /authorize?prompt=none` | `seed-otp-users.js`     |
+| Mail OTP Login      | 5-step OAuth flow            | `seed-otp-users.js`     |
+| Passkey Login       | 6-step OAuth flow            | `seed-passkey-users.js` |
 
 ### Performance Highlights
 
-| Endpoint | Recommended RPS | Peak RPS |
-|----------|-----------------|----------|
-| Silent Auth (128 shards) | 2,500 | 3,500 |
-| Refresh Token (48 shards) | 2,500 | 3,000 |
-| UserInfo | 2,000 | 2,500 |
-| Token Introspection (32 shards) | 300 | 500 |
+| Endpoint                        | Recommended RPS | Peak RPS |
+| ------------------------------- | --------------- | -------- |
+| Silent Auth (128 shards)        | 2,500           | 3,500    |
+| Refresh Token (48 shards)       | 2,500           | 3,000    |
+| UserInfo                        | 2,000           | 2,500    |
+| Token Introspection (32 shards) | 300             | 500      |
 
 ### Scripts
 
@@ -322,6 +327,7 @@ CF_API_TOKEN=xxx node scripts/utils/report-cf-analytics.js \
 **Workflow**: `.github/workflows/ci.yml`
 
 **Jobs**:
+
 1. **lint-and-test**: Lint, TypeCheck, Unit Tests, Build
 2. **e2e-and-accessibility**: E2E tests with accessibility
 3. **lighthouse**: Performance tests
@@ -369,13 +375,13 @@ pnpm conformance:basic
 
 ## Test Coverage Goals
 
-| Category | Target |
-|----------|--------|
-| Unit Test Coverage | 80%+ |
-| E2E Coverage | All critical flows |
-| Accessibility | 100% WCAG 2.1 AA |
-| Performance | 90+ Lighthouse |
-| Conformance | All plans passing |
+| Category           | Target             |
+| ------------------ | ------------------ |
+| Unit Test Coverage | 80%+               |
+| E2E Coverage       | All critical flows |
+| Accessibility      | 100% WCAG 2.1 AA   |
+| Performance        | 90+ Lighthouse     |
+| Conformance        | All plans passing  |
 
 ---
 

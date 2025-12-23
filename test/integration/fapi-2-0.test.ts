@@ -28,7 +28,15 @@ import { authorizeHandler } from '../../packages/op-auth/src/authorize';
 import { parHandler } from '../../packages/op-auth/src/par';
 import { tokenHandler } from '../../packages/op-token/src/token';
 import { discoveryHandler } from '../../packages/op-discovery/src/discovery';
-import { generateKeyPair, exportJWK, SignJWT, calculateJwkThumbprint, jwtVerify, importJWK, type JWK } from 'jose';
+import {
+  generateKeyPair,
+  exportJWK,
+  SignJWT,
+  calculateJwkThumbprint,
+  jwtVerify,
+  importJWK,
+  type JWK,
+} from 'jose';
 import { generateCodeChallenge } from '@authrim/ar-lib-core/utils/crypto';
 
 describe('FAPI 2.0 Security Profile Compliance', () => {
@@ -51,10 +59,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
     describe('PAR Mandatory Mode', () => {
       it('should reject authorization without PAR when FAPI 2.0 is enabled', async () => {
         // Enable FAPI 2.0 mode
-        await env.SETTINGS.put('system_settings', JSON.stringify({
-          fapi: { enabled: true, allowPublicClients: false },
-          oidc: { requirePar: true }
-        }));
+        await env.SETTINGS.put(
+          'system_settings',
+          JSON.stringify({
+            fapi: { enabled: true, allowPublicClients: false },
+            oidc: { requirePar: true },
+          })
+        );
 
         // Register test client in DB
         await env.DB.prepare(
@@ -88,10 +99,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
       it('should accept authorization with valid PAR request_uri', async () => {
         // Enable FAPI 2.0 mode
-        await env.SETTINGS.put('system_settings', JSON.stringify({
-          fapi: { enabled: true, allowPublicClients: false },
-          oidc: { requirePar: true }
-        }));
+        await env.SETTINGS.put(
+          'system_settings',
+          JSON.stringify({
+            fapi: { enabled: true, allowPublicClients: false },
+            oidc: { requirePar: true },
+          })
+        );
 
         // Register test client
         await env.DB.prepare(
@@ -124,17 +138,21 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
           code_challenge_method: 'S256',
         }).toString();
 
-        const parRes = await app.request('/as/par', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${btoa(`${testClients.confidential.client_id}:${testClients.confidential.client_secret}`)}`,
+        const parRes = await app.request(
+          '/as/par',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              Authorization: `Basic ${btoa(`${testClients.confidential.client_id}:${testClients.confidential.client_secret}`)}`,
+            },
+            body: parBody,
           },
-          body: parBody,
-        }, env);
+          env
+        );
 
         expect(parRes.status).toBe(201);
-        const parData = await parRes.json() as { request_uri: string; expires_in: number };
+        const parData = (await parRes.json()) as { request_uri: string; expires_in: number };
         expect(parData.request_uri).toMatch(/^urn:ietf:params:oauth:request_uri:/);
 
         // Step 2: Use request_uri in authorization request
@@ -159,10 +177,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
       it('should complete full PAR flow with token exchange and verify PKCE S256 enforcement', async () => {
         // Enable FAPI 2.0 mode but without DPoP requirement for this test
         // (DPoP is tested separately in DPoP Support section)
-        await env.SETTINGS.put('system_settings', JSON.stringify({
-          fapi: { enabled: true, allowPublicClients: false, requireDpop: false },
-          oidc: { requirePar: true }
-        }));
+        await env.SETTINGS.put(
+          'system_settings',
+          JSON.stringify({
+            fapi: { enabled: true, allowPublicClients: false, requireDpop: false },
+            oidc: { requirePar: true },
+          })
+        );
 
         // Register test client
         await env.DB.prepare(
@@ -195,17 +216,21 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
           code_challenge_method: 'S256',
         }).toString();
 
-        const parRes = await app.request('/as/par', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${btoa(`${testClients.confidential.client_id}:${testClients.confidential.client_secret}`)}`,
+        const parRes = await app.request(
+          '/as/par',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              Authorization: `Basic ${btoa(`${testClients.confidential.client_id}:${testClients.confidential.client_secret}`)}`,
+            },
+            body: parBody,
           },
-          body: parBody,
-        }, env);
+          env
+        );
 
         expect(parRes.status).toBe(201);
-        const parData = await parRes.json() as { request_uri: string; expires_in: number };
+        const parData = (await parRes.json()) as { request_uri: string; expires_in: number };
         expect(parData.request_uri).toMatch(/^urn:ietf:params:oauth:request_uri:/);
 
         // Step 2: Authorization request redirects to login (user not authenticated)
@@ -223,21 +248,23 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
         const authCodeStoreId = env.AUTH_CODE_STORE.idFromName('global');
         const authCodeStore = env.AUTH_CODE_STORE.get(authCodeStoreId);
 
-        await authCodeStore.fetch(new Request('https://auth-code-store/code/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code: testCode,
-            clientId: testClients.confidential.client_id,
-            userId: testUsers.john.sub,
-            redirectUri: testClients.confidential.redirect_uris[0],
-            scope: 'openid profile',
-            codeChallenge: code_challenge,
-            codeChallengeMethod: 'S256',
-            nonce,
-            state,
-          }),
-        }));
+        await authCodeStore.fetch(
+          new Request('https://auth-code-store/code/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: testCode,
+              clientId: testClients.confidential.client_id,
+              userId: testUsers.john.sub,
+              redirectUri: testClients.confidential.redirect_uris[0],
+              scope: 'openid profile',
+              codeChallenge: code_challenge,
+              codeChallengeMethod: 'S256',
+              nonce,
+              state,
+            }),
+          })
+        );
 
         // Step 4: Token exchange with PKCE code_verifier
         const tokenBody = new URLSearchParams({
@@ -249,14 +276,18 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
           code_verifier,
         }).toString();
 
-        const tokenRes = await app.request('/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: tokenBody,
-        }, env);
+        const tokenRes = await app.request(
+          '/token',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: tokenBody,
+          },
+          env
+        );
 
         expect(tokenRes.status).toBe(200);
-        const tokenData = await tokenRes.json() as {
+        const tokenData = (await tokenRes.json()) as {
           access_token: string;
           id_token: string;
           token_type: string;
@@ -293,10 +324,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
       it('should reject token exchange without code_verifier when PKCE was used', async () => {
         // Enable FAPI 2.0 mode
-        await env.SETTINGS.put('system_settings', JSON.stringify({
-          fapi: { enabled: true, allowPublicClients: false },
-          oidc: { requirePar: true }
-        }));
+        await env.SETTINGS.put(
+          'system_settings',
+          JSON.stringify({
+            fapi: { enabled: true, allowPublicClients: false },
+            oidc: { requirePar: true },
+          })
+        );
 
         // Register test client
         await env.DB.prepare(
@@ -329,16 +363,20 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
           code_challenge_method: 'S256',
         }).toString();
 
-        const parRes = await app.request('/as/par', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${btoa(`${testClients.confidential.client_id}:${testClients.confidential.client_secret}`)}`,
+        const parRes = await app.request(
+          '/as/par',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              Authorization: `Basic ${btoa(`${testClients.confidential.client_id}:${testClients.confidential.client_secret}`)}`,
+            },
+            body: parBody,
           },
-          body: parBody,
-        }, env);
+          env
+        );
 
-        const parData = await parRes.json() as { request_uri: string };
+        const parData = (await parRes.json()) as { request_uri: string };
 
         // Get authorization code
         const authUrl = `/authorize?client_id=${testClients.confidential.client_id}&request_uri=${encodeURIComponent(parData.request_uri)}`;
@@ -356,14 +394,18 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
           // Missing: code_verifier
         }).toString();
 
-        const tokenRes = await app.request('/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: tokenBody,
-        }, env);
+        const tokenRes = await app.request(
+          '/token',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: tokenBody,
+          },
+          env
+        );
 
         expect(tokenRes.status).toBe(400);
-        const errorData = await tokenRes.json() as { error: string; error_description?: string };
+        const errorData = (await tokenRes.json()) as { error: string; error_description?: string };
         expect(errorData.error).toBe('invalid_grant');
       });
     });
@@ -371,10 +413,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
     describe('Confidential Client Only', () => {
       it('should reject public clients when FAPI 2.0 is enabled', async () => {
         // Enable FAPI 2.0 mode with public clients disabled
-        await env.SETTINGS.put('system_settings', JSON.stringify({
-          fapi: { enabled: true, allowPublicClients: false },
-          oidc: { requirePar: false } // Disable PAR requirement for this test
-        }));
+        await env.SETTINGS.put(
+          'system_settings',
+          JSON.stringify({
+            fapi: { enabled: true, allowPublicClients: false },
+            oidc: { requirePar: false }, // Disable PAR requirement for this test
+          })
+        );
 
         // Register public client (no client_secret)
         await env.DB.prepare(
@@ -408,10 +453,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
     describe('PKCE S256 Mandatory', () => {
       it('should reject requests without PKCE when FAPI 2.0 is enabled', async () => {
         // Enable FAPI 2.0 mode
-        await env.SETTINGS.put('system_settings', JSON.stringify({
-          fapi: { enabled: true },
-          oidc: { requirePar: false }
-        }));
+        await env.SETTINGS.put(
+          'system_settings',
+          JSON.stringify({
+            fapi: { enabled: true },
+            oidc: { requirePar: false },
+          })
+        );
 
         // Register test client
         await env.DB.prepare(
@@ -443,10 +491,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
       it('should reject plain PKCE method when FAPI 2.0 is enabled', async () => {
         // Enable FAPI 2.0 mode
-        await env.SETTINGS.put('system_settings', JSON.stringify({
-          fapi: { enabled: true },
-          oidc: { requirePar: false }
-        }));
+        await env.SETTINGS.put(
+          'system_settings',
+          JSON.stringify({
+            fapi: { enabled: true },
+            oidc: { requirePar: false },
+          })
+        );
 
         // Register test client
         await env.DB.prepare(
@@ -481,10 +532,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
     describe('Issuer Parameter Validation', () => {
       it('should include iss parameter in authorization response', async () => {
         // Disable FAPI 2.0 strict mode for this test (to test iss parameter independently)
-        await env.SETTINGS.put('system_settings', JSON.stringify({
-          fapi: { enabled: false },
-          oidc: { requirePar: false }
-        }));
+        await env.SETTINGS.put(
+          'system_settings',
+          JSON.stringify({
+            fapi: { enabled: false },
+            oidc: { requirePar: false },
+          })
+        );
 
         // Register test client
         await env.DB.prepare(
@@ -510,21 +564,23 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
         const code_verifier = 'test-code-verifier-1234567890';
         const code_challenge = await generateCodeChallenge(code_verifier);
 
-        await authCodeStore.fetch(new Request('https://auth-code-store/code/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code,
-            clientId: testClients.confidential.client_id,
-            userId: testUsers.john.sub,
-            redirectUri: testClients.confidential.redirect_uris[0],
-            scope: 'openid',
-            codeChallenge: code_challenge,
-            codeChallengeMethod: 'S256',
-            nonce,
-            state,
-          }),
-        }));
+        await authCodeStore.fetch(
+          new Request('https://auth-code-store/code/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code,
+              clientId: testClients.confidential.client_id,
+              userId: testUsers.john.sub,
+              redirectUri: testClients.confidential.redirect_uris[0],
+              scope: 'openid',
+              codeChallenge: code_challenge,
+              codeChallengeMethod: 'S256',
+              nonce,
+              state,
+            }),
+          })
+        );
 
         // Exchange code for tokens (this would normally happen after authorization redirect)
         // The iss parameter should be in the authorization response URL
@@ -540,16 +596,19 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
   describe('Discovery Dynamic Configuration', () => {
     it('should reflect FAPI 2.0 settings in discovery metadata', async () => {
       // Enable FAPI 2.0 mode
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: true },
-        oidc: {
-          requirePar: true,
-          tokenEndpointAuthMethodsSupported: ['private_key_jwt', 'client_secret_jwt']
-        }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: true },
+          oidc: {
+            requirePar: true,
+            tokenEndpointAuthMethodsSupported: ['private_key_jwt', 'client_secret_jwt'],
+          },
+        })
+      );
 
       const res = await app.request('/.well-known/openid-configuration', { method: 'GET' }, env);
-      const metadata = await res.json() as any;
+      const metadata = (await res.json()) as any;
 
       expect(res.status).toBe(200);
       expect(metadata.require_pushed_authorization_requests).toBe(true);
@@ -560,13 +619,16 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
     it('should not require PAR when FAPI 2.0 is disabled', async () => {
       // Disable FAPI 2.0 mode
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: false },
-        oidc: { requirePar: false }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: false },
+          oidc: { requirePar: false },
+        })
+      );
 
       const res = await app.request('/.well-known/openid-configuration', { method: 'GET' }, env);
-      const metadata = await res.json() as any;
+      const metadata = (await res.json()) as any;
 
       expect(res.status).toBe(200);
       expect(metadata.require_pushed_authorization_requests).toBe(false);
@@ -576,10 +638,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
   describe('DPoP Support', () => {
     it('should enforce DPoP when requireDpop is enabled in FAPI 2.0 mode', async () => {
       // Enable FAPI 2.0 mode with DPoP requirement
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: true, requireDpop: true },
-        oidc: { requirePar: false }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: true, requireDpop: true },
+          oidc: { requirePar: false },
+        })
+      );
 
       // Register test client
       await env.DB.prepare(
@@ -606,21 +671,23 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
       const authCodeStoreId = env.AUTH_CODE_STORE.idFromName('global');
       const authCodeStore = env.AUTH_CODE_STORE.get(authCodeStoreId);
 
-      await authCodeStore.fetch(new Request('https://auth-code-store/code/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          clientId: testClients.confidential.client_id,
-          userId: testUsers.john.sub,
-          redirectUri: testClients.confidential.redirect_uris[0],
-          scope: 'openid',
-          codeChallenge: code_challenge,
-          codeChallengeMethod: 'S256',
-          nonce,
-          state,
-        }),
-      }));
+      await authCodeStore.fetch(
+        new Request('https://auth-code-store/code/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            clientId: testClients.confidential.client_id,
+            userId: testUsers.john.sub,
+            redirectUri: testClients.confidential.redirect_uris[0],
+            scope: 'openid',
+            codeChallenge: code_challenge,
+            codeChallengeMethod: 'S256',
+            nonce,
+            state,
+          }),
+        })
+      );
 
       // Try token exchange without DPoP header (should fail)
       const tokenBody = new URLSearchParams({
@@ -632,15 +699,19 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
         code_verifier,
       }).toString();
 
-      const tokenRes = await app.request('/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+      const tokenRes = await app.request(
+        '/token',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: tokenBody,
         },
-        body: tokenBody,
-      }, env);
+        env
+      );
 
-      const tokenData = await tokenRes.json() as any;
+      const tokenData = (await tokenRes.json()) as any;
 
       expect(tokenRes.status).toBe(400);
       expect(tokenData.error).toBe('invalid_request');
@@ -649,10 +720,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
     it('should accept token request with valid DPoP proof', async () => {
       // Enable FAPI 2.0 mode with DPoP requirement
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: true, requireDpop: true },
-        oidc: { requirePar: false }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: true, requireDpop: true },
+          oidc: { requirePar: false },
+        })
+      );
 
       // Register test client
       await env.DB.prepare(
@@ -679,21 +753,23 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
       const authCodeStoreId = env.AUTH_CODE_STORE.idFromName('global');
       const authCodeStore = env.AUTH_CODE_STORE.get(authCodeStoreId);
 
-      await authCodeStore.fetch(new Request('https://auth-code-store/code/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          clientId: testClients.confidential.client_id,
-          userId: testUsers.john.sub,
-          redirectUri: testClients.confidential.redirect_uris[0],
-          scope: 'openid',
-          codeChallenge: code_challenge,
-          codeChallengeMethod: 'S256',
-          nonce,
-          state,
-        }),
-      }));
+      await authCodeStore.fetch(
+        new Request('https://auth-code-store/code/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            clientId: testClients.confidential.client_id,
+            userId: testUsers.john.sub,
+            redirectUri: testClients.confidential.redirect_uris[0],
+            scope: 'openid',
+            codeChallenge: code_challenge,
+            codeChallengeMethod: 'S256',
+            nonce,
+            state,
+          }),
+        })
+      );
 
       // Generate DPoP key pair and proof
       const dpopKeyPair = await generateKeyPair('ES256');
@@ -722,16 +798,20 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
         code_verifier,
       }).toString();
 
-      const tokenRes = await app.request('/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'DPoP': dpopProof,
+      const tokenRes = await app.request(
+        '/token',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            DPoP: dpopProof,
+          },
+          body: tokenBody,
         },
-        body: tokenBody,
-      }, env);
+        env
+      );
 
-      const tokenData = await tokenRes.json() as any;
+      const tokenData = (await tokenRes.json()) as any;
 
       // Should succeed if DPoP validation is properly implemented
       // Note: This test assumes token endpoint validates DPoP proofs
@@ -745,10 +825,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
     it('should allow non-DPoP requests when requireDpop is false', async () => {
       // Enable FAPI 2.0 mode WITHOUT DPoP requirement
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: true, requireDpop: false },
-        oidc: { requirePar: false }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: true, requireDpop: false },
+          oidc: { requirePar: false },
+        })
+      );
 
       // Register test client without DPoP
       await env.DB.prepare(
@@ -774,21 +857,23 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
       const authCodeStoreId = env.AUTH_CODE_STORE.idFromName('global');
       const authCodeStore = env.AUTH_CODE_STORE.get(authCodeStoreId);
 
-      await authCodeStore.fetch(new Request('https://auth-code-store/code/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          clientId: testClients.confidential.client_id,
-          userId: testUsers.john.sub,
-          redirectUri: testClients.confidential.redirect_uris[0],
-          scope: 'openid',
-          codeChallenge: code_challenge,
-          codeChallengeMethod: 'S256',
-          nonce,
-          state,
-        }),
-      }));
+      await authCodeStore.fetch(
+        new Request('https://auth-code-store/code/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            clientId: testClients.confidential.client_id,
+            userId: testUsers.john.sub,
+            redirectUri: testClients.confidential.redirect_uris[0],
+            scope: 'openid',
+            codeChallenge: code_challenge,
+            codeChallengeMethod: 'S256',
+            nonce,
+            state,
+          }),
+        })
+      );
 
       // Token request without DPoP header (should succeed)
       const tokenBody = new URLSearchParams({
@@ -800,13 +885,17 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
         code_verifier,
       }).toString();
 
-      const tokenRes = await app.request('/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+      const tokenRes = await app.request(
+        '/token',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: tokenBody,
         },
-        body: tokenBody,
-      }, env);
+        env
+      );
 
       // Should succeed without DPoP when not required
       expect(tokenRes.status).toBeLessThan(500);
@@ -816,10 +905,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
   describe('Backward Compatibility', () => {
     it('should allow non-FAPI requests when FAPI 2.0 is disabled', async () => {
       // Disable FAPI 2.0 mode
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: false },
-        oidc: { requirePar: false }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: false },
+          oidc: { requirePar: false },
+        })
+      );
 
       // Register test client
       await env.DB.prepare(
@@ -854,10 +946,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
   describe('DPoP Authorization Code Binding', () => {
     it('should bind authorization code to DPoP key and enforce same key at token endpoint', async () => {
       // Enable FAPI 2.0 mode (DPoP not required, but binding should work if provided)
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: true, requireDpop: false, allowPublicClients: false },
-        oidc: { requirePar: false }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: true, requireDpop: false, allowPublicClients: false },
+          oidc: { requirePar: false },
+        })
+      );
 
       // Register test client
       await env.DB.prepare(
@@ -890,22 +985,24 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
       const authCodeStoreId = env.AUTH_CODE_STORE.idFromName('global');
       const authCodeStore = env.AUTH_CODE_STORE.get(authCodeStoreId);
 
-      await authCodeStore.fetch(new Request('https://auth-code-store/code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          clientId: testClients.confidential.client_id,
-          userId: testUsers.john.sub,
-          redirectUri: testClients.confidential.redirect_uris[0],
-          scope: 'openid',
-          codeChallenge: code_challenge,
-          codeChallengeMethod: 'S256',
-          nonce,
-          state,
-          dpopJkt, // Bind authorization code to DPoP key
-        }),
-      }));
+      await authCodeStore.fetch(
+        new Request('https://auth-code-store/code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            clientId: testClients.confidential.client_id,
+            userId: testUsers.john.sub,
+            redirectUri: testClients.confidential.redirect_uris[0],
+            scope: 'openid',
+            codeChallenge: code_challenge,
+            codeChallengeMethod: 'S256',
+            nonce,
+            state,
+            dpopJkt, // Bind authorization code to DPoP key
+          }),
+        })
+      );
 
       // Create DPoP proof for token request (same key)
       const dpopProofToken = await new SignJWT({
@@ -927,14 +1024,18 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
         code_verifier,
       }).toString();
 
-      const tokenRes = await app.request('http://localhost:8787/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'DPoP': dpopProofToken,
+      const tokenRes = await app.request(
+        'http://localhost:8787/token',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            DPoP: dpopProofToken,
+          },
+          body: tokenBody,
         },
-        body: tokenBody,
-      }, env);
+        env
+      );
 
       // Should succeed with same DPoP key
       expect(tokenRes.status).toBe(200);
@@ -944,10 +1045,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
     it('should reject token request with different DPoP key than authorization request', async () => {
       // Enable FAPI 2.0 mode
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: true, requireDpop: false, allowPublicClients: false },
-        oidc: { requirePar: false }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: true, requireDpop: false, allowPublicClients: false },
+          oidc: { requirePar: false },
+        })
+      );
 
       // Register test client with HTTPS redirect URI
       await env.DB.prepare(
@@ -987,22 +1091,24 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
       const authCodeStoreId = env.AUTH_CODE_STORE.idFromName('global');
       const authCodeStore = env.AUTH_CODE_STORE.get(authCodeStoreId);
 
-      await authCodeStore.fetch(new Request('https://auth-code-store/code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          clientId: 'test-client-dpop-2',
-          userId: 'test-user-dpop-2',
-          redirectUri: 'https://localhost:3000/callback',
-          scope: 'openid',
-          codeChallenge: code_challenge,
-          codeChallengeMethod: 'S256',
-          nonce,
-          state,
-          dpopJkt: dpopJkt1, // Bind to first DPoP key
-        }),
-      }));
+      await authCodeStore.fetch(
+        new Request('https://auth-code-store/code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            clientId: 'test-client-dpop-2',
+            userId: 'test-user-dpop-2',
+            redirectUri: 'https://localhost:3000/callback',
+            scope: 'openid',
+            codeChallenge: code_challenge,
+            codeChallengeMethod: 'S256',
+            nonce,
+            state,
+            dpopJkt: dpopJkt1, // Bind to first DPoP key
+          }),
+        })
+      );
 
       // Generate DIFFERENT DPoP key pair for token request
       const dpopKeyPair2 = await generateKeyPair('ES256');
@@ -1028,14 +1134,18 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
         code_verifier,
       }).toString();
 
-      const tokenRes = await app.request('http://localhost:8787/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'DPoP': dpopProofToken,
+      const tokenRes = await app.request(
+        'http://localhost:8787/token',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            DPoP: dpopProofToken,
+          },
+          body: tokenBody,
         },
-        body: tokenBody,
-      }, env);
+        env
+      );
 
       // Should reject with DPoP key mismatch
       expect(tokenRes.status).toBe(400);
@@ -1048,10 +1158,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
   describe("'none' Algorithm Rejection", () => {
     it('should reject request objects with alg=none when allowNoneAlgorithm is false', async () => {
       // Enable FAPI 2.0 mode with none algorithm rejection
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: true, allowPublicClients: false },
-        oidc: { requirePar: false, allowNoneAlgorithm: false }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: true, allowPublicClients: false },
+          oidc: { requirePar: false, allowNoneAlgorithm: false },
+        })
+      );
 
       // Register test client
       await env.DB.prepare(
@@ -1074,16 +1187,18 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
       // Create unsigned JWT (alg=none) as request object
       const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-      const payload = Buffer.from(JSON.stringify({
-        response_type: 'code',
-        client_id: 'test-client-none-1',
-        redirect_uri: 'http://localhost:3000/callback',
-        scope: 'openid',
-        state,
-        nonce,
-        code_challenge,
-        code_challenge_method: 'S256',
-      })).toString('base64url');
+      const payload = Buffer.from(
+        JSON.stringify({
+          response_type: 'code',
+          client_id: 'test-client-none-1',
+          redirect_uri: 'http://localhost:3000/callback',
+          scope: 'openid',
+          state,
+          nonce,
+          code_challenge,
+          code_challenge_method: 'S256',
+        })
+      ).toString('base64url');
       const unsignedRequestObject = `${header}.${payload}.`;
 
       // Try to authorize with unsigned request object
@@ -1099,10 +1214,13 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
     it('should accept request objects with alg=none when allowNoneAlgorithm is true', async () => {
       // Enable development mode with none algorithm allowed
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        fapi: { enabled: false },
-        oidc: { requirePar: false, allowNoneAlgorithm: true }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          fapi: { enabled: false },
+          oidc: { requirePar: false, allowNoneAlgorithm: true },
+        })
+      );
 
       // Register test client
       await env.DB.prepare(
@@ -1125,16 +1243,18 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
       // Create unsigned JWT (alg=none) as request object
       const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-      const payload = Buffer.from(JSON.stringify({
-        response_type: 'code',
-        client_id: 'test-client-none-2',
-        redirect_uri: 'http://localhost:3000/callback',
-        scope: 'openid',
-        state,
-        nonce,
-        code_challenge,
-        code_challenge_method: 'S256',
-      })).toString('base64url');
+      const payload = Buffer.from(
+        JSON.stringify({
+          response_type: 'code',
+          client_id: 'test-client-none-2',
+          redirect_uri: 'http://localhost:3000/callback',
+          scope: 'openid',
+          state,
+          nonce,
+          code_challenge,
+          code_challenge_method: 'S256',
+        })
+      ).toString('base64url');
       const unsignedRequestObject = `${header}.${payload}.`;
 
       // Try to authorize with unsigned request object (should work in dev mode)
@@ -1147,7 +1267,7 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
       const contentType = res.headers.get('Content-Type') || '';
 
       if (contentType.includes('application/json')) {
-        const data = await res.json() as any;
+        const data = (await res.json()) as any;
         if (res.status >= 400) {
           // If there's an error, it should NOT be about alg=none
           expect(data.error).not.toBe('invalid_request_object');
@@ -1160,9 +1280,12 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
 
     it('should update discovery metadata based on allowNoneAlgorithm setting', async () => {
       // Test with allowNoneAlgorithm = false
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        oidc: { allowNoneAlgorithm: false }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          oidc: { allowNoneAlgorithm: false },
+        })
+      );
 
       let res = await app.request('/.well-known/openid-configuration', { method: 'GET' }, env);
       let metadata = await res.json();
@@ -1170,9 +1293,12 @@ describe('FAPI 2.0 Security Profile Compliance', () => {
       expect(metadata.request_object_signing_alg_values_supported).not.toContain('none');
 
       // Test with allowNoneAlgorithm = true
-      await env.SETTINGS.put('system_settings', JSON.stringify({
-        oidc: { allowNoneAlgorithm: true }
-      }));
+      await env.SETTINGS.put(
+        'system_settings',
+        JSON.stringify({
+          oidc: { allowNoneAlgorithm: true },
+        })
+      );
 
       res = await app.request('/.well-known/openid-configuration', { method: 'GET' }, env);
       metadata = await res.json();

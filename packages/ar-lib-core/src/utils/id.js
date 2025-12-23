@@ -7,5 +7,5 @@
  * @returns UUID v4 string
  */
 export function generateId() {
-    return crypto.randomUUID();
+  return crypto.randomUUID();
 }

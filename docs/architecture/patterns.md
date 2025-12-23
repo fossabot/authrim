@@ -21,15 +21,15 @@ Authrim supports **4 deployment patterns** to accommodate different use cases, f
 
 ### Pattern Comparison
 
-| Feature | Pattern A | Pattern B | Pattern C | Pattern D |
-|---------|-----------|-----------|-----------|-----------|
-| **Cookie Sharing** | ✅ Same-origin* | ✅ OIDC same-origin | ⚠️ Cross-origin | N/A |
-| **CORS Required** | ⚠️ Dev only | ⚠️ Admin only | ✅ Yes | ✅ Yes |
-| **Admin Security** | ⚠️ Basic | ✅ IP restriction | ✅ IP restriction | CLI/API only |
-| **Multi-Domain SSO** | ❌ No | ❌ No | ✅ Yes | N/A |
-| **Custom Domain Required** | ⚠️ Production only | ⚠️ Recommended | ⚠️ Recommended | ❌ No |
-| **Complexity** | ⭐ Low | ⭐⭐ Medium | ⭐⭐⭐⭐ High | ⭐⭐ Medium |
-| **Implementation** | ✅ Phase 1 | 🔄 Phase 2 | 🔄 Phase 3 | ✅ Phase 1 (partial) |
+| Feature                    | Pattern A          | Pattern B           | Pattern C         | Pattern D            |
+| -------------------------- | ------------------ | ------------------- | ----------------- | -------------------- |
+| **Cookie Sharing**         | ✅ Same-origin\*   | ✅ OIDC same-origin | ⚠️ Cross-origin   | N/A                  |
+| **CORS Required**          | ⚠️ Dev only        | ⚠️ Admin only       | ✅ Yes            | ✅ Yes               |
+| **Admin Security**         | ⚠️ Basic           | ✅ IP restriction   | ✅ IP restriction | CLI/API only         |
+| **Multi-Domain SSO**       | ❌ No              | ❌ No               | ✅ Yes            | N/A                  |
+| **Custom Domain Required** | ⚠️ Production only | ⚠️ Recommended      | ⚠️ Recommended    | ❌ No                |
+| **Complexity**             | ⭐ Low             | ⭐⭐ Medium         | ⭐⭐⭐⭐ High     | ⭐⭐ Medium          |
+| **Implementation**         | ✅ Phase 1         | 🔄 Phase 2          | 🔄 Phase 3        | ✅ Phase 1 (partial) |
 
 > **Note:** Pattern A with custom domain provides true same-origin cookie sharing. For development using `*.workers.dev` and `*.pages.dev`, the API and UI will be on separate domains, requiring CORS configuration (similar to Pattern B).
 
@@ -44,6 +44,7 @@ Authrim supports **4 deployment patterns** to accommodate different use cases, f
 All components (OIDC endpoints, APIs, UI) are served from a single domain.
 
 #### Custom Domain Deployment (Production)
+
 ```
 https://id.example.com/
 ├── /.well-known/*                # OIDC Discovery & JWKS (Worker)
@@ -56,11 +57,13 @@ https://id.example.com/
 ```
 
 **How it works:**
+
 - Custom domain routes API requests to Workers
 - Same domain serves static UI via Cloudflare Pages
 - Unified domain enables same-origin cookies and no CORS
 
 **Setup:**
+
 1. Add custom domain to both Workers and Pages
 2. Configure DNS (see [DEPLOYMENT.md](./DEPLOYMENT.md))
 3. Route API paths (`/api/*`, `/.well-known/*`) to Workers
@@ -84,38 +87,45 @@ https://authrim-ui.pages.dev/                     # UI (Pages)
 ```
 
 **Limitations:**
+
 - API and UI are on **different domains** (`*.workers.dev` ≠ `*.pages.dev`)
 - Requires CORS configuration (see Pattern B)
 - Cookies cannot be shared between Worker and Pages
 - Not a true "unified domain" deployment
 
 **For development:**
+
 - This setup works fine for testing
 - Configure CORS to allow `*.pages.dev` to access `*.workers.dev`
 - See Pattern B configuration for CORS settings
 
 **For production:**
+
 - Use a custom domain (see above)
 - Or use Pattern B/C with proper CORS setup
 
 ### Benefits
 
 #### ✅ Simplicity
+
 - Single domain to manage
 - No CORS configuration needed
 - Straightforward DNS setup
 
 #### ✅ Cookie Management
+
 - Same-origin cookies work seamlessly
 - No ITP (Intelligent Tracking Prevention) issues
 - Session sharing between OIDC and Admin UI
 
 #### ✅ Development Experience
+
 - Easy local development setup
 - Simple testing workflow
 - Minimal configuration
 
 #### ✅ SEO & Performance
+
 - Single SSL certificate
 - Simpler CSP (Content Security Policy)
 - Reduced latency (single origin)
@@ -123,6 +133,7 @@ https://authrim-ui.pages.dev/                     # UI (Pages)
 ### Security Considerations
 
 ⚠️ **Admin UI Security:**
+
 - Admin URL is predictable (`/admin`)
 - **Mitigations:**
   - Implement robust authentication
@@ -146,12 +157,16 @@ PUBLIC_API_BASE_URL=https://authrim-router.your-account.workers.dev
 ```
 
 **Enable CORS in Worker:**
+
 ```typescript
 // Required because API and UI are on different domains
-app.use('*', cors({
-  origin: ['https://authrim-ui.pages.dev', 'http://localhost:5173'],
-  credentials: true,
-}));
+app.use(
+  '*',
+  cors({
+    origin: ['https://authrim-ui.pages.dev', 'http://localhost:5173'],
+    credentials: true,
+  })
+);
 ```
 
 #### Production Setup (Custom Domain)
@@ -168,6 +183,7 @@ PUBLIC_API_BASE_URL=https://id.example.com
 ```
 
 **Custom Domain Setup:**
+
 ```bash
 # 1. Deploy Worker with custom domain
 cd packages/router
@@ -185,6 +201,7 @@ wrangler pages domain add id.example.com --project-name=authrim-ui
 ```
 
 **Prerequisites:**
+
 - ✅ A custom domain (e.g., `id.example.com`)
 - ✅ Domain managed by Cloudflare (for DNS routing)
 - ✅ SSL certificate (automatically provided by Cloudflare)
@@ -200,6 +217,7 @@ wrangler pages domain add id.example.com --project-name=authrim-ui
 OIDC and APIs remain on the same domain, but Admin UI is separated for enhanced security.
 
 #### Workers.dev Deployment
+
 ```
 https://authrim.your-account.workers.dev/   # OIDC + APIs + Login UI
 ├── /.well-known/*
@@ -213,6 +231,7 @@ https://authrim-admin.pages.dev/            # Admin UI (separate)
 ```
 
 #### Custom Domain Deployment
+
 ```
 https://id.example.com/                   # OIDC + APIs + Login UI
 ├── /.well-known/*
@@ -228,17 +247,20 @@ https://admin.example.com/                # Admin UI (separate custom domain)
 ### Benefits
 
 #### ✅ Enhanced Security
+
 - Admin UI on separate domain
 - Easy to implement IP restrictions (Cloudflare Access)
 - Admin URL less predictable
 - Can use different authentication mechanisms
 
 #### ✅ Cookie Benefits Retained
+
 - OIDC and Login UI still share cookies (same-origin)
 - Seamless SSO experience for end-users
 - No ITP issues for authentication flow
 
 #### ✅ Flexible Access Control
+
 - Admin UI protected by Cloudflare Access (email OTP, SSO, etc.)
 - Different rate limits for admin vs public APIs
 - Separate monitoring and logging
@@ -287,6 +309,7 @@ const ADMIN_ORIGINS = env.ADMIN_UI_ORIGIN?.split(',') || ['*'];
 ### Configuration
 
 #### Admin UI Deployment (Cloudflare Pages)
+
 ```bash
 # Deploy Admin UI separately
 wrangler pages deploy packages/ui --project-name=authrim-admin
@@ -299,6 +322,7 @@ wrangler pages domain add admin.example.com --project-name=authrim-admin
 ```
 
 #### Cloudflare Access Setup
+
 ```bash
 # Protect Admin UI with Cloudflare Access
 # Dashboard: Zero Trust > Access > Applications > Add Application
@@ -318,6 +342,7 @@ Policy: Require email from @example.com
 Complete separation of OIDC, APIs, Login UI, and Admin UI across different domains, enabling **multi-domain SSO**.
 
 #### Workers.dev Deployment
+
 ```
 https://authrim.your-account.workers.dev/   # OIDC + APIs
 ├── /.well-known/*
@@ -333,6 +358,7 @@ https://authrim-admin.pages.dev/            # Admin UI
 ```
 
 #### Custom Domain (Multi-Tenant Example)
+
 ```
 https://api.example.com/                  # Central OIDC + APIs
 ├── /.well-known/*
@@ -347,21 +373,25 @@ https://admin.example.com/                # Central Admin UI
 ### Benefits
 
 #### ✅ High Branding Flexibility
+
 - Each service can have its own branded login page
 - Custom domains for each tenant
 - White-label solutions
 
 #### ✅ Multi-Domain SSO
+
 - User logs in on `service1.com`
 - Automatically logged in on `service2.com` (via token exchange)
 - Seamless cross-domain authentication
 
 #### ✅ Security Isolation
+
 - Admin UI completely isolated
 - Login UI can be customized per tenant
 - Fine-grained CORS control
 
 #### ✅ Independent Scaling
+
 - Login UI can be deployed to edge locations
 - Admin UI can be restricted to specific regions
 - OIDC APIs scale independently
@@ -369,14 +399,17 @@ https://admin.example.com/                # Central Admin UI
 ### Challenges
 
 #### ⚠️ Cookie Sharing Complexity
+
 - Cookies are domain-specific
 - Requires **Session Token API** or **Token Exchange**
 
 #### ⚠️ CORS Configuration
+
 - Must configure CORS for all domains
 - Dynamic origin validation required
 
 #### ⚠️ Increased Complexity
+
 - More moving parts to manage
 - Complex deployment workflow
 - Requires careful monitoring
@@ -423,6 +456,7 @@ grant_type=urn:ietf:params:oauth:grant-type:token-exchange
 ```
 
 Response:
+
 ```json
 {
   "access_token": "new_token_for_service2",
@@ -447,6 +481,7 @@ GET https://api.example.com/authorize?
 ```
 
 If user is already authenticated (has valid session in OIDC provider):
+
 - Immediately redirect back with authorization code
 - No login UI shown
 
@@ -456,24 +491,28 @@ If user is already authenticated (has valid session in OIDC provider):
 // Dynamic CORS from KV
 const corsSettings = await env.SETTINGS_KV.get('cors_settings', 'json');
 
-app.use('*', cors({
-  origin: (origin) => {
-    const allowedOrigins = corsSettings?.allowed_origins || [];
-    if (allowedOrigins.includes('*')) return '*';
+app.use(
+  '*',
+  cors({
+    origin: (origin) => {
+      const allowedOrigins = corsSettings?.allowed_origins || [];
+      if (allowedOrigins.includes('*')) return '*';
 
-    // Support wildcard subdomains
-    const allowedPatterns = corsSettings?.allowed_patterns || [];
-    for (const pattern of allowedPatterns) {
-      if (new RegExp(pattern).test(origin)) return origin;
-    }
+      // Support wildcard subdomains
+      const allowedPatterns = corsSettings?.allowed_patterns || [];
+      for (const pattern of allowedPatterns) {
+        if (new RegExp(pattern).test(origin)) return origin;
+      }
 
-    return allowedOrigins.includes(origin) ? origin : false;
-  },
-  credentials: true,
-}));
+      return allowedOrigins.includes(origin) ? origin : false;
+    },
+    credentials: true,
+  })
+);
 ```
 
 KV Storage:
+
 ```json
 {
   "allowed_origins": [
@@ -482,16 +521,14 @@ KV Storage:
     "https://admin.example.com",
     "http://localhost:5173"
   ],
-  "allowed_patterns": [
-    "^https://.*\\.service1\\.com$",
-    "^https://.*\\.pages\\.dev$"
-  ]
+  "allowed_patterns": ["^https://.*\\.service1\\.com$", "^https://.*\\.pages\\.dev$"]
 }
 ```
 
 ### Configuration
 
 #### Environment Variables
+
 ```bash
 # Central OIDC/API
 ISSUER_URL=https://api.example.com
@@ -531,20 +568,24 @@ No Admin UI  ❌
 ### Use Cases
 
 #### ✅ Native Mobile Apps
+
 - Use native authentication UI
 - Call `/api/auth/passkey/*` from native code
 - Handle OAuth flow with custom URL schemes
 
 #### ✅ Desktop Applications
+
 - Electron, Tauri apps
 - Embedded browser for OAuth flow
 - Local server for redirect URI
 
 #### ✅ M2M (Machine-to-Machine)
+
 - `grant_type=client_credentials`
 - Backend services authenticating directly
 
 #### ✅ Existing Systems Integration
+
 - Keep existing login UI
 - Use Authrim as backend identity provider
 - API-driven user management
@@ -560,6 +601,7 @@ The following features require a UI and are **not available** in headless mode:
 ### Workarounds
 
 #### Admin Operations via CLI
+
 ```bash
 # Install Authrim CLI (future)
 npm install -g @authrim/cli
@@ -579,6 +621,7 @@ authrim clients list
 ```
 
 #### Admin Operations via API
+
 ```bash
 # Create user
 curl -X POST https://authrim.your-account.workers.dev/api/admin/users \
@@ -611,6 +654,7 @@ pnpm --filter=op-* deploy
 **Goal:** Establish Pattern A (Unified Domain) as the default and enable Pattern D (Headless) basics.
 
 **Deliverables:**
+
 - [x] OIDC Workers implementation
 - [x] Custom API endpoints (`/api/*`)
 - [x] Login UI (Cloudflare Pages)
@@ -628,6 +672,7 @@ pnpm --filter=op-* deploy
 **Goal:** Support Pattern B (Hybrid with Separate Admin) for enhanced security.
 
 **Deliverables:**
+
 - [ ] CORS configuration via KV (dynamic)
 - [ ] Admin UI separate deployment guide
 - [ ] Cloudflare Access integration guide
@@ -635,6 +680,7 @@ pnpm --filter=op-* deploy
 - [ ] Environment variable templates for Pattern B
 
 **Technical Tasks:**
+
 1. Implement dynamic CORS loading from KV
 2. Create admin UI for managing CORS settings
 3. Update deployment scripts to support separate Admin UI
@@ -649,6 +695,7 @@ pnpm --filter=op-* deploy
 **Goal:** Enable Pattern C (Multi-Domain SSO) for enterprise customers.
 
 **Deliverables:**
+
 - [ ] Session Token API (`/api/sessions/issue`, `/api/sessions/verify`)
 - [ ] Token Exchange (RFC 8693) implementation
 - [ ] `prompt=none` support for silent authentication
@@ -657,6 +704,7 @@ pnpm --filter=op-* deploy
 - [ ] Multi-tenant configuration guide
 
 **Technical Tasks:**
+
 1. Implement Session Token API
 2. Implement Token Exchange endpoint
 3. Add `prompt=none` support to `/authorize`
@@ -673,6 +721,7 @@ pnpm --filter=op-* deploy
 **Goal:** Improve Pattern D (Headless) experience with CLI and SDKs.
 
 **Deliverables:**
+
 - [ ] Authrim CLI (`@authrim/cli`)
   - User management commands
   - Client management commands
@@ -697,40 +746,44 @@ pnpm --filter=op-* deploy
 
 ### Cookie Strategy Comparison
 
-| Pattern | Cookie Domain | Session Sharing | ITP Issues |
-|---------|--------------|-----------------|------------|
-| **A** | `id.example.com` | ✅ All components | ❌ None |
-| **B** | `id.example.com` | ✅ OIDC + Login UI | ❌ None |
-| **C** | Varies per domain | ⚠️ Requires Session API | ⚠️ Cross-domain |
-| **D** | N/A | N/A | N/A |
+| Pattern | Cookie Domain     | Session Sharing         | ITP Issues      |
+| ------- | ----------------- | ----------------------- | --------------- |
+| **A**   | `id.example.com`  | ✅ All components       | ❌ None         |
+| **B**   | `id.example.com`  | ✅ OIDC + Login UI      | ❌ None         |
+| **C**   | Varies per domain | ⚠️ Requires Session API | ⚠️ Cross-domain |
+| **D**   | N/A               | N/A                     | N/A             |
 
 ### CORS Complexity Comparison
 
-| Pattern | CORS Config | Maintenance |
-|---------|-------------|-------------|
-| **A** | ❌ Not needed | ⭐ Low |
-| **B** | ⚠️ Admin UI only | ⭐⭐ Medium |
-| **C** | ✅ Required for all | ⭐⭐⭐⭐ High |
-| **D** | ✅ Required | ⭐⭐⭐ Medium-High |
+| Pattern | CORS Config         | Maintenance        |
+| ------- | ------------------- | ------------------ |
+| **A**   | ❌ Not needed       | ⭐ Low             |
+| **B**   | ⚠️ Admin UI only    | ⭐⭐ Medium        |
+| **C**   | ✅ Required for all | ⭐⭐⭐⭐ High      |
+| **D**   | ✅ Required         | ⭐⭐⭐ Medium-High |
 
 ### Performance Considerations
 
 #### Pattern A: Fastest
+
 - Single origin, minimal latency
 - No CORS preflight requests
 - Optimal for most use cases
 
 #### Pattern B: Balanced
+
 - CORS preflight for Admin API calls
 - Login flow remains fast (same-origin)
 - Good balance of security and performance
 
 #### Pattern C: Complex but Scalable
+
 - Multiple CORS preflight requests
 - Token exchange adds latency
 - Best for globally distributed systems
 
 #### Pattern D: API Latency Only
+
 - No UI rendering overhead
 - Optimal for M2M communication
 - Best for high-throughput scenarios
@@ -742,11 +795,13 @@ pnpm --filter=op-* deploy
 ### From Pattern A to Pattern B
 
 1. **Deploy Admin UI separately:**
+
    ```bash
    wrangler pages deploy packages/ui --project-name=authrim-admin
    ```
 
 2. **Configure CORS:**
+
    ```bash
    # Add to KV: CORS_SETTINGS
    wrangler kv:key put --binding=SETTINGS_KV "cors_settings" \
@@ -754,6 +809,7 @@ pnpm --filter=op-* deploy
    ```
 
 3. **Update Admin UI environment variable:**
+
    ```bash
    wrangler pages secret put PUBLIC_API_BASE_URL \
      --project-name=authrim-admin
@@ -767,6 +823,7 @@ pnpm --filter=op-* deploy
 ### From Pattern B to Pattern C
 
 1. **Deploy separate Login UI:**
+
    ```bash
    wrangler pages deploy packages/ui --project-name=service1-login
    ```
@@ -774,6 +831,7 @@ pnpm --filter=op-* deploy
 2. **Implement Session Token API** (Phase 3 feature)
 
 3. **Configure CORS for all domains:**
+
    ```json
    {
      "allowed_origins": [

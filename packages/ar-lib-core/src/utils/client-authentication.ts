@@ -8,6 +8,7 @@ import { jwtVerify, importJWK, type JWK } from 'jose';
 import type { ClientMetadata } from '../types/oidc';
 import { isInternalUrl } from './url-security';
 import { ALLOWED_ASYMMETRIC_ALGS } from '../constants';
+import { timingSafeEqual } from './crypto';
 
 /**
  * Client Assertion Claims (RFC 7523 Section 3)
@@ -118,7 +119,10 @@ export async function validateClientAssertion(
     }
 
     // Step 3: Verify iss and sub match client_id (RFC 7523 Section 3)
-    if (claims.iss !== client.client_id || claims.sub !== client.client_id) {
+    // SECURITY: Use timing-safe comparison to prevent timing attacks
+    const issMatches = timingSafeEqual(claims.iss, client.client_id);
+    const subMatches = timingSafeEqual(claims.sub, client.client_id);
+    if (!issMatches || !subMatches) {
       return {
         valid: false,
         error: 'invalid_client',
@@ -132,13 +136,17 @@ export async function validateClientAssertion(
     const normalizedEndpoint = normalizeUrl(tokenEndpoint);
 
     const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-    const audienceMatches = audiences.some((aud) => normalizeUrl(aud) === normalizedEndpoint);
+    // SECURITY: Use timing-safe comparison to prevent timing attacks on audience values
+    const audienceMatches = audiences.some((aud) =>
+      timingSafeEqual(normalizeUrl(aud), normalizedEndpoint)
+    );
 
     if (!audienceMatches) {
       return {
         valid: false,
         error: 'invalid_client',
-        error_description: `Audience does not match token endpoint. Expected '${tokenEndpoint}'`,
+        // SECURITY: Do not expose token endpoint URL in error message
+        error_description: 'Audience does not match the expected value',
       };
     }
 
@@ -254,9 +262,8 @@ export async function validateClientAssertion(
       return {
         valid: false,
         error: 'invalid_client',
-        error_description: kid
-          ? `No public key found with kid '${kid}' in client JWKS`
-          : 'No public key available for client signature verification',
+        // SECURITY: Do not expose kid value in error message to prevent key enumeration
+        error_description: 'No matching public key found for client signature verification',
       };
     }
 
@@ -280,11 +287,12 @@ export async function validateClientAssertion(
       'Client assertion validation error:',
       error instanceof Error ? error.name : 'Unknown error'
     );
+    // SECURITY: Use generic error message to prevent information leakage
+    // Internal library errors (jose) may contain implementation details
     return {
       valid: false,
       error: 'invalid_client',
-      error_description:
-        error instanceof Error ? error.message : 'Failed to validate client assertion',
+      error_description: 'Failed to validate client assertion',
     };
   }
 }

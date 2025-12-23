@@ -4,10 +4,10 @@ Phishing-resistant passwordless authentication using FIDO2/WebAuthn.
 
 ## Overview
 
-| Specification | Status | Protocols |
-|---------------|--------|-----------|
-| [WebAuthn Level 2](https://www.w3.org/TR/webauthn-2/) | ✅ Implemented | FIDO2 |
-| [Passkeys](https://fidoalliance.org/passkeys/) | ✅ Implemented | Cross-device |
+| Specification                                         | Status         | Protocols    |
+| ----------------------------------------------------- | -------------- | ------------ |
+| [WebAuthn Level 2](https://www.w3.org/TR/webauthn-2/) | ✅ Implemented | FIDO2        |
+| [Passkeys](https://fidoalliance.org/passkeys/)        | ✅ Implemented | Cross-device |
 
 Passkeys provide passwordless, phishing-resistant authentication using public key cryptography. Users authenticate with biometrics (Face ID, Touch ID, Windows Hello) or security keys.
 
@@ -15,13 +15,13 @@ Passkeys provide passwordless, phishing-resistant authentication using public ke
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Phishing-Resistant** | Credentials bound to origin |
-| **Passwordless** | No passwords to remember or steal |
-| **Biometric** | Face ID, Touch ID, fingerprint |
-| **Cross-Device** | Sync via iCloud, Google, Microsoft |
-| **Security Keys** | YubiKey, Titan, hardware tokens |
+| Benefit                | Description                        |
+| ---------------------- | ---------------------------------- |
+| **Phishing-Resistant** | Credentials bound to origin        |
+| **Passwordless**       | No passwords to remember or steal  |
+| **Biometric**          | Face ID, Touch ID, fingerprint     |
+| **Cross-Device**       | Sync via iCloud, Google, Microsoft |
+| **Security Keys**      | YubiKey, Titan, hardware tokens    |
 
 ---
 
@@ -74,37 +74,37 @@ async function registerWithPasskey(email: string) {
   const optionsResponse = await fetch('/api/auth/passkey/register/options', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email })
+    body: JSON.stringify({ email }),
   });
 
   const options = await optionsResponse.json();
 
   // 2. Create credential with browser API
-  const credential = await navigator.credentials.create({
+  const credential = (await navigator.credentials.create({
     publicKey: {
       challenge: base64ToBuffer(options.challenge),
       rp: {
         name: options.rp.name,
-        id: options.rp.id  // e.g., "example.com"
+        id: options.rp.id, // e.g., "example.com"
       },
       user: {
         id: base64ToBuffer(options.user.id),
         name: options.user.name,
-        displayName: options.user.displayName
+        displayName: options.user.displayName,
       },
       pubKeyCredParams: [
-        { alg: -7, type: 'public-key' },   // ES256
-        { alg: -257, type: 'public-key' }  // RS256
+        { alg: -7, type: 'public-key' }, // ES256
+        { alg: -257, type: 'public-key' }, // RS256
       ],
       authenticatorSelection: {
-        authenticatorAttachment: 'platform',  // Built-in (Face ID, Touch ID)
-        residentKey: 'required',              // Discoverable credential
-        userVerification: 'required'          // Biometric required
+        authenticatorAttachment: 'platform', // Built-in (Face ID, Touch ID)
+        residentKey: 'required', // Discoverable credential
+        userVerification: 'required', // Biometric required
       },
       timeout: 60000,
-      attestation: 'none'  // Privacy-preserving
-    }
-  }) as PublicKeyCredential;
+      attestation: 'none', // Privacy-preserving
+    },
+  })) as PublicKeyCredential;
 
   // 3. Send credential to server
   const attestationResponse = credential.response as AuthenticatorAttestationResponse;
@@ -118,9 +118,9 @@ async function registerWithPasskey(email: string) {
       type: credential.type,
       response: {
         clientDataJSON: bufferToBase64(attestationResponse.clientDataJSON),
-        attestationObject: bufferToBase64(attestationResponse.attestationObject)
-      }
-    })
+        attestationObject: bufferToBase64(attestationResponse.attestationObject),
+      },
+    }),
   });
 
   return verifyResponse.json();
@@ -135,7 +135,7 @@ app.post('/api/auth/passkey/register/verify', async (c) => {
     response: body,
     expectedChallenge: await getChallenge(body.id),
     expectedOrigin: 'https://app.example.com',
-    expectedRPID: 'example.com'
+    expectedRPID: 'example.com',
   });
 
   if (!verification.verified) {
@@ -147,7 +147,7 @@ app.post('/api/auth/passkey/register/verify', async (c) => {
     credentialId: verification.registrationInfo.credentialID,
     publicKey: verification.registrationInfo.credentialPublicKey,
     counter: verification.registrationInfo.counter,
-    userId: body.userId
+    userId: body.userId,
   });
 
   // Create session
@@ -204,26 +204,26 @@ async function authenticateWithSecurityKey(mfaToken: string) {
   const optionsResponse = await fetch('/api/auth/passkey/login/options', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mfa_token: mfaToken })
+    body: JSON.stringify({ mfa_token: mfaToken }),
   });
 
   const options = await optionsResponse.json();
 
   // 2. Request assertion from security key
-  const assertion = await navigator.credentials.get({
+  const assertion = (await navigator.credentials.get({
     publicKey: {
       challenge: base64ToBuffer(options.challenge),
       timeout: 60000,
       rpId: 'enterprise.example.com',
       // Only allow registered security keys
-      allowCredentials: options.allowCredentials.map(cred => ({
+      allowCredentials: options.allowCredentials.map((cred) => ({
         id: base64ToBuffer(cred.id),
         type: 'public-key',
-        transports: ['usb', 'nfc']  // Security key transports
+        transports: ['usb', 'nfc'], // Security key transports
       })),
-      userVerification: 'discouraged'  // PIN optional for security keys
-    }
-  }) as PublicKeyCredential;
+      userVerification: 'discouraged', // PIN optional for security keys
+    },
+  })) as PublicKeyCredential;
 
   // 3. Verify assertion
   const response = assertion.response as AuthenticatorAssertionResponse;
@@ -239,10 +239,10 @@ async function authenticateWithSecurityKey(mfaToken: string) {
         clientDataJSON: bufferToBase64(response.clientDataJSON),
         authenticatorData: bufferToBase64(response.authenticatorData),
         signature: bufferToBase64(response.signature),
-        userHandle: response.userHandle ? bufferToBase64(response.userHandle) : null
+        userHandle: response.userHandle ? bufferToBase64(response.userHandle) : null,
       },
-      mfa_token: mfaToken
-    })
+      mfa_token: mfaToken,
+    }),
   });
 
   return verifyResponse.json();
@@ -258,7 +258,7 @@ app.post('/api/auth/passkey/register/verify', async (c) => {
     expectedOrigin: 'https://enterprise.example.com',
     expectedRPID: 'enterprise.example.com',
     // Require hardware attestation for security keys
-    requireUserVerification: false
+    requireUserVerification: false,
   });
 
   // Verify it's a hardware security key (optional)
@@ -273,7 +273,7 @@ app.post('/api/auth/passkey/register/verify', async (c) => {
   await storeCredential({
     ...verification.registrationInfo,
     authenticatorType: 'security_key',
-    aaguid
+    aaguid,
   });
 
   return c.json({ success: true });
@@ -321,24 +321,24 @@ async function authenticateWithCrossDevice() {
   const optionsResponse = await fetch('/api/auth/passkey/login/options', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({})  // No username - discoverable credentials
+    body: JSON.stringify({}), // No username - discoverable credentials
   });
 
   const options = await optionsResponse.json();
 
   // Request credential - browser will show QR if no local credentials
-  const assertion = await navigator.credentials.get({
+  const assertion = (await navigator.credentials.get({
     publicKey: {
       challenge: base64ToBuffer(options.challenge),
-      timeout: 300000,  // 5 minutes for cross-device
+      timeout: 300000, // 5 minutes for cross-device
       rpId: 'example.com',
       // Empty allowCredentials for discoverable credential flow
       allowCredentials: [],
-      userVerification: 'required'
+      userVerification: 'required',
     },
     // Enable hybrid transport (QR code flow)
-    mediation: 'optional'
-  }) as PublicKeyCredential;
+    mediation: 'optional',
+  })) as PublicKeyCredential;
 
   // User handle identifies the user (for discoverable credentials)
   const response = assertion.response as AuthenticatorAssertionResponse;
@@ -354,10 +354,10 @@ async function authenticateWithCrossDevice() {
         clientDataJSON: bufferToBase64(response.clientDataJSON),
         authenticatorData: bufferToBase64(response.authenticatorData),
         signature: bufferToBase64(response.signature),
-        userHandle: userHandle ? bufferToBase64(userHandle) : null
-      }
-    })
-  }).then(r => r.json());
+        userHandle: userHandle ? bufferToBase64(userHandle) : null,
+      },
+    }),
+  }).then((r) => r.json());
 }
 ```
 
@@ -443,12 +443,12 @@ Content-Type: application/json
 
 ## Security Considerations
 
-| Consideration | Implementation |
-|---------------|----------------|
-| **Origin Binding** | Credentials tied to RP ID |
-| **Replay Prevention** | Challenge is single-use |
-| **Counter Validation** | Detect cloned authenticators |
-| **User Verification** | Biometric required for sensitive ops |
+| Consideration          | Implementation                       |
+| ---------------------- | ------------------------------------ |
+| **Origin Binding**     | Credentials tied to RP ID            |
+| **Replay Prevention**  | Challenge is single-use              |
+| **Counter Validation** | Detect cloned authenticators         |
+| **User Verification**  | Biometric required for sensitive ops |
 
 ---
 
@@ -456,21 +456,21 @@ Content-Type: application/json
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PASSKEY_RP_ID` | Relying Party ID | Domain |
-| `PASSKEY_RP_NAME` | Displayed to users | App name |
-| `PASSKEY_TIMEOUT` | Ceremony timeout (ms) | `60000` |
+| Variable          | Description           | Default  |
+| ----------------- | --------------------- | -------- |
+| `PASSKEY_RP_ID`   | Relying Party ID      | Domain   |
+| `PASSKEY_RP_NAME` | Displayed to users    | App name |
+| `PASSKEY_TIMEOUT` | Ceremony timeout (ms) | `60000`  |
 
 ---
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Registration | `packages/op-auth/src/passkey/register.ts` | Registration flow |
-| Authentication | `packages/op-auth/src/passkey/login.ts` | Login flow |
-| Verification | `packages/shared/src/utils/webauthn.ts` | Crypto verification |
+| Component      | File                                       | Description         |
+| -------------- | ------------------------------------------ | ------------------- |
+| Registration   | `packages/op-auth/src/passkey/register.ts` | Registration flow   |
+| Authentication | `packages/op-auth/src/passkey/login.ts`    | Login flow          |
+| Verification   | `packages/shared/src/utils/webauthn.ts`    | Crypto verification |
 
 ---
 

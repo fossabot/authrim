@@ -10,6 +10,12 @@
 import type { Context } from 'hono';
 import type { Env } from '../../types';
 import type { VCITokenResponse } from '@authrim/ar-lib-core';
+import {
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 import { getCredentialOfferStoreById } from '../../utils/credential-offer-sharding';
 import { generateSecureNonce } from '../../utils/crypto';
 import { SignJWT, importJWK } from 'jose';
@@ -18,21 +24,6 @@ import { SignJWT, importJWK } from 'jose';
  * Grant type for pre-authorized code
  */
 const PRE_AUTHORIZED_CODE_GRANT = 'urn:ietf:params:oauth:grant-type:pre-authorized_code';
-
-/**
- * Token error codes per OAuth 2.0 / OpenID4VCI
- */
-type TokenError =
-  | 'invalid_request'
-  | 'invalid_grant'
-  | 'invalid_client'
-  | 'unsupported_grant_type'
-  | 'server_error';
-
-interface TokenErrorResponse {
-  error: TokenError;
-  error_description?: string;
-}
 
 /**
  * POST /vci/token
@@ -45,12 +36,11 @@ export async function vciTokenRoute(c: Context<{ Bindings: Env }>): Promise<Resp
     // Parse form-urlencoded body
     const contentType = c.req.header('Content-Type') || '';
     if (!contentType.includes('application/x-www-form-urlencoded')) {
-      return c.json<TokenErrorResponse>(
-        {
-          error: 'invalid_request',
-          error_description: 'Content-Type must be application/x-www-form-urlencoded',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Content-Type must be application/x-www-form-urlencoded'
       );
     }
 
@@ -59,22 +49,20 @@ export async function vciTokenRoute(c: Context<{ Bindings: Env }>): Promise<Resp
     // Validate grant_type
     const grantType = formData['grant_type'] as string;
     if (!grantType) {
-      return c.json<TokenErrorResponse>(
-        {
-          error: 'invalid_request',
-          error_description: 'grant_type is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'grant_type is required'
       );
     }
 
     if (grantType !== PRE_AUTHORIZED_CODE_GRANT) {
-      return c.json<TokenErrorResponse>(
-        {
-          error: 'unsupported_grant_type',
-          error_description: `Only ${PRE_AUTHORIZED_CODE_GRANT} is supported`,
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.UNSUPPORTED_GRANT_TYPE,
+        400,
+        `Only ${PRE_AUTHORIZED_CODE_GRANT} is supported`
       );
     }
 
@@ -82,13 +70,7 @@ export async function vciTokenRoute(c: Context<{ Bindings: Env }>): Promise<Resp
     return await handlePreAuthorizedCodeGrant(c, formData as unknown as Record<string, string>);
   } catch (error) {
     console.error('[vciToken] Error:', error);
-    return c.json<TokenErrorResponse>(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -104,12 +86,11 @@ async function handlePreAuthorizedCodeGrant(
   // Extract pre-authorized_code (required)
   const preAuthorizedCode = formData['pre-authorized_code'];
   if (!preAuthorizedCode) {
-    return c.json<TokenErrorResponse>(
-      {
-        error: 'invalid_request',
-        error_description: 'pre-authorized_code is required',
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'pre-authorized_code is required'
     );
   }
 
@@ -120,45 +101,36 @@ async function handlePreAuthorizedCodeGrant(
   // The pre-authorized code contains the offer ID for routing
   const offerInfo = await lookupOfferByCode(c.env, preAuthorizedCode);
   if (!offerInfo) {
-    return c.json<TokenErrorResponse>(
-      {
-        error: 'invalid_grant',
-        error_description: 'Invalid or expired pre-authorized_code',
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_GRANT,
+      400,
+      'Invalid or expired pre-authorized_code'
     );
   }
 
   // Validate tx_code if required
   if (offerInfo.txCode && offerInfo.txCode !== txCode) {
-    return c.json<TokenErrorResponse>(
-      {
-        error: 'invalid_grant',
-        error_description: 'Invalid tx_code',
-      },
-      400
-    );
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_GRANT, 400, 'Invalid tx_code');
   }
 
   // Check offer status
   if (offerInfo.status !== 'pending') {
-    return c.json<TokenErrorResponse>(
-      {
-        error: 'invalid_grant',
-        error_description: `Offer is ${offerInfo.status}`,
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_GRANT,
+      400,
+      `Offer is ${offerInfo.status}`
     );
   }
 
   // Check expiration
   if (Date.now() > offerInfo.expiresAt) {
-    return c.json<TokenErrorResponse>(
-      {
-        error: 'invalid_grant',
-        error_description: 'Pre-authorized code has expired',
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_GRANT,
+      400,
+      'Pre-authorized code has expired'
     );
   }
 

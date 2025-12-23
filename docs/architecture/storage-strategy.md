@@ -4,12 +4,12 @@ Hybrid multi-tier storage architecture optimized for performance, cost, and cons
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| **Tiers** | Durable Objects, D1 (SQLite), KV Storage, R2 |
-| **Pattern** | Right storage for right data |
-| **Consistency** | Strong where critical, eventual elsewhere |
-| **Caching** | Multi-layer with TTL management |
+| Aspect          | Description                                  |
+| --------------- | -------------------------------------------- |
+| **Tiers**       | Durable Objects, D1 (SQLite), KV Storage, R2 |
+| **Pattern**     | Right storage for right data                 |
+| **Consistency** | Strong where critical, eventual elsewhere    |
+| **Caching**     | Multi-layer with TTL management              |
 
 Authrim uses a hybrid storage architecture that matches each data type to the most appropriate Cloudflare storage service based on consistency requirements, access patterns, and cost optimization.
 
@@ -65,25 +65,25 @@ flowchart TB
 
 ### Feature Matrix
 
-| Feature | Durable Objects | D1 (SQLite) | KV | R2 |
-|---------|----------------|-------------|-----|-----|
-| **Consistency** | Strong | Strong* | Eventual | Strong |
-| **Read Latency** | <1ms (memory) | <10ms | <1ms (edge) | <50ms |
-| **Write Latency** | <10ms | <50ms | <500ms | <100ms |
-| **TTL Support** | Manual | Manual | Native | Manual |
-| **Complex Queries** | No | Yes (SQL) | No | No |
-| **Transactions** | Yes (per DO) | Yes | No | No |
-| **Best For** | Real-time state | Persistent data | Edge cache | Binary files |
+| Feature             | Durable Objects | D1 (SQLite)     | KV          | R2           |
+| ------------------- | --------------- | --------------- | ----------- | ------------ |
+| **Consistency**     | Strong          | Strong\*        | Eventual    | Strong       |
+| **Read Latency**    | <1ms (memory)   | <10ms           | <1ms (edge) | <50ms        |
+| **Write Latency**   | <10ms           | <50ms           | <500ms      | <100ms       |
+| **TTL Support**     | Manual          | Manual          | Native      | Manual       |
+| **Complex Queries** | No              | Yes (SQL)       | No          | No           |
+| **Transactions**    | Yes (per DO)    | Yes             | No          | No           |
+| **Best For**        | Real-time state | Persistent data | Edge cache  | Binary files |
 
-*D1 consistency is within-region; cross-region may have short delays.
+\*D1 consistency is within-region; cross-region may have short delays.
 
 ### Cost Analysis
 
-| Operation Type | DO | D1 | KV | R2 |
-|----------------|----|----|----|----|
-| 1M reads | ~$0.02 | Free tier | $0.50 | $0.36 |
-| 1M writes | ~$0.02 | Free tier | $5.00 | $4.50 |
-| Storage/GB | $0.20 | $0.75 | $0.50 | $0.015 |
+| Operation Type | DO     | D1        | KV    | R2     |
+| -------------- | ------ | --------- | ----- | ------ |
+| 1M reads       | ~$0.02 | Free tier | $0.50 | $0.36  |
+| 1M writes      | ~$0.02 | Free tier | $5.00 | $4.50  |
+| Storage/GB     | $0.20  | $0.75     | $0.50 | $0.015 |
 
 ---
 
@@ -91,33 +91,33 @@ flowchart TB
 
 ### By Consistency Requirement
 
-| Level | Data Types | Storage | Reason |
-|-------|-----------|---------|--------|
-| **Strong** | Auth codes, Token rotation | DO | One-time use, theft detection |
-| **Strong** | Active sessions | DO | Real-time invalidation |
-| **Strong** | PAR, CIBA requests | DO | Request binding |
-| **Persistent** | Users, Clients | D1 | Relational queries |
-| **Eventual** | Discovery, JWKS | KV | High read volume |
+| Level          | Data Types                 | Storage | Reason                        |
+| -------------- | -------------------------- | ------- | ----------------------------- |
+| **Strong**     | Auth codes, Token rotation | DO      | One-time use, theft detection |
+| **Strong**     | Active sessions            | DO      | Real-time invalidation        |
+| **Strong**     | PAR, CIBA requests         | DO      | Request binding               |
+| **Persistent** | Users, Clients             | D1      | Relational queries            |
+| **Eventual**   | Discovery, JWKS            | KV      | High read volume              |
 
 ### By Lifetime
 
-| Lifetime | Data | Storage | TTL |
-|----------|------|---------|-----|
-| <60s | Authorization codes | DO | 60s |
-| <5min | PAR request_uri | DO | 60s |
-| <15min | Magic links | KV | 15min |
-| <24h | Active sessions | DO | 24h |
-| <30d | Refresh tokens | DO | 30d |
-| Indefinite | Users, Clients, Audit | D1 | - |
+| Lifetime   | Data                  | Storage | TTL   |
+| ---------- | --------------------- | ------- | ----- |
+| <60s       | Authorization codes   | DO      | 60s   |
+| <5min      | PAR request_uri       | DO      | 60s   |
+| <15min     | Magic links           | KV      | 15min |
+| <24h       | Active sessions       | DO      | 24h   |
+| <30d       | Refresh tokens        | DO      | 30d   |
+| Indefinite | Users, Clients, Audit | D1      | -     |
 
 ### By Access Pattern
 
-| Pattern | Data | Storage | Strategy |
-|---------|------|---------|----------|
-| Write-once-read-once | Auth codes | DO | Atomic consume |
-| Write-rare-read-often | JWKS, Discovery | DO → KV | Write-through cache |
-| Write-often-read-often | Sessions | DO | In-memory |
-| Write-often-read-rare | Audit logs | D1 | Async write |
+| Pattern                | Data            | Storage | Strategy            |
+| ---------------------- | --------------- | ------- | ------------------- |
+| Write-once-read-once   | Auth codes      | DO      | Atomic consume      |
+| Write-rare-read-often  | JWKS, Discovery | DO → KV | Write-through cache |
+| Write-often-read-often | Sessions        | DO      | In-memory           |
+| Write-often-read-rare  | Audit logs      | D1      | Async write         |
 
 ---
 
@@ -269,12 +269,12 @@ async function getSetting(key: string): Promise<string> {
 
 ### Settings Storage
 
-| Setting Type | Storage | Update Method |
-|--------------|---------|---------------|
-| Feature flags | KV | Admin API |
-| Security config | KV + Env | Admin API, deploy |
-| Secrets | Env (encrypted) | Deploy only |
-| Tenant settings | D1 | Admin API |
+| Setting Type    | Storage         | Update Method     |
+| --------------- | --------------- | ----------------- |
+| Feature flags   | KV              | Admin API         |
+| Security config | KV + Env        | Admin API, deploy |
+| Secrets         | Env (encrypted) | Deploy only       |
+| Tenant settings | D1              | Admin API         |
 
 ---
 
@@ -325,21 +325,21 @@ class SessionStore {
 
 ### Strategies
 
-| Strategy | Implementation | Savings |
-|----------|---------------|---------|
-| Edge caching | KV for public keys, discovery | 90% DO reads |
-| Batch writes | Async audit logging | 50% D1 writes |
-| TTL expiration | Native KV TTL | No cleanup cost |
-| Read replicas | Multi-region D1 | Lower latency |
+| Strategy       | Implementation                | Savings         |
+| -------------- | ----------------------------- | --------------- |
+| Edge caching   | KV for public keys, discovery | 90% DO reads    |
+| Batch writes   | Async audit logging           | 50% D1 writes   |
+| TTL expiration | Native KV TTL                 | No cleanup cost |
+| Read replicas  | Multi-region D1               | Lower latency   |
 
 ### Free Tier Utilization
 
-| Service | Free Tier | Authrim Usage |
-|---------|-----------|---------------|
-| D1 | 5M reads/day | User lookups |
-| KV | 100K reads/day | Discovery, JWKS |
-| DO | 1M requests/month | Auth codes, sessions |
-| R2 | 10M reads/month | Avatars |
+| Service | Free Tier         | Authrim Usage        |
+| ------- | ----------------- | -------------------- |
+| D1      | 5M reads/day      | User lookups         |
+| KV      | 100K reads/day    | Discovery, JWKS      |
+| DO      | 1M requests/month | Auth codes, sessions |
+| R2      | 10M reads/month   | Avatars              |
 
 ---
 
@@ -347,12 +347,12 @@ class SessionStore {
 
 ### Key Metrics
 
-| Metric | Storage | Alert Threshold |
-|--------|---------|-----------------|
-| Cache hit rate | KV | <90% |
-| DO latency p99 | DO | >50ms |
-| D1 query time | D1 | >100ms |
-| Hot session count | DO | >10K/shard |
+| Metric            | Storage | Alert Threshold |
+| ----------------- | ------- | --------------- |
+| Cache hit rate    | KV      | <90%            |
+| DO latency p99    | DO      | >50ms           |
+| D1 query time     | D1      | >100ms          |
+| Hot session count | DO      | >10K/shard      |
 
 ### Storage Health Check
 
@@ -379,12 +379,12 @@ async function healthCheck(): Promise<StorageHealth> {
 
 ## Related Documents
 
-| Document | Description |
-|----------|-------------|
-| [Architecture Overview](./overview.md) | System architecture |
-| [Durable Objects](./durable-objects.md) | DO design and patterns |
-| [Database Schema](./database-schema.md) | D1 schema |
-| [DO Sharding](./durable-objects-sharding.md) | Sharding strategies |
+| Document                                     | Description            |
+| -------------------------------------------- | ---------------------- |
+| [Architecture Overview](./overview.md)       | System architecture    |
+| [Durable Objects](./durable-objects.md)      | DO design and patterns |
+| [Database Schema](./database-schema.md)      | D1 schema              |
+| [DO Sharding](./durable-objects-sharding.md) | Sharding strategies    |
 
 ---
 

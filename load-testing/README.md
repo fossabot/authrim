@@ -29,14 +29,14 @@ This framework measures the performance and capacity of Authrim OIDC endpoints:
 
 ### Performance Highlights
 
-| Endpoint | Recommended RPS | Peak RPS | Key Finding |
-|----------|-----------------|----------|-------------|
-| Silent Auth (128 shards) | 2,500 | 3,500 | DO sharding eliminates errors |
-| Refresh Token (48 shards) | 2,500 | 3,000 | Linear shard scaling |
-| UserInfo | 2,000 | 2,500 | JWT validation stable at 1-4ms CPU |
-| Token Exchange | 1,500 | 2,500 | 100% token validation accuracy |
-| Token Introspection (32 shards) | 300 | 500 | Region-aware JTI sharding |
-| Full Login (32 shards) | 100 LPS | 150 LPS | 91% P95 latency reduction |
+| Endpoint                        | Recommended RPS | Peak RPS | Key Finding                        |
+| ------------------------------- | --------------- | -------- | ---------------------------------- |
+| Silent Auth (128 shards)        | 2,500           | 3,500    | DO sharding eliminates errors      |
+| Refresh Token (48 shards)       | 2,500           | 3,000    | Linear shard scaling               |
+| UserInfo                        | 2,000           | 2,500    | JWT validation stable at 1-4ms CPU |
+| Token Exchange                  | 1,500           | 2,500    | 100% token validation accuracy     |
+| Token Introspection (32 shards) | 300             | 500      | Region-aware JTI sharding          |
+| Full Login (32 shards)          | 100 LPS         | 150 LPS  | 91% P95 latency reduction          |
 
 See [Reports](#reports) for detailed analysis.
 
@@ -121,15 +121,15 @@ CF_API_TOKEN=xxx node scripts/utils/report-cf-analytics.js \
 
 ## Available Benchmarks
 
-| Benchmark | Endpoint | Seed Script | K6 Script |
-|-----------|----------|-------------|-----------|
-| Token Introspection | `POST /introspect` | `seed-access-tokens.js` | `test-introspect-benchmark.js` |
-| Token Exchange | `POST /token` | `seed-access-tokens.js` | `test-token-exchange-benchmark.js` |
-| UserInfo | `GET /userinfo` | `seed-access-tokens.js` | `test-userinfo-benchmark.js` |
-| Silent Auth | `GET /authorize?prompt=none` | `seed-otp-users.js` | `test-authorize-silent-benchmark.js` |
-| Refresh Token | `POST /token` | `seed-refresh-tokens.js` | `test-refresh.js` |
-| Mail OTP Login | 5-step OAuth flow | `seed-otp-users.js` | `test-mail-otp-full-login-benchmark.js` |
-| Passkey Login | 6-step OAuth flow | `seed-passkey-users.js` | `test-passkey-full-login-benchmark.js` |
+| Benchmark           | Endpoint                     | Seed Script              | K6 Script                               |
+| ------------------- | ---------------------------- | ------------------------ | --------------------------------------- |
+| Token Introspection | `POST /introspect`           | `seed-access-tokens.js`  | `test-introspect-benchmark.js`          |
+| Token Exchange      | `POST /token`                | `seed-access-tokens.js`  | `test-token-exchange-benchmark.js`      |
+| UserInfo            | `GET /userinfo`              | `seed-access-tokens.js`  | `test-userinfo-benchmark.js`            |
+| Silent Auth         | `GET /authorize?prompt=none` | `seed-otp-users.js`      | `test-authorize-silent-benchmark.js`    |
+| Refresh Token       | `POST /token`                | `seed-refresh-tokens.js` | `test-refresh.js`                       |
+| Mail OTP Login      | 5-step OAuth flow            | `seed-otp-users.js`      | `test-mail-otp-full-login-benchmark.js` |
+| Passkey Login       | 6-step OAuth flow            | `seed-passkey-users.js`  | `test-passkey-full-login-benchmark.js`  |
 
 ### Token Introspection / Token Exchange / UserInfo
 
@@ -239,13 +239,13 @@ curl -X POST "https://your-authrim.example.com/api/admin/clients" \
 
 ### Script Reference
 
-| Script | Required Env Vars | Optional | Description |
-|--------|-------------------|----------|-------------|
-| `seed-access-tokens.js` | `BASE_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `ADMIN_API_SECRET` | `TOKEN_COUNT` (1000), `CONCURRENCY` (20) | Tokens for introspect/exchange/userinfo |
-| `seed-otp-users.js` | `BASE_URL`, `ADMIN_API_SECRET` | `OTP_USER_COUNT` (500), `CONCURRENCY` (20) | Users for OTP login / silent auth |
-| `seed-passkey-users.js` | `BASE_URL`, `ADMIN_API_SECRET` | `PASSKEY_USER_COUNT` (100), `CONCURRENCY` (10) | Users with passkey credentials |
-| `seed-refresh-tokens.js` | `BASE_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `ADMIN_API_SECRET` | `COUNT` (120) | Refresh tokens for rotation tests |
-| `seed-authcodes.js` | `BASE_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `ADMIN_API_SECRET` | `AUTH_CODE_COUNT` (200) | Authorization codes |
+| Script                   | Required Env Vars                                            | Optional                                       | Description                             |
+| ------------------------ | ------------------------------------------------------------ | ---------------------------------------------- | --------------------------------------- |
+| `seed-access-tokens.js`  | `BASE_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `ADMIN_API_SECRET` | `TOKEN_COUNT` (1000), `CONCURRENCY` (20)       | Tokens for introspect/exchange/userinfo |
+| `seed-otp-users.js`      | `BASE_URL`, `ADMIN_API_SECRET`                               | `OTP_USER_COUNT` (500), `CONCURRENCY` (20)     | Users for OTP login / silent auth       |
+| `seed-passkey-users.js`  | `BASE_URL`, `ADMIN_API_SECRET`                               | `PASSKEY_USER_COUNT` (100), `CONCURRENCY` (10) | Users with passkey credentials          |
+| `seed-refresh-tokens.js` | `BASE_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `ADMIN_API_SECRET` | `COUNT` (120)                                  | Refresh tokens for rotation tests       |
+| `seed-authcodes.js`      | `BASE_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `ADMIN_API_SECRET` | `AUTH_CODE_COUNT` (200)                        | Authorization codes                     |
 
 **Token Mix** (`seed-access-tokens.js`): Valid 60%, Token Exchange 5%, Expired 12%, Revoked 12%, Wrong Audience 6%, Wrong Client 5%
 

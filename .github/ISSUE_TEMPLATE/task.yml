@@ -1,7 +1,7 @@
 name: Task / Chore
 description: Track a general task or chore (docs, refactoring, setup, etc.)
-title: "[Task]: "
-labels: ["type:task"]
+title: '[Task]: '
+labels: ['type:task']
 body:
   - type: markdown
     attributes:

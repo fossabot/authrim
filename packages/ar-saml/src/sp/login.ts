@@ -8,6 +8,7 @@
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
 import type { SAMLIdPConfig } from '@authrim/ar-lib-core';
+import { createErrorResponse, AR_ERROR_CODES } from '@authrim/ar-lib-core';
 import * as pako from 'pako';
 import { SAML_NAMESPACES, BINDING_URIS, NAMEID_FORMATS } from '../common/constants';
 import {
@@ -46,7 +47,7 @@ export async function handleSPLogin(c: Context<{ Bindings: Env }>): Promise<Resp
     // Get IdP configuration
     const idpConfig = await getIdPConfig(env, idpId);
     if (!idpConfig) {
-      return c.json({ error: 'Unknown Identity Provider' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Generate AuthnRequest
@@ -64,13 +65,7 @@ export async function handleSPLogin(c: Context<{ Bindings: Env }>): Promise<Resp
     }
   } catch (error) {
     console.error('SP Login Error:', error);
-    return c.json(
-      {
-        error: 'sp_login_error',
-        message: error instanceof Error ? error.message : 'SP login initiation failed',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 

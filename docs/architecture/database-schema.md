@@ -23,15 +23,15 @@ This document defines the database schema for Authrim OIDC OP.
 
 ### Statistics Summary
 
-| Category | Number of Tables | Main Relations |
-|---------|-----------|-----------------|
-| **User Management** | 3 | users → user_custom_fields, users → passkeys |
-| **Authentication & Sessions** | 2 | users → sessions, users → passkeys |
-| **OAuth Management** | 1 | oauth_clients (standalone) |
-| **Permission Management** | 2 | users ← user_roles → roles |
-| **Settings & Metadata** | 3 | scope_mappings, branding_settings, identity_providers |
-| **Audit** | 1 | audit_log (standalone) |
-| **Total** | **11** | **8 Main Relations** |
+| Category                      | Number of Tables | Main Relations                                        |
+| ----------------------------- | ---------------- | ----------------------------------------------------- |
+| **User Management**           | 3                | users → user_custom_fields, users → passkeys          |
+| **Authentication & Sessions** | 2                | users → sessions, users → passkeys                    |
+| **OAuth Management**          | 1                | oauth_clients (standalone)                            |
+| **Permission Management**     | 2                | users ← user_roles → roles                            |
+| **Settings & Metadata**       | 3                | scope_mappings, branding_settings, identity_providers |
+| **Audit**                     | 1                | audit_log (standalone)                                |
+| **Total**                     | **11**           | **8 Main Relations**                                  |
 
 ### Design Principles
 
@@ -239,6 +239,7 @@ erDiagram
 **Purpose**: Store OIDC standard claims and custom attributes
 
 **Key Columns**:
+
 - `id`: UUID, primary key
 - `email`: Email address, unique constraint, indexed
 - `parent_user_id`: Parent-child accounts (self-referencing foreign key)
@@ -246,6 +247,7 @@ erDiagram
 - `identity_provider_id`: External authentication provider ID (used in Phase 7)
 
 **Relations**:
+
 - 1:N → `user_custom_fields` (cascade delete)
 - 1:N → `passkeys` (cascade delete)
 - 1:N → `sessions` (cascade delete)
@@ -254,6 +256,7 @@ erDiagram
 - N:1 → `identity_providers` (external authentication)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE users (
   id TEXT PRIMARY KEY,
@@ -295,15 +298,18 @@ CREATE INDEX idx_users_parent_user_id ON users(parent_user_id);
 **Purpose**: Administrator-defined searchable custom fields (e.g., barcode, employee number)
 
 **Key Columns**:
+
 - `user_id` + `field_name`: Composite primary key
 - `field_value`: Searchable value
 - `field_type`: Data type (string, number, date, boolean)
 - `searchable`: Flag for inclusion in search index
 
 **Relations**:
+
 - N:1 → `users` (cascade delete)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE user_custom_fields (
   user_id TEXT NOT NULL,
@@ -325,6 +331,7 @@ CREATE INDEX idx_user_custom_fields_search ON user_custom_fields(field_name, fie
 **Purpose**: Store user Passkey (WebAuthn) authentication credentials
 
 **Key Columns**:
+
 - `id`: UUID, primary key
 - `credential_id`: WebAuthn credential ID, unique constraint
 - `public_key`: Public key (for verification)
@@ -332,9 +339,11 @@ CREATE INDEX idx_user_custom_fields_search ON user_custom_fields(field_name, fie
 - `transports`: Authenticator transport methods (JSON array)
 
 **Relations**:
+
 - N:1 → `users` (cascade delete)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE passkeys (
   id TEXT PRIMARY KEY,
@@ -360,6 +369,7 @@ CREATE INDEX idx_passkeys_credential_id ON passkeys(credential_id);
 **Purpose**: RFC 7591 (DCR) compliant OAuth client information
 
 **Key Columns**:
+
 - `client_id`: Client ID (UUID recommended)
 - `client_secret`: Client secret (hashed)
 - `redirect_uris`: Redirect URIs (JSON array)
@@ -367,9 +377,11 @@ CREATE INDEX idx_passkeys_credential_id ON passkeys(credential_id);
 - `subject_type`: public or pairwise (privacy protection)
 
 **Relations**:
+
 - None (standalone)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE oauth_clients (
   client_id TEXT PRIMARY KEY,
@@ -401,14 +413,17 @@ CREATE INDEX idx_clients_created_at ON oauth_clients(created_at);
 **Purpose**: ITP-compliant session management (hybrid DO + D1 architecture)
 
 **Key Columns**:
+
 - `id`: Session ID (UUID)
 - `user_id`: User ID
 - `expires_at`: Expiration time (Unix timestamp)
 
 **Relations**:
+
 - N:1 → `users` (cascade delete)
 
 **⚙️ Hybrid Storage Architecture**:
+
 - **Active Sessions (Hot Data)**: Stored in SessionStore Durable Object (in-memory)
   - Sub-millisecond access
   - Immediate invalidation
@@ -421,6 +436,7 @@ CREATE INDEX idx_clients_created_at ON oauth_clients(created_at);
 See [storage-strategy.md](./storage-strategy.md) for details
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE sessions (
   id TEXT PRIMARY KEY,
@@ -441,20 +457,24 @@ CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 **Purpose**: RBAC (Role-Based Access Control) role definitions
 
 **Key Columns**:
+
 - `id`: Role ID (UUID)
 - `name`: Role name (admin, viewer, support, etc.), unique
 - `permissions_json`: Permission list (JSON array)
 
 **Default Roles**:
+
 - `super_admin`: All permissions
 - `admin`: User and client management
 - `viewer`: Read-only access
 - `support`: User support
 
 **Relations**:
+
 - N:M → `users` (via `user_roles`)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE roles (
   id TEXT PRIMARY KEY,
@@ -474,13 +494,16 @@ CREATE INDEX idx_roles_name ON roles(name);
 **Purpose**: Establish N:M relationship between users and roles
 
 **Key Columns**:
+
 - `user_id` + `role_id`: Composite primary key
 
 **Relations**:
+
 - N:1 → `users` (cascade delete)
 - N:1 → `roles` (cascade delete)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE user_roles (
   user_id TEXT NOT NULL,
@@ -502,6 +525,7 @@ CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 **Purpose**: Dynamic mapping from custom scopes to claims
 
 **Key Columns**:
+
 - `scope`: Scope name (e.g., employee_id, department)
 - `claim_name`: Claim name to include in token
 - `source_table`: Data source table (users, user_custom_fields)
@@ -509,6 +533,7 @@ CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 - `transformation`: Transformation function (uppercase, lowercase, hash, mask)
 
 **Usage Example**:
+
 ```json
 {
   "scope": "employee_id",
@@ -520,9 +545,11 @@ CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 ```
 
 **Relations**:
+
 - None (standalone)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE scope_mappings (
   scope TEXT PRIMARY KEY,
@@ -544,6 +571,7 @@ CREATE INDEX idx_scope_mappings_scope ON scope_mappings(scope);
 **Purpose**: Customization settings for login screens and other UI
 
 **Key Columns**:
+
 - `id`: Usually `default` (single record)
 - `custom_css`: Custom CSS code
 - `custom_html_header/footer`: Custom HTML
@@ -551,9 +579,11 @@ CREATE INDEX idx_scope_mappings_scope ON scope_mappings(scope);
 - `primary_color/secondary_color`: Brand colors
 
 **Relations**:
+
 - None (singleton)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE branding_settings (
   id TEXT PRIMARY KEY DEFAULT 'default',
@@ -576,15 +606,18 @@ CREATE TABLE branding_settings (
 **Purpose**: Settings for SAML/LDAP/external OAuth, etc. (implemented in Phase 7)
 
 **Key Columns**:
+
 - `id`: Provider ID (UUID)
 - `provider_type`: saml, ldap, oauth
 - `config_json`: Provider-specific configuration (JSON)
 - `enabled`: Enabled/disabled flag
 
 **Relations**:
+
 - 1:N → `users` (externally authenticated users)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE identity_providers (
   id TEXT PRIMARY KEY,
@@ -606,6 +639,7 @@ CREATE INDEX idx_identity_providers_type ON identity_providers(provider_type);
 **Purpose**: Audit trail of all operations
 
 **Key Columns**:
+
 - `id`: Log ID (UUID)
 - `user_id`: Operating user (nullable for system operations)
 - `action`: Action name (login, logout, create_user, etc.)
@@ -614,9 +648,11 @@ CREATE INDEX idx_identity_providers_type ON identity_providers(provider_type);
 - `metadata_json`: Additional context (JSON)
 
 **Relations**:
+
 - N:1 → `users` (nullable, no foreign key constraint)
 
 **SQL Definition**:
+
 ```sql
 CREATE TABLE audit_log (
   id TEXT PRIMARY KEY,
@@ -642,16 +678,16 @@ CREATE INDEX idx_audit_log_resource ON audit_log(resource_type, resource_id);
 
 ### Primary Relations
 
-| From | To | Type | Cardinality | Cascade |
-|------|-----|------|-------------|---------|
-| `users` | `user_custom_fields` | 1:N | One user has multiple custom fields | DELETE CASCADE |
-| `users` | `passkeys` | 1:N | One user has multiple passkeys | DELETE CASCADE |
-| `users` | `sessions` | 1:N | One user has multiple sessions | DELETE CASCADE |
-| `users` | `user_roles` | 1:N | One user has multiple roles | DELETE CASCADE |
-| `roles` | `user_roles` | 1:N | One role is assigned to multiple users | DELETE CASCADE |
-| `users` | `users` | 1:N | Parent-child accounts (self-referencing) | NO ACTION |
-| `identity_providers` | `users` | 1:N | One provider authenticates multiple users | NO ACTION |
-| `users` | `audit_log` | 1:N | One user has multiple log entries | None (nullable) |
+| From                 | To                   | Type | Cardinality                               | Cascade         |
+| -------------------- | -------------------- | ---- | ----------------------------------------- | --------------- |
+| `users`              | `user_custom_fields` | 1:N  | One user has multiple custom fields       | DELETE CASCADE  |
+| `users`              | `passkeys`           | 1:N  | One user has multiple passkeys            | DELETE CASCADE  |
+| `users`              | `sessions`           | 1:N  | One user has multiple sessions            | DELETE CASCADE  |
+| `users`              | `user_roles`         | 1:N  | One user has multiple roles               | DELETE CASCADE  |
+| `roles`              | `user_roles`         | 1:N  | One role is assigned to multiple users    | DELETE CASCADE  |
+| `users`              | `users`              | 1:N  | Parent-child accounts (self-referencing)  | NO ACTION       |
+| `identity_providers` | `users`              | 1:N  | One provider authenticates multiple users | NO ACTION       |
+| `users`              | `audit_log`          | 1:N  | One user has multiple log entries         | None (nullable) |
 
 ### Cardinality Explanation
 
@@ -665,21 +701,21 @@ CREATE INDEX idx_audit_log_resource ON audit_log(resource_type, resource_id);
 
 ### Primary Indexes
 
-| Table | Index | Purpose |
-|---------|-------------|------|
-| `users` | `idx_users_email` | Search by email address (login) |
-| `users` | `idx_users_created_at` | Sort/filter by registration date |
-| `users` | `idx_users_parent_user_id` | Search parent-child accounts |
-| `user_custom_fields` | `idx_user_custom_fields_search` | Search by custom fields |
-| `passkeys` | `idx_passkeys_user_id` | List user's passkeys |
-| `passkeys` | `idx_passkeys_credential_id` | Search during passkey authentication |
-| `sessions` | `idx_sessions_user_id` | List user's sessions |
-| `sessions` | `idx_sessions_expires_at` | Clean up expired sessions |
-| `user_roles` | `idx_user_roles_user_id` | Search user's roles |
-| `audit_log` | `idx_audit_log_user_id` | User's operation history |
-| `audit_log` | `idx_audit_log_created_at` | Time-series search |
-| `audit_log` | `idx_audit_log_action` | Filter by action type |
-| `audit_log` | `idx_audit_log_resource` | Filter by resource |
+| Table                | Index                           | Purpose                              |
+| -------------------- | ------------------------------- | ------------------------------------ |
+| `users`              | `idx_users_email`               | Search by email address (login)      |
+| `users`              | `idx_users_created_at`          | Sort/filter by registration date     |
+| `users`              | `idx_users_parent_user_id`      | Search parent-child accounts         |
+| `user_custom_fields` | `idx_user_custom_fields_search` | Search by custom fields              |
+| `passkeys`           | `idx_passkeys_user_id`          | List user's passkeys                 |
+| `passkeys`           | `idx_passkeys_credential_id`    | Search during passkey authentication |
+| `sessions`           | `idx_sessions_user_id`          | List user's sessions                 |
+| `sessions`           | `idx_sessions_expires_at`       | Clean up expired sessions            |
+| `user_roles`         | `idx_user_roles_user_id`        | Search user's roles                  |
+| `audit_log`          | `idx_audit_log_user_id`         | User's operation history             |
+| `audit_log`          | `idx_audit_log_created_at`      | Time-series search                   |
+| `audit_log`          | `idx_audit_log_action`          | Filter by action type                |
+| `audit_log`          | `idx_audit_log_resource`        | Filter by resource                   |
 
 ### Performance Considerations
 
@@ -723,13 +759,13 @@ migrations/
 
 ### Schema Change Constraints (D1/SQLite)
 
-| Operation | Possible | Method |
-|------|------|------|
-| Add Column | ✅ Yes | `ALTER TABLE ADD COLUMN` |
-| Drop Column | ⚠️ Limited | SQLite 3.35.0+ (D1 support planned) |
-| Change Column Type | ❌ No | Create new column → copy data → drop old column |
-| Add/Drop Index | ✅ Yes | `CREATE INDEX` / `DROP INDEX` |
-| Rename Table | ✅ Yes | `ALTER TABLE RENAME TO` |
+| Operation          | Possible   | Method                                          |
+| ------------------ | ---------- | ----------------------------------------------- |
+| Add Column         | ✅ Yes     | `ALTER TABLE ADD COLUMN`                        |
+| Drop Column        | ⚠️ Limited | SQLite 3.35.0+ (D1 support planned)             |
+| Change Column Type | ❌ No      | Create new column → copy data → drop old column |
+| Add/Drop Index     | ✅ Yes     | `CREATE INDEX` / `DROP INDEX`                   |
+| Rename Table       | ✅ Yes     | `ALTER TABLE RENAME TO`                         |
 
 ---
 
@@ -760,13 +796,13 @@ Authrim uses a **three-tier storage strategy** optimized for performance, cost, 
 ```typescript
 interface IStorageAdapter {
   // KV-like operations
-  get(key: string): Promise<any>
-  set(key: string, value: any, ttl?: number): Promise<void>
-  delete(key: string): Promise<void>
+  get(key: string): Promise<any>;
+  set(key: string, value: any, ttl?: number): Promise<void>;
+  delete(key: string): Promise<void>;
 
   // SQL-like operations
-  query(sql: string, params: any[]): Promise<any[]>
-  execute(sql: string, params: any[]): Promise<void>
+  query(sql: string, params: any[]): Promise<any[]>;
+  execute(sql: string, params: any[]): Promise<void>;
 }
 
 // Implementation example
@@ -779,14 +815,21 @@ class CloudflareAdapter implements IStorageAdapter {
   // ... implementation
 }
 
-class AzureCosmosAdapter implements IStorageAdapter { /* ... */ }
-class AWSRDSAdapter implements IStorageAdapter { /* ... */ }
-class PostgreSQLAdapter implements IStorageAdapter { /* ... */ }
+class AzureCosmosAdapter implements IStorageAdapter {
+  /* ... */
+}
+class AWSRDSAdapter implements IStorageAdapter {
+  /* ... */
+}
+class PostgreSQLAdapter implements IStorageAdapter {
+  /* ... */
+}
 ```
 
 ### Adapter Selection
 
 Switch via environment variable:
+
 ```
 STORAGE_ADAPTER=cloudflare|azure|aws|postgres
 ```
@@ -797,16 +840,17 @@ STORAGE_ADAPTER=cloudflare|azure|aws|postgres
 
 ### GDPR Compliance
 
-| Data Type | Retention Period | Deletion Method |
-|-------------|---------|---------|
-| User Accounts | Until user deletes | Cascade delete |
-| Sessions | 24 hours (default) | TTL auto-delete |
-| Audit Log | 90 days (configurable) | Periodic batch delete |
-| Passkeys | Until user deletes | Cascade delete |
+| Data Type     | Retention Period       | Deletion Method       |
+| ------------- | ---------------------- | --------------------- |
+| User Accounts | Until user deletes     | Cascade delete        |
+| Sessions      | 24 hours (default)     | TTL auto-delete       |
+| Audit Log     | 90 days (configurable) | Periodic batch delete |
+| Passkeys      | Until user deletes     | Cascade delete        |
 
 ### Right to Erasure
 
 Data cascade-deleted when user is deleted:
+
 - `user_custom_fields`
 - `passkeys`
 - `sessions`
@@ -831,6 +875,7 @@ Audit Log is anonymized (set `user_id` to NULL) and retained
 ## References
 
 ### Related Documents
+
 - **API Specifications**
   - [openapi.yaml](../api/openapi.yaml) - OpenAPI 3.1 Specification
   - [API README](../api/README.md) - API Guide & Quick Start
@@ -846,6 +891,7 @@ Audit Log is anonymized (set `user_id` to NULL) and retained
   - [ROADMAP.md](../ROADMAP.md) - Overall Roadmap
 
 ### Standards & Specifications
+
 - [OIDC Standard Claims](https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims)
 - [RFC 7591 - Dynamic Client Registration](https://tools.ietf.org/html/rfc7591)
 - [WebAuthn Spec](https://www.w3.org/TR/webauthn-2/)
@@ -854,4 +900,5 @@ Audit Log is anonymized (set `user_id` to NULL) and retained
 ---
 
 **Change History**:
+
 - 2025-11-13: Initial version created (Phase 5 design)

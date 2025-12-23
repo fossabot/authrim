@@ -372,10 +372,11 @@ export async function updateFapiSecurityConfig(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     console.error('[FAPI Security Settings API] Error updating settings:', error);
+    // SECURITY: Do not expose internal error details
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to update settings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error_description: 'Failed to update settings',
       },
       500
     );
@@ -429,10 +430,11 @@ export async function clearFapiSecurityConfig(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     console.error('[FAPI Security Settings API] Error clearing settings:', error);
+    // SECURITY: Do not expose internal error details
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to clear settings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error_description: 'Failed to clear settings',
       },
       500
     );

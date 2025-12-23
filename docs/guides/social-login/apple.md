@@ -4,13 +4,13 @@ This guide walks you through setting up Sign in with Apple with Authrim.
 
 ## Overview
 
-| Property | Value |
-|----------|-------|
-| Protocol | OpenID Connect 1.0 |
-| Issuer | `https://appleid.apple.com` |
-| ID Token | Yes |
-| UserInfo Endpoint | No (claims in ID token only) |
-| Private Email Relay | Yes |
+| Property            | Value                        |
+| ------------------- | ---------------------------- |
+| Protocol            | OpenID Connect 1.0           |
+| Issuer              | `https://appleid.apple.com`  |
+| ID Token            | Yes                          |
+| UserInfo Endpoint   | No (claims in ID token only) |
+| Private Email Relay | Yes                          |
 
 > **Important**: Apple has unique requirements including dynamic JWT client secrets and a `form_post` response mode. Authrim handles these automatically.
 
@@ -49,9 +49,9 @@ This guide walks you through setting up Sign in with Apple with Authrim.
 4. Select your Primary App ID
 5. Add your domains and return URLs:
 
-| Field | Value |
-|-------|-------|
-| Domains | `your-domain.com` |
+| Field       | Value                                                  |
+| ----------- | ------------------------------------------------------ |
+| Domains     | `your-domain.com`                                      |
 | Return URLs | `https://your-domain.com/auth/external/apple/callback` |
 
 6. Click **Save** → **Continue** → **Save**
@@ -72,12 +72,12 @@ This guide walks you through setting up Sign in with Apple with Authrim.
 
 You need four pieces of information:
 
-| Credential | Where to Find | Format |
-|------------|---------------|--------|
-| **Team ID** | Membership page (top right) | 10 characters (e.g., `A1B2C3D4E5`) |
-| **Client ID** | Services ID identifier | e.g., `com.yourcompany.yourapp.service` |
-| **Key ID** | Keys page | 10 characters (e.g., `ABC123DEF4`) |
-| **Private Key** | Downloaded .p8 file | PEM format |
+| Credential      | Where to Find               | Format                                  |
+| --------------- | --------------------------- | --------------------------------------- |
+| **Team ID**     | Membership page (top right) | 10 characters (e.g., `A1B2C3D4E5`)      |
+| **Client ID**   | Services ID identifier      | e.g., `com.yourcompany.yourapp.service` |
+| **Key ID**      | Keys page                   | 10 characters (e.g., `ABC123DEF4`)      |
+| **Private Key** | Downloaded .p8 file         | PEM format                              |
 
 ## Step 5: Encrypt the Private Key
 
@@ -161,29 +161,29 @@ curl -X POST "https://your-domain.com/external-idp/admin/providers" \
 
 ### Provider Quirks
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `teamId` | string | Yes | Apple Developer Team ID (10 chars) |
-| `keyId` | string | Yes | Sign in with Apple Key ID (10 chars) |
-| `privateKeyEncrypted` | string | Yes | P-256 private key (will be encrypted) |
-| `clientSecretTtl` | number | No | JWT validity in seconds (default: 30 days) |
-| `useFormPost` | boolean | No | Use form_post response mode (default: true) |
+| Property              | Type    | Required | Description                                 |
+| --------------------- | ------- | -------- | ------------------------------------------- |
+| `teamId`              | string  | Yes      | Apple Developer Team ID (10 chars)          |
+| `keyId`               | string  | Yes      | Sign in with Apple Key ID (10 chars)        |
+| `privateKeyEncrypted` | string  | Yes      | P-256 private key (will be encrypted)       |
+| `clientSecretTtl`     | number  | No       | JWT validity in seconds (default: 30 days)  |
+| `useFormPost`         | boolean | No       | Use form_post response mode (default: true) |
 
 ### Available Scopes
 
-| Scope | Description |
-|-------|-------------|
-| `openid` | Required for OIDC |
-| `name` | User's name (first auth only!) |
-| `email` | User's email address |
+| Scope    | Description                    |
+| -------- | ------------------------------ |
+| `openid` | Required for OIDC              |
+| `name`   | User's name (first auth only!) |
+| `email`  | User's email address           |
 
 ### Claim Mappings
 
-| Authrim Claim | Apple Claim | Description |
-|---------------|-------------|-------------|
-| `sub` | `sub` | Unique user identifier (stable per app) |
-| `email` | `email` | Email (may be private relay) |
-| `email_verified` | `email_verified` | Always true for Apple emails |
+| Authrim Claim    | Apple Claim      | Description                             |
+| ---------------- | ---------------- | --------------------------------------- |
+| `sub`            | `sub`            | Unique user identifier (stable per app) |
+| `email`          | `email`          | Email (may be private relay)            |
+| `email_verified` | `email_verified` | Always true for Apple emails            |
 
 ## Important: Name is Only Provided Once
 
@@ -198,6 +198,7 @@ Authrim automatically captures this data. Store it in your user record on first 
 ## Private Email Relay
 
 Apple offers "Hide My Email" which provides:
+
 - A unique, random email address (e.g., `abc123@privaterelay.appleid.com`)
 - Emails forwarded to user's real address
 - User can disable forwarding anytime
@@ -220,13 +221,13 @@ Check `is_private_email` claim to detect relay addresses.
 
 Apple requires a JWT as the client secret. Authrim generates this automatically using:
 
-| Claim | Value |
-|-------|-------|
-| `iss` | Your Team ID |
+| Claim | Value                        |
+| ----- | ---------------------------- |
+| `iss` | Your Team ID                 |
 | `sub` | Your Client ID (Services ID) |
-| `aud` | `https://appleid.apple.com` |
-| `iat` | Current timestamp |
-| `exp` | iat + clientSecretTtl |
+| `aud` | `https://appleid.apple.com`  |
+| `iat` | Current timestamp            |
+| `exp` | iat + clientSecretTtl        |
 
 The JWT is signed with your private key using ES256 (P-256 curve).
 
@@ -242,11 +243,11 @@ When requesting `name` or `email` scopes, Apple **requires** `response_mode=form
 
 Apple provides a `real_user_status` claim:
 
-| Value | Meaning |
-|-------|---------|
-| 0 | Unsupported (device doesn't support) |
-| 1 | Unknown (couldn't determine) |
-| 2 | Likely Real (high confidence real person) |
+| Value | Meaning                                   |
+| ----- | ----------------------------------------- |
+| 0     | Unsupported (device doesn't support)      |
+| 1     | Unknown (couldn't determine)              |
+| 2     | Likely Real (high confidence real person) |
 
 Use this for fraud prevention.
 
@@ -285,6 +286,7 @@ Users can revoke at: [Apple ID - Sign-In & Security](https://appleid.apple.com/a
 **Cause**: Client secret JWT generation failed.
 
 **Solution**:
+
 1. Verify Team ID is exactly 10 characters
 2. Verify Key ID is exactly 10 characters
 3. Ensure private key is valid PEM format
@@ -295,6 +297,7 @@ Users can revoke at: [Apple ID - Sign-In & Security](https://appleid.apple.com/a
 **Cause**: Authorization code expired or already used.
 
 **Solution**:
+
 - Auth codes expire in 5 minutes
 - Each code can only be used once
 - Restart the flow
@@ -304,6 +307,7 @@ Users can revoke at: [Apple ID - Sign-In & Security](https://appleid.apple.com/a
 **Cause**: Return URL not configured in Services ID.
 
 **Solution**:
+
 1. Go to Identifiers → Your Services ID → Configure
 2. Add exact URL:
    ```
@@ -316,6 +320,7 @@ Users can revoke at: [Apple ID - Sign-In & Security](https://appleid.apple.com/a
 **Cause**: User already authorized the app before.
 
 **Solution**:
+
 - Name is only sent on first authorization
 - Users can reset at: Settings → Apple ID → Password & Security → Apps Using Your Apple ID
 

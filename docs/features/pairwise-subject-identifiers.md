@@ -4,8 +4,8 @@ Protect user privacy by issuing different identifiers for the same user across d
 
 ## Overview
 
-| Specification | Status | Configuration |
-|---------------|--------|---------------|
+| Specification                                                                                   | Status         | Configuration              |
+| ----------------------------------------------------------------------------------------------- | -------------- | -------------------------- |
 | [OIDC Core 1.0 Section 8](https://openid.net/specs/openid-connect-core-1_0.html#SubjectIDTypes) | ✅ Implemented | `subject_type: "pairwise"` |
 
 Pairwise subject identifiers provide different `sub` (subject) values for the same user across different clients, preventing user tracking and correlation across applications.
@@ -18,13 +18,13 @@ Same User + Different Clients = Different Subject Identifiers
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **User Privacy** | Different `sub` values prevent cross-client tracking |
-| **Anti-Collusion** | Clients cannot correlate users by sharing IDs |
-| **GDPR Compliance** | Privacy by Design (Article 25) |
-| **HIPAA Compliance** | De-identification across applications |
-| **Data Minimization** | Limits identity exposure scope |
+| Benefit               | Description                                          |
+| --------------------- | ---------------------------------------------------- |
+| **User Privacy**      | Different `sub` values prevent cross-client tracking |
+| **Anti-Collusion**    | Clients cannot correlate users by sharing IDs        |
+| **GDPR Compliance**   | Privacy by Design (Article 25)                       |
+| **HIPAA Compliance**  | De-identification across applications                |
+| **Data Minimization** | Limits identity exposure scope                       |
 
 ---
 
@@ -76,11 +76,7 @@ async function generateHIPAACompliantSubject(
     const sectorId = extractSectorIdentifier(clientConfig.redirect_uris[0]);
 
     // HIPAA-compliant pairwise generation
-    const pairwiseSub = await generatePairwiseSubject(
-      patientId,
-      sectorId,
-      env.HIPAA_PAIRWISE_SALT
-    );
+    const pairwiseSub = await generatePairwiseSubject(patientId, sectorId, env.HIPAA_PAIRWISE_SALT);
 
     // Audit log for compliance
     await auditLog({
@@ -88,7 +84,7 @@ async function generateHIPAACompliantSubject(
       patient_id_hash: await hash(patientId), // Never log actual patient ID
       client_id: clientId,
       sector: sectorId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     return pairwiseSub;
@@ -104,16 +100,20 @@ app.post('/register', async (c) => {
 
   // Third-party vendors MUST use pairwise
   if (body.vendor_type === 'third_party' && body.subject_type !== 'pairwise') {
-    return c.json({
-      error: 'invalid_client_metadata',
-      error_description: 'Third-party vendors must use pairwise subject type for HIPAA compliance'
-    }, 400);
+    return c.json(
+      {
+        error: 'invalid_client_metadata',
+        error_description:
+          'Third-party vendors must use pairwise subject type for HIPAA compliance',
+      },
+      400
+    );
   }
 
   // Register client with enforced pairwise
   const client = await registerClient({
     ...body,
-    subject_type: body.vendor_type === 'third_party' ? 'pairwise' : body.subject_type
+    subject_type: body.vendor_type === 'third_party' ? 'pairwise' : body.subject_type,
   });
 
   return c.json(client, 201);
@@ -182,9 +182,10 @@ const privacyConfig = {
 
   // Privacy disclosure in consent screen
   consent_disclosure: {
-    pairwise: 'This site receives a unique identifier that cannot be used to track you across other sites.',
-    public: 'This site receives your account identifier.'
-  }
+    pairwise:
+      'This site receives a unique identifier that cannot be used to track you across other sites.',
+    public: 'This site receives your account identifier.',
+  },
 };
 
 // Consent screen with privacy explanation
@@ -192,13 +193,14 @@ function buildConsentScreen(client: Client, user: User) {
   return {
     client_name: client.client_name,
     requested_scopes: client.scope.split(' '),
-    privacy_info: client.subject_type === 'pairwise'
-      ? `${client.client_name} will receive a unique identifier that only works with this site. This prevents tracking across other sites you use.`
-      : `${client.client_name} will receive your account identifier.`,
+    privacy_info:
+      client.subject_type === 'pairwise'
+        ? `${client.client_name} will receive a unique identifier that only works with this site. This prevents tracking across other sites you use.`
+        : `${client.client_name} will receive your account identifier.`,
     data_shared: [
       client.scope.includes('email') && { type: 'email', value: maskEmail(user.email) },
-      client.scope.includes('profile') && { type: 'profile', value: user.name }
-    ].filter(Boolean)
+      client.scope.includes('profile') && { type: 'profile', value: user.name },
+    ].filter(Boolean),
   };
 }
 ```
@@ -221,8 +223,8 @@ async function registerPartnerSite(partnerData: PartnerRegistration) {
       scope: 'openid profile email',
       // Privacy metadata
       privacy_policy_uri: partnerData.privacyPolicyUrl,
-      tos_uri: partnerData.termsUrl
-    })
+      tos_uri: partnerData.termsUrl,
+    }),
   });
 
   return client.json();
@@ -281,11 +283,7 @@ async function generateTenantIsolatedSubject(
   // Use tenant-specific sector for complete isolation
   const effectiveSector = `${tenantClient.tenant_id}:${tenantClient.sector_identifier}`;
 
-  return await generatePairwiseSubject(
-    userId,
-    effectiveSector,
-    env.TENANT_PAIRWISE_SALT
-  );
+  return await generatePairwiseSubject(userId, effectiveSector, env.TENANT_PAIRWISE_SALT);
 }
 
 // Customer integration registration
@@ -295,7 +293,7 @@ app.post('/api/integrations/:tenantId', async (c) => {
 
   // Validate tenant admin permissions
   const admin = c.get('user');
-  if (!await isTenantAdmin(admin.sub, tenantId)) {
+  if (!(await isTenantAdmin(admin.sub, tenantId))) {
     return c.json({ error: 'forbidden' }, 403);
   }
 
@@ -305,21 +303,24 @@ app.post('/api/integrations/:tenantId', async (c) => {
     subject_type: 'pairwise', // All tenant integrations use pairwise
     software_id: `tenant:${tenantId}`,
     // Sector is tenant-specific
-    effective_sector: `${tenantId}:${extractSector(body.redirect_uris[0])}`
+    effective_sector: `${tenantId}:${extractSector(body.redirect_uris[0])}`,
   });
 
   await storeTenantIntegration(tenantId, client.client_id, {
     name: body.client_name,
     created_by: admin.sub,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   });
 
-  return c.json({
-    client_id: client.client_id,
-    client_secret: client.client_secret,
-    subject_type: 'pairwise',
-    tenant_isolated: true
-  }, 201);
+  return c.json(
+    {
+      client_id: client.client_id,
+      client_secret: client.client_secret,
+      subject_type: 'pairwise',
+      tenant_isolated: true,
+    },
+    201
+  );
 });
 ```
 
@@ -333,20 +334,20 @@ app.post('/api/integrations/:tenantId', async (c) => {
 sub = base64url(SHA-256(sector_identifier || user_id || salt))
 ```
 
-| Component | Description |
-|-----------|-------------|
+| Component           | Description                             |
+| ------------------- | --------------------------------------- | --- | ------------- |
 | `sector_identifier` | Client's host (e.g., `app.example.com`) |
-| `user_id` | User's internal account ID |
-| `salt` | Server secret for additional security |
-| `||` | Concatenation |
+| `user_id`           | User's internal account ID              |
+| `salt`              | Server secret for additional security   |
+| `                   |                                         | `   | Concatenation |
 
 ### Subject Type Comparison
 
-| Aspect | Public | Pairwise |
-|--------|--------|----------|
-| `sub` value | Same across all clients | Different per client |
-| Privacy | ❌ Clients can correlate | ✅ No correlation possible |
-| Use case | First-party apps | Third-party integrations |
+| Aspect      | Public                   | Pairwise                   |
+| ----------- | ------------------------ | -------------------------- |
+| `sub` value | Same across all clients  | Different per client       |
+| Privacy     | ❌ Clients can correlate | ✅ No correlation possible |
+| Use case    | First-party apps         | Third-party integrations   |
 
 ---
 
@@ -371,10 +372,7 @@ Required when redirect URIs have different hosts:
 
 ```json
 {
-  "redirect_uris": [
-    "https://app1.example.com/callback",
-    "https://app2.example.com/callback"
-  ],
+  "redirect_uris": ["https://app1.example.com/callback", "https://app2.example.com/callback"],
   "subject_type": "pairwise",
   "sector_identifier_uri": "https://example.com/.well-known/sector-uris.json"
 }
@@ -392,12 +390,12 @@ Required when redirect URIs have different hosts:
 
 ## Security Considerations
 
-| Consideration | Recommendation |
-|---------------|----------------|
-| **Salt Security** | Store as secret, never expose |
-| **Salt Rotation** | Support grace period with old salt |
+| Consideration         | Recommendation                           |
+| --------------------- | ---------------------------------------- |
+| **Salt Security**     | Store as secret, never expose            |
+| **Salt Rotation**     | Support grace period with old salt       |
 | **Sector Validation** | HTTPS required for sector_identifier_uri |
-| **Mapping Storage** | Store for account management/deletion |
+| **Mapping Storage**   | Store for account management/deletion    |
 
 ---
 
@@ -405,8 +403,8 @@ Required when redirect URIs have different hosts:
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
+| Variable        | Description                                    |
+| --------------- | ---------------------------------------------- |
 | `PAIRWISE_SALT` | Secret salt for pairwise generation (required) |
 
 ### Set Salt Secret
@@ -456,12 +454,12 @@ wrangler secret put PAIRWISE_SALT
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Pairwise Generation | `packages/shared/src/utils/pairwise.ts` | SHA-256 hashing |
-| Client Registration | `packages/op-auth/src/register.ts` | subject_type validation |
-| Token Issuance | `packages/op-token/src/token.ts` | Sub generation |
-| Discovery | `packages/op-discovery/src/discovery.ts` | subject_types_supported |
+| Component           | File                                     | Description             |
+| ------------------- | ---------------------------------------- | ----------------------- |
+| Pairwise Generation | `packages/shared/src/utils/pairwise.ts`  | SHA-256 hashing         |
+| Client Registration | `packages/op-auth/src/register.ts`       | subject_type validation |
+| Token Issuance      | `packages/op-token/src/token.ts`         | Sub generation          |
+| Discovery           | `packages/op-discovery/src/discovery.ts` | subject_types_supported |
 
 ---
 

@@ -173,8 +173,8 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(401);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('unauthorized');
-        expect(data.error_description).toContain('Authentication required');
+        expect(data.error).toBe('login_required');
+        expect(data.error_description).toContain('Authentication');
       });
 
       it('should reject when session is invalid', async () => {
@@ -188,7 +188,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(401);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('unauthorized');
+        expect(data.error).toBe('login_required');
       });
 
       it('should reject when session has no userId', async () => {
@@ -204,7 +204,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(401);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('unauthorized');
+        expect(data.error).toBe('login_required');
       });
     });
 
@@ -288,7 +288,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('already_linked');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('already linked to your account');
       });
 
@@ -307,7 +307,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('did_already_linked');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('linked to another account');
       });
     });
@@ -369,7 +369,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_did');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('No authentication methods');
       });
     });
@@ -412,7 +412,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('did_already_linked');
+        expect(data.error).toBe('invalid_request');
       });
     });
 
@@ -522,7 +522,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('did_already_linked');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('linked to another account');
       });
 
@@ -561,7 +561,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(401);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('unauthorized');
+        expect(data.error).toBe('login_required');
       });
     });
 
@@ -626,7 +626,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(401);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('unauthorized');
+        expect(data.error).toBe('login_required');
       });
     });
 
@@ -682,7 +682,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(404);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('not_found');
+        expect(data.error).toBe('invalid_request');
       });
 
       it('should reject unlink of DID owned by another user', async () => {
@@ -702,7 +702,7 @@ describe('DID Link Management', () => {
 
         expect(response.status).toBe(403);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('forbidden');
+        expect(data.error).toBe('access_denied');
         expect(data.error_description).toContain('another user');
       });
     });

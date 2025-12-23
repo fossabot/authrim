@@ -11,6 +11,7 @@ If you discover a security vulnerability in Authrim, please report it responsibl
 Send an email to: **yuta@sgrastar.org**
 
 Please include:
+
 - Description of the vulnerability
 - Steps to reproduce the issue
 - Potential impact assessment
@@ -25,10 +26,12 @@ Please include:
 ### Scope
 
 This security policy applies to:
+
 - The Authrim core codebase
 - Official packages in this repository
 
 Out of scope:
+
 - Third-party dependencies (report to their maintainers)
 - Issues in user deployments or configurations
 

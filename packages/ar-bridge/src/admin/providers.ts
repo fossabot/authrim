@@ -5,7 +5,13 @@
 
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
-import { timingSafeEqual } from '@authrim/ar-lib-core';
+import {
+  timingSafeEqual,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 import {
   listAllProviders,
   getProvider,
@@ -65,7 +71,7 @@ function verifyAdmin(c: Context<{ Bindings: Env }>): boolean {
  */
 export async function handleAdminListProviders(c: Context<{ Bindings: Env }>): Promise<Response> {
   if (!verifyAdmin(c)) {
-    return c.json({ error: 'unauthorized' }, 401);
+    return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
   }
 
   try {
@@ -82,7 +88,7 @@ export async function handleAdminListProviders(c: Context<{ Bindings: Env }>): P
     return c.json({ providers: sanitized });
   } catch (error) {
     console.error('Failed to list providers:', error);
-    return c.json({ error: 'internal_error' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -92,7 +98,7 @@ export async function handleAdminListProviders(c: Context<{ Bindings: Env }>): P
  */
 export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): Promise<Response> {
   if (!verifyAdmin(c)) {
-    return c.json({ error: 'unauthorized' }, 401);
+    return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
   }
 
   try {
@@ -124,9 +130,11 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
 
     // Validate required fields
     if (!body.name || !body.client_id || !body.client_secret) {
-      return c.json(
-        { error: 'invalid_request', message: 'name, client_id, and client_secret are required' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'name, client_id, and client_secret are required'
       );
     }
 
@@ -147,7 +155,12 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
         providerQuirks: { tenantType },
       });
       if (validationErrors.length > 0) {
-        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          validationErrors.join(', ')
+        );
       }
 
       defaults = {
@@ -167,7 +180,12 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
         providerQuirks: (quirks || {}) as Record<string, unknown>,
       });
       if (validationErrors.length > 0) {
-        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          validationErrors.join(', ')
+        );
       }
 
       // Get effective endpoints (handles GitHub Enterprise if configured)
@@ -190,7 +208,12 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
         scopes: body.scopes || 'openid profile email',
       });
       if (validationErrors.length > 0) {
-        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          validationErrors.join(', ')
+        );
       }
 
       defaults = { ...LINKEDIN_DEFAULT_CONFIG };
@@ -205,7 +228,12 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
         providerQuirks: (quirks || {}) as Record<string, unknown>,
       });
       if (validationErrors.length > 0) {
-        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          validationErrors.join(', ')
+        );
       }
 
       // Get effective endpoints with API version
@@ -229,7 +257,12 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
         providerQuirks: (quirks || {}) as Record<string, unknown>,
       });
       if (validationErrors.length > 0) {
-        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          validationErrors.join(', ')
+        );
       }
 
       // Get effective endpoints with user.fields
@@ -253,7 +286,12 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
         providerQuirks: (quirks || {}) as Record<string, unknown>,
       });
       if (validationErrors.length > 0) {
-        return c.json({ error: 'invalid_request', message: validationErrors.join(', ') }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          validationErrors.join(', ')
+        );
       }
 
       defaults = {
@@ -312,7 +350,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
     return c.json(response, 201);
   } catch (error) {
     console.error('Failed to create provider:', error);
-    return c.json({ error: 'internal_error' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -322,7 +360,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
  */
 export async function handleAdminGetProvider(c: Context<{ Bindings: Env }>): Promise<Response> {
   if (!verifyAdmin(c)) {
-    return c.json({ error: 'unauthorized' }, 401);
+    return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
   }
 
   const id = c.req.param('id');
@@ -330,7 +368,7 @@ export async function handleAdminGetProvider(c: Context<{ Bindings: Env }>): Pro
   try {
     const provider = await getProvider(c.env, id);
     if (!provider) {
-      return c.json({ error: 'not_found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Remove secret from response
@@ -343,7 +381,7 @@ export async function handleAdminGetProvider(c: Context<{ Bindings: Env }>): Pro
     return c.json(response);
   } catch (error) {
     console.error('Failed to get provider:', error);
-    return c.json({ error: 'internal_error' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -353,7 +391,7 @@ export async function handleAdminGetProvider(c: Context<{ Bindings: Env }>): Pro
  */
 export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): Promise<Response> {
   if (!verifyAdmin(c)) {
-    return c.json({ error: 'unauthorized' }, 401);
+    return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
   }
 
   const id = c.req.param('id');
@@ -424,13 +462,11 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
         const isValidDomain = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(quirks.tenantType);
 
         if (!isValidBuiltIn && !isValidGuid && !isValidDomain) {
-          return c.json(
-            {
-              error: 'invalid_request',
-              message:
-                'tenantType must be "common", "organizations", "consumers", a valid tenant ID (GUID), or domain',
-            },
-            400
+          return createRFCErrorResponse(
+            c,
+            RFC_ERROR_CODES.INVALID_REQUEST,
+            400,
+            'tenantType must be "common", "organizations", "consumers", a valid tenant ID (GUID), or domain'
           );
         }
       }
@@ -439,7 +475,7 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
 
     const provider = await updateProvider(c.env, id, updates);
     if (!provider) {
-      return c.json({ error: 'not_found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Remove secret from response
@@ -452,7 +488,7 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
     return c.json(response);
   } catch (error) {
     console.error('Failed to update provider:', error);
-    return c.json({ error: 'internal_error' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -462,7 +498,7 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
  */
 export async function handleAdminDeleteProvider(c: Context<{ Bindings: Env }>): Promise<Response> {
   if (!verifyAdmin(c)) {
-    return c.json({ error: 'unauthorized' }, 401);
+    return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
   }
 
   const id = c.req.param('id');
@@ -470,12 +506,12 @@ export async function handleAdminDeleteProvider(c: Context<{ Bindings: Env }>): 
   try {
     const deleted = await deleteProvider(c.env, id);
     if (!deleted) {
-      return c.json({ error: 'not_found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     return c.json({ success: true });
   } catch (error) {
     console.error('Failed to delete provider:', error);
-    return c.json({ error: 'internal_error' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

@@ -229,7 +229,8 @@ export async function joinOrganization(
       return {
         success: false,
         org_id: orgId,
-        error: `Organization ${orgId} not found`,
+        // SECURITY: Do not expose org ID to prevent enumeration
+        error: 'Organization not found',
       };
     }
 
@@ -263,10 +264,12 @@ export async function joinOrganization(
       membership_id: membershipId,
     };
   } catch (error) {
+    console.error('[joinOrganization] Database error:', error);
     return {
       success: false,
       org_id: orgId,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      // SECURITY: Do not expose internal error details
+      error: 'Failed to join organization',
     };
   }
 }
@@ -326,7 +329,8 @@ export async function assignRoleToUser(
     if (!roleCheck) {
       return {
         success: false,
-        error: `Role ${roleId} not found`,
+        // SECURITY: Do not expose role ID to prevent enumeration
+        error: 'Role not found',
       };
     }
 
@@ -361,9 +365,11 @@ export async function assignRoleToUser(
       assignment_id: assignmentId,
     };
   } catch (error) {
+    console.error('[assignRoleToUser] Database error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      // SECURITY: Do not expose internal error details
+      error: 'Failed to assign role',
     };
   }
 }

@@ -1,7 +1,7 @@
 name: Feature Implementation
 description: Track implementation of a new feature or endpoint
-title: "[Feature]: "
-labels: ["type:feature"]
+title: '[Feature]: '
+labels: ['type:feature']
 body:
   - type: markdown
     attributes:
@@ -70,6 +70,6 @@ body:
     attributes:
       label: Related Issues
       description: Link to related issues (e.g., #123, #456)
-      placeholder: "#123"
+      placeholder: '#123'
     validations:
       required: false

@@ -151,7 +151,12 @@ describe('OIDC Session Management', () => {
       const sessionState = await calculateSessionState('original-client', origin, sessionId);
 
       // Session state should be invalid with different client ID
-      const isValid = await validateSessionState(sessionState, 'different-client', origin, sessionId);
+      const isValid = await validateSessionState(
+        sessionState,
+        'different-client',
+        origin,
+        sessionId
+      );
       expect(isValid).toBe(false);
     });
 
@@ -162,7 +167,12 @@ describe('OIDC Session Management', () => {
       const sessionState = await calculateSessionState(clientId, 'https://original.com', sessionId);
 
       // Session state should be invalid with different origin
-      const isValid = await validateSessionState(sessionState, clientId, 'https://different.com', sessionId);
+      const isValid = await validateSessionState(
+        sessionState,
+        clientId,
+        'https://different.com',
+        sessionId
+      );
       expect(isValid).toBe(false);
     });
   });
@@ -234,7 +244,12 @@ describe('Session State Security', () => {
   });
 
   it('should use SHA-256 hash producing base64url output', async () => {
-    const sessionState = await calculateSessionState('client', 'https://origin.com', 'session', 'salt');
+    const sessionState = await calculateSessionState(
+      'client',
+      'https://origin.com',
+      'session',
+      'salt'
+    );
     const hash = sessionState.split('.')[0];
 
     // SHA-256 produces 32 bytes = 256 bits

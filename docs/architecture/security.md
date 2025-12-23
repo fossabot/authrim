@@ -4,12 +4,12 @@ Defense-in-depth security model with OAuth 2.0 best practices and FAPI 2.0 compl
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| **Security Profile** | FAPI 2.0 Security Profile compliant |
-| **Token Security** | DPoP, short TTL, one-time codes |
-| **Key Management** | Automatic rotation, envelope encryption |
-| **Transport** | TLS 1.3, HSTS, certificate transparency |
+| Aspect               | Description                             |
+| -------------------- | --------------------------------------- |
+| **Security Profile** | FAPI 2.0 Security Profile compliant     |
+| **Token Security**   | DPoP, short TTL, one-time codes         |
+| **Key Management**   | Automatic rotation, envelope encryption |
+| **Transport**        | TLS 1.3, HSTS, certificate transparency |
 
 Authrim implements a comprehensive security architecture that provides enterprise-grade protection for identity and access management operations.
 
@@ -63,14 +63,14 @@ Authrim implements the [FAPI 2.0 Security Profile](https://openid.net/specs/fapi
 
 ### Required Security Mechanisms
 
-| Requirement | Implementation |
-|-------------|----------------|
-| **PKCE (S256)** | Mandatory for all authorization code flows |
-| **DPoP or mTLS** | Sender-constrained access tokens |
-| **PAR** | Pushed Authorization Requests for secure parameters |
-| **Short-lived tokens** | Access tokens ≤ 10 minutes (configurable) |
-| **Signed requests** | JAR support for signed authorization requests |
-| **Signed responses** | JARM for signed authorization responses |
+| Requirement            | Implementation                                      |
+| ---------------------- | --------------------------------------------------- |
+| **PKCE (S256)**        | Mandatory for all authorization code flows          |
+| **DPoP or mTLS**       | Sender-constrained access tokens                    |
+| **PAR**                | Pushed Authorization Requests for secure parameters |
+| **Short-lived tokens** | Access tokens ≤ 10 minutes (configurable)           |
+| **Signed requests**    | JAR support for signed authorization requests       |
+| **Signed responses**   | JARM for signed authorization responses             |
 
 ### FAPI 2.0 Compliance Matrix
 
@@ -100,13 +100,13 @@ flowchart LR
 
 ### Token Types and TTL
 
-| Token Type | Default TTL | Purpose |
-|------------|-------------|---------|
-| Authorization Code | 60 seconds | One-time code exchange |
-| Access Token | 1 hour | API access (configurable) |
-| ID Token | 1 hour | User authentication |
-| Refresh Token | 30 days | Token renewal (rotated) |
-| DPoP Proof | 60 seconds | Proof of possession |
+| Token Type         | Default TTL | Purpose                   |
+| ------------------ | ----------- | ------------------------- |
+| Authorization Code | 60 seconds  | One-time code exchange    |
+| Access Token       | 1 hour      | API access (configurable) |
+| ID Token           | 1 hour      | User authentication       |
+| Refresh Token      | 30 days     | Token renewal (rotated)   |
+| DPoP Proof         | 60 seconds  | Proof of possession       |
 
 ### DPoP (Demonstrating Proof of Possession)
 
@@ -139,12 +139,12 @@ sequenceDiagram
 
 ### DPoP Implementation Details
 
-| Component | Description |
-|-----------|-------------|
-| **Key Type** | ES256 (P-256 curve) or RS256 |
-| **JTI Store** | DPoPJTIStore DO (sharded by region) |
-| **Replay Prevention** | Atomic check-and-store in DO |
-| **Clock Skew** | ±60 seconds tolerance |
+| Component             | Description                         |
+| --------------------- | ----------------------------------- |
+| **Key Type**          | ES256 (P-256 curve) or RS256        |
+| **JTI Store**         | DPoPJTIStore DO (sharded by region) |
+| **Replay Prevention** | Atomic check-and-store in DO        |
+| **Clock Skew**        | ±60 seconds tolerance               |
 
 ### One-Time Code Consumption
 
@@ -199,10 +199,10 @@ sequenceDiagram
 
 ### Supported Challenge Methods
 
-| Method | Security Level | Usage |
-|--------|----------------|-------|
-| **S256** | High | Recommended (default) |
-| **plain** | Low | Legacy only (FAPI disallows) |
+| Method    | Security Level | Usage                        |
+| --------- | -------------- | ---------------------------- |
+| **S256**  | High           | Recommended (default)        |
+| **plain** | Low            | Legacy only (FAPI disallows) |
 
 ---
 
@@ -231,12 +231,12 @@ sequenceDiagram
 
 ### PAR Security Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Parameter Hiding** | Sensitive parameters not exposed in browser |
+| Benefit                    | Description                                  |
+| -------------------------- | -------------------------------------------- |
+| **Parameter Hiding**       | Sensitive parameters not exposed in browser  |
 | **Request Authentication** | Client authenticated before user interaction |
-| **Integrity Protection** | Parameters cannot be tampered |
-| **Size Limit Avoidance** | Large requests without URL length limits |
+| **Integrity Protection**   | Parameters cannot be tampered                |
+| **Size Limit Avoidance**   | Large requests without URL length limits     |
 
 ---
 
@@ -269,12 +269,12 @@ Authrim implements multi-layer rate limiting to prevent abuse:
 
 ### Rate Limit Layers
 
-| Layer | Scope | Implementation |
-|-------|-------|----------------|
-| **Global** | Per endpoint | Cloudflare WAF |
-| **Per-Client** | OAuth client | RateLimiterCounter DO |
-| **Per-User** | User ID | RateLimiterCounter DO |
-| **Per-IP** | IP address | Cloudflare |
+| Layer           | Scope              | Implementation         |
+| --------------- | ------------------ | ---------------------- |
+| **Global**      | Per endpoint       | Cloudflare WAF         |
+| **Per-Client**  | OAuth client       | RateLimiterCounter DO  |
+| **Per-User**    | User ID            | RateLimiterCounter DO  |
+| **Per-IP**      | IP address         | Cloudflare             |
 | **Device Flow** | User code attempts | UserCodeRateLimiter DO |
 
 ### Rate Limit Configuration
@@ -292,13 +292,13 @@ flowchart TB
 
 ### Default Rate Limits
 
-| Endpoint | Limit | Window |
-|----------|-------|--------|
-| `/token` | 100/min | Per client |
-| `/authorize` | 60/min | Per user |
-| `/userinfo` | 120/min | Per user |
-| `/device_authorization` | 10/min | Per client |
-| Device code polling | 1/5s | Per device code |
+| Endpoint                | Limit   | Window          |
+| ----------------------- | ------- | --------------- |
+| `/token`                | 100/min | Per client      |
+| `/authorize`            | 60/min  | Per user        |
+| `/userinfo`             | 120/min | Per user        |
+| `/device_authorization` | 10/min  | Per client      |
+| Device code polling     | 1/5s    | Per device code |
 
 ---
 
@@ -333,13 +333,13 @@ Comprehensive security event logging for compliance and forensics:
 
 ### Logged Events
 
-| Category | Events |
-|----------|--------|
-| **Authentication** | Login success/failure, MFA verification |
-| **Authorization** | Code issuance, token exchange |
-| **Token Operations** | Refresh, revoke, introspect |
-| **Key Management** | Rotation, emergency revocation |
-| **Admin Actions** | User/client CRUD, settings changes |
+| Category             | Events                                  |
+| -------------------- | --------------------------------------- |
+| **Authentication**   | Login success/failure, MFA verification |
+| **Authorization**    | Code issuance, token exchange           |
+| **Token Operations** | Refresh, revoke, introspect             |
+| **Key Management**   | Rotation, emergency revocation          |
+| **Admin Actions**    | User/client CRUD, settings changes      |
 
 ### Audit Log Format
 
@@ -368,13 +368,13 @@ Comprehensive security event logging for compliance and forensics:
 
 ### HTTP Security Headers
 
-| Header | Value | Purpose |
-|--------|-------|---------|
-| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Force HTTPS |
-| `Content-Security-Policy` | `default-src 'self'` | Prevent XSS |
-| `X-Content-Type-Options` | `nosniff` | Prevent MIME sniffing |
-| `X-Frame-Options` | `DENY` | Prevent clickjacking |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` | Limit referrer leakage |
+| Header                      | Value                                 | Purpose                |
+| --------------------------- | ------------------------------------- | ---------------------- |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Force HTTPS            |
+| `Content-Security-Policy`   | `default-src 'self'`                  | Prevent XSS            |
+| `X-Content-Type-Options`    | `nosniff`                             | Prevent MIME sniffing  |
+| `X-Frame-Options`           | `DENY`                                | Prevent clickjacking   |
+| `Referrer-Policy`           | `strict-origin-when-cross-origin`     | Limit referrer leakage |
 
 ### CORS Policy
 
@@ -393,17 +393,17 @@ const corsConfig = {
 
 ### Protected Attack Vectors
 
-| Attack | Mitigation |
-|--------|------------|
-| **Authorization Code Interception** | PKCE (S256) mandatory |
-| **Token Theft** | DPoP binding, short TTL |
-| **Replay Attack** | One-time codes, JTI tracking |
-| **CSRF** | State parameter, SameSite cookies |
-| **Parameter Tampering** | PAR, signed requests (JAR) |
-| **Credential Stuffing** | Rate limiting, lockout |
-| **XSS** | CSP, output encoding |
-| **Clickjacking** | X-Frame-Options: DENY |
-| **Key Compromise** | Automatic rotation, emergency revoke |
+| Attack                              | Mitigation                           |
+| ----------------------------------- | ------------------------------------ |
+| **Authorization Code Interception** | PKCE (S256) mandatory                |
+| **Token Theft**                     | DPoP binding, short TTL              |
+| **Replay Attack**                   | One-time codes, JTI tracking         |
+| **CSRF**                            | State parameter, SameSite cookies    |
+| **Parameter Tampering**             | PAR, signed requests (JAR)           |
+| **Credential Stuffing**             | Rate limiting, lockout               |
+| **XSS**                             | CSP, output encoding                 |
+| **Clickjacking**                    | X-Frame-Options: DENY                |
+| **Key Compromise**                  | Automatic rotation, emergency revoke |
 
 ---
 
@@ -411,24 +411,24 @@ const corsConfig = {
 
 ### Key Security Metrics
 
-| Metric | Alert Threshold |
-|--------|-----------------|
-| Failed login rate | >10% in 5 minutes |
-| Token replay attempts | Any occurrence |
-| Emergency key rotation | Any occurrence |
-| Rate limit triggers | >100/minute |
-| DPoP validation failures | >5% |
+| Metric                   | Alert Threshold   |
+| ------------------------ | ----------------- |
+| Failed login rate        | >10% in 5 minutes |
+| Token replay attempts    | Any occurrence    |
+| Emergency key rotation   | Any occurrence    |
+| Rate limit triggers      | >100/minute       |
+| DPoP validation failures | >5%               |
 
 ---
 
 ## Related Documents
 
-| Document | Description |
-|----------|-------------|
-| [Key Management](./key-management.md) | Cryptographic key lifecycle |
-| [Authentication Flows](./authentication-flows.md) | User authentication methods |
-| [Configuration](./configuration.md) | Security settings management |
-| [Durable Objects](./durable-objects.md) | Security-critical DO design |
+| Document                                          | Description                  |
+| ------------------------------------------------- | ---------------------------- |
+| [Key Management](./key-management.md)             | Cryptographic key lifecycle  |
+| [Authentication Flows](./authentication-flows.md) | User authentication methods  |
+| [Configuration](./configuration.md)               | Security settings management |
+| [Durable Objects](./durable-objects.md)           | Security-critical DO design  |
 
 ---
 

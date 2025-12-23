@@ -37,21 +37,23 @@ wrangler whoami   # Should show your account
 
 Authrim supports environment-specific deployments with naming conventions:
 
-| Environment | Worker Prefix | KV Prefix | Example Issuer URL |
-|-------------|---------------|-----------|-------------------|
-| `dev` | `dev-authrim-*` | `dev-*` | `https://dev-auth.example.com` |
-| `staging` | `staging-authrim-*` | `staging-*` | `https://staging-auth.example.com` |
-| `conformance` | `conformance-authrim-*` | `conformance-*` | `https://conformance.example.com` |
-| `prod` | `authrim-*` | `*` | `https://auth.example.com` |
+| Environment   | Worker Prefix           | KV Prefix       | Example Issuer URL                 |
+| ------------- | ----------------------- | --------------- | ---------------------------------- |
+| `dev`         | `dev-authrim-*`         | `dev-*`         | `https://dev-auth.example.com`     |
+| `staging`     | `staging-authrim-*`     | `staging-*`     | `https://staging-auth.example.com` |
+| `conformance` | `conformance-authrim-*` | `conformance-*` | `https://conformance.example.com`  |
+| `prod`        | `authrim-*`             | `*`             | `https://auth.example.com`         |
 
 ### Deployment Modes
 
 #### Test Mode (workers.dev + Router Worker)
+
 - Uses Router Worker with Service Bindings
 - Single endpoint: `https://authrim.{subdomain}.workers.dev`
 - Best for: Development, testing, demos
 
 #### Production Mode (Custom Domain + Routes)
+
 - Direct routing via Cloudflare Routes
 - Optimal performance (no router hop)
 - Best for: Production deployments
@@ -88,6 +90,7 @@ pnpm run deploy:ui -- --env=prod
 ```
 
 Creates:
+
 - `.keys/private.pem` - Private key for JWT signing
 - `.keys/public.jwk.json` - Public key in JWK format
 - `.keys/metadata.json` - Key metadata
@@ -99,6 +102,7 @@ Creates:
 ```
 
 Interactive prompts:
+
 1. **Deployment Mode**: Test (workers.dev) or Production (custom domain)
 2. **ISSUER_URL**: Your OP's public URL
 3. **UI_BASE_URL**: Optional, for Device Flow consent pages
@@ -112,6 +116,7 @@ Creates `wrangler.{env}.toml` files for all packages.
 ```
 
 Creates:
+
 - `{ENV}-CLIENTS` - Registered OAuth clients
 - `{ENV}-INITIAL_ACCESS_TOKENS` - DCR tokens
 - `{ENV}-SETTINGS` - System settings (auto-initialized)
@@ -132,6 +137,7 @@ Creates:
 ```
 
 Uploads to all workers:
+
 - `PRIVATE_KEY_PEM` - JWT signing key
 - `PUBLIC_JWK_JSON` - JWT verification key
 
@@ -142,6 +148,7 @@ pnpm run deploy -- --env=prod
 ```
 
 Deployment order (automatic):
+
 1. `shared` - Durable Objects (deployed first)
 2. `op-discovery` - Discovery & JWKS
 3. `op-management` - Admin API & registration
@@ -155,6 +162,7 @@ Deployment order (automatic):
 11. `router` - (Test mode only)
 
 Features:
+
 - Sequential deployment with 10s delays
 - Automatic retries on failure
 - Version registration in VersionManager DO
@@ -170,10 +178,12 @@ pnpm run deploy:ui -- --env=prod
 ```
 
 Project naming:
+
 - `prod` → `authrim-ui`
 - Other envs → `{env}-authrim-ui`
 
 For interactive domain configuration:
+
 ```bash
 ./scripts/deploy-remote-ui.sh
 ```
@@ -274,6 +284,7 @@ pnpm run deploy -- --env=prod
 ### Deployment Rate Limits
 
 The deploy script automatically:
+
 - Deploys sequentially (not in parallel)
 - Waits 10s between deployments
 - Retries failed deployments

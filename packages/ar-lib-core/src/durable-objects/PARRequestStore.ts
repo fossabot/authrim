@@ -411,11 +411,24 @@ export class PARRequestStore extends DurableObject<Env> {
             headers: { 'Content-Type': 'application/json' },
           });
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
+          console.error('[PARRequestStore] consumeRequest error:', error);
+          const message = error instanceof Error ? error.message : '';
+
+          // SECURITY: Use generic error descriptions, only allow safe predefined messages
+          let errorDescription = 'PAR request is invalid or expired';
+
+          if (message.includes('already consumed') || message.includes('replay')) {
+            errorDescription = 'PAR request has already been used';
+          } else if (message.includes('expired')) {
+            errorDescription = 'PAR request has expired';
+          } else if (message.includes('not found')) {
+            errorDescription = 'PAR request not found';
+          }
+
           return new Response(
             JSON.stringify({
               error: 'invalid_request_uri',
-              error_description: message,
+              error_description: errorDescription,
             }),
             {
               status: 400,
@@ -502,11 +515,13 @@ export class PARRequestStore extends DurableObject<Env> {
 
       return new Response('Not Found', { status: 404 });
     } catch (error) {
+      // Log full error for debugging but don't expose to client
       console.error('PARRequestStore error:', error);
+      // SECURITY: Do not expose internal error details in response
       return new Response(
         JSON.stringify({
           error: 'server_error',
-          error_description: error instanceof Error ? error.message : 'Internal Server Error',
+          error_description: 'Internal server error',
         }),
         {
           status: 500,

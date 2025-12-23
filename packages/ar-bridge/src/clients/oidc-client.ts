@@ -435,7 +435,8 @@ export class OIDCRPClient {
 
     // If azp is present, it MUST match client_id
     if (azp !== undefined && azp !== this.config.clientId) {
-      throw new Error(`ID token azp (${azp}) does not match client_id (${this.config.clientId})`);
+      // SECURITY: Do not expose azp or client_id values in error
+      throw new Error('ID token azp does not match expected client_id');
     }
 
     // If multiple audiences and no azp, log warning (SHOULD have azp per spec)

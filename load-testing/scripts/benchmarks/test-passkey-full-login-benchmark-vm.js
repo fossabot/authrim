@@ -250,7 +250,17 @@ export const options =
           },
         },
         thresholds: selectedPreset?.thresholds || {},
-        summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)', 'p(99.9)'],
+        summaryTrendStats: [
+          'avg',
+          'min',
+          'med',
+          'max',
+          'p(50)',
+          'p(90)',
+          'p(95)',
+          'p(99)',
+          'p(99.9)',
+        ],
         setupTimeout: '300s',
       };
 
@@ -333,7 +343,11 @@ function registerPasskey(userId, email, credential, rp) {
   }
 
   const optionsData = JSON.parse(optionsRes.body);
-  const attestation = passkeys.createAttestationResponse(rp, credential, JSON.stringify(optionsData.options));
+  const attestation = passkeys.createAttestationResponse(
+    rp,
+    credential,
+    JSON.stringify(optionsData.options)
+  );
 
   // Complete registration
   const verifyRes = http.post(
@@ -422,10 +436,14 @@ export function setup() {
         redirects: 0,
         tags: { name: 'Warmup' },
       });
-      http.post(`${BASE_URL}/api/auth/passkey/login/options`, JSON.stringify({ email: user.email }), {
-        headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-        tags: { name: 'Warmup' },
-      });
+      http.post(
+        `${BASE_URL}/api/auth/passkey/login/options`,
+        JSON.stringify({ email: user.email }),
+        {
+          headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+          tags: { name: 'Warmup' },
+        }
+      );
     }
     console.log(`   Warmup complete`);
     console.log(``);
@@ -568,7 +586,11 @@ export default function (data) {
             `${baseUrl}/api/auth/passkey/login/verify`,
             JSON.stringify({ challengeId, credential: JSON.parse(assertion) }),
             {
-              headers: { 'Content-Type': 'application/json', Origin: ORIGIN, Connection: 'keep-alive' },
+              headers: {
+                'Content-Type': 'application/json',
+                Origin: ORIGIN,
+                Connection: 'keep-alive',
+              },
               tags: { name: 'PasskeyVerify' },
             }
           );
@@ -734,7 +756,10 @@ export function handleSummary(data) {
 
   return {
     [`${resultsDir}/${TEST_ID}-${preset}_${timestamp}.json`]: JSON.stringify(data, null, 2),
-    [`${resultsDir}/${TEST_ID}-${preset}_${timestamp}.log`]: textSummary(data, { indent: ' ', enableColors: false }),
+    [`${resultsDir}/${TEST_ID}-${preset}_${timestamp}.log`]: textSummary(data, {
+      indent: ' ',
+      enableColors: false,
+    }),
     stdout: textSummary(data, { indent: ' ', enableColors: true }),
   };
 }

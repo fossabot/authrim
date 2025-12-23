@@ -7,6 +7,12 @@
 
 import type { Context } from 'hono';
 import type { Env, CIBARequestMetadata } from '@authrim/ar-lib-core';
+import {
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 
 /**
  * POST /api/ciba/deny
@@ -33,13 +39,11 @@ export async function cibaDenyHandler(c: Context<{ Bindings: Env }>) {
 
     // Validate auth_req_id is present
     if (!authReqId) {
-      return c.json(
-        {
-          success: false,
-          error: 'invalid_request',
-          error_description: 'auth_req_id is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'auth_req_id is required'
       );
     }
 
@@ -57,38 +61,22 @@ export async function cibaDenyHandler(c: Context<{ Bindings: Env }>) {
     );
 
     if (!getResponse.ok) {
-      return c.json(
-        {
-          success: false,
-          error: 'not_found',
-          error_description: 'CIBA request not found or expired',
-        },
-        404
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     const metadata: CIBARequestMetadata | null = await getResponse.json();
 
     if (!metadata) {
-      return c.json(
-        {
-          success: false,
-          error: 'not_found',
-          error_description: 'CIBA request not found or expired',
-        },
-        404
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Check if request is still pending
     if (metadata.status !== 'pending') {
-      return c.json(
-        {
-          success: false,
-          error: 'invalid_request',
-          error_description: `This request has already been ${metadata.status}`,
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `This request has already been ${metadata.status}`
       );
     }
 
@@ -105,15 +93,7 @@ export async function cibaDenyHandler(c: Context<{ Bindings: Env }>) {
     );
 
     if (!denyResponse.ok) {
-      const error = (await denyResponse.json()) as { error_description?: string };
-      return c.json(
-        {
-          success: false,
-          error: 'server_error',
-          error_description: error.error_description || 'Failed to deny CIBA request',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     return c.json(
@@ -125,13 +105,6 @@ export async function cibaDenyHandler(c: Context<{ Bindings: Env }>) {
     );
   } catch (error) {
     console.error('CIBA denial API error:', error);
-    return c.json(
-      {
-        success: false,
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

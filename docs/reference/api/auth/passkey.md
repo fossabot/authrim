@@ -5,6 +5,7 @@
 The Passkey API implements passwordless authentication using WebAuthn/FIDO2 standards. It provides secure, phishing-resistant authentication using biometric authenticators (Face ID, Touch ID, Windows Hello) or hardware security keys.
 
 **Key Features:**
+
 - Platform authenticator support (device-bound biometric)
 - Resident key (discoverable credential) support
 - Counter-based replay attack prevention
@@ -12,6 +13,7 @@ The Passkey API implements passwordless authentication using WebAuthn/FIDO2 stan
 - Automatic user creation on first registration
 
 **Standards Compliance:**
+
 - WebAuthn Level 2
 - FIDO2 CTAP2
 - Implements `@simplewebauthn/server`
@@ -31,6 +33,7 @@ Generate WebAuthn registration options for creating a new passkey.
 **Endpoint:** `POST /auth/passkey/register/options`
 
 **Request Body:**
+
 ```json
 {
   "email": "user@example.com",
@@ -47,6 +50,7 @@ Generate WebAuthn registration options for creating a new passkey.
 | `userId` | string | No | Existing user ID (creates new user if not provided) |
 
 **Response (200 OK):**
+
 ```json
 {
   "options": {
@@ -77,12 +81,13 @@ Generate WebAuthn registration options for creating a new passkey.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Email is missing or invalid |
-| 500 | `server_error` | Failed to generate registration options |
+| Status Code | Error             | Description                             |
+| ----------- | ----------------- | --------------------------------------- |
+| 400         | `invalid_request` | Email is missing or invalid             |
+| 500         | `server_error`    | Failed to generate registration options |
 
 **Example:**
+
 ```bash
 curl -X POST https://your-domain.com/auth/passkey/register/options \
   -H "Content-Type: application/json" \
@@ -93,6 +98,7 @@ curl -X POST https://your-domain.com/auth/passkey/register/options \
 ```
 
 **Browser Usage:**
+
 ```typescript
 // 1. Get registration options from server
 const { options, userId } = await fetch('/auth/passkey/register/options', {
@@ -100,13 +106,13 @@ const { options, userId } = await fetch('/auth/passkey/register/options', {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     email: 'user@example.com',
-    name: 'John Doe'
-  })
-}).then(r => r.json());
+    name: 'John Doe',
+  }),
+}).then((r) => r.json());
 
 // 2. Create credential using WebAuthn API
 const credential = await navigator.credentials.create({
-  publicKey: options
+  publicKey: options,
 });
 
 // 3. Send credential to verification endpoint
@@ -122,6 +128,7 @@ Verify the WebAuthn registration response and store the passkey.
 **Endpoint:** `POST /auth/passkey/register/verify`
 
 **Request Body:**
+
 ```json
 {
   "userId": "user_123",
@@ -147,6 +154,7 @@ Verify the WebAuthn registration response and store the passkey.
 | `deviceName` | string | No | Human-readable device name |
 
 **Response (200 OK):**
+
 ```json
 {
   "verified": true,
@@ -157,14 +165,15 @@ Verify the WebAuthn registration response and store the passkey.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | User ID or credential missing |
-| 400 | `invalid_request` | Challenge not found or expired (5 min TTL) |
-| 400 | `invalid_request` | Registration verification failed |
-| 500 | `server_error` | Failed to verify registration |
+| Status Code | Error             | Description                                |
+| ----------- | ----------------- | ------------------------------------------ |
+| 400         | `invalid_request` | User ID or credential missing              |
+| 400         | `invalid_request` | Challenge not found or expired (5 min TTL) |
+| 400         | `invalid_request` | Registration verification failed           |
+| 500         | `server_error`    | Failed to verify registration              |
 
 **Example:**
+
 ```bash
 curl -X POST https://your-domain.com/auth/passkey/register/verify \
   -H "Content-Type: application/json" \
@@ -176,6 +185,7 @@ curl -X POST https://your-domain.com/auth/passkey/register/verify \
 ```
 
 **Browser Usage:**
+
 ```typescript
 // After creating credential (see previous section)
 const response = await fetch('/auth/passkey/register/verify', {
@@ -184,8 +194,8 @@ const response = await fetch('/auth/passkey/register/verify', {
   body: JSON.stringify({
     userId: userId,
     credential: credential,
-    deviceName: navigator.userAgent.match(/\(([^)]+)\)/)?.[1] || 'Unknown Device'
-  })
+    deviceName: navigator.userAgent.match(/\(([^)]+)\)/)?.[1] || 'Unknown Device',
+  }),
 });
 
 const { verified, passkeyId } = await response.json();
@@ -203,6 +213,7 @@ Generate WebAuthn authentication options for passkey login.
 **Endpoint:** `POST /auth/passkey/login/options`
 
 **Request Body:**
+
 ```json
 {
   "email": "user@example.com"
@@ -215,6 +226,7 @@ Generate WebAuthn authentication options for passkey login.
 | `email` | string | No | User's email (if omitted, allows any passkey) |
 
 **Response (200 OK):**
+
 ```json
 {
   "options": {
@@ -236,11 +248,12 @@ Generate WebAuthn authentication options for passkey login.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 500 | `server_error` | Failed to generate authentication options |
+| Status Code | Error          | Description                               |
+| ----------- | -------------- | ----------------------------------------- |
+| 500         | `server_error` | Failed to generate authentication options |
 
 **Example:**
+
 ```bash
 curl -X POST https://your-domain.com/auth/passkey/login/options \
   -H "Content-Type: application/json" \
@@ -250,19 +263,20 @@ curl -X POST https://your-domain.com/auth/passkey/login/options \
 ```
 
 **Browser Usage:**
+
 ```typescript
 // 1. Get authentication options
 const { options, challengeId } = await fetch('/auth/passkey/login/options', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    email: 'user@example.com' // Optional
-  })
-}).then(r => r.json());
+    email: 'user@example.com', // Optional
+  }),
+}).then((r) => r.json());
 
 // 2. Get credential using WebAuthn API
 const credential = await navigator.credentials.get({
-  publicKey: options
+  publicKey: options,
 });
 
 // 3. Send credential to verification endpoint
@@ -278,6 +292,7 @@ Verify the WebAuthn authentication response and create a session.
 **Endpoint:** `POST /auth/passkey/login/verify`
 
 **Request Body:**
+
 ```json
 {
   "challengeId": "challenge_550e8400-e29b-41d4-a716-446655440000",
@@ -302,6 +317,7 @@ Verify the WebAuthn authentication response and create a session.
 | `credential` | object | Yes | WebAuthn credential response |
 
 **Response (200 OK):**
+
 ```json
 {
   "verified": true,
@@ -318,15 +334,16 @@ Verify the WebAuthn authentication response and create a session.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Challenge ID or credential missing |
-| 400 | `invalid_request` | Challenge not found or expired (5 min TTL) |
-| 400 | `invalid_request` | Passkey not found |
-| 400 | `invalid_request` | Authentication verification failed |
-| 500 | `server_error` | Failed to verify authentication |
+| Status Code | Error             | Description                                |
+| ----------- | ----------------- | ------------------------------------------ |
+| 400         | `invalid_request` | Challenge ID or credential missing         |
+| 400         | `invalid_request` | Challenge not found or expired (5 min TTL) |
+| 400         | `invalid_request` | Passkey not found                          |
+| 400         | `invalid_request` | Authentication verification failed         |
+| 500         | `server_error`    | Failed to verify authentication            |
 
 **Example:**
+
 ```bash
 curl -X POST https://your-domain.com/auth/passkey/login/verify \
   -H "Content-Type: application/json" \
@@ -337,6 +354,7 @@ curl -X POST https://your-domain.com/auth/passkey/login/verify \
 ```
 
 **Browser Usage:**
+
 ```typescript
 // After getting credential (see previous section)
 const response = await fetch('/auth/passkey/login/verify', {
@@ -344,8 +362,8 @@ const response = await fetch('/auth/passkey/login/verify', {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     challengeId: challengeId,
-    credential: credential
-  })
+    credential: credential,
+  }),
 });
 
 const { verified, sessionId, user } = await response.json();
@@ -361,21 +379,25 @@ if (verified) {
 ## Security Considerations
 
 ### Challenge TTL
+
 - Registration challenge: **5 minutes**
 - Authentication challenge: **5 minutes**
 - Challenges are single-use and deleted after verification
 
 ### Replay Attack Prevention
+
 - Counter values are stored and validated for each passkey
 - Counter must increment on each authentication
 - Prevents replay attacks with captured authenticator responses
 
 ### Origin Validation
+
 - Expected origin: `ISSUER_URL` environment variable
 - Expected RP ID: hostname from `ISSUER_URL`
 - Prevents phishing attacks
 
 ### Credential Storage
+
 - Public keys stored as base64-encoded strings in D1
 - Private keys never leave the user's device
 - Credential IDs are globally unique (UUID v4)
@@ -387,6 +409,7 @@ if (verified) {
 ### D1 Tables
 
 **users:**
+
 - `id` - User UUID
 - `email` - User email (unique)
 - `name` - Display name
@@ -394,6 +417,7 @@ if (verified) {
 - `created_at`, `updated_at`, `last_login_at`
 
 **passkeys:**
+
 - `id` - Passkey UUID
 - `user_id` - Foreign key to users
 - `credential_id` - WebAuthn credential ID (base64)
@@ -406,6 +430,7 @@ if (verified) {
 ### KV Namespaces
 
 **STATE_STORE:**
+
 - `passkey_challenge:{userId}` - Registration challenge (5 min TTL)
 - `passkey_auth_challenge:{challengeId}` - Authentication challenge (5 min TTL)
 
@@ -474,29 +499,32 @@ sequenceDiagram
 
 Currently no rate limiting is implemented for passkey endpoints. Recommended limits:
 
-| Endpoint | Limit | Period | Unit |
-|----------|-------|--------|------|
-| `register/options` | 5 | 1 min | IP |
-| `register/verify` | 5 | 1 min | IP |
-| `login/options` | 10 | 1 min | IP |
-| `login/verify` | 10 | 1 min | IP |
+| Endpoint           | Limit | Period | Unit |
+| ------------------ | ----- | ------ | ---- |
+| `register/options` | 5     | 1 min  | IP   |
+| `register/verify`  | 5     | 1 min  | IP   |
+| `login/options`    | 10    | 1 min  | IP   |
+| `login/verify`     | 10    | 1 min  | IP   |
 
 ---
 
 ## Browser Compatibility
 
 **Supported Browsers:**
+
 - Chrome 67+ (desktop and mobile)
 - Safari 14+ (iOS 14+, macOS 11+)
 - Firefox 60+
 - Edge 18+
 
 **Platform Authenticators:**
+
 - **iOS/macOS:** Face ID, Touch ID
 - **Windows:** Windows Hello (fingerprint, face, PIN)
 - **Android:** Fingerprint, face unlock
 
 **Feature Detection:**
+
 ```typescript
 if (window.PublicKeyCredential) {
   // WebAuthn supported
@@ -514,6 +542,7 @@ if (window.PublicKeyCredential) {
 **Unit Tests:** `/packages/op-auth/src/__tests__/passkey.test.ts`
 
 **Manual Testing:**
+
 ```bash
 # 1. Register a passkey
 curl -X POST http://localhost:8787/auth/passkey/register/options \
@@ -528,6 +557,7 @@ curl -X POST http://localhost:8787/auth/passkey/login/options \
 ```
 
 **Integration Testing:**
+
 - Requires browser automation (Playwright, Puppeteer)
 - Virtual authenticators for testing without physical device
 

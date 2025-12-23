@@ -5,6 +5,7 @@
 The ITP-Compliant Session Management API provides session token issuance and verification for handling Intelligent Tracking Prevention (ITP) restrictions in Safari and other privacy-focused browsers. It enables secure cross-domain session establishment without relying on third-party cookies.
 
 **Key Features:**
+
 - Short-lived single-use session tokens (5-minute TTL)
 - ITP-compliant cross-domain session establishment
 - Session status checking without iframes
@@ -12,6 +13,7 @@ The ITP-Compliant Session Management API provides session token issuance and ver
 - Integration with SessionStore Durable Object
 
 **Use Cases:**
+
 - Cross-domain SSO in Safari/ITP-enabled browsers
 - Embedded authentication flows
 - Mobile app authentication
@@ -36,11 +38,13 @@ Issue a short-lived, single-use token for cross-domain session establishment.
 Requires an active session (via cookie).
 
 **Request Headers:**
+
 ```http
 Cookie: authrim_session={session_id}
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "token": "550e8400-e29b-41d4-a716-446655440000",
@@ -58,25 +62,27 @@ Cookie: authrim_session={session_id}
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | No active session found |
-| 401 | `session_not_found` | Session has expired or is invalid |
-| 500 | `server_error` | Failed to issue session token |
+| Status Code | Error               | Description                       |
+| ----------- | ------------------- | --------------------------------- |
+| 401         | `unauthorized`      | No active session found           |
+| 401         | `session_not_found` | Session has expired or is invalid |
+| 500         | `server_error`      | Failed to issue session token     |
 
 **Example:**
+
 ```bash
 curl -X POST "https://your-domain.com/auth/session/token" \
   -H "Cookie: authrim_session=session_abc123"
 ```
 
 **JavaScript Usage:**
+
 ```javascript
 // Issue session token for cross-domain use
 async function issueSessionToken() {
   const response = await fetch('https://your-domain.com/auth/session/token', {
     method: 'POST',
-    credentials: 'include' // Include cookies
+    credentials: 'include', // Include cookies
   });
 
   const data = await response.json();
@@ -96,6 +102,7 @@ Verify a session token and optionally create a new session for the RP domain.
 **Endpoint:** `POST /auth/session/verify`
 
 **Request Body:**
+
 ```json
 {
   "token": "550e8400-e29b-41d4-a716-446655440000",
@@ -110,6 +117,7 @@ Verify a session token and optionally create a new session for the RP domain.
 | `rp_origin` | string | No | Relying Party origin (creates new session if provided) |
 
 **Response (200 OK):**
+
 ```json
 {
   "session_id": "session_xyz789",
@@ -129,15 +137,16 @@ Verify a session token and optionally create a new session for the RP domain.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Token is required |
-| 401 | `invalid_token` | Token not found or has expired |
-| 401 | `invalid_token` | Token has already been used (single-use enforcement) |
-| 401 | `session_expired` | Original session has expired |
-| 500 | `server_error` | Failed to verify session token |
+| Status Code | Error             | Description                                          |
+| ----------- | ----------------- | ---------------------------------------------------- |
+| 400         | `invalid_request` | Token is required                                    |
+| 401         | `invalid_token`   | Token not found or has expired                       |
+| 401         | `invalid_token`   | Token has already been used (single-use enforcement) |
+| 401         | `session_expired` | Original session has expired                         |
+| 500         | `server_error`    | Failed to verify session token                       |
 
 **Example:**
+
 ```bash
 curl -X POST "https://your-domain.com/auth/session/verify" \
   -H "Content-Type: application/json" \
@@ -148,18 +157,19 @@ curl -X POST "https://your-domain.com/auth/session/verify" \
 ```
 
 **JavaScript Usage:**
+
 ```javascript
 // Verify token and establish session on RP domain
 async function verifySessionToken(token, rpOrigin) {
   const response = await fetch('https://your-domain.com/auth/session/verify', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       token: token,
-      rp_origin: rpOrigin
-    })
+      rp_origin: rpOrigin,
+    }),
   });
 
   const data = await response.json();
@@ -182,11 +192,13 @@ Check session validity without using iframes (ITP-compatible).
 Reads session from cookie.
 
 **Request Headers:**
+
 ```http
 Cookie: authrim_session={session_id}
 ```
 
 **Response (200 OK) - Active Session:**
+
 ```json
 {
   "active": true,
@@ -198,6 +210,7 @@ Cookie: authrim_session={session_id}
 ```
 
 **Response (200 OK) - Inactive Session:**
+
 ```json
 {
   "active": false,
@@ -206,6 +219,7 @@ Cookie: authrim_session={session_id}
 ```
 
 **Response (200 OK) - No Session:**
+
 ```json
 {
   "active": false,
@@ -230,22 +244,24 @@ Cookie: authrim_session={session_id}
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 500 | `server_error` | Failed to check session status |
+| Status Code | Error          | Description                    |
+| ----------- | -------------- | ------------------------------ |
+| 500         | `server_error` | Failed to check session status |
 
 **Example:**
+
 ```bash
 curl "https://your-domain.com/session/status" \
   -H "Cookie: authrim_session=session_abc123"
 ```
 
 **JavaScript Usage:**
+
 ```javascript
 // Check if user has an active session
 async function checkSessionStatus() {
   const response = await fetch('https://your-domain.com/session/status', {
-    credentials: 'include'
+    credentials: 'include',
   });
 
   const data = await response.json();
@@ -276,11 +292,13 @@ Extend session expiration time (Active Time-To-Live).
 Session can be provided via cookie or request body.
 
 **Option 1: Cookie Authentication**
+
 ```http
 Cookie: authrim_session={session_id}
 ```
 
 **Request Body (Optional):**
+
 ```json
 {
   "extend_seconds": 3600
@@ -288,6 +306,7 @@ Cookie: authrim_session={session_id}
 ```
 
 **Option 2: Body Authentication**
+
 ```json
 {
   "session_id": "session_abc123",
@@ -302,6 +321,7 @@ Cookie: authrim_session={session_id}
 | `extend_seconds` | number | No | 3600 | Seconds to extend (max 86400 = 24 hours) |
 
 **Response (200 OK):**
+
 ```json
 {
   "session_id": "session_abc123",
@@ -323,14 +343,15 @@ Cookie: authrim_session={session_id}
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Session ID is required |
-| 400 | `invalid_request` | Extension duration must be between 0 and 86400 seconds |
-| 404 | `session_not_found` | Session not found or has expired |
-| 500 | `server_error` | Failed to extend session |
+| Status Code | Error               | Description                                            |
+| ----------- | ------------------- | ------------------------------------------------------ |
+| 400         | `invalid_request`   | Session ID is required                                 |
+| 400         | `invalid_request`   | Extension duration must be between 0 and 86400 seconds |
+| 404         | `session_not_found` | Session not found or has expired                       |
+| 500         | `server_error`      | Failed to extend session                               |
 
 **Example:**
+
 ```bash
 # Extend session by 1 hour (via cookie)
 curl -X POST "https://your-domain.com/session/refresh" \
@@ -348,18 +369,19 @@ curl -X POST "https://your-domain.com/session/refresh" \
 ```
 
 **JavaScript Usage:**
+
 ```javascript
 // Extend session on user activity
 async function refreshSession(extendSeconds = 3600) {
   const response = await fetch('https://your-domain.com/session/refresh', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
     credentials: 'include',
     body: JSON.stringify({
-      extend_seconds: extendSeconds
-    })
+      extend_seconds: extendSeconds,
+    }),
   });
 
   const data = await response.json();
@@ -426,22 +448,25 @@ document.addEventListener('mousemove', () => {
 ### Implementation Example
 
 **Step 1: Login at OP**
+
 ```javascript
 // User logs in at https://auth.example.com
 window.location.href = 'https://auth.example.com/auth/passkey/login';
 ```
 
 **Step 2: Issue Session Token**
+
 ```javascript
 // After successful login
 const tokenResponse = await fetch('https://auth.example.com/auth/session/token', {
   method: 'POST',
-  credentials: 'include'
+  credentials: 'include',
 });
 const { token } = await tokenResponse.json();
 ```
 
 **Step 3: Pass Token to RP**
+
 ```javascript
 // Option A: URL parameter
 window.location.href = `https://app.example.com/auth/callback?token=${token}`;
@@ -451,6 +476,7 @@ window.opener.postMessage({ type: 'session_token', token }, 'https://app.example
 ```
 
 **Step 4: Verify Token at RP**
+
 ```javascript
 // At https://app.example.com
 const params = new URLSearchParams(window.location.search);
@@ -461,8 +487,8 @@ const verifyResponse = await fetch('https://auth.example.com/auth/session/verify
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     token: token,
-    rp_origin: 'https://app.example.com'
-  })
+    rp_origin: 'https://app.example.com',
+  }),
 });
 
 const { session_id, user_id } = await verifyResponse.json();
@@ -477,18 +503,21 @@ sessionStorage.setItem('user_id', user_id);
 ## Security Considerations
 
 ### Token Security
+
 - **Single-Use Enforcement**: Each token can only be used once to prevent replay attacks
 - **Short TTL**: 5-minute expiration minimizes exposure window
 - **Secure Storage**: Tokens stored in KV with automatic expiration
 - **No Sensitive Data**: Tokens are opaque UUIDs, not JWTs
 
 ### Session Security
+
 - **HttpOnly Cookies**: Session cookies are HttpOnly to prevent XSS attacks
 - **Secure Flag**: Cookies require HTTPS
 - **SameSite=None**: Allows cross-site usage with Secure flag
 - **Session Invalidation**: Instant revocation via SessionStore Durable Object
 
 ### ITP Compatibility
+
 - **No Third-Party Cookies**: Uses token-based flow instead
 - **No iframes**: Status checking via direct API calls
 - **Cross-Domain Support**: Separate sessions for each RP domain
@@ -509,6 +538,7 @@ No rate limiting is currently enforced on these endpoints. However, the followin
 ## Best Practices
 
 ### 1. Token Handling
+
 ```javascript
 // GOOD: Use token immediately after issuance
 const token = await issueToken();
@@ -519,6 +549,7 @@ localStorage.setItem('token', token); // Don't do this!
 ```
 
 ### 2. Session Refresh
+
 ```javascript
 // GOOD: Refresh on user activity
 const refreshOnActivity = debounce(() => refreshSession(3600), 60000);
@@ -529,6 +560,7 @@ setInterval(() => refreshSession(3600), 1000); // Don't do this!
 ```
 
 ### 3. Status Checking
+
 ```javascript
 // GOOD: Check status periodically
 setInterval(checkSessionStatus, 5 * 60 * 1000); // Every 5 minutes

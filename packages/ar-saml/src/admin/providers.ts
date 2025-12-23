@@ -27,6 +27,10 @@ import {
   validateExternalUrl,
   D1Adapter,
   type DatabaseAdapter,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import {
   parseXml,
@@ -50,7 +54,7 @@ export async function handleListProviders(c: Context<{ Bindings: Env }>): Promis
   try {
     // Check admin authorization
     if (!isAuthorized(c, env)) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
     }
 
     const coreAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB });
@@ -83,7 +87,7 @@ export async function handleListProviders(c: Context<{ Bindings: Env }>): Promis
     return c.json({ providers: response });
   } catch (error) {
     console.error('List providers error:', error);
-    return c.json({ error: 'Failed to list providers' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -95,30 +99,50 @@ export async function handleCreateProvider(c: Context<{ Bindings: Env }>): Promi
 
   try {
     if (!isAuthorized(c, env)) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
     }
 
     const body = (await c.req.json()) as SAMLProviderCreateRequest;
 
     // Validate request
     if (!body.name || !body.providerType || !body.config) {
-      return c.json({ error: 'Missing required fields: name, providerType, config' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Missing required fields: name, providerType, config'
+      );
     }
 
     if (!['saml_idp', 'saml_sp'].includes(body.providerType)) {
-      return c.json({ error: 'Invalid providerType. Must be saml_idp or saml_sp' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Invalid providerType. Must be saml_idp or saml_sp'
+      );
     }
 
     // Validate config based on type
     if (body.providerType === 'saml_idp') {
       const config = body.config as SAMLIdPConfig;
       if (!config.entityId || !config.ssoUrl || !config.certificate) {
-        return c.json({ error: 'IdP config requires entityId, ssoUrl, and certificate' }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'IdP config requires entityId, ssoUrl, and certificate'
+        );
       }
     } else {
       const config = body.config as SAMLSPConfig;
       if (!config.entityId || !config.acsUrl) {
-        return c.json({ error: 'SP config requires entityId and acsUrl' }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'SP config requires entityId and acsUrl'
+        );
       }
     }
 
@@ -154,7 +178,7 @@ export async function handleCreateProvider(c: Context<{ Bindings: Env }>): Promi
     );
   } catch (error) {
     console.error('Create provider error:', error);
-    return c.json({ error: 'Failed to create provider' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -167,7 +191,7 @@ export async function handleGetProvider(c: Context<{ Bindings: Env }>): Promise<
 
   try {
     if (!isAuthorized(c, env)) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
     }
 
     const coreAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB });
@@ -187,7 +211,7 @@ export async function handleGetProvider(c: Context<{ Bindings: Env }>): Promise<
     );
 
     if (!provider) {
-      return c.json({ error: 'Provider not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     return c.json({
@@ -201,7 +225,7 @@ export async function handleGetProvider(c: Context<{ Bindings: Env }>): Promise<
     });
   } catch (error) {
     console.error('Get provider error:', error);
-    return c.json({ error: 'Failed to get provider' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -214,7 +238,7 @@ export async function handleUpdateProvider(c: Context<{ Bindings: Env }>): Promi
 
   try {
     if (!isAuthorized(c, env)) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
     }
 
     const coreAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB });
@@ -234,7 +258,7 @@ export async function handleUpdateProvider(c: Context<{ Bindings: Env }>): Promi
     );
 
     if (!existing) {
-      return c.json({ error: 'Provider not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     const body = (await c.req.json()) as SAMLProviderUpdateRequest;
@@ -267,7 +291,7 @@ export async function handleUpdateProvider(c: Context<{ Bindings: Env }>): Promi
     });
   } catch (error) {
     console.error('Update provider error:', error);
-    return c.json({ error: 'Failed to update provider' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -280,7 +304,7 @@ export async function handleDeleteProvider(c: Context<{ Bindings: Env }>): Promi
 
   try {
     if (!isAuthorized(c, env)) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
     }
 
     const coreAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB });
@@ -291,13 +315,13 @@ export async function handleDeleteProvider(c: Context<{ Bindings: Env }>): Promi
     );
 
     if (result.rowsAffected === 0) {
-      return c.json({ error: 'Provider not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     return c.json({ success: true });
   } catch (error) {
     console.error('Delete provider error:', error);
-    return c.json({ error: 'Failed to delete provider' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -310,7 +334,7 @@ export async function handleImportMetadata(c: Context<{ Bindings: Env }>): Promi
 
   try {
     if (!isAuthorized(c, env)) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
     }
 
     const coreAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB });
@@ -328,7 +352,7 @@ export async function handleImportMetadata(c: Context<{ Bindings: Env }>): Promi
     );
 
     if (!existing) {
-      return c.json({ error: 'Provider not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     const body = (await c.req.json()) as MetadataImportRequest;
@@ -346,17 +370,32 @@ export async function handleImportMetadata(c: Context<{ Bindings: Env }>): Promi
         fieldName: 'metadataUrl',
       });
       if (ssrfError) {
-        return c.json({ error: ssrfError.error_description }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          ssrfError.error_description
+        );
       }
 
       // Fetch metadata from URL
       const response = await fetch(body.metadataUrl);
       if (!response.ok) {
-        return c.json({ error: `Failed to fetch metadata from URL: ${response.status}` }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          `Failed to fetch metadata from URL: ${response.status}`
+        );
       }
       metadataXml = await response.text();
     } else {
-      return c.json({ error: 'Either metadataXml or metadataUrl is required' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Either metadataXml or metadataUrl is required'
+      );
     }
 
     // Parse metadata based on provider type
@@ -390,13 +429,7 @@ export async function handleImportMetadata(c: Context<{ Bindings: Env }>): Promi
     });
   } catch (error) {
     console.error('Import metadata error:', error);
-    return c.json(
-      {
-        error: 'Failed to import metadata',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 

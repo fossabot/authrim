@@ -41,10 +41,11 @@ export class CredentialOfferStore {
       }
     } catch (error) {
       console.error('[CredentialOfferStore] Error:', error);
-      return new Response(
-        JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      // SECURITY: Do not expose internal error details in response
+      return new Response(JSON.stringify({ error: 'Internal server error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
   }
 

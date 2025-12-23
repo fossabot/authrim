@@ -310,10 +310,11 @@ export async function validateDPoPProof(
   } catch (error) {
     // PII Protection: Don't log full error object (may contain sensitive data in stack trace)
     console.error('DPoP validation error:', error instanceof Error ? error.name : 'Unknown error');
+    // SECURITY: Do not expose internal error details in response
     return {
       valid: false,
       error: 'invalid_dpop_proof',
-      error_description: error instanceof Error ? error.message : 'Unknown DPoP validation error',
+      error_description: 'DPoP proof validation failed',
     };
   }
 }

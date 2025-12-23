@@ -66,6 +66,11 @@ export {
   type UserRole,
   type CreateRoleInput,
   type UpdateRoleInput,
+  SessionClientRepository,
+  type SessionClient,
+  type SessionClientWithDetails,
+  type CreateSessionClientInput,
+  type UpdateSessionClientInput,
 } from './core';
 
 // PII repositories

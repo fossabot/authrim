@@ -5,6 +5,7 @@
 The Magic Link API provides passwordless authentication via email. Users receive a secure, time-limited link that logs them in without requiring a password. This offers a better user experience while maintaining security through email ownership verification.
 
 **Key Features:**
+
 - Passwordless authentication
 - Time-limited tokens (15 minutes)
 - Single-use tokens
@@ -14,6 +15,7 @@ The Magic Link API provides passwordless authentication via email. Users receive
 - Email templating (HTML + plain text)
 
 **Email Provider:**
+
 - Resend (primary)
 - Cloudflare Email Workers (Phase 7)
 - SMTP (Phase 7)
@@ -33,6 +35,7 @@ Send a magic link authentication email to the user.
 **Endpoint:** `POST /auth/magic-link/send`
 
 **Request Body:**
+
 ```json
 {
   "email": "user@example.com",
@@ -49,6 +52,7 @@ Send a magic link authentication email to the user.
 | `redirect_uri` | string | No | URL to redirect after verification |
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -59,6 +63,7 @@ Send a magic link authentication email to the user.
 
 **Response (200 OK - Development Mode):**
 When `RESEND_API_KEY` is not configured:
+
 ```json
 {
   "success": true,
@@ -69,13 +74,14 @@ When `RESEND_API_KEY` is not configured:
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Email is missing or invalid format |
-| 429 | `rate_limit_exceeded` | Too many requests (3 per 15 min) |
-| 500 | `server_error` | Email sending failed |
+| Status Code | Error                 | Description                        |
+| ----------- | --------------------- | ---------------------------------- |
+| 400         | `invalid_request`     | Email is missing or invalid format |
+| 429         | `rate_limit_exceeded` | Too many requests (3 per 15 min)   |
+| 500         | `server_error`        | Email sending failed               |
 
 **Rate Limit Headers:**
+
 ```http
 X-RateLimit-Limit: 3
 X-RateLimit-Remaining: 2
@@ -83,6 +89,7 @@ X-RateLimit-Reset: 1699564800
 ```
 
 **Example:**
+
 ```bash
 curl -X POST https://your-domain.com/auth/magic-link/send \
   -H "Content-Type: application/json" \
@@ -94,6 +101,7 @@ curl -X POST https://your-domain.com/auth/magic-link/send \
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 const response = await fetch('/auth/magic-link/send', {
   method: 'POST',
@@ -101,8 +109,8 @@ const response = await fetch('/auth/magic-link/send', {
   body: JSON.stringify({
     email: 'user@example.com',
     name: 'John Doe',
-    redirect_uri: 'https://yourapp.com/callback'
-  })
+    redirect_uri: 'https://yourapp.com/callback',
+  }),
 });
 
 const data = await response.json();
@@ -128,6 +136,7 @@ Verify the magic link token and create a session.
 | `redirect_uri` | string | No | URL to redirect after verification |
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -143,6 +152,7 @@ Verify the magic link token and create a session.
 ```
 
 **Response (302 Found - with redirect_uri):**
+
 ```http
 HTTP/1.1 302 Found
 Location: https://yourapp.com/callback?session_id=session_550e8400-e29b-41d4-a716-446655440000
@@ -150,14 +160,15 @@ Location: https://yourapp.com/callback?session_id=session_550e8400-e29b-41d4-a71
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Token is missing |
-| 400 | `invalid_token` | Token is invalid or expired (15 min TTL) |
-| 400 | `invalid_request` | User not found |
-| 500 | `server_error` | Failed to verify magic link |
+| Status Code | Error             | Description                              |
+| ----------- | ----------------- | ---------------------------------------- |
+| 400         | `invalid_request` | Token is missing                         |
+| 400         | `invalid_token`   | Token is invalid or expired (15 min TTL) |
+| 400         | `invalid_request` | User not found                           |
+| 500         | `server_error`    | Failed to verify magic link              |
 
 **Example:**
+
 ```bash
 # Direct browser navigation (from email link)
 https://your-domain.com/auth/magic-link/verify?token=550e8400-e29b-41d4-a716-446655440000
@@ -170,6 +181,7 @@ curl https://your-domain.com/auth/magic-link/verify?token=550e8400-e29b-41d4-a71
 ```
 
 **Browser Usage:**
+
 ```typescript
 // Parse token from URL (on callback page)
 const params = new URLSearchParams(window.location.search);
@@ -196,36 +208,38 @@ if (token) {
 The magic link email includes both HTML and plain text versions.
 
 **HTML Email:**
+
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <title>Sign in to Authrim</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-    <h1 style="color: #4F46E5;">Sign in to Authrim</h1>
-    <p>Hello John Doe,</p>
-    <p>Click the button below to sign in to your account:</p>
-    <div style="margin: 30px 0;">
-      <a href="https://your-domain.com/auth/magic-link/verify?token=..."
-         style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-        Sign in to Authrim
-      </a>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Sign in to Authrim</title>
+  </head>
+  <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h1 style="color: #4F46E5;">Sign in to Authrim</h1>
+      <p>Hello John Doe,</p>
+      <p>Click the button below to sign in to your account:</p>
+      <div style="margin: 30px 0;">
+        <a
+          href="https://your-domain.com/auth/magic-link/verify?token=..."
+          style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"
+        >
+          Sign in to Authrim
+        </a>
+      </div>
+      <p style="color: #666; font-size: 14px;">This link will expire in 15 minutes.</p>
+      <p style="color: #666; font-size: 14px;">
+        If you didn't request this email, you can safely ignore it.
+      </p>
     </div>
-    <p style="color: #666; font-size: 14px;">
-      This link will expire in 15 minutes.
-    </p>
-    <p style="color: #666; font-size: 14px;">
-      If you didn't request this email, you can safely ignore it.
-    </p>
-  </div>
-</body>
+  </body>
 </html>
 ```
 
 **Plain Text Email:**
+
 ```
 Sign in to Authrim
 
@@ -248,26 +262,31 @@ Authrim
 ## Security Considerations
 
 ### Token Generation
+
 - Tokens are UUID v4 (cryptographically random)
 - 122 bits of entropy
 - Single-use tokens (deleted after verification)
 
 ### Token TTL
+
 - **15 minutes** expiration
 - Stored in KV with automatic TTL deletion
 - Cannot be reused after verification
 
 ### Rate Limiting
+
 - **3 requests per 15 minutes** per email address
 - Prevents email bombing attacks
 - Returns `429 Too Many Requests` with `retry_after` seconds
 
 ### Email Validation
+
 - RFC-compliant email format validation
 - Pattern: `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`
 - Prevents invalid email submissions
 
 ### HTTPS Only
+
 - Magic link URLs use HTTPS only
 - Prevents token interception
 - Secure cookie storage
@@ -279,6 +298,7 @@ Authrim
 ### D1 Tables
 
 **users:**
+
 - `id` - User UUID
 - `email` - User email (unique)
 - `name` - Display name
@@ -288,6 +308,7 @@ Authrim
 ### KV Namespaces
 
 **MAGIC_LINKS:**
+
 - `token:{uuid}` - Token data (15 min TTL)
   ```json
   {
@@ -299,6 +320,7 @@ Authrim
   ```
 
 **RATE_LIMIT:**
+
 - `magic_link_rate:{email}` - Rate limit counter (15 min TTL)
   ```json
   {
@@ -347,13 +369,13 @@ sequenceDiagram
 
 ### Environment Variables
 
-| Variable | Required | Description | Default |
-|----------|----------|-------------|---------|
-| `RESEND_API_KEY` | No | Resend API key for email sending | - |
-| `EMAIL_FROM` | No | Sender email address | `noreply@authrim.dev` |
-| `ISSUER_URL` | Yes | Base URL for magic link generation | - |
-| `MAGIC_LINKS` | Yes | KV namespace binding for tokens | - |
-| `RATE_LIMIT` | No | KV namespace binding for rate limiting | - |
+| Variable         | Required | Description                            | Default               |
+| ---------------- | -------- | -------------------------------------- | --------------------- |
+| `RESEND_API_KEY` | No       | Resend API key for email sending       | -                     |
+| `EMAIL_FROM`     | No       | Sender email address                   | `noreply@authrim.dev` |
+| `ISSUER_URL`     | Yes      | Base URL for magic link generation     | -                     |
+| `MAGIC_LINKS`    | Yes      | KV namespace binding for tokens        | -                     |
+| `RATE_LIMIT`     | No       | KV namespace binding for rate limiting | -                     |
 
 **Development Mode:**
 If `RESEND_API_KEY` is not configured, the API returns the magic link URL in the response instead of sending an email.
@@ -362,11 +384,12 @@ If `RESEND_API_KEY` is not configured, the API returns the magic link URL in the
 
 ## Rate Limiting
 
-| Endpoint | Limit | Period | Unit | Error Code |
-|----------|-------|--------|------|------------|
-| `/send` | 3 | 15 min | email | `rate_limit_exceeded` |
+| Endpoint | Limit | Period | Unit  | Error Code            |
+| -------- | ----- | ------ | ----- | --------------------- |
+| `/send`  | 3     | 15 min | email | `rate_limit_exceeded` |
 
 **Rate Limit Response:**
+
 ```json
 {
   "error": "rate_limit_exceeded",
@@ -390,11 +413,12 @@ await emailProvider.send({
   from: 'noreply@authrim.dev',
   subject: 'Sign in to Authrim',
   html: '...',
-  text: '...'
+  text: '...',
 });
 ```
 
 **Resend Features:**
+
 - Transactional email API
 - High deliverability
 - Email analytics
@@ -412,6 +436,7 @@ await emailProvider.send({
 **Unit Tests:** `/packages/op-auth/src/__tests__/magic-link.test.ts`
 
 **Manual Testing:**
+
 ```bash
 # 1. Send magic link (development mode - no email sent)
 curl -X POST http://localhost:8787/auth/magic-link/send \
@@ -426,6 +451,7 @@ curl "http://localhost:8787/auth/magic-link/verify?token=YOUR_TOKEN"
 ```
 
 **With Resend (Production):**
+
 ```bash
 # Set RESEND_API_KEY in wrangler.toml or .dev.vars
 echo "RESEND_API_KEY=re_..." > .dev.vars
@@ -442,12 +468,12 @@ curl -X POST http://localhost:8787/auth/magic-link/send \
 
 ## Error Codes
 
-| Error Code | HTTP Status | Description | Solution |
-|------------|-------------|-------------|----------|
-| `invalid_request` | 400 | Email missing or invalid | Provide valid email address |
-| `rate_limit_exceeded` | 429 | Too many requests | Wait {retry_after} seconds |
-| `invalid_token` | 400 | Token invalid or expired | Request new magic link |
-| `server_error` | 500 | Email sending failed | Check RESEND_API_KEY, retry later |
+| Error Code            | HTTP Status | Description              | Solution                          |
+| --------------------- | ----------- | ------------------------ | --------------------------------- |
+| `invalid_request`     | 400         | Email missing or invalid | Provide valid email address       |
+| `rate_limit_exceeded` | 429         | Too many requests        | Wait {retry_after} seconds        |
+| `invalid_token`       | 400         | Token invalid or expired | Request new magic link            |
+| `server_error`        | 500         | Email sending failed     | Check RESEND_API_KEY, retry later |
 
 ---
 
@@ -456,11 +482,13 @@ curl -X POST http://localhost:8787/auth/magic-link/send \
 ### Client Implementation
 
 1. **Show clear success message:**
+
    ```typescript
    alert('Check your email for a magic link to sign in. The link expires in 15 minutes.');
    ```
 
 2. **Handle rate limiting gracefully:**
+
    ```typescript
    if (response.status === 429) {
      const { retry_after } = await response.json();
@@ -469,6 +497,7 @@ curl -X POST http://localhost:8787/auth/magic-link/send \
    ```
 
 3. **Implement token verification page:**
+
    ```typescript
    // On /auth/callback page
    const params = new URLSearchParams(window.location.search);

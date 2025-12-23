@@ -143,10 +143,11 @@ async function apiFetch<T>(
 		return { data };
 	} catch (error) {
 		console.error('API fetch error:', error);
+		// SECURITY: Do not expose internal error details to prevent information leakage
 		return {
 			error: {
 				error: 'network_error',
-				error_description: error instanceof Error ? error.message : 'Network error occurred'
+				error_description: 'Network error occurred'
 			}
 		};
 	}
@@ -602,10 +603,12 @@ export const loginChallengeAPI = {
 			const data: LoginChallengeData = await response.json();
 			return { data };
 		} catch (error) {
+			console.error('Login challenge fetch error:', error);
+			// SECURITY: Do not expose internal error details to prevent information leakage
 			return {
 				error: {
 					error: 'network_error',
-					error_description: error instanceof Error ? error.message : 'Network error occurred'
+					error_description: 'Network error occurred'
 				}
 			};
 		}
@@ -1173,10 +1176,12 @@ export const consentAPI = {
 			const data: ConsentScreenData = await response.json();
 			return { data };
 		} catch (error) {
+			console.error('Consent getData error:', error);
+			// SECURITY: Do not expose internal error details to prevent information leakage
 			return {
 				error: {
 					error: 'network_error',
-					error_description: error instanceof Error ? error.message : 'Network error occurred'
+					error_description: 'Network error occurred'
 				}
 			};
 		}
@@ -1211,10 +1216,12 @@ export const consentAPI = {
 			const data: { redirect_url: string } = await response.json();
 			return { data };
 		} catch (error) {
+			console.error('Consent submit error:', error);
+			// SECURITY: Do not expose internal error details to prevent information leakage
 			return {
 				error: {
 					error: 'network_error',
-					error_description: error instanceof Error ? error.message : 'Network error occurred'
+					error_description: 'Network error occurred'
 				}
 			};
 		}

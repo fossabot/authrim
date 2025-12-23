@@ -210,9 +210,9 @@ export async function storeUserVerifiedAttributes(
 
       attributeIds.push(result.id);
     } catch (error) {
-      errors.push(
-        `Failed to store attribute ${attr.name}: ${error instanceof Error ? error.message : 'Unknown'}`
-      );
+      console.error(`[storeVerifiedAttributes] Failed to store attribute ${attr.name}:`, error);
+      // SECURITY: Do not expose internal error details in response
+      errors.push(`Failed to store attribute ${attr.name}`);
     }
   }
 

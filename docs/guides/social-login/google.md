@@ -4,13 +4,13 @@ This guide walks you through setting up Google Sign-In with Authrim.
 
 ## Overview
 
-| Property | Value |
-|----------|-------|
-| Protocol | OpenID Connect 1.0 |
-| Issuer | `https://accounts.google.com` |
-| ID Token | Yes |
-| UserInfo Endpoint | Yes |
-| Email Verified Claim | Yes |
+| Property             | Value                         |
+| -------------------- | ----------------------------- |
+| Protocol             | OpenID Connect 1.0            |
+| Issuer               | `https://accounts.google.com` |
+| ID Token             | Yes                           |
+| UserInfo Endpoint    | Yes                           |
+| Email Verified Claim | Yes                           |
 
 ## Prerequisites
 
@@ -46,6 +46,7 @@ This guide walks you through setting up Google Sign-In with Authrim.
 ### Test Users (External Apps)
 
 For external apps in testing mode:
+
 1. Add test users who can access the app before publishing
 2. Click **Save and Continue**
 
@@ -65,6 +66,7 @@ https://your-domain.com/auth/external/google/callback
 ```
 
 For local development:
+
 ```
 http://localhost:8787/auth/external/google/callback
 ```
@@ -127,24 +129,24 @@ curl -X POST "https://your-domain.com/external-idp/admin/providers" \
 
 ### Available Scopes
 
-| Scope | Description |
-|-------|-------------|
-| `openid` | Required for OIDC |
-| `email` | User's email address |
+| Scope     | Description                               |
+| --------- | ----------------------------------------- |
+| `openid`  | Required for OIDC                         |
+| `email`   | User's email address                      |
 | `profile` | User's basic profile info (name, picture) |
 
 ### Claim Mappings
 
-| Authrim Claim | Google Claim | Description |
-|---------------|--------------|-------------|
-| `sub` | `sub` | Unique user identifier |
-| `email` | `email` | Primary email address |
+| Authrim Claim    | Google Claim     | Description               |
+| ---------------- | ---------------- | ------------------------- |
+| `sub`            | `sub`            | Unique user identifier    |
+| `email`          | `email`          | Primary email address     |
 | `email_verified` | `email_verified` | Whether email is verified |
-| `name` | `name` | Full name |
-| `given_name` | `given_name` | First name |
-| `family_name` | `family_name` | Last name |
-| `picture` | `picture` | Profile picture URL |
-| `locale` | `locale` | User's locale preference |
+| `name`           | `name`           | Full name                 |
+| `given_name`     | `given_name`     | First name                |
+| `family_name`    | `family_name`    | Last name                 |
+| `picture`        | `picture`        | Profile picture URL       |
+| `locale`         | `locale`         | User's locale preference  |
 
 ## Advanced Configuration
 
@@ -193,6 +195,7 @@ For additional user information, use the People API:
 **Cause**: The redirect URI doesn't match what's configured in Google Cloud Console.
 
 **Solution**:
+
 1. Go to Google Cloud Console → Credentials
 2. Edit your OAuth client
 3. Ensure the redirect URI exactly matches:
@@ -205,6 +208,7 @@ For additional user information, use the People API:
 **Cause**: User denied consent or app is in testing mode.
 
 **Solution**:
+
 - For testing apps, ensure the user is added as a test user
 - For production apps, verify the consent screen is published
 
@@ -213,6 +217,7 @@ For additional user information, use the People API:
 **Cause**: Incorrect client ID or secret.
 
 **Solution**:
+
 1. Verify the client ID includes `.apps.googleusercontent.com`
 2. Re-copy the client secret from Google Cloud Console
 3. Ensure no extra whitespace in credentials
@@ -222,6 +227,7 @@ For additional user information, use the People API:
 **Cause**: Email scope not requested.
 
 **Solution**: Ensure `email` is included in the scopes:
+
 ```json
 {
   "scopes": "openid email profile"

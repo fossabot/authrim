@@ -277,8 +277,9 @@ describe('SAML Integration', () => {
       const res = await app.fetch(req);
 
       expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toContain('Missing SAMLResponse');
+      const body = (await res.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('Missing SAMLResponse');
     });
 
     it('should reject response from unknown IdP', async () => {
@@ -300,8 +301,9 @@ describe('SAML Integration', () => {
       const res = await app.fetch(req);
 
       expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toContain('Unknown Identity Provider');
+      const body = (await res.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('Unknown Identity Provider');
     });
 
     it('should reject response with failed SAML status', async () => {
@@ -445,8 +447,9 @@ describe('SAML Integration', () => {
       const res = await app.fetch(req);
 
       expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toContain('Missing');
+      const body = (await res.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('Missing');
     });
 
     it('should reject LogoutRequest from unknown IdP', async () => {
@@ -468,8 +471,9 @@ describe('SAML Integration', () => {
       const res = await app.fetch(req);
 
       expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toContain('Unknown Identity Provider');
+      const body = (await res.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('Unknown Identity Provider');
     });
 
     it('should reject expired LogoutRequest', async () => {
@@ -557,8 +561,9 @@ describe('SAML Integration', () => {
       const res = await app.fetch(req);
 
       expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toContain('Missing');
+      const body = (await res.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('Missing');
     });
 
     // Note: HTTP-Redirect binding tests require DEFLATE compression which is complex to test.

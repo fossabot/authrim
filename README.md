@@ -105,16 +105,17 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 
 ### Verified by Load Testing (Dec 2025)
 
-| Metric | Value | Cost |
-|--------|-------|------|
-| Workers Requests | 18M/month | $5.70 (7%) |
-| KV Reads | 78M/month | $39.00 (44%) |
-| DO Requests + Duration | 64M/month | $22.10 (25%) |
-| D1 Writes | 6.8M rows | $7.00 (8%) |
-| Base fee | — | $5.00 (6%) |
-| **Total (excl. tax)** | **≈ 5M users equiv.** | **$79.78** |
+| Metric                 | Value                 | Cost         |
+| ---------------------- | --------------------- | ------------ |
+| Workers Requests       | 18M/month             | $5.70 (7%)   |
+| KV Reads               | 78M/month             | $39.00 (44%) |
+| DO Requests + Duration | 64M/month             | $22.10 (25%) |
+| D1 Writes              | 6.8M rows             | $7.00 (8%)   |
+| Base fee               | —                     | $5.00 (6%)   |
+| **Total (excl. tax)**  | **≈ 5M users equiv.** | **$79.78**   |
 
 **Request-to-User conversion:**
+
 - 1 OIDC login ≈ 4 requests (authorize → token → userinfo → discovery)
 - 18M requests ≈ 4.5M logins/month
 - With 20% DAU and weekly login assumption → **~5M total users equivalent**
@@ -125,16 +126,16 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 
 ## Current Status
 
-| Phase | Name                           | Timeline          | Status      |
-| ----- | ------------------------------ | ----------------- | ----------- |
-| 1-5   | Foundation, Core API, UI/UX    | 2025-11           | ✅ Complete |
-| 6     | Enterprise Features            | 2025-12           | ✅ Complete |
-| 7     | **Identity Hub Foundation**    | 2025-12           | ✅ Complete |
-| 8     | **Unified Policy Integration** | 2025-12           | ✅ Complete |
-| 9     | **Advanced Identity (VC/DID)** | 2025-12           | ✅ Complete |
-| 10    | SDK & API                      | 2025-Q4           | 🔜 Planned  |
-| 11    | Security & QA                  | 2025-Q4           | ⏳ ~20%     |
-| 12    | Certification & Release        | 2026-Q1           | 🔜 Final    |
+| Phase | Name                           | Timeline | Status      |
+| ----- | ------------------------------ | -------- | ----------- |
+| 1-5   | Foundation, Core API, UI/UX    | 2025-11  | ✅ Complete |
+| 6     | Enterprise Features            | 2025-12  | ✅ Complete |
+| 7     | **Identity Hub Foundation**    | 2025-12  | ✅ Complete |
+| 8     | **Unified Policy Integration** | 2025-12  | ✅ Complete |
+| 9     | **Advanced Identity (VC/DID)** | 2025-12  | ✅ Complete |
+| 10    | SDK & API                      | 2025-Q4  | 🔜 Planned  |
+| 11    | Security & QA                  | 2025-Q4  | ⏳ ~20%     |
+| 12    | Certification & Release        | 2026-Q1  | 🔜 Final    |
 
 [View detailed roadmap](./docs/ROADMAP.md)
 
@@ -170,44 +171,44 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 
 ### Packages (15 total)
 
-| Package          | Type      | Purpose                                  |
-| ---------------- | --------- | ---------------------------------------- |
-| `shared`         | Library   | Common utilities, types, Durable Objects |
-| `policy-core`    | Library   | RBAC/ABAC/ReBAC policy engine core       |
-| `op-auth`        | Worker    | Authorization endpoint, login flows      |
-| `op-token`       | Worker    | Token endpoint (all grant types)         |
-| `op-userinfo`    | Worker    | UserInfo endpoint                        |
-| `op-management`  | Worker    | Admin API, introspection, revocation     |
-| `op-discovery`   | Worker    | Discovery & JWKS endpoints               |
-| `op-async`       | Worker    | Device Flow, CIBA polling                |
-| `op-saml`        | Worker    | SAML 2.0 IdP & SP                        |
+| Package          | Type      | Purpose                                                         |
+| ---------------- | --------- | --------------------------------------------------------------- |
+| `shared`         | Library   | Common utilities, types, Durable Objects                        |
+| `policy-core`    | Library   | RBAC/ABAC/ReBAC policy engine core                              |
+| `op-auth`        | Worker    | Authorization endpoint, login flows                             |
+| `op-token`       | Worker    | Token endpoint (all grant types)                                |
+| `op-userinfo`    | Worker    | UserInfo endpoint                                               |
+| `op-management`  | Worker    | Admin API, introspection, revocation                            |
+| `op-discovery`   | Worker    | Discovery & JWKS endpoints                                      |
+| `op-async`       | Worker    | Device Flow, CIBA polling                                       |
+| `op-saml`        | Worker    | SAML 2.0 IdP & SP                                               |
 | `external-idp`   | Worker    | Social login (Google, MS, GitHub, Apple, LinkedIn, Facebook, X) |
-| `policy-service` | Worker    | Policy evaluation API                    |
-| `scim`           | Worker    | SCIM 2.0 user provisioning               |
-| `vc`             | Worker    | OpenID4VP/VCI, DID resolution            |
-| `router`         | Worker    | Request routing & load balancing         |
-| `ui`             | SvelteKit | Authentication & admin UI                |
+| `policy-service` | Worker    | Policy evaluation API                                           |
+| `scim`           | Worker    | SCIM 2.0 user provisioning                                      |
+| `vc`             | Worker    | OpenID4VP/VCI, DID resolution                                   |
+| `router`         | Worker    | Request routing & load balancing                                |
+| `ui`             | SvelteKit | Authentication & admin UI                                       |
 
 ### Durable Objects (17 total)
 
-| Durable Object         | Purpose                          |
-| ---------------------- | -------------------------------- |
-| SessionStore           | User session management          |
-| AuthorizationCodeStore | OAuth code lifecycle             |
-| RefreshTokenRotator    | Token rotation & theft detection |
-| KeyManager             | Cryptographic key management     |
-| DeviceCodeStore        | Device Flow code storage         |
-| CIBARequestStore       | CIBA request management          |
-| PARRequestStore        | Pushed Authorization Requests    |
-| DPoPJTIStore           | DPoP replay prevention           |
-| TokenRevocationStore   | Token revocation tracking        |
-| ChallengeStore         | WebAuthn challenge storage       |
-| SAMLRequestStore       | SAML request management          |
-| RateLimiterCounter     | Rate limiting                    |
-| UserCodeRateLimiter    | User code rate limiting          |
-| VersionManager         | Version management               |
-| VPRequestStore         | OpenID4VP request management     |
-| CredentialOfferStore   | OpenID4VCI offer management      |
+| Durable Object         | Purpose                            |
+| ---------------------- | ---------------------------------- |
+| SessionStore           | User session management            |
+| AuthorizationCodeStore | OAuth code lifecycle               |
+| RefreshTokenRotator    | Token rotation & theft detection   |
+| KeyManager             | Cryptographic key management       |
+| DeviceCodeStore        | Device Flow code storage           |
+| CIBARequestStore       | CIBA request management            |
+| PARRequestStore        | Pushed Authorization Requests      |
+| DPoPJTIStore           | DPoP replay prevention             |
+| TokenRevocationStore   | Token revocation tracking          |
+| ChallengeStore         | WebAuthn challenge storage         |
+| SAMLRequestStore       | SAML request management            |
+| RateLimiterCounter     | Rate limiting                      |
+| UserCodeRateLimiter    | User code rate limiting            |
+| VersionManager         | Version management                 |
+| VPRequestStore         | OpenID4VP request management       |
+| CredentialOfferStore   | OpenID4VCI offer management        |
 | PermissionChangeHub    | Real-time permission notifications |
 
 ## Features

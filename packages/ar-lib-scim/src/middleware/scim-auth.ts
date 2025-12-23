@@ -221,7 +221,8 @@ export async function scimAuthMiddleware(c: Context<{ Bindings: Env }>, next: Ne
     logAuthAttempt(clientIP, false, 'missing_auth_header');
     await applyFailureDelay(SCIM_AUTH_RATE_LIMIT.maxFailedAttempts - rateLimit.remaining + 1);
 
-    return scimErrorResponse(c, 401, 'No authorization header provided');
+    // Security: Generic message to prevent authentication enumeration
+    return scimErrorResponse(c, 401, 'Authentication failed');
   }
 
   const parts = authHeader.split(' ');
@@ -230,11 +231,8 @@ export async function scimAuthMiddleware(c: Context<{ Bindings: Env }>, next: Ne
     logAuthAttempt(clientIP, false, 'invalid_auth_format');
     await applyFailureDelay(SCIM_AUTH_RATE_LIMIT.maxFailedAttempts - rateLimit.remaining + 1);
 
-    return scimErrorResponse(
-      c,
-      401,
-      'Invalid authorization header format. Expected: Bearer <token>'
-    );
+    // Security: Generic message to prevent authentication enumeration
+    return scimErrorResponse(c, 401, 'Authentication failed');
   }
 
   const token = parts[1];
@@ -248,7 +246,8 @@ export async function scimAuthMiddleware(c: Context<{ Bindings: Env }>, next: Ne
       logAuthAttempt(clientIP, false, 'invalid_token');
       await applyFailureDelay(SCIM_AUTH_RATE_LIMIT.maxFailedAttempts - rateLimit.remaining + 1);
 
-      return scimErrorResponse(c, 401, 'Invalid or expired SCIM token');
+      // Security: Generic message to prevent token enumeration
+      return scimErrorResponse(c, 401, 'Authentication failed');
     }
 
     // Token is valid

@@ -12,6 +12,10 @@ import {
   getSessionStoreForNewSession,
   D1Adapter,
   type DatabaseAdapter,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import {
   parseXml,
@@ -38,7 +42,12 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
     const relayState = formData.get('RelayState') as string | null;
 
     if (!samlResponse) {
-      return c.json({ error: 'Missing SAMLResponse' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Missing SAMLResponse'
+      );
     }
 
     // Decode SAML Response
@@ -50,7 +59,12 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
     // Get IdP configuration
     const idpConfig = await getIdPConfigByEntityId(env, issuer);
     if (!idpConfig) {
-      return c.json({ error: 'Unknown Identity Provider', issuer }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Unknown Identity Provider'
+      );
     }
 
     // Verify signature if present
@@ -84,7 +98,7 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
         }
       } catch (error) {
         console.error('Signature verification failed:', error);
-        return c.json({ error: 'Invalid signature' }, 400);
+        return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Invalid signature');
       }
     } else if (idpConfig.certificate) {
       // IdP is expected to sign, but no signature found
@@ -99,7 +113,12 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
         const strictMode = await getStrictInResponseToSetting(env);
         if (strictMode) {
           console.error('InResponseTo validation failed (strict mode):', inResponseTo);
-          return c.json({ error: 'InResponseTo does not match any stored AuthnRequest' }, 400);
+          return createRFCErrorResponse(
+            c,
+            RFC_ERROR_CODES.INVALID_REQUEST,
+            400,
+            'InResponseTo does not match any stored AuthnRequest'
+          );
         }
         console.warn('InResponseTo validation failed:', inResponseTo);
         // Continue anyway for IdP-initiated SSO compatibility (non-strict mode)
@@ -114,7 +133,12 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
         assertion.conditions.notOnOrAfter
       );
       if (!isFirstUse) {
-        return c.json({ error: 'Assertion has already been used (OneTimeUse violation)' }, 400);
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'Assertion has already been used (OneTimeUse violation)'
+        );
       }
     }
 
@@ -140,13 +164,7 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
     });
   } catch (error) {
     console.error('ACS Error:', error);
-    return c.json(
-      {
-        error: 'acs_error',
-        message: error instanceof Error ? error.message : 'ACS processing failed',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -173,7 +191,8 @@ function parseAndValidateResponse(xml: string, env: Env): ParsedResponse {
   if (destination) {
     const expectedDestination = `${env.ISSUER_URL}/saml/sp/acs`;
     if (destination !== expectedDestination) {
-      throw new Error(`Invalid Destination: expected ${expectedDestination}, got ${destination}`);
+      // SECURITY: Do not expose endpoint URLs in error message
+      throw new Error('Invalid Destination in SAML Response');
     }
   }
 
@@ -285,7 +304,8 @@ function parseAssertion(assertionElement: Element, env: Env, inResponseTo?: stri
     // Validate audience
     const expectedAudience = `${env.ISSUER_URL}/saml/sp`;
     if (audiences.length > 0 && !audiences.includes(expectedAudience)) {
-      throw new Error(`Invalid Audience: expected ${expectedAudience}`);
+      // SECURITY: Do not expose endpoint URLs in error message
+      throw new Error('Invalid Audience in SAML Assertion');
     }
 
     // Check OneTimeUse condition (SAML 2.0 Core 2.5.1.5)

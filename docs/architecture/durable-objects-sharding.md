@@ -42,17 +42,19 @@ Authrim uses Cloudflare Durable Objects for stateful operations requiring strong
 
 These DOs MUST remain single-instance. Sharding is architecturally impossible.
 
-| DO | Reason | Consequence if Sharded |
-|----|--------|------------------------|
-| **KeyManager** | Single source of truth for JWK key pairs. Key rotation requires atomic operations. | Signature verification fails randomly |
-| **VersionManager** | Monotonically increasing version counter. Must guarantee uniqueness. | Version gaps, deployment tracking breaks |
+| DO                 | Reason                                                                             | Consequence if Sharded                   |
+| ------------------ | ---------------------------------------------------------------------------------- | ---------------------------------------- |
+| **KeyManager**     | Single source of truth for JWK key pairs. Key rotation requires atomic operations. | Signature verification fails randomly    |
+| **VersionManager** | Monotonically increasing version counter. Must guarantee uniqueness.               | Version gaps, deployment tracking breaks |
 
 **Why KeyManager is Singleton:**
+
 - JWK key pairs must be consistent across all Workers
 - Key rotation (create new → deprecate old → delete) is a multi-step atomic operation
 - Multiple instances would create "key split-brain" where tokens signed by one instance fail verification on another
 
 **Why VersionManager is Singleton:**
+
 - Worker deployment versioning requires strictly monotonic IDs
 - Distributed counters introduce gaps or duplicates
 - Single counter ensures: `v_n < v_{n+1}` always
@@ -61,64 +63,67 @@ These DOs MUST remain single-instance. Sharding is architecturally impossible.
 
 #### B-1. Core Authentication (7 DOs)
 
-| DO | Shard Key | Prefix | Colocation |
-|----|-----------|--------|------------|
-| SessionStore | uuid (random) | `ses` | Independent |
-| **AuthCodeStore** | `userId:clientId` | `acd` | ✅ user-client group |
-| **RefreshTokenRotator** | `userId:clientId` | `rft` | ✅ user-client group |
-| ChallengeStore | userId/challengeId | `cha` | Independent |
-| TokenRevocationStore | uuid (random) | `rev` | Independent |
-| CredentialOfferStore | `tenantId:userId` | `cof` | Independent |
-| VPRequestStore | `tenantId:clientId` | `vpr` | Independent |
+| DO                      | Shard Key           | Prefix | Colocation           |
+| ----------------------- | ------------------- | ------ | -------------------- |
+| SessionStore            | uuid (random)       | `ses`  | Independent          |
+| **AuthCodeStore**       | `userId:clientId`   | `acd`  | ✅ user-client group |
+| **RefreshTokenRotator** | `userId:clientId`   | `rft`  | ✅ user-client group |
+| ChallengeStore          | userId/challengeId  | `cha`  | Independent          |
+| TokenRevocationStore    | uuid (random)       | `rev`  | Independent          |
+| CredentialOfferStore    | `tenantId:userId`   | `cof`  | Independent          |
+| VPRequestStore          | `tenantId:clientId` | `vpr`  | Independent          |
 
 #### B-2. Client-Based Sharding (2 DOs - Implemented)
 
-| DO | Shard Key | Prefix | Notes |
-|----|-----------|--------|-------|
-| **DPoPJTIStore** | `client_id` | `dpp` | High RPS, JTI replay prevention |
-| **PARRequestStore** | `client_id` | `par` | Pushed Authorization Requests |
+| DO                  | Shard Key   | Prefix | Notes                           |
+| ------------------- | ----------- | ------ | ------------------------------- |
+| **DPoPJTIStore**    | `client_id` | `dpp`  | High RPS, JTI replay prevention |
+| **PARRequestStore** | `client_id` | `par`  | Pushed Authorization Requests   |
 
 #### B-3. Global DO (2 DOs - Pending Sharding)
 
-| DO | Current | Prefix | Notes |
-|----|---------|--------|-------|
-| **DeviceCodeStore** | Global | `dev` | Device Authorization Flow |
-| **CIBARequestStore** | Global | `cba` | Client-Initiated Backchannel Auth |
+| DO                   | Current | Prefix | Notes                             |
+| -------------------- | ------- | ------ | --------------------------------- |
+| **DeviceCodeStore**  | Global  | `dev`  | Device Authorization Flow         |
+| **CIBARequestStore** | Global  | `cba`  | Client-Initiated Backchannel Auth |
 
 > **Note**: DeviceCodeStore and CIBARequestStore currently use global DO instances.
 > Sharding is blocked by user_code reverse lookup requirements:
+>
 > - User enters `user_code` (e.g., "ABCD-EFGH") to authorize device
 > - System must find corresponding `device_code` without knowing which shard
 > - **Future solution**: KV-based `user_code → device_code` index, then shard by `device_code`
 
 ### C. Special Sharding (3 DOs)
 
-| DO | Shard Format | Notes |
-|----|--------------|-------|
-| SAMLRequestStore | `issuer:{entityId}` | Per-IdP isolation |
-| RateLimiterCounter | Purpose-based (`email-code`, `scim-auth:{ip}`) | Per-purpose isolation |
-| PermissionChangeHub | `{tenantId}` | Per-tenant real-time notifications |
+| DO                  | Shard Format                                   | Notes                              |
+| ------------------- | ---------------------------------------------- | ---------------------------------- |
+| SAMLRequestStore    | `issuer:{entityId}`                            | Per-IdP isolation                  |
+| RateLimiterCounter  | Purpose-based (`email-code`, `scim-auth:{ip}`) | Per-purpose isolation              |
+| PermissionChangeHub | `{tenantId}`                                   | Per-tenant real-time notifications |
 
 ---
 
 ## ID Format Specification
 
 ### Resource ID Format
+
 ```
 g{generation}:{region}:{shard}:{type}_{uuid}
 ```
 
-| Component | Description | Example |
-|-----------|-------------|---------|
-| `generation` | Configuration version (1-999) | `g1`, `g2` |
-| `region` | Cloudflare region key | `apac`, `enam`, `weur` |
-| `shard` | Shard index (0 to N-1) | `0`, `31`, `63` |
-| `type` | 3-character DO type prefix | `ses`, `acd`, `rft` |
-| `uuid` | Unique identifier | `abc123-def456` |
+| Component    | Description                   | Example                |
+| ------------ | ----------------------------- | ---------------------- |
+| `generation` | Configuration version (1-999) | `g1`, `g2`             |
+| `region`     | Cloudflare region key         | `apac`, `enam`, `weur` |
+| `shard`      | Shard index (0 to N-1)        | `0`, `31`, `63`        |
+| `type`       | 3-character DO type prefix    | `ses`, `acd`, `rft`    |
+| `uuid`       | Unique identifier             | `abc123-def456`        |
 
 **Example**: `g1:apac:3:ses_abc123-def456`
 
 ### Instance Name Format
+
 ```
 {tenantId}:{region}:{typeAbbrev}:{shard}
 ```
@@ -127,19 +132,19 @@ g{generation}:{region}:{shard}:{type}_{uuid}
 
 ### Type Prefix Reference (3-character)
 
-| DO | ID Prefix | Instance Abbrev |
-|----|-----------|-----------------|
-| SessionStore | `ses` | `ses` |
-| AuthCodeStore | `acd` | `acd` |
-| RefreshTokenRotator | `rft` | `rft` |
-| ChallengeStore | `cha` | `cha` |
-| TokenRevocationStore | `rev` | `rev` |
-| CredentialOfferStore | `cof` | `cof` |
-| VPRequestStore | `vpr` | `vpr` |
-| DPoPJTIStore | `dpp` | `dpp` |
-| PARRequestStore | `par` | `par` |
-| DeviceCodeStore | `dev` | `dev` |
-| CIBARequestStore | `cba` | `cba` |
+| DO                   | ID Prefix | Instance Abbrev |
+| -------------------- | --------- | --------------- |
+| SessionStore         | `ses`     | `ses`           |
+| AuthCodeStore        | `acd`     | `acd`           |
+| RefreshTokenRotator  | `rft`     | `rft`           |
+| ChallengeStore       | `cha`     | `cha`           |
+| TokenRevocationStore | `rev`     | `rev`           |
+| CredentialOfferStore | `cof`     | `cof`           |
+| VPRequestStore       | `vpr`     | `vpr`           |
+| DPoPJTIStore         | `dpp`     | `dpp`           |
+| PARRequestStore      | `par`     | `par`           |
+| DeviceCodeStore      | `dev`     | `dev`           |
+| CIBARequestStore     | `cba`     | `cba`           |
 
 ---
 
@@ -147,17 +152,18 @@ g{generation}:{region}:{shard}:{type}_{uuid}
 
 ### Shard Key Design
 
-| Pattern | Key | Use Case | Colocation |
-|---------|-----|----------|------------|
-| **Random** | uuid | Session, Revocation | None (even distribution) |
-| **User-Client** | `userId:clientId` | AuthCode, RefreshToken | REQUIRED |
-| **Client** | `client_id` | PAR, DeviceCode, CIBA, DPoP | Future extensible |
-| **Tenant-User** | `tenantId:userId` | CredentialOffer | None |
-| **Tenant-Client** | `tenantId:clientId` | VPRequest | None |
+| Pattern           | Key                 | Use Case                    | Colocation               |
+| ----------------- | ------------------- | --------------------------- | ------------------------ |
+| **Random**        | uuid                | Session, Revocation         | None (even distribution) |
+| **User-Client**   | `userId:clientId`   | AuthCode, RefreshToken      | REQUIRED                 |
+| **Client**        | `client_id`         | PAR, DeviceCode, CIBA, DPoP | Future extensible        |
+| **Tenant-User**   | `tenantId:userId`   | CredentialOffer             | None                     |
+| **Tenant-Client** | `tenantId:clientId` | VPRequest                   | None                     |
 
 ### Hash Algorithm
 
 FNV-1a (32-bit) provides:
+
 - Fast computation
 - Good distribution for short strings
 - Deterministic results
@@ -177,11 +183,11 @@ function fnv1a(str: string): number {
 
 Default percentages (configurable per tenant):
 
-| Region | Percentage | Coverage |
-|--------|------------|----------|
-| `apac` | 20% | Asia-Pacific |
-| `enam` | 40% | North America East |
-| `weur` | 40% | Western Europe |
+| Region | Percentage | Coverage           |
+| ------ | ---------- | ------------------ |
+| `apac` | 20%        | Asia-Pacific       |
+| `enam` | 40%        | North America East |
+| `weur` | 40%        | Western Europe     |
 
 ---
 
@@ -202,11 +208,13 @@ Default percentages (configurable per tenant):
 ```
 
 **Why colocation matters:**
+
 - Authorization code is issued → stored in AuthCodeStore shard N
 - Token request exchanges code → RefreshToken stored in RefreshTokenRotator shard N
 - Same shard enables atomic token family management
 
 **If shard counts differ:**
+
 - `hash("user1:client1") % 64 = 15`
 - `hash("user1:client1") % 32 = 15` (coincidence, works)
 - `hash("user2:client2") % 64 = 47`
@@ -236,6 +244,7 @@ Default percentages (configurable per tenant):
 ## Configuration
 
 ### KV Key
+
 ```
 region_shard_config:{tenantId}
 ```
@@ -290,21 +299,23 @@ region_shard_config:{tenantId}
 
 ### Admin API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/admin/sharding/config` | GET | Retrieve current configuration |
-| `/admin/sharding/config` | PUT | Update configuration |
-| `/admin/sharding/migrate` | POST | Trigger generation migration |
+| Endpoint                  | Method | Description                    |
+| ------------------------- | ------ | ------------------------------ |
+| `/admin/sharding/config`  | GET    | Retrieve current configuration |
+| `/admin/sharding/config`  | PUT    | Update configuration           |
+| `/admin/sharding/migrate` | POST   | Trigger generation migration   |
 
 ---
 
 ## Generation Migration
 
 ### Write Path
+
 - Always writes to **current generation only**
 - New resources get new generation ID prefix
 
 ### Read Path
+
 - Attempts current generation first
 - Falls back to `previousGenerations` if not found
 - Ordered by recency
@@ -323,12 +334,12 @@ Day 14: Remove previousGeneration entry
 
 ### TTL Considerations
 
-| DO Type | TTL | Notes |
-|---------|-----|-------|
-| Session | 1 hour | Short-lived, natural expiry |
-| AuthCode | 10 minutes | Very short-lived |
-| RefreshToken | 30 days | Longest TTL, consider migration timing |
-| DPoP JTI | `token_lifetime + 5min` | Hard cap: 1 hour |
+| DO Type      | TTL                     | Notes                                  |
+| ------------ | ----------------------- | -------------------------------------- |
+| Session      | 1 hour                  | Short-lived, natural expiry            |
+| AuthCode     | 10 minutes              | Very short-lived                       |
+| RefreshToken | 30 days                 | Longest TTL, consider migration timing |
+| DPoP JTI     | `token_lifetime + 5min` | Hard cap: 1 hour                       |
 
 ---
 
@@ -337,6 +348,7 @@ Day 14: Remove previousGeneration entry
 ### Config Missing (KV unavailable)
 
 **Behavior**: Fall back to hardcoded defaults
+
 - `DEFAULT_TOTAL_SHARDS = 20`
 - `DEFAULT_REGION_DISTRIBUTION = { apac: 20, enam: 40, weur: 40 }`
 
@@ -350,9 +362,7 @@ Runtime validation for `user-client` group:
 function validateColocatedGroupShardCount(config: RegionShardConfig): void {
   const userClientGroup = config.groups?.['user-client'];
   if (userClientGroup) {
-    const shardCounts = userClientGroup.members.map(
-      m => getShardCountForType(config, m)
-    );
+    const shardCounts = userClientGroup.members.map((m) => getShardCountForType(config, m));
     if (new Set(shardCounts).size > 1) {
       // CRITICAL: This breaks authentication
       console.error('CRITICAL: user-client group shard count mismatch!');
@@ -367,6 +377,7 @@ function validateColocatedGroupShardCount(config: RegionShardConfig): void {
 ```
 
 **Policy**:
+
 - **Production**: Fail-Closed (500 error + clear message)
 - **Development**: Warn + continue (for debugging)
 
@@ -376,12 +387,12 @@ function validateColocatedGroupShardCount(config: RegionShardConfig): void {
 
 ### Recommended Metrics
 
-| Metric | Labels | Description |
-|--------|--------|-------------|
-| `do_shard_config_invalid` | `tenantId`, `group` | Config validation failures |
-| `do_request_duration` | `do_type`, `region`, `shard` | Latency per shard |
-| `do_shard_distribution` | `do_type` | Request distribution (check for hotspots) |
-| `do_generation_fallback` | `do_type`, `from_gen`, `to_gen` | Previous generation reads |
+| Metric                    | Labels                          | Description                               |
+| ------------------------- | ------------------------------- | ----------------------------------------- |
+| `do_shard_config_invalid` | `tenantId`, `group`             | Config validation failures                |
+| `do_request_duration`     | `do_type`, `region`, `shard`    | Latency per shard                         |
+| `do_shard_distribution`   | `do_type`                       | Request distribution (check for hotspots) |
+| `do_generation_fallback`  | `do_type`, `from_gen`, `to_gen` | Previous generation reads                 |
 
 ### Alerting Rules
 
@@ -389,12 +400,12 @@ function validateColocatedGroupShardCount(config: RegionShardConfig): void {
 - alert: ShardConfigInvalid
   expr: increase(do_shard_config_invalid[5m]) > 0
   severity: critical
-  description: "Shard configuration mismatch detected"
+  description: 'Shard configuration mismatch detected'
 
 - alert: ShardHotspot
   expr: do_shard_distribution{quantile="0.99"} / do_shard_distribution{quantile="0.50"} > 10
   severity: warning
-  description: "Shard distribution imbalance detected"
+  description: 'Shard distribution imbalance detected'
 ```
 
 ---
@@ -407,12 +418,11 @@ For high-volume RPs (single client_id with extreme RPS):
 
 ```typescript
 // Future extension
-const shardKey = salt
-  ? `${clientId}:${salt}`
-  : clientId;
+const shardKey = salt ? `${clientId}:${salt}` : clientId;
 ```
 
 **Requirements**:
+
 1. Salt change = new generation
 2. Shard mapping changes = potential request loss during transition
 3. Document salt in client metadata
@@ -425,7 +435,7 @@ const shardKey = salt
     "client-based": {
       "totalShards": 32,
       "overrides": {
-        "dpop": 64  // Higher for this specific DO
+        "dpop": 64 // Higher for this specific DO
       }
     }
   }
@@ -436,19 +446,20 @@ const shardKey = salt
 
 **Current State** (as of Phase 9):
 
-| DO | Current Prefix | Target Prefix | Status |
-|----|----------------|---------------|--------|
-| SessionStore | `session_` | `ses_` | Pending |
-| AuthCodeStore | `ac_` | `acd_` | Pending |
-| RefreshTokenRotator | `rt_` | `rft_` | Pending |
-| ChallengeStore | `ch_` | `cha_` | Pending |
-| TokenRevocationStore | `at_` | `rev_` | Pending |
-| CredentialOfferStore | `co_` | `cof_` | Pending |
-| VPRequestStore | `vp_` | `vpr_` | Pending |
-| DPoPJTIStore | `dpp_` | `dpp_` | ✅ Done |
-| PARRequestStore | `par_` | `par_` | ✅ Done |
+| DO                   | Current Prefix | Target Prefix | Status  |
+| -------------------- | -------------- | ------------- | ------- |
+| SessionStore         | `session_`     | `ses_`        | Pending |
+| AuthCodeStore        | `ac_`          | `acd_`        | Pending |
+| RefreshTokenRotator  | `rt_`          | `rft_`        | Pending |
+| ChallengeStore       | `ch_`          | `cha_`        | Pending |
+| TokenRevocationStore | `at_`          | `rev_`        | Pending |
+| CredentialOfferStore | `co_`          | `cof_`        | Pending |
+| VPRequestStore       | `vp_`          | `vpr_`        | Pending |
+| DPoPJTIStore         | `dpp_`         | `dpp_`        | ✅ Done |
+| PARRequestStore      | `par_`         | `par_`        | ✅ Done |
 
 **Migration Strategy**:
+
 1. Bump generation via Admin API (`POST /admin/sharding/migrate`)
 2. New resources use 3-char prefix (current generation)
 3. Read path supports both current + previous generation prefixes

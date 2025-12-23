@@ -407,15 +407,12 @@ describe('Passkey Handlers', () => {
         headers: { origin: 'https://example.com' },
       });
 
-      await passkeyRegisterOptionsHandler(c);
+      const response = await passkeyRegisterOptionsHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-          error_description: 'Email is required',
-        }),
-        400
-      );
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('Email is required');
     });
 
     it('should reject unauthorized origins', async () => {
@@ -424,14 +421,11 @@ describe('Passkey Handlers', () => {
         headers: { origin: 'https://malicious.com' },
       });
 
-      await passkeyRegisterOptionsHandler(c);
+      const response = await passkeyRegisterOptionsHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'unauthorized_origin',
-        }),
-        403
-      );
+      expect(response.status).toBe(403);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('access_denied');
     });
 
     it('should reject requests without origin header', async () => {
@@ -440,14 +434,11 @@ describe('Passkey Handlers', () => {
         headers: {},
       });
 
-      await passkeyRegisterOptionsHandler(c);
+      const response = await passkeyRegisterOptionsHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'unauthorized_origin',
-        }),
-        403
-      );
+      expect(response.status).toBe(403);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('access_denied');
     });
 
     it('should generate registration options for new user', async () => {
@@ -593,14 +584,11 @@ describe('Passkey Handlers', () => {
         headers: { origin: 'https://malicious.com' },
       });
 
-      await passkeyLoginOptionsHandler(c);
+      const response = await passkeyLoginOptionsHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'unauthorized_origin',
-        }),
-        403
-      );
+      expect(response.status).toBe(403);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('access_denied');
     });
 
     it('should include user credentials when email provided', async () => {
@@ -681,14 +669,11 @@ describe('Passkey Handlers', () => {
         headers: { origin: 'https://example.com' },
       });
 
-      await passkeyRegisterVerifyHandler(c);
+      const response = await passkeyRegisterVerifyHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-        }),
-        400
-      );
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should require credential in request body', async () => {
@@ -699,14 +684,11 @@ describe('Passkey Handlers', () => {
         headers: { origin: 'https://example.com' },
       });
 
-      await passkeyRegisterVerifyHandler(c);
+      const response = await passkeyRegisterVerifyHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-        }),
-        400
-      );
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should verify registration and create session on success', async () => {
@@ -776,14 +758,11 @@ describe('Passkey Handlers', () => {
         headers: { origin: 'https://example.com' },
       });
 
-      await passkeyLoginVerifyHandler(c);
+      const response = await passkeyLoginVerifyHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-        }),
-        400
-      );
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should require credential in request body', async () => {
@@ -794,14 +773,11 @@ describe('Passkey Handlers', () => {
         headers: { origin: 'https://example.com' },
       });
 
-      await passkeyLoginVerifyHandler(c);
+      const response = await passkeyLoginVerifyHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-        }),
-        400
-      );
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should update counter on successful authentication', async () => {

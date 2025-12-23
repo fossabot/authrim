@@ -31,6 +31,8 @@ import {
   parseAllowedOrigins,
   versionCheckMiddleware,
   requestContextMiddleware,
+  createErrorResponse,
+  AR_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -187,13 +189,13 @@ app.delete('/api/admin/external-providers/:id', handleAdminDeleteProvider);
 
 // 404 handler
 app.notFound((c) => {
-  return c.json({ error: 'not_found', message: 'The requested resource was not found' }, 404);
+  return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
 });
 
 // Error handler
 app.onError((err, c) => {
   console.error('External IdP Worker Error:', err);
-  return c.json({ error: 'internal_server_error', message: 'An unexpected error occurred' }, 500);
+  return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
 });
 
 // =============================================================================

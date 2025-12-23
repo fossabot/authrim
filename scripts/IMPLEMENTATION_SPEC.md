@@ -226,9 +226,9 @@ Consolidate scripts that users execute into **two**:
           "items": {
             "type": "object",
             "properties": {
-              "binding": {"type": "string"},
-              "id": {"type": "string"},
-              "preview_id": {"type": "string"}
+              "binding": { "type": "string" },
+              "id": { "type": "string" },
+              "preview_id": { "type": "string" }
             }
           }
         },
@@ -238,9 +238,9 @@ Consolidate scripts that users execute into **two**:
           "items": {
             "type": "object",
             "properties": {
-              "name": {"type": "string"},
-              "class_name": {"type": "string"},
-              "script_name": {"type": "string"}
+              "name": { "type": "string" },
+              "class_name": { "type": "string" },
+              "script_name": { "type": "string" }
             }
           }
         },
@@ -250,9 +250,9 @@ Consolidate scripts that users execute into **two**:
           "items": {
             "type": "object",
             "properties": {
-              "binding": {"type": "string"},
-              "database_name": {"type": "string"},
-              "database_id": {"type": "string"}
+              "binding": { "type": "string" },
+              "database_name": { "type": "string" },
+              "database_id": { "type": "string" }
             }
           }
         }
@@ -268,12 +268,12 @@ Consolidate scripts that users execute into **two**:
         },
         "allowed_origins": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": { "type": "string" },
           "description": "Allowed origins list"
         },
         "allowed_patterns": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": { "type": "string" },
           "description": "Allowed origin patterns (regex)"
         }
       }
@@ -411,10 +411,7 @@ Consolidate scripts that users execute into **two**:
   },
   "cors": {
     "enabled": true,
-    "allowed_origins": [
-      "https://admin.example.com",
-      "http://localhost:5173"
-    ]
+    "allowed_origins": ["https://admin.example.com", "http://localhost:5173"]
   }
 }
 ```
@@ -462,9 +459,7 @@ Consolidate scripts that users execute into **two**:
       "https://admin.example.com",
       "http://localhost:5173"
     ],
-    "allowed_patterns": [
-      "^https://.*\\.example\\.com$"
-    ]
+    "allowed_patterns": ["^https://.*\\.example\\.com$"]
   }
 }
 ```
@@ -1483,10 +1478,7 @@ PUBLIC_OIDC_BASE_URL=https://id.example.com
 
 ```json
 {
-  "admin_origins": [
-    "https://admin.example.com",
-    "http://localhost:5173"
-  ]
+  "admin_origins": ["https://admin.example.com", "http://localhost:5173"]
 }
 ```
 
@@ -1522,10 +1514,7 @@ PUBLIC_OIDC_BASE_URL=https://api.example.com
     "https://admin.example.com",
     "http://localhost:5173"
   ],
-  "allowed_patterns": [
-    "^https://.*\\.example\\.com$",
-    "^https://.*\\.pages\\.dev$"
-  ]
+  "allowed_patterns": ["^https://.*\\.example\\.com$", "^https://.*\\.pages\\.dev$"]
 }
 ```
 

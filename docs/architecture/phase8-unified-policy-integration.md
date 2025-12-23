@@ -12,12 +12,12 @@ Phase 8 integrates authentication (AuthN) and authorization (AuthZ) into a unifi
 
 ### 1.1 Key Deliverables
 
-| Sub-Phase | Description | Status |
-|-----------|-------------|--------|
-| 8.1 Policy ↔ Identity Integration | Connect upstream IdP attributes to policy evaluation | ✅ |
-| 8.2 Token Embedding Model | Embed permissions/roles directly into tokens | ✅ |
-| 8.3 Real-time Check API | Dynamic authorization decisions via API | ✅ |
-| 8.4 Policy Admin Console | Visual policy editor | → Phase 10 |
+| Sub-Phase                          | Description                                          | Status     |
+| ---------------------------------- | ---------------------------------------------------- | ---------- |
+| 8.1 Policy ↔ Identity Integration | Connect upstream IdP attributes to policy evaluation | ✅         |
+| 8.2 Token Embedding Model          | Embed permissions/roles directly into tokens         | ✅         |
+| 8.3 Real-time Check API            | Dynamic authorization decisions via API              | ✅         |
+| 8.4 Policy Admin Console           | Visual policy editor                                 | → Phase 10 |
 
 ### 1.2 Design Philosophy
 
@@ -44,6 +44,7 @@ Phase 8 integrates authentication (AuthN) and authorization (AuthZ) into a unifi
 ```
 
 **Recommended Usage:**
+
 - **Token Embedding**: For common, frequently-checked permissions
 - **Check API**: For dynamic, context-dependent, or real-time decisions
 
@@ -164,6 +165,7 @@ interface RoleAssignmentRule {
 ```
 
 **Evaluation Flow:**
+
 1. User authenticates via upstream provider
 2. Rule Evaluator loads active rules (ordered by priority)
 3. Each rule's condition is evaluated against user context
@@ -183,11 +185,11 @@ interface JITProvisioningConfig {
   default_roles: string[];
   org_auto_join: {
     enabled: boolean;
-    match_by: 'email_domain_hash';  // PII-safe matching
+    match_by: 'email_domain_hash'; // PII-safe matching
   };
   attribute_sync: {
     enabled: boolean;
-    sync_fields: string[];  // ['name', 'picture']
+    sync_fields: string[]; // ['name', 'picture']
   };
 }
 ```
@@ -200,15 +202,11 @@ PII-compliant domain matching using HMAC-SHA256:
 
 ```typescript
 // Never store raw email domains - use blind index
-const hash = await generateEmailDomainHash(
-  'example.com',
-  secretKey,
-  'tenant_123'
-);
+const hash = await generateEmailDomainHash('example.com', secretKey, 'tenant_123');
 // Result: "ed7a8f..." (deterministic, one-way)
 
 // Admin API manages rotation of hash keys
-POST /api/admin/domain-hash-keys/rotate
+POST / api / admin / domain - hash - keys / rotate;
 ```
 
 ---
@@ -301,6 +299,7 @@ ID-level:    resource:id:action        → "documents:doc_123:read"
 ```
 
 **Constraints:**
+
 - Components must be URL-safe: `[a-zA-Z0-9_-]`
 - Colons (`:`) are reserved as delimiters
 - Empty components are invalid
@@ -311,14 +310,14 @@ ID-level:    resource:id:action        → "documents:doc_123:read"
 interface ParsedPermission {
   type: 'id_level' | 'type_level';
   resource: string;
-  id?: string;        // Only for id_level
+  id?: string; // Only for id_level
   action: string;
-  original: string;   // Original input string
+  original: string; // Original input string
 }
 
 // Both formats supported:
-parsePermission('documents:read');           // String
-parsePermission({ resource: 'documents', action: 'read' });  // Object
+parsePermission('documents:read'); // String
+parsePermission({ resource: 'documents', action: 'read' }); // Object
 ```
 
 #### 3.3.2 UnifiedCheckService
@@ -342,11 +341,11 @@ interface CheckApiRequest {
 
 interface CheckApiResponse {
   allowed: boolean;
-  resolved_via: ResolvedVia[];    // ['role', 'id_level', 'computed']
+  resolved_via: ResolvedVia[]; // ['role', 'id_level', 'computed']
   final_decision: 'allow' | 'deny';
   reason?: string;
   cache_ttl?: number;
-  debug?: DebugInfo;              // When debug mode enabled
+  debug?: DebugInfo; // When debug mode enabled
 }
 
 type ResolvedVia = 'direct' | 'role' | 'rebac' | 'id_level' | 'computed';
@@ -374,15 +373,16 @@ flowchart TD
 
 Dual authentication support:
 
-| Method | Header | Use Case |
-|--------|--------|----------|
-| API Key | `Authorization: Bearer chk_xxx` | Resource Servers (M2M) |
-| Access Token | `Authorization: Bearer eyJ...` | Dynamic clients |
-| DPoP | `DPoP: <proof>` + `Authorization: DPoP <token>` | High-security |
+| Method       | Header                                          | Use Case               |
+| ------------ | ----------------------------------------------- | ---------------------- |
+| API Key      | `Authorization: Bearer chk_xxx`                 | Resource Servers (M2M) |
+| Access Token | `Authorization: Bearer eyJ...`                  | Dynamic clients        |
+| DPoP         | `DPoP: <proof>` + `Authorization: DPoP <token>` | High-security          |
 
 **Priority:** DPoP > Access Token > API Key
 
 **API Key Format:**
+
 - Prefix: `chk_` (8 chars)
 - Full key: `chk_` + 32 random chars
 - Storage: SHA-256 hash only (key_hash)
@@ -407,16 +407,17 @@ CREATE TABLE check_api_keys (
 
 #### 3.3.4 Rate Limiting
 
-| Tier | Requests/min | Use Case |
-|------|--------------|----------|
-| strict | 100 | Development, testing |
-| moderate | 500 | Standard production |
-| lenient | 2000 | High-volume services |
+| Tier     | Requests/min | Use Case             |
+| -------- | ------------ | -------------------- |
+| strict   | 100          | Development, testing |
+| moderate | 500          | Standard production  |
+| lenient  | 2000         | High-volume services |
 
 **Batch Check Cost:**
+
 ```typescript
 // Each check in batch counts toward rate limit
-rate_limit_cost = checks.length
+rate_limit_cost = checks.length;
 ```
 
 #### 3.3.5 Caching Strategy
@@ -443,6 +444,7 @@ rate_limit_cost = checks.length
 ```
 
 **Cache Invalidation:**
+
 - Permission grant/revoke → Invalidate subject's cache
 - Role assignment change → Invalidate affected users
 - WebSocket notification → Clients invalidate local cache
@@ -541,9 +543,11 @@ interface PermissionChangeNotifier {
 **Current Design:** 1 Durable Object per tenant
 
 **Cloudflare Limits:**
+
 - Max WebSocket connections per DO: 32,768
 
 **Future Scaling (if needed):**
+
 ```typescript
 // Shard by subject_id hash
 const shardId = `${tenantId}:${hash(subjectId) % SHARD_COUNT}`;
@@ -556,33 +560,33 @@ const doId = env.PERMISSION_CHANGE_HUB.idFromName(shardId);
 
 ### 4.1 Check API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/check` | Single permission check |
-| POST | `/api/check/batch` | Batch permission check |
-| GET | `/api/check/health` | Health check |
+| Method | Path                | Description             |
+| ------ | ------------------- | ----------------------- |
+| POST   | `/api/check`        | Single permission check |
+| POST   | `/api/check/batch`  | Batch permission check  |
+| GET    | `/api/check/health` | Health check            |
 
 ### 4.2 Admin API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/admin/check-api-keys` | Create API key |
-| GET | `/api/admin/check-api-keys` | List API keys |
-| GET | `/api/admin/check-api-keys/:id` | Get API key |
-| DELETE | `/api/admin/check-api-keys/:id` | Revoke API key |
-| POST | `/api/admin/check-api-keys/:id/rotate` | Rotate API key |
-| POST | `/api/admin/resource-permissions` | Grant permission |
-| GET | `/api/admin/resource-permissions` | List permissions |
-| DELETE | `/api/admin/resource-permissions/:id` | Revoke permission |
-| POST | `/api/admin/token-claim-rules` | Create claim rule |
-| GET | `/api/admin/token-claim-rules` | List claim rules |
-| PUT | `/api/admin/token-claim-rules/:id` | Update claim rule |
-| DELETE | `/api/admin/token-claim-rules/:id` | Delete claim rule |
+| Method | Path                                   | Description       |
+| ------ | -------------------------------------- | ----------------- |
+| POST   | `/api/admin/check-api-keys`            | Create API key    |
+| GET    | `/api/admin/check-api-keys`            | List API keys     |
+| GET    | `/api/admin/check-api-keys/:id`        | Get API key       |
+| DELETE | `/api/admin/check-api-keys/:id`        | Revoke API key    |
+| POST   | `/api/admin/check-api-keys/:id/rotate` | Rotate API key    |
+| POST   | `/api/admin/resource-permissions`      | Grant permission  |
+| GET    | `/api/admin/resource-permissions`      | List permissions  |
+| DELETE | `/api/admin/resource-permissions/:id`  | Revoke permission |
+| POST   | `/api/admin/token-claim-rules`         | Create claim rule |
+| GET    | `/api/admin/token-claim-rules`         | List claim rules  |
+| PUT    | `/api/admin/token-claim-rules/:id`     | Update claim rule |
+| DELETE | `/api/admin/token-claim-rules/:id`     | Delete claim rule |
 
 ### 4.3 WebSocket Endpoint
 
-| Path | Description |
-|------|-------------|
+| Path                   | Description                                |
+| ---------------------- | ------------------------------------------ |
 | `/api/check/subscribe` | WebSocket connection for real-time updates |
 
 ---
@@ -591,11 +595,11 @@ const doId = env.PERMISSION_CHANGE_HUB.idFromName(shardId);
 
 ### 5.1 Migration Files
 
-| File | Tables |
-|------|--------|
-| `009_policy_identity_integration.sql` | role_assignment_rules, org_domain_mappings |
-| `010_token_embedding_model.sql` | token_claim_rules, resource_permissions |
-| `011_check_api.sql` | check_api_keys, permission_check_audit, websocket_subscriptions |
+| File                                  | Tables                                                          |
+| ------------------------------------- | --------------------------------------------------------------- |
+| `009_policy_identity_integration.sql` | role_assignment_rules, org_domain_mappings                      |
+| `010_token_embedding_model.sql`       | token_claim_rules, resource_permissions                         |
+| `011_check_api.sql`                   | check_api_keys, permission_check_audit, websocket_subscriptions |
 
 ### 5.2 Key Tables
 
@@ -626,14 +630,15 @@ const doId = env.PERMISSION_CHANGE_HUB.idFromName(shardId);
 
 ## 6. Feature Flags
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `ENABLE_CHECK_API` | false | Enable Check API endpoints |
-| `CHECK_API_WEBSOCKET_ENABLED` | false | Enable WebSocket subscriptions |
-| `CHECK_API_DEBUG_MODE` | false | Include debug info in responses |
-| `CHECK_API_AUDIT_ENABLED` | true | Enable audit logging |
+| Flag                          | Default | Description                     |
+| ----------------------------- | ------- | ------------------------------- |
+| `ENABLE_CHECK_API`            | false   | Enable Check API endpoints      |
+| `CHECK_API_WEBSOCKET_ENABLED` | false   | Enable WebSocket subscriptions  |
+| `CHECK_API_DEBUG_MODE`        | false   | Include debug info in responses |
+| `CHECK_API_AUDIT_ENABLED`     | true    | Enable audit logging            |
 
 **Configuration via KV:**
+
 ```
 config:check_api:enabled → "true"
 config:check_api:websocket_enabled → "true"
@@ -668,13 +673,13 @@ config:check_api:audit_sample_rate → "0.1"  // 10% sampling for allow
 
 ## 8. Performance Characteristics
 
-| Operation | Target | Actual |
-|-----------|--------|--------|
-| Single check (cache hit) | <5ms | ~2ms |
-| Single check (cache miss) | <20ms | ~10ms |
-| Batch check (10 items) | <50ms | ~30ms |
-| WebSocket connection | N/A | <100ms |
-| Permission change notification | <100ms | ~50ms |
+| Operation                      | Target | Actual |
+| ------------------------------ | ------ | ------ |
+| Single check (cache hit)       | <5ms   | ~2ms   |
+| Single check (cache miss)      | <20ms  | ~10ms  |
+| Batch check (10 items)         | <50ms  | ~30ms  |
+| WebSocket connection           | N/A    | <100ms |
+| Permission change notification | <100ms | ~50ms  |
 
 ---
 

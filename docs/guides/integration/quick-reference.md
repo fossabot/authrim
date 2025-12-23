@@ -8,22 +8,23 @@
 
 ## Quick Facts
 
-| Item | Details |
-|------|---------|
-| **Current Status** | 100% OP, 0% RP |
-| **OP Implementation** | Phase 5 Complete (400+ tests passing) |
-| **RP Effort** | 254 hours (6 weeks full-time) |
+| Item                       | Details                                                      |
+| -------------------------- | ------------------------------------------------------------ |
+| **Current Status**         | 100% OP, 0% RP                                               |
+| **OP Implementation**      | Phase 5 Complete (400+ tests passing)                        |
+| **RP Effort**              | 254 hours (6 weeks full-time)                                |
 | **RP Profiles to Support** | 7 (Basic, Implicit, Hybrid, Form Post, Config, Logout, FAPI) |
-| **Code Reuse** | 80% (JWT validation, DPoP, PAR, session management) |
-| **New Package** | `@authrim/rp-client` |
-| **Test Coverage** | 150-200 tests (currently 0) |
-| **Recommended** | ✅ YES - Strong foundation + market gap |
+| **Code Reuse**             | 80% (JWT validation, DPoP, PAR, session management)          |
+| **New Package**            | `@authrim/rp-client`                                         |
+| **Test Coverage**          | 150-200 tests (currently 0)                                  |
+| **Recommended**            | ✅ YES - Strong foundation + market gap                      |
 
 ---
 
 ## Current OP Implementation (What Exists)
 
 ### Core Features (Phases 1-5 Complete)
+
 - ✅ Authorization Code Flow
 - ✅ OpenID Connect Core 1.0 + Discovery 1.0
 - ✅ PKCE (RFC 7636)
@@ -39,6 +40,7 @@
 - ✅ Front/Back-Channel Logout (RFC 8725)
 
 ### Tech Stack
+
 - **Runtime:** Cloudflare Workers + Hono
 - **Database:** D1 (SQLite) with 12 tables
 - **State Management:** 9 Durable Objects
@@ -47,18 +49,19 @@
 
 ### Architecture
 
-| Metric | Value |
-|--------|-------|
-| **Packages** | 8 (op-discovery, op-auth, op-token, op-userinfo, op-management, router, shared, ui) |
-| **TypeScript** | 9,000+ lines |
-| **Tests** | 400+ (Vitest + Playwright) |
-| **Conformance** | 95.8% OpenID score (Phase 3) |
+| Metric          | Value                                                                               |
+| --------------- | ----------------------------------------------------------------------------------- |
+| **Packages**    | 8 (op-discovery, op-auth, op-token, op-userinfo, op-management, router, shared, ui) |
+| **TypeScript**  | 9,000+ lines                                                                        |
+| **Tests**       | 400+ (Vitest + Playwright)                                                          |
+| **Conformance** | 95.8% OpenID score (Phase 3)                                                        |
 
 ---
 
 ## What's Missing (RP Implementation Needed)
 
 ### RP Profiles (All 7 Missing)
+
 - ❌ RP Basic (Standard Authorization Code Flow as client)
 - ❌ RP Implicit (Browser-based, deprecated)
 - ❌ RP Hybrid (Mixed response types)
@@ -68,6 +71,7 @@
 - ❌ RP FAPI (Financial-grade API security)
 
 ### Key Components Needed
+
 - ❌ OAuth 2.0 client library
 - ❌ OIDC Discovery consumer
 - ❌ JWT token validation for RP
@@ -81,6 +85,7 @@
 ## Implementation Timeline
 
 ### Phase 6a: Foundation (Weeks 1-2)
+
 - Create `@authrim/rp-client` package
 - Implement Authorization Code Flow (client-side)
 - Implement JWT validation
@@ -90,6 +95,7 @@
 **Effort:** 40-60 hours
 
 ### Phase 6b: Advanced Features (Weeks 3-4)
+
 - Add Implicit & Hybrid Flow support
 - Add logout handlers
 - Add FAPI security (partial)
@@ -98,6 +104,7 @@
 **Effort:** 40-60 hours
 
 ### Phase 6c: Polish & Launch (Weeks 5-6)
+
 - Conformance test integration
 - E2E tests (20 tests)
 - Documentation
@@ -111,15 +118,15 @@
 
 ## Effort Estimation by RP Profile
 
-| Profile | Complexity | Effort | Dependencies |
-|---------|-----------|--------|--------------|
-| RP Basic | 🟢 Low | 40-60h | Auth Code, JWT validation |
-| RP Implicit | 🟡 Med | 30-50h | Discovery, JWT validation |
-| RP Hybrid | 🟡 Med | 50-80h | Basic + Implicit |
-| RP Form Post | 🟢 Low | 20-30h | Basic + form handling |
-| RP Config | 🟢 Low | 15-25h | Discovery endpoint |
-| RP Logout | 🟡 Med | 40-60h | Session + logout endpoints |
-| RP FAPI | 🔴 High | 80-120h | All above + mTLS + PAR |
+| Profile      | Complexity | Effort  | Dependencies               |
+| ------------ | ---------- | ------- | -------------------------- |
+| RP Basic     | 🟢 Low     | 40-60h  | Auth Code, JWT validation  |
+| RP Implicit  | 🟡 Med     | 30-50h  | Discovery, JWT validation  |
+| RP Hybrid    | 🟡 Med     | 50-80h  | Basic + Implicit           |
+| RP Form Post | 🟢 Low     | 20-30h  | Basic + form handling      |
+| RP Config    | 🟢 Low     | 15-25h  | Discovery endpoint         |
+| RP Logout    | 🟡 Med     | 40-60h  | Session + logout endpoints |
+| RP FAPI      | 🔴 High    | 80-120h | All above + mTLS + PAR     |
 
 **Total: 275-425 hours**
 
@@ -166,6 +173,7 @@ graph TB
 ### ✅ GO FOR RP SUPPORT
 
 **Reasons:**
+
 1. Excellent OP foundation (Phase 5 complete)
 2. 80% code reuse from existing OP
 3. Modular architecture supports new package
@@ -175,6 +183,7 @@ graph TB
 7. Consistent technology stack
 
 **Success Metrics:**
+
 - ✅ 150+ RP tests passing
 - ✅ All 7 RP profiles supported
 - ✅ OpenID Certified™ RP mark
@@ -185,19 +194,20 @@ graph TB
 
 ## Key Implementation Challenges
 
-| Challenge | Severity | Solution |
-|-----------|----------|----------|
-| Token validation at edge | 🟡 Medium | JOSE library + KV caching |
-| Session persistence | 🟡 Medium | Durable Objects + D1 (proven) |
-| State validation | 🟢 Low | Reuse existing utilities |
-| mTLS support | 🔴 High | Document best practices |
-| Multi-provider support | 🟡 Medium | Allow multiple registrations |
+| Challenge                | Severity  | Solution                      |
+| ------------------------ | --------- | ----------------------------- |
+| Token validation at edge | 🟡 Medium | JOSE library + KV caching     |
+| Session persistence      | 🟡 Medium | Durable Objects + D1 (proven) |
+| State validation         | 🟢 Low    | Reuse existing utilities      |
+| mTLS support             | 🔴 High   | Document best practices       |
+| Multi-provider support   | 🟡 Medium | Allow multiple registrations  |
 
 ---
 
 ## Integration Points
 
 **Directly Reusable:**
+
 ```typescript
 import { verifyJWT, parseToken } from '@authrim/shared';
 import { validateState, validateNonce } from '@authrim/shared';
@@ -206,6 +216,7 @@ import { createErrorResponse } from '@authrim/shared';
 ```
 
 **Existing Infrastructure:**
+
 - Vitest configuration
 - Mock Cloudflare environment
 - Hono routing patterns
@@ -217,13 +228,13 @@ import { createErrorResponse } from '@authrim/shared';
 
 ## Risk Assessment
 
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|-----------|
-| Token validation complexity | Low | High | JOSE library handles |
-| Session state inconsistency | Medium | Medium | Use Durable Objects |
-| Conformance failures | Medium | Medium | Incremental testing |
-| Cross-origin issues | Low | Medium | OP has solution |
-| Performance at scale | Low | Low | Edge + caching |
+| Risk                        | Probability | Impact | Mitigation           |
+| --------------------------- | ----------- | ------ | -------------------- |
+| Token validation complexity | Low         | High   | JOSE library handles |
+| Session state inconsistency | Medium      | Medium | Use Durable Objects  |
+| Conformance failures        | Medium      | Medium | Incremental testing  |
+| Cross-origin issues         | Low         | Medium | OP has solution      |
+| Performance at scale        | Low         | Low    | Edge + caching       |
 
 ---
 
@@ -261,5 +272,4 @@ import { createErrorResponse } from '@authrim/shared';
 
 **Status:** ✅ Ready for implementation  
 **Confidence:** 95% (solid technical foundation)  
-**Market Timing:** Excellent (no competitor edge-native RP exists)  
-
+**Market Timing:** Excellent (no competitor edge-native RP exists)

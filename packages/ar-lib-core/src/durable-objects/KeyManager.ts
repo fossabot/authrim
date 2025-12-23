@@ -523,7 +523,8 @@ export class KeyManager extends DurableObject<Env> {
     const state = this.getState();
     const key = state.keys.find((k) => k.kid === kid);
     if (!key) {
-      throw new Error(`Key with kid ${kid} not found`);
+      // SECURITY: Do not expose kid value in error to prevent key enumeration
+      throw new Error('Key not found');
     }
 
     // Set previous active key to overlap status with expiry
@@ -818,7 +819,8 @@ export class KeyManager extends DurableObject<Env> {
     const state = this.getECState();
     const key = state.keys.find((k) => k.kid === kid);
     if (!key) {
-      throw new Error(`EC key with kid ${kid} not found`);
+      // SECURITY: Do not expose kid value in error to prevent key enumeration
+      throw new Error('EC key not found');
     }
 
     const algorithm = key.algorithm;
@@ -943,7 +945,8 @@ export class KeyManager extends DurableObject<Env> {
 
     const currentActiveKey = state.keys.find((k) => k.kid === currentActiveKeyId);
     if (!currentActiveKey) {
-      throw new Error(`Active EC key with kid ${currentActiveKeyId} not found`);
+      // SECURITY: Do not expose kid value in error to prevent key enumeration
+      throw new Error('Active EC key not found');
     }
 
     // Generate new key

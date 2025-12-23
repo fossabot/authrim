@@ -476,7 +476,7 @@ describe('Admin API Handlers', () => {
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         }),
         404
       );
@@ -636,10 +636,11 @@ describe('Admin API Handlers', () => {
 
       await adminUserCreateHandler(c);
 
+      // Security: Generic message to prevent email enumeration
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'conflict',
-          error_description: expect.stringContaining('email'),
+          error_description: 'Unable to create user with the provided information',
         }),
         409
       );
@@ -729,7 +730,7 @@ describe('Admin API Handlers', () => {
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         }),
         404
       );
@@ -829,7 +830,7 @@ describe('Admin API Handlers', () => {
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         }),
         404
       );
@@ -1011,7 +1012,7 @@ describe('Admin API Handlers', () => {
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'not_found',
-          error_description: 'Client not found',
+          error_description: 'The requested resource was not found',
         }),
         404
       );
@@ -1230,7 +1231,7 @@ describe('Admin API Handlers', () => {
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'not_found',
-          error_description: 'Client not found',
+          error_description: 'The requested resource was not found',
         }),
         404
       );
@@ -1277,7 +1278,7 @@ describe('Admin API Handlers', () => {
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'not_found',
-          error_description: 'Client not found',
+          error_description: 'The requested resource was not found',
         }),
         404
       );

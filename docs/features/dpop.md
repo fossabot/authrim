@@ -8,11 +8,11 @@ Authrim implements DPoP, a modern OAuth 2.0 security extension that binds access
 
 ### Specification
 
-| Attribute | Value |
-|-----------|-------|
-| **RFC** | [RFC 9449 - DPoP](https://datatracker.ietf.org/doc/html/rfc9449) |
-| **Status** | ✅ Implemented |
-| **Endpoints** | `/token`, `/userinfo`, `/introspect` |
+| Attribute     | Value                                                            |
+| ------------- | ---------------------------------------------------------------- |
+| **RFC**       | [RFC 9449 - DPoP](https://datatracker.ietf.org/doc/html/rfc9449) |
+| **Status**    | ✅ Implemented                                                   |
+| **Endpoints** | `/token`, `/userinfo`, `/introspect`                             |
 
 ---
 
@@ -46,13 +46,13 @@ Authrim implements DPoP, a modern OAuth 2.0 security extension that binds access
 **Challenge**: Open Banking APIs handle sensitive financial data and transactions. If an access token is stolen (via network interception, logging, or memory dumps), attackers could initiate unauthorized transactions.
 
 **DPoP Solution**:
+
 ```typescript
 // Fintech app generates a key pair per device
-const keyPair = await crypto.subtle.generateKey(
-  { name: 'ECDSA', namedCurve: 'P-256' },
-  true,
-  ['sign', 'verify']
-);
+const keyPair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+  'sign',
+  'verify',
+]);
 
 // Each API call includes a fresh DPoP proof
 async function initiatePayment(accessToken: string, payment: PaymentDetails) {
@@ -61,21 +61,22 @@ async function initiatePayment(accessToken: string, payment: PaymentDetails) {
     publicKeyJwk: await exportJWK(keyPair.publicKey),
     method: 'POST',
     url: 'https://bank-api.authrim.com/payments',
-    accessToken  // ath claim binds proof to specific token
+    accessToken, // ath claim binds proof to specific token
   });
 
   return fetch('https://bank-api.authrim.com/payments', {
     method: 'POST',
     headers: {
-      'Authorization': `DPoP ${accessToken}`,
-      'DPoP': dpopProof
+      Authorization: `DPoP ${accessToken}`,
+      DPoP: dpopProof,
     },
-    body: JSON.stringify(payment)
+    body: JSON.stringify(payment),
   });
 }
 ```
 
 **Result**: Even if an attacker intercepts the access token from logs or network traffic, they cannot use it because:
+
 - They don't have the private key to create valid DPoP proofs
 - The `ath` claim in the proof is tied to that specific token
 - The `jti` prevents replaying captured proofs
@@ -89,6 +90,7 @@ async function initiatePayment(accessToken: string, payment: PaymentDetails) {
 **Challenge**: In Zero Trust, even internal network traffic is untrusted. Bearer tokens alone don't prove the request came from the original authorized client—they could be forwarded, stolen, or leaked.
 
 **DPoP Solution**:
+
 ```python
 class EnterpriseAPIClient:
     def __init__(self, service_name: str):
@@ -133,6 +135,7 @@ def validate_request(request):
 **Challenge**: HIPAA requires safeguards to protect PHI. Mobile devices can be lost or compromised. If a token is extracted from a compromised device, the attacker shouldn't be able to access another patient's data from a different device.
 
 **DPoP Solution**:
+
 ```swift
 // iOS app stores DPoP key in Secure Enclave
 class SecureAuthClient {
@@ -166,6 +169,7 @@ class SecureAuthClient {
 ```
 
 **Result**:
+
 - DPoP key is stored in hardware Secure Enclave, never exportable
 - Biometric authentication required to use the key
 - Even with a stolen token, attackers cannot use it on a different device
@@ -218,6 +222,7 @@ The `jkt` (JWK Thumbprint) cryptographically binds the token to the client's pub
 ### DPoP Proof JWT Structure
 
 **Header**:
+
 ```json
 {
   "typ": "dpop+jwt",
@@ -232,6 +237,7 @@ The `jkt` (JWK Thumbprint) cryptographically binds the token to the client's pub
 ```
 
 **Payload**:
+
 ```json
 {
   "jti": "unique-identifier-123",
@@ -242,13 +248,13 @@ The `jkt` (JWK Thumbprint) cryptographically binds the token to the client's pub
 }
 ```
 
-| Claim | Required | Description |
-|-------|----------|-------------|
-| `jti` | ✅ Yes | Unique identifier (prevents replay attacks) |
-| `htm` | ✅ Yes | HTTP method (uppercase) |
-| `htu` | ✅ Yes | HTTP URL (without query/fragment) |
-| `iat` | ✅ Yes | Issued at timestamp (must be within 60 seconds) |
-| `ath` | When using token | SHA-256 hash of access token (base64url) |
+| Claim | Required         | Description                                     |
+| ----- | ---------------- | ----------------------------------------------- |
+| `jti` | ✅ Yes           | Unique identifier (prevents replay attacks)     |
+| `htm` | ✅ Yes           | HTTP method (uppercase)                         |
+| `htu` | ✅ Yes           | HTTP URL (without query/fragment)               |
+| `iat` | ✅ Yes           | Issued at timestamp (must be within 60 seconds) |
+| `ath` | When using token | SHA-256 hash of access token (base64url)        |
 
 ---
 
@@ -267,6 +273,7 @@ grant_type=authorization_code&code=abc123&redirect_uri=...
 ```
 
 **Success Response**:
+
 ```json
 {
   "access_token": "eyJhbGciOiJSUzI1NiJ9...",
@@ -304,11 +311,10 @@ class DPoPClient {
   private publicKeyJwk!: JsonWebKey;
 
   async initialize() {
-    this.keyPair = await crypto.subtle.generateKey(
-      { name: 'ECDSA', namedCurve: 'P-256' },
-      true,
-      ['sign', 'verify']
-    );
+    this.keyPair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+      'sign',
+      'verify',
+    ]);
     this.publicKeyJwk = await crypto.subtle.exportKey('jwk', this.keyPair.publicKey);
   }
 
@@ -317,23 +323,22 @@ class DPoPClient {
       jti: crypto.randomUUID(),
       htm: method.toUpperCase(),
       htu: new URL(url).origin + new URL(url).pathname,
-      iat: Math.floor(Date.now() / 1000)
+      iat: Math.floor(Date.now() / 1000),
     };
 
     if (accessToken) {
-      const hash = await crypto.subtle.digest(
-        'SHA-256',
-        new TextEncoder().encode(accessToken)
-      );
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(accessToken));
       claims.ath = btoa(String.fromCharCode(...new Uint8Array(hash)))
-        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
     }
 
     return await new SignJWT(claims)
       .setProtectedHeader({
         typ: 'dpop+jwt',
         alg: 'ES256',
-        jwk: this.publicKeyJwk
+        jwk: this.publicKeyJwk,
       })
       .sign(this.keyPair.privateKey);
   }
@@ -345,17 +350,17 @@ class DPoPClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'DPoP': proof
+        DPoP: proof,
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
         client_id: clientId,
-        redirect_uri: redirectUri
-      })
+        redirect_uri: redirectUri,
+      }),
     });
 
-    return response.json();  // token_type: "DPoP"
+    return response.json(); // token_type: "DPoP"
   }
 
   async callAPI(url: string, accessToken: string) {
@@ -363,9 +368,9 @@ class DPoPClient {
 
     return fetch(url, {
       headers: {
-        'Authorization': `DPoP ${accessToken}`,
-        'DPoP': proof
-      }
+        Authorization: `DPoP ${accessToken}`,
+        DPoP: proof,
+      },
     });
   }
 }
@@ -432,25 +437,25 @@ class DPoPClient:
 
 ### Key Management
 
-| Practice | Recommendation |
-|----------|----------------|
-| Key Generation | Use RSA 2048+ or EC P-256+ |
-| Key Storage | Secure enclave, HSM, or encrypted keychain |
-| Key Rotation | Rotate every 30-90 days |
-| Private Key | Never transmit or log |
+| Practice       | Recommendation                             |
+| -------------- | ------------------------------------------ |
+| Key Generation | Use RSA 2048+ or EC P-256+                 |
+| Key Storage    | Secure enclave, HSM, or encrypted keychain |
+| Key Rotation   | Rotate every 30-90 days                    |
+| Private Key    | Never transmit or log                      |
 
 ### Proof Validation
 
-| Check | Requirement |
-|-------|-------------|
-| `typ` header | Must be exactly `dpop+jwt` |
-| `alg` header | Must not be `none` |
+| Check        | Requirement                                  |
+| ------------ | -------------------------------------------- |
+| `typ` header | Must be exactly `dpop+jwt`                   |
+| `alg` header | Must not be `none`                           |
 | `jwk` header | Must not contain private key (`d`, `p`, `q`) |
-| `iat` claim | Must be within 60 seconds |
-| `jti` claim | Must be unique (single-use) |
-| `htm` claim | Must match HTTP method |
-| `htu` claim | Must match request URL |
-| `ath` claim | Must match SHA-256 of access token |
+| `iat` claim  | Must be within 60 seconds                    |
+| `jti` claim  | Must be unique (single-use)                  |
+| `htm` claim  | Must match HTTP method                       |
+| `htu` claim  | Must match request URL                       |
+| `ath` claim  | Must match SHA-256 of access token           |
 
 ### Supported Algorithms
 
@@ -467,9 +472,7 @@ class DPoPClient:
 
 ```json
 {
-  "dpop_signing_alg_values_supported": [
-    "RS256", "ES256", "PS256"
-  ]
+  "dpop_signing_alg_values_supported": ["RS256", "ES256", "PS256"]
 }
 ```
 
@@ -477,13 +480,13 @@ class DPoPClient:
 
 ## Comparison: Bearer vs DPoP
 
-| Aspect | Bearer Token | DPoP Token |
-|--------|--------------|------------|
-| Token binding | None | Cryptographically bound to key |
-| Stolen token usability | Fully usable | Unusable without private key |
-| Replay protection | None | jti-based single-use |
-| FAPI 2.0 compliance | ❌ No | ✅ Yes |
-| OAuth 2.1 recommendation | Legacy | Recommended |
+| Aspect                   | Bearer Token | DPoP Token                     |
+| ------------------------ | ------------ | ------------------------------ |
+| Token binding            | None         | Cryptographically bound to key |
+| Stolen token usability   | Fully usable | Unusable without private key   |
+| Replay protection        | None         | jti-based single-use           |
+| FAPI 2.0 compliance      | ❌ No        | ✅ Yes                         |
+| OAuth 2.1 recommendation | Legacy       | Recommended                    |
 
 ---
 
@@ -491,15 +494,15 @@ class DPoPClient:
 
 ### Test Scenarios
 
-| Scenario | Expected Result |
-|----------|-----------------|
-| Token request with valid DPoP | 200 with token_type: "DPoP" |
-| Missing DPoP proof | 200 with Bearer token (downgrade) |
-| Invalid proof signature | 400 invalid_dpop_proof |
-| Expired proof (> 60s) | 400 invalid_dpop_proof |
-| Reused jti | 400 use_dpop_nonce |
-| Wrong htm/htu | 400 invalid_dpop_proof |
-| Missing ath on resource access | 401 invalid_token |
+| Scenario                       | Expected Result                   |
+| ------------------------------ | --------------------------------- |
+| Token request with valid DPoP  | 200 with token_type: "DPoP"       |
+| Missing DPoP proof             | 200 with Bearer token (downgrade) |
+| Invalid proof signature        | 400 invalid_dpop_proof            |
+| Expired proof (> 60s)          | 400 invalid_dpop_proof            |
+| Reused jti                     | 400 use_dpop_nonce                |
+| Wrong htm/htu                  | 400 invalid_dpop_proof            |
+| Missing ath on resource access | 401 invalid_token                 |
 
 ### Running Tests
 

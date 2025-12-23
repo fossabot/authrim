@@ -251,7 +251,7 @@ const PRESETS = {
       d1_write_errors: ['count<50'],
     },
     preAllocatedVUs: 3000,
-    maxVUs: 3500,  // Time series limit mitigation: reduced from 5000 to 3500 due to 40,000 limit
+    maxVUs: 3500, // Time series limit mitigation: reduced from 5000 to 3500 due to 40,000 limit
     thinkTime: 0,
   },
 };
@@ -352,7 +352,9 @@ function getGlobalTokenIndex(localVuId, tokenPoolSize) {
 
     // Debug log only on first VU
     if (localVuId === 1) {
-      console.log(`[K6 Cloud] instance=${id}, tokensPerInstance=${tokensPerInstance}, offset=${offset}`);
+      console.log(
+        `[K6 Cloud] instance=${id}, tokensPerInstance=${tokensPerInstance}, offset=${offset}`
+      );
     }
 
     return offset + localVuId - 1;

@@ -395,10 +395,14 @@ export async function deleteDomainHashKeyVersion(c: Context) {
     // Check if any users still use this version
     const usersByVersion = await getUserCountByVersion(c.env.DB, 'default');
     if (usersByVersion[version] && usersByVersion[version] > 0) {
+      // SECURITY: Do not expose user count in error message
+      console.warn(
+        `[Domain Hash Keys API] Cannot delete version ${version}: ${usersByVersion[version]} users still using this version`
+      );
       return c.json(
         {
           error: 'invalid_request',
-          error_description: `Cannot delete version ${version}: ${usersByVersion[version]} users still using this version`,
+          error_description: 'Cannot delete this version: users are still using it',
         },
         400
       );

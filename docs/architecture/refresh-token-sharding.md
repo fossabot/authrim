@@ -12,13 +12,13 @@ This document defines the sharding strategy for RefreshTokenRotator. To solve th
 
 ### Design Goals
 
-| Goal | Description |
-|------|-------------|
-| **Dynamic shard count changes** | Change shard count without deployment |
-| **Full backward compatibility** | Continue operation for IoT tokens valid for years |
-| **RFC 7009 compliance** | Full compliance with Token Revocation specification |
-| **Efficient user-wide revocation** | Efficiently revoke all tokens for one user |
-| **High RPS support** | DO Wall Time < 500ms even at 500+ RPS |
+| Goal                               | Description                                         |
+| ---------------------------------- | --------------------------------------------------- |
+| **Dynamic shard count changes**    | Change shard count without deployment               |
+| **Full backward compatibility**    | Continue operation for IoT tokens valid for years   |
+| **RFC 7009 compliance**            | Full compliance with Token Revocation specification |
+| **Efficient user-wide revocation** | Efficiently revoke all tokens for one user          |
+| **High RPS support**               | DO Wall Time < 500ms even at 500+ RPS               |
 
 ### Architecture Diagram
 
@@ -65,13 +65,14 @@ flowchart TB
 v{generation}_{shardIndex}_{randomPart}
 ```
 
-| Field | Description | Example |
-|-------|-------------|---------|
+| Field           | Description                       | Example          |
+| --------------- | --------------------------------- | ---------------- |
 | `v{generation}` | Generation number (starts from 1) | `v1`, `v2`, `v3` |
-| `{shardIndex}` | Shard index (starts from 0) | `0`, `7`, `31` |
-| `{randomPart}` | Random part (existing format) | `rt_uuid` |
+| `{shardIndex}`  | Shard index (starts from 0)       | `0`, `7`, `31`   |
+| `{randomPart}`  | Random part (existing format)     | `rt_uuid`        |
 
 **Examples**:
+
 - `v1_7_rt_550e8400-e29b-41d4-a716-446655440000` (generation 1, shard 7)
 - `v2_15_rt_6ba7b810-9dad-11d1-80b4-00c04fd430c8` (generation 2, shard 15)
 
@@ -87,10 +88,10 @@ Legacy tokens are treated as `generation=0` and routed to the existing DO (using
 
 ```typescript
 interface ParsedJti {
-  generation: number;      // Generation number (legacy=0)
+  generation: number; // Generation number (legacy=0)
   shardIndex: number | null; // Shard index (legacy=null)
-  randomPart: string;      // Random part
-  isLegacy: boolean;       // Whether it's legacy format
+  randomPart: string; // Random part
+  isLegacy: boolean; // Whether it's legacy format
 }
 
 function parseRefreshTokenJti(jti: string): ParsedJti {
@@ -125,10 +126,10 @@ function parseRefreshTokenJti(jti: string): ParsedJti {
 tenant:{tenantId}:refresh-rotator:{clientId}:v{generation}:shard-{index}
 ```
 
-| Pattern | Generation | Example |
-|---------|------|-----|
-| Legacy (compatible) | 0 | `tenant:default:refresh-rotator:{clientId}` |
-| New format | 1+ | `tenant:default:refresh-rotator:{clientId}:v1:shard-7` |
+| Pattern             | Generation | Example                                                |
+| ------------------- | ---------- | ------------------------------------------------------ |
+| Legacy (compatible) | 0          | `tenant:default:refresh-rotator:{clientId}`            |
+| New format          | 1+         | `tenant:default:refresh-rotator:{clientId}:v1:shard-7` |
 
 ### Build Function
 
@@ -170,8 +171,7 @@ async function getRefreshTokenShardIndex(
   const hashArray = new Uint8Array(hashBuffer);
 
   // Use first 4 bytes as 32-bit integer
-  const hashInt = (hashArray[0] << 24) | (hashArray[1] << 16) |
-                  (hashArray[2] << 8) | hashArray[3];
+  const hashInt = (hashArray[0] << 24) | (hashArray[1] << 16) | (hashArray[2] << 8) | hashArray[3];
 
   return Math.abs(hashInt) % shardCount;
 }
@@ -207,8 +207,8 @@ RefreshTokenRotator DOは、初回の`createFamily()`呼び出し時にgeneratio
 ```typescript
 // DO内部状態
 class RefreshTokenRotator {
-  private generation: number | null = null;    // 世代番号
-  private shardIndex: number | null = null;    // シャードインデックス
+  private generation: number | null = null; // 世代番号
+  private shardIndex: number | null = null; // シャードインデックス
 
   // 初期化時にDurable Storageから復元
   private async doInitialize(): Promise<void> {
@@ -305,15 +305,16 @@ refresh-token-shards:__global__  // Global default
 
 ```typescript
 interface RefreshTokenShardConfig {
-  currentGeneration: number;          // Current generation number
-  currentShardCount: number;          // Current generation's shard count
-  previousGenerations: {              // Previous generation info (max 5 retained)
+  currentGeneration: number; // Current generation number
+  currentShardCount: number; // Current generation's shard count
+  previousGenerations: {
+    // Previous generation info (max 5 retained)
     generation: number;
     shardCount: number;
-    deprecatedAt: number;             // Deprecation timestamp
+    deprecatedAt: number; // Deprecation timestamp
   }[];
-  updatedAt: number;                  // Last update timestamp
-  updatedBy?: string;                 // Updater (for audit)
+  updatedAt: number; // Last update timestamp
+  updatedBy?: string; // Updater (for audit)
 }
 ```
 
@@ -323,9 +324,7 @@ interface RefreshTokenShardConfig {
 {
   "currentGeneration": 2,
   "currentShardCount": 16,
-  "previousGenerations": [
-    { "generation": 1, "shardCount": 8, "deprecatedAt": 1704067200000 }
-  ],
+  "previousGenerations": [{ "generation": 1, "shardCount": 8, "deprecatedAt": 1704067200000 }],
   "updatedAt": 1704153600000,
   "updatedBy": "admin@example.com"
 }
@@ -425,15 +424,17 @@ async function revokeRefreshToken(token: string, env: Env) {
   const rotator = env.REFRESH_TOKEN_ROTATOR.get(rotatorId);
 
   // 4. Revocation request
-  await rotator.fetch(new Request('http://internal/revoke', {
-    method: 'POST',
-    body: JSON.stringify({ jti }),
-  }));
+  await rotator.fetch(
+    new Request('http://internal/revoke', {
+      method: 'POST',
+      body: JSON.stringify({ jti }),
+    })
+  );
 
   // 5. Update D1 index
-  await env.DB.prepare(
-    'UPDATE user_token_families SET is_revoked = 1 WHERE jti = ?'
-  ).bind(jti).run();
+  await env.DB.prepare('UPDATE user_token_families SET is_revoked = 1 WHERE jti = ?')
+    .bind(jti)
+    .run();
 }
 ```
 
@@ -447,11 +448,15 @@ Handled within RefreshTokenRotator DO. See `RefreshTokenRotator.ts` for details.
 // Admin API: DELETE /api/admin/users/:userId/refresh-tokens
 async function revokeAllUserRefreshTokens(userId: string, clientId: string, env: Env) {
   // 1. Get all family info from D1
-  const families = await env.DB.prepare(`
+  const families = await env.DB.prepare(
+    `
     SELECT jti, generation
     FROM user_token_families
     WHERE user_id = ? AND client_id = ? AND is_revoked = 0
-  `).bind(userId, clientId).all();
+  `
+  )
+    .bind(userId, clientId)
+    .all();
 
   // 2. Group by generation and shard
   const shardGroups = new Map<string, string[]>();
@@ -475,20 +480,26 @@ async function revokeAllUserRefreshTokens(userId: string, clientId: string, env:
     const rotatorId = env.REFRESH_TOKEN_ROTATOR.idFromName(instanceName);
     const rotator = env.REFRESH_TOKEN_ROTATOR.get(rotatorId);
 
-    await rotator.fetch(new Request('http://internal/batch-revoke', {
-      method: 'POST',
-      body: JSON.stringify({ jtis }),
-    }));
+    await rotator.fetch(
+      new Request('http://internal/batch-revoke', {
+        method: 'POST',
+        body: JSON.stringify({ jtis }),
+      })
+    );
   });
 
   await Promise.all(promises);
 
   // 4. Batch update D1
-  await env.DB.prepare(`
+  await env.DB.prepare(
+    `
     UPDATE user_token_families
     SET is_revoked = 1
     WHERE user_id = ? AND client_id = ?
-  `).bind(userId, clientId).run();
+  `
+  )
+    .bind(userId, clientId)
+    .run();
 }
 ```
 
@@ -524,10 +535,10 @@ sequenceDiagram
 
 ### Token Behavior After Generation Change
 
-| Token Generation | New Issuance | Rotation | Revocation |
-|--------------|---------|--------------|------|
-| generation=1 | ❌ | ✅ Processed by gen=1 DO | ✅ Processed by gen=1 DO |
-| generation=2 | ✅ | ✅ Processed by gen=2 DO | ✅ Processed by gen=2 DO |
+| Token Generation | New Issuance | Rotation                 | Revocation               |
+| ---------------- | ------------ | ------------------------ | ------------------------ |
+| generation=1     | ❌           | ✅ Processed by gen=1 DO | ✅ Processed by gen=1 DO |
+| generation=2     | ✅           | ✅ Processed by gen=2 DO | ✅ Processed by gen=2 DO |
 
 ### Important Notes
 
@@ -555,28 +566,30 @@ sequenceDiagram
 
 async function cleanupGeneration(generation: number, clientId: string, env: Env) {
   // 1. Safety check: Verify no active tokens remain
-  const result = await env.DB.prepare(`
+  const result = await env.DB.prepare(
+    `
     SELECT COUNT(*) as count FROM user_token_families
     WHERE generation = ? AND is_revoked = 0 AND expires_at > ?
-  `).bind(generation, Date.now()).first();
+  `
+  )
+    .bind(generation, Date.now())
+    .first();
 
   if (result.count > 0) {
     throw new Error(`Active tokens exist: ${result.count}`);
   }
 
   // 2. Delete records from D1
-  await env.DB.prepare(
-    'DELETE FROM user_token_families WHERE generation = ?'
-  ).bind(generation).run();
+  await env.DB.prepare('DELETE FROM user_token_families WHERE generation = ?')
+    .bind(generation)
+    .run();
 
   // 3. Remove previous generation from shard config
   const config = await getRefreshTokenShardConfig(env, clientId);
-  config.previousGenerations = config.previousGenerations
-    .filter(g => g.generation !== generation);
-  await env.KV.put(
-    `refresh-token-shards:${clientId}`,
-    JSON.stringify(config)
+  config.previousGenerations = config.previousGenerations.filter(
+    (g) => g.generation !== generation
   );
+  await env.KV.put(`refresh-token-shards:${clientId}`, JSON.stringify(config));
 
   // Note: DO storage is automatically GC'd by Cloudflare (no explicit cleanup needed)
   return { success: true, deletedGeneration: generation };
@@ -611,11 +624,11 @@ CREATE INDEX idx_utf_expires ON user_token_families(expires_at);
 
 ### D1 Access Patterns
 
-| Operation | D1 Access | Description |
-|------|-----------|------|
-| Token issuance | INSERT | Register new family |
-| Token rotation | **None** | Use DO storage only ✅ |
-| Token revocation | UPDATE | `is_revoked = 1` |
+| Operation            | D1 Access       | Description                    |
+| -------------------- | --------------- | ------------------------------ |
+| Token issuance       | INSERT          | Register new family            |
+| Token rotation       | **None**        | Use DO storage only ✅         |
+| Token revocation     | UPDATE          | `is_revoked = 1`               |
 | User-wide revocation | SELECT + UPDATE | Get family list + batch revoke |
 
 ### refresh_token_shard_configs Table (for audit)
@@ -637,20 +650,20 @@ CREATE TABLE refresh_token_shard_configs (
 
 ## 9. Configuration Values
 
-| Configuration | Default Value | Description |
-|-----|------------|------|
-| Initial generation number | 1 | generation=0 is for legacy |
-| **Production initial shard count** | **8** | For typical use cases |
-| **Test shard count** | **32** | For 500 RPS load testing |
-| Cache TTL | 10 seconds | Shard config cache duration |
-| Previous generation retention | 5 | Max number of previousGenerations |
+| Configuration                      | Default Value | Description                       |
+| ---------------------------------- | ------------- | --------------------------------- |
+| Initial generation number          | 1             | generation=0 is for legacy        |
+| **Production initial shard count** | **8**         | For typical use cases             |
+| **Test shard count**               | **32**        | For 500 RPS load testing          |
+| Cache TTL                          | 10 seconds    | Shard config cache duration       |
+| Previous generation retention      | 5             | Max number of previousGenerations |
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|-----|------|---------|
-| `REFRESH_TOKEN_DEFAULT_SHARD_COUNT` | Default shard count | 8 |
-| `REFRESH_TOKEN_SHARD_CACHE_TTL` | Cache TTL (ms) | 10000 |
+| Variable                            | Description         | Default |
+| ----------------------------------- | ------------------- | ------- |
+| `REFRESH_TOKEN_DEFAULT_SHARD_COUNT` | Default shard count | 8       |
+| `REFRESH_TOKEN_SHARD_CACHE_TTL`     | Cache TTL (ms)      | 10000   |
 
 ---
 
@@ -658,12 +671,12 @@ CREATE TABLE refresh_token_shard_configs (
 
 ### Endpoint List
 
-| Method | Path | Description |
-|---------|-----|------|
-| GET | `/api/admin/refresh-token-sharding/config` | Get configuration |
-| PUT | `/api/admin/refresh-token-sharding/config` | Change configuration |
-| GET | `/api/admin/refresh-token-sharding/stats` | Shard distribution statistics |
-| DELETE | `/api/admin/refresh-token-sharding/cleanup` | Generation cleanup |
+| Method | Path                                        | Description                   |
+| ------ | ------------------------------------------- | ----------------------------- |
+| GET    | `/api/admin/refresh-token-sharding/config`  | Get configuration             |
+| PUT    | `/api/admin/refresh-token-sharding/config`  | Change configuration          |
+| GET    | `/api/admin/refresh-token-sharding/stats`   | Shard distribution statistics |
+| DELETE | `/api/admin/refresh-token-sharding/cleanup` | Generation cleanup            |
 
 ### Configuration Change Request Example
 
@@ -686,9 +699,7 @@ curl -X PUT https://api.example.com/api/admin/refresh-token-sharding/config \
   "config": {
     "currentGeneration": 2,
     "currentShardCount": 16,
-    "previousGenerations": [
-      { "generation": 1, "shardCount": 8, "deprecatedAt": 1704153600000 }
-    ],
+    "previousGenerations": [{ "generation": 1, "shardCount": 8, "deprecatedAt": 1704153600000 }],
     "updatedAt": 1704153600000
   }
 }
@@ -746,11 +757,11 @@ Phase 3: Legacy deprecation (optional)
 
 ### 500 RPS Test (32 shards)
 
-| Metric | Before (1 shard) | After (32 shards) |
-|-----------|-------------------|---------------------|
-| DO Wall Time p99 | 2,349ms | < 500ms |
-| Requests/shard | 500 req/s | ~16 req/s |
-| Lock contention | High | Low |
+| Metric           | Before (1 shard) | After (32 shards) |
+| ---------------- | ---------------- | ----------------- |
+| DO Wall Time p99 | 2,349ms          | < 500ms           |
+| Requests/shard   | 500 req/s        | ~16 req/s         |
+| Lock contention  | High             | Low               |
 
 ### Load Distribution Calculation
 
@@ -772,11 +783,13 @@ Result:
 ## References
 
 ### Related Documentation
+
 - [durable-objects.md](./durable-objects.md) - DO Architecture Overview
 - [storage-strategy.md](./storage-strategy.md) - Storage Strategy
 - [database-schema.md](./database-schema.md) - D1 Schema
 
 ### External Resources
+
 - [RFC 7009 - OAuth 2.0 Token Revocation](https://datatracker.ietf.org/doc/html/rfc7009)
 - [Cloudflare Durable Objects Documentation](https://developers.cloudflare.com/durable-objects/)
 - [OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics)
@@ -784,5 +797,6 @@ Result:
 ---
 
 **Change History**:
+
 - 2025-12-05: V1.1.0 - セクション3.1追加（DO内部のJTI生成/V3実装詳細）
 - 2025-12-04: V1.0.0 - 初版作成（世代管理方式シャーディング仕様）

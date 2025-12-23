@@ -38,6 +38,7 @@ import type {
   SessionRepository,
   PasskeyRepository,
   RoleRepository,
+  SessionClientRepository,
 } from '../repositories/core';
 import type {
   UserPIIRepository,
@@ -69,6 +70,9 @@ export interface CoreRepositories {
 
   /** RBAC roles and user-role assignments */
   role: RoleRepository;
+
+  /** Session-Client associations (for Backchannel Logout) */
+  sessionClient: SessionClientRepository;
 
   // Future repositories:
   // organization: OrganizationRepository;

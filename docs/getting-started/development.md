@@ -43,6 +43,7 @@ wrangler login
 ```
 
 This generates:
+
 - `.keys/private.pem` - Private key for JWT signing
 - `.keys/public.jwk.json` - Public key in JWK format
 - `.keys/metadata.json` - Key metadata including Key ID
@@ -146,16 +147,16 @@ authrim/
 
 ### Worker Overview
 
-| Worker | Purpose | Endpoints |
-|--------|---------|-----------|
-| **op-discovery** | OIDC Discovery | `/.well-known/*` |
-| **op-auth** | Authorization | `/authorize`, `/consent` |
-| **op-token** | Token issuance | `/token`, `/introspect`, `/revoke` |
-| **op-userinfo** | User info | `/userinfo` |
-| **op-management** | Admin API | `/api/admin/*`, `/register` |
-| **op-async** | Async flows | `/device_authorization`, `/bc-authorize` |
-| **scim** | User provisioning | `/scim/v2/*` |
-| **router** | Request routing | All (development only) |
+| Worker            | Purpose           | Endpoints                                |
+| ----------------- | ----------------- | ---------------------------------------- |
+| **op-discovery**  | OIDC Discovery    | `/.well-known/*`                         |
+| **op-auth**       | Authorization     | `/authorize`, `/consent`                 |
+| **op-token**      | Token issuance    | `/token`, `/introspect`, `/revoke`       |
+| **op-userinfo**   | User info         | `/userinfo`                              |
+| **op-management** | Admin API         | `/api/admin/*`, `/register`              |
+| **op-async**      | Async flows       | `/device_authorization`, `/bc-authorize` |
+| **scim**          | User provisioning | `/scim/v2/*`                             |
+| **router**        | Request routing   | All (development only)                   |
 
 ## Available Scripts
 
@@ -210,6 +211,7 @@ pnpm run migrate:create <name>   # Create new migration file
 ```
 
 For applying migrations:
+
 ```bash
 wrangler d1 migrations list authrim-db
 wrangler d1 migrations apply authrim-db
@@ -230,6 +232,7 @@ wrangler dev --port 8788
 ### KV namespace not found
 
 Ensure KV namespaces are created:
+
 ```bash
 wrangler kv namespace list
 ./scripts/setup-kv.sh --env=dev
@@ -238,6 +241,7 @@ wrangler kv namespace list
 ### Private key not found
 
 Regenerate keys:
+
 ```bash
 ./scripts/setup-keys.sh
 ./scripts/setup-local-vars.sh

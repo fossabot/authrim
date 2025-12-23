@@ -9,7 +9,13 @@
 
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
-import { createAuditLogFromContext } from '@authrim/ar-lib-core';
+import {
+  createAuditLogFromContext,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 import type {
   SigningKeysStatusResponse,
   KeyRotationResponse,
@@ -43,14 +49,7 @@ export async function adminSigningKeysStatusHandler(c: Context<{ Bindings: Env }
     return c.json(data);
   } catch (error) {
     console.error('Failed to get signing keys status:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to get signing keys status',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -70,13 +69,7 @@ export async function adminSigningKeysRotateHandler(c: Context<{ Bindings: Env }
 
     if (!rotationResult || !rotationResult.kid) {
       console.error('Failed to perform key rotation: no key returned');
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to perform key rotation',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     const data = { success: true, key: { kid: rotationResult.kid } };
@@ -113,14 +106,7 @@ export async function adminSigningKeysRotateHandler(c: Context<{ Bindings: Env }
     return c.json(result);
   } catch (error) {
     console.error('Failed to perform key rotation:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to perform key rotation',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -143,12 +129,11 @@ export async function adminSigningKeysEmergencyRotateHandler(c: Context<{ Bindin
 
     // Validate reason (required, minimum 10 characters)
     if (!body.reason || body.reason.length < 10) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Reason is required (minimum 10 characters)',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Reason is required (minimum 10 characters)'
       );
     }
 
@@ -161,14 +146,7 @@ export async function adminSigningKeysEmergencyRotateHandler(c: Context<{ Bindin
       result = await keyManager.emergencyRotateKeysRpc(body.reason);
     } catch (error) {
       console.error('Failed to perform emergency rotation:', error);
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to perform emergency rotation',
-          details: error instanceof Error ? error.message : String(error),
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     // Invalidate JWKS cache immediately to remove revoked key
@@ -201,13 +179,6 @@ export async function adminSigningKeysEmergencyRotateHandler(c: Context<{ Bindin
     return c.json(response_data);
   } catch (error) {
     console.error('Failed to perform emergency key rotation:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to perform emergency key rotation',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

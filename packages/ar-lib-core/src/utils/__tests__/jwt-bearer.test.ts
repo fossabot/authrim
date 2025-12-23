@@ -105,7 +105,8 @@ describe('JWT Bearer Flow Utilities', () => {
 
       expect(result.valid).toBe(false);
       expect(result.error).toBe('invalid_grant');
-      expect(result.error_description).toContain('Audience does not match');
+      // SECURITY: Error message must not expose expected audience URL
+      expect(result.error_description).toContain('JWT audience does not match');
     });
 
     it('should reject assertion with disallowed subject', async () => {

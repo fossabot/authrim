@@ -131,10 +131,11 @@ export async function initiateAttributeVerification(
     });
   } catch (error) {
     console.error('[initiateAttributeVerification] Error:', error);
+    // SECURITY: Do not expose internal error details in response
     return c.json(
       {
         error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
+        error_description: 'Internal server error',
       },
       500
     );
@@ -279,10 +280,11 @@ export async function attributeVerifyResponse(c: Context<{ Bindings: Env }>): Pr
     });
   } catch (error) {
     console.error('[attributeVerifyResponse] Error:', error);
+    // SECURITY: Do not expose internal error details in response
     return c.json(
       {
         error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
+        error_description: 'Internal server error',
       },
       500
     );
@@ -322,10 +324,11 @@ export async function getAttributes(c: Context<{ Bindings: Env }>): Promise<Resp
     });
   } catch (error) {
     console.error('[getAttributes] Error:', error);
+    // SECURITY: Do not expose internal error details in response
     return c.json(
       {
         error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
+        error_description: 'Internal server error',
       },
       500
     );

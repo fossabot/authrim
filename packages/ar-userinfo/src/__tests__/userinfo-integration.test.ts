@@ -535,7 +535,8 @@ describe('UserInfo Integration Tests', () => {
 
       const body = (await res.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_client_metadata');
-      expect(body.error_description).toContain('Unsupported algorithm');
+      // SECURITY: Error message must not expose specific algorithm details
+      expect(body.error_description).toBe('Client encryption configuration is invalid');
     });
   });
 
@@ -741,9 +742,10 @@ describe('UserInfo Integration Tests', () => {
 
       expect(res.status).toBe(401);
 
+      // Security: Generic message to prevent user enumeration
       const body = (await res.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_token');
-      expect(body.error_description).toBe('User not found');
+      expect(body.error_description).toBe('The access token is invalid');
     });
   });
 

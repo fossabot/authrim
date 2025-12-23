@@ -36,8 +36,9 @@ export class VPRequestStore {
       }
     } catch (error) {
       console.error('[VPRequestStore] Error:', error);
+      // SECURITY: Do not expose internal error details in response
       return new Response(
-        JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+        JSON.stringify({ error: 'Internal server error' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }

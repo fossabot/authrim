@@ -159,8 +159,9 @@ export async function didResolveRoute(c: Context<{ Bindings: Env }>): Promise<Re
     return c.json(createSuccessResult(document));
   } catch (error) {
     console.error('[didResolve] Error:', error);
+    // SECURITY: Do not expose internal error details in response
     return c.json(
-      createErrorResult('internalError', error instanceof Error ? error.message : 'Unknown error'),
+      createErrorResult('internalError', 'An error occurred while resolving the DID'),
       500
     );
   }

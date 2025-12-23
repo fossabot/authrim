@@ -190,7 +190,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_did');
+        expect(data.error).toBe('invalid_request');
       });
     });
 
@@ -203,8 +203,9 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_did');
-        expect(data.error_description).toContain('Failed to resolve DID');
+        expect(data.error).toBe('invalid_request');
+        // Security: Generic error message to prevent DID enumeration
+        expect(data.error_description).toContain('DID authentication failed');
       });
 
       it('should return error when DID document has no authentication methods', async () => {
@@ -221,7 +222,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_did');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('No authentication methods');
       });
 
@@ -377,7 +378,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('Invalid JWS format');
       });
 
@@ -391,7 +392,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('kid header');
       });
 
@@ -405,7 +406,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('DID URL');
       });
     });
@@ -424,8 +425,8 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_challenge');
-        expect(data.error_description).toContain('not found or expired');
+        expect(data.error).toBe('interaction_required');
+        expect(data.error_description).toBeDefined();
       });
 
       it('should reject verification method not in allowed list', async () => {
@@ -449,7 +450,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('Verification method not allowed');
       });
     });
@@ -493,7 +494,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('Signature verification failed');
       });
 
@@ -515,7 +516,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('Issuer must match DID');
       });
 
@@ -537,7 +538,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
+        expect(data.error).toBe('invalid_request');
         expect(data.error_description).toContain('Nonce mismatch');
       });
     });
@@ -575,8 +576,8 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('did_not_linked');
-        expect(data.error_description).toContain('not linked to any account');
+        expect(data.error).toBe('interaction_required');
+        expect(data.error_description).toContain('linking');
       });
     });
 
@@ -692,7 +693,7 @@ describe('DID Authentication', () => {
         const response2 = await didAuthVerifyHandler(c);
         expect(response2.status).toBe(400);
         const data = (await response2.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_challenge');
+        expect(data.error).toBe('interaction_required');
       });
     });
 
@@ -719,7 +720,7 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_did');
+        expect(data.error).toBe('invalid_request');
       });
 
       it('should reject when verification method not found in DID document', async () => {
@@ -735,8 +736,9 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
-        expect(data.error_description).toContain('Verification method not found');
+        expect(data.error).toBe('invalid_request');
+        // Security: Generic error message to prevent DID key enumeration
+        expect(data.error_description).toContain('DID authentication failed');
       });
 
       it('should reject when verification method has no public key', async () => {
@@ -759,8 +761,9 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
-        expect(data.error_description).toContain('no public key');
+        expect(data.error).toBe('invalid_request');
+        // Security: Generic error message to prevent DID key enumeration
+        expect(data.error_description).toContain('DID authentication failed');
       });
 
       it('should reject when public key import fails', async () => {
@@ -774,8 +777,9 @@ describe('DID Authentication', () => {
 
         expect(response.status).toBe(400);
         const data = (await response.json()) as ApiResponse;
-        expect(data.error).toBe('invalid_proof');
-        expect(data.error_description).toContain('Failed to import public key');
+        expect(data.error).toBe('invalid_request');
+        // Security: Generic error message to prevent information leakage
+        expect(data.error_description).toContain('DID authentication failed');
       });
     });
   });

@@ -16,10 +16,12 @@ The Trusted Client feature optimizes user experience for First-Party clients (cl
 ## Terminology
 
 ### First-Party Client (Trusted Client)
+
 - Client applications owned and operated by the same organization
 - Examples: Internal services, internal tools, development/test environments
 
 ### Third-Party Client (Untrusted Client)
+
 - Client applications created by external developers/organizations
 - Examples: Third-party apps, partner integrations
 
@@ -37,17 +39,17 @@ const issuerDomain = new URL(env.ISSUER_URL).hostname;
 const trustedDomains = env.TRUSTED_DOMAINS?.split(',') || [];
 
 const isTrusted =
-  redirectDomain === issuerDomain ||           // Same domain
-  trustedDomains.includes(redirectDomain);     // Whitelist
+  redirectDomain === issuerDomain || // Same domain
+  trustedDomains.includes(redirectDomain); // Whitelist
 ```
 
 #### Determination Conditions
 
-| Condition | Determination | Example |
-|-----------|---------------|---------|
-| redirect_uri domain == ISSUER_URL domain | Trusted | `authrim.sgrastar.workers.dev` |
-| redirect_uri domain ∈ TRUSTED_DOMAINS | Trusted | `www.certification.openid.net` |
-| Otherwise | Untrusted | `example.com` |
+| Condition                                | Determination | Example                        |
+| ---------------------------------------- | ------------- | ------------------------------ |
+| redirect_uri domain == ISSUER_URL domain | Trusted       | `authrim.sgrastar.workers.dev` |
+| redirect_uri domain ∈ TRUSTED_DOMAINS    | Trusted       | `www.certification.openid.net` |
+| Otherwise                                | Untrusted     | `example.com`                  |
 
 ### 2. Environment Variable Configuration
 
@@ -75,19 +77,19 @@ CREATE INDEX IF NOT EXISTS idx_clients_trusted ON oauth_clients(is_trusted);
 
 #### Column Definitions
 
-| Column | Type | Default | Description |
-|--------|------|---------|-------------|
-| `is_trusted` | INTEGER | 0 | 1=Trusted Client, 0=Third-Party Client |
-| `skip_consent` | INTEGER | 0 | 1=Skip Consent screen, 0=Consent required |
+| Column         | Type    | Default | Description                               |
+| -------------- | ------- | ------- | ----------------------------------------- |
+| `is_trusted`   | INTEGER | 0       | 1=Trusted Client, 0=Third-Party Client    |
+| `skip_consent` | INTEGER | 0       | 1=Skip Consent screen, 0=Consent required |
 
 #### Configuration Patterns
 
-| is_trusted | skip_consent | Behavior |
-|-----------|--------------|----------|
-| 0 | 0 | Third-Party Client (initial Consent required) |
-| 1 | 0 | Trusted Client but Consent displayed |
-| 1 | 1 | **Trusted Client (Consent skipped)** ← Recommended |
-| 0 | 1 | Invalid combination |
+| is_trusted | skip_consent | Behavior                                           |
+| ---------- | ------------ | -------------------------------------------------- |
+| 0          | 0            | Third-Party Client (initial Consent required)      |
+| 1          | 0            | Trusted Client but Consent displayed               |
+| 1          | 1            | **Trusted Client (Consent skipped)** ← Recommended |
+| 0          | 1            | Invalid combination                                |
 
 ---
 
@@ -146,29 +148,37 @@ flowchart LR
 // Extract domain from redirect_uri
 const redirectDomain = new URL(redirect_uris[0]).hostname;
 const issuerDomain = new URL(c.env.ISSUER_URL).hostname;
-const trustedDomains = c.env.TRUSTED_DOMAINS?.split(',').map(d => d.trim()) || [];
+const trustedDomains = c.env.TRUSTED_DOMAINS?.split(',').map((d) => d.trim()) || [];
 
 // Trusted determination
-const isTrusted =
-  redirectDomain === issuerDomain ||
-  trustedDomains.includes(redirectDomain);
+const isTrusted = redirectDomain === issuerDomain || trustedDomains.includes(redirectDomain);
 
 console.log(`[DCR] Client registration: domain=${redirectDomain}, trusted=${isTrusted}`);
 
 // Set is_trusted, skip_consent during INSERT
-await c.env.DB.prepare(`
+await c.env.DB.prepare(
+  `
   INSERT INTO oauth_clients (
     client_id, client_secret, client_name, redirect_uris,
     grant_types, response_types, token_endpoint_auth_method, jwks,
     is_trusted, skip_consent,
     created_at, updated_at
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-`).bind(
-  clientId, hashedSecret, client_name, redirectUrisJson,
-  grantTypesJson, responseTypesJson, token_endpoint_auth_method, jwksJson,
-  isTrusted ? 1 : 0,  // is_trusted
-  isTrusted ? 1 : 0,  // skip_consent
-).run();
+`
+)
+  .bind(
+    clientId,
+    hashedSecret,
+    client_name,
+    redirectUrisJson,
+    grantTypesJson,
+    responseTypesJson,
+    token_endpoint_auth_method,
+    jwksJson,
+    isTrusted ? 1 : 0, // is_trusted
+    isTrusted ? 1 : 0 // skip_consent
+  )
+  .run();
 ```
 
 ### 2. Authorization Endpoint
@@ -254,20 +264,24 @@ export interface ClientMetadata {
   response_types?: string[];
   token_endpoint_auth_method?: string;
   jwks?: unknown;
-  is_trusted?: boolean;     // Added
-  skip_consent?: boolean;   // Added
+  is_trusted?: boolean; // Added
+  skip_consent?: boolean; // Added
   // ...
 }
 
 export async function getClient(env: Env, clientId: string): Promise<ClientMetadata | null> {
-  const client = await env.DB.prepare(`
+  const client = await env.DB.prepare(
+    `
     SELECT
       client_id, client_secret, client_name, redirect_uris,
       grant_types, response_types, token_endpoint_auth_method, jwks,
       is_trusted, skip_consent
     FROM oauth_clients
     WHERE client_id = ?
-  `).bind(clientId).first();
+  `
+  )
+    .bind(clientId)
+    .first();
 
   if (!client) return null;
 
@@ -280,8 +294,8 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
     response_types: client.response_types ? JSON.parse(client.response_types as string) : undefined,
     token_endpoint_auth_method: client.token_endpoint_auth_method as string | undefined,
     jwks: client.jwks ? JSON.parse(client.jwks as string) : undefined,
-    is_trusted: client.is_trusted === 1,       // Added
-    skip_consent: client.skip_consent === 1,   // Added
+    is_trusted: client.is_trusted === 1, // Added
+    skip_consent: client.skip_consent === 1, // Added
   };
 }
 ```
@@ -332,10 +346,12 @@ export interface Env {
 ### 1. Trusted Client (Conformance Suite)
 
 **Prerequisites**:
+
 - TRUSTED_DOMAINS=`www.certification.openid.net`
 - Dynamic Registration: redirect_uri=`https://www.certification.openid.net/test/a/Authrim-basic-test/callback`
 
 **Expected Behavior**:
+
 ```
 1. DCR → is_trusted=1, skip_consent=1
 2. /authorize (first time) → Consent auto-granted, screen skipped
@@ -346,10 +362,12 @@ export interface Env {
 ### 2. Trusted Client (Same Domain)
 
 **Prerequisites**:
+
 - ISSUER_URL=`https://authrim.sgrastar.workers.dev`
 - redirect_uri=`https://authrim.sgrastar.workers.dev/callback`
 
 **Expected Behavior**:
+
 ```
 1. DCR → is_trusted=1, skip_consent=1
 2. Thereafter, Consent screen skipped (except prompt=consent)
@@ -358,9 +376,11 @@ export interface Env {
 ### 3. Third-Party Client
 
 **Prerequisites**:
+
 - redirect_uri=`https://example.com/callback`
 
 **Expected Behavior**:
+
 ```
 1. DCR → is_trusted=0, skip_consent=0
 2. /authorize (first time) → Consent screen displayed
@@ -372,10 +392,12 @@ export interface Env {
 ### 4. prompt=consent (Trusted Client)
 
 **Prerequisites**:
+
 - is_trusted=1, skip_consent=1
 - prompt=consent
 
 **Expected Behavior**:
+
 ```
 1. /authorize + prompt=consent → Always display Consent screen
 2. Trusted flag is ignored

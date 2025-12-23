@@ -279,17 +279,13 @@ export function setup() {
       tags: { name: 'Warmup' },
     });
     // Warmup email code generation
-    http.post(
-      `${BASE_URL}/api/admin/test/email-codes`,
-      JSON.stringify({ email: user.email }),
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${ADMIN_API_SECRET}`,
-        },
-        tags: { name: 'Warmup' },
-      }
-    );
+    http.post(`${BASE_URL}/api/admin/test/email-codes`, JSON.stringify({ email: user.email }), {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ADMIN_API_SECRET}`,
+      },
+      tags: { name: 'Warmup' },
+    });
   }
   console.log(`   Warmup complete`);
   console.log(``);
@@ -683,7 +679,7 @@ export function handleSummary(data) {
   };
 
   return {
-    'stdout': summary,
+    stdout: summary,
     [`results/${TEST_ID}-${timestamp}.json`]: JSON.stringify(jsonResult, null, 2),
   };
 }

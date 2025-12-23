@@ -4,12 +4,12 @@ Cryptographic key lifecycle management with automatic rotation and emergency pro
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
+| Aspect        | Description                         |
+| ------------- | ----------------------------------- |
 | **Key Types** | RSA (RS256), EC (ES256/ES384/ES512) |
-| **Storage** | KeyManager Durable Object |
-| **Rotation** | Automatic (90 days default) |
-| **Emergency** | Immediate revocation capability |
+| **Storage**   | KeyManager Durable Object           |
+| **Rotation**  | Automatic (90 days default)         |
+| **Emergency** | Immediate revocation capability     |
 
 Authrim's KeyManager provides secure cryptographic key management for JWT signing, ensuring zero-downtime key rotation and immediate revocation capabilities.
 
@@ -55,22 +55,22 @@ flowchart TB
 
 Used for standard OIDC token signing:
 
-| Property | Value |
-|----------|-------|
-| **Algorithm** | RS256 |
-| **Key Size** | 2048 bits |
-| **Purpose** | ID tokens, Access tokens |
-| **Storage** | PEM format (private), JWK (public) |
+| Property      | Value                              |
+| ------------- | ---------------------------------- |
+| **Algorithm** | RS256                              |
+| **Key Size**  | 2048 bits                          |
+| **Purpose**   | ID tokens, Access tokens           |
+| **Storage**   | PEM format (private), JWK (public) |
 
 ### EC Keys (ES256/ES384/ES512)
 
 Used for SD-JWT Verifiable Credentials (Phase 9):
 
-| Algorithm | Curve | Purpose |
-|-----------|-------|---------|
+| Algorithm | Curve | Purpose                 |
+| --------- | ----- | ----------------------- |
 | **ES256** | P-256 | SD-JWT VC (recommended) |
-| **ES384** | P-384 | Higher security |
-| **ES512** | P-521 | Maximum security |
+| **ES384** | P-384 | Higher security         |
+| **ES512** | P-521 | Maximum security        |
 
 ---
 
@@ -89,24 +89,24 @@ stateDiagram-v2
     Revoked --> [*]: After retention
 ```
 
-| State | Description | JWKS Included |
-|-------|-------------|---------------|
-| **Active** | Current signing key | ✅ Yes |
-| **Overlap** | Available for verification | ✅ Yes |
-| **Revoked** | Compromised, not usable | ❌ No |
-| **Expired** | Past retention, deleted | ❌ Deleted |
+| State       | Description                | JWKS Included |
+| ----------- | -------------------------- | ------------- |
+| **Active**  | Current signing key        | ✅ Yes        |
+| **Overlap** | Available for verification | ✅ Yes        |
+| **Revoked** | Compromised, not usable    | ❌ No         |
+| **Expired** | Past retention, deleted    | ❌ Deleted    |
 
 ### Key State Model
 
 ```typescript
 interface StoredKey {
-  kid: string;           // Unique key identifier
-  publicJWK: JWK;        // Public key for JWKS
-  privatePEM: string;    // Private key for signing
-  createdAt: number;     // Creation timestamp
-  status: KeyStatus;     // 'active' | 'overlap' | 'revoked'
-  expiresAt?: number;    // When overlap key expires
-  revokedAt?: number;    // When key was revoked
+  kid: string; // Unique key identifier
+  publicJWK: JWK; // Public key for JWKS
+  privatePEM: string; // Private key for signing
+  createdAt: number; // Creation timestamp
+  status: KeyStatus; // 'active' | 'overlap' | 'revoked'
+  expiresAt?: number; // When overlap key expires
+  revokedAt?: number; // When key was revoked
   revokedReason?: string; // Reason for revocation
 }
 ```
@@ -133,11 +133,11 @@ timeline
 
 ### Rotation Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `rotationIntervalDays` | 90 | Time between rotations |
-| `retentionPeriodDays` | 30 | Keep old keys for audit |
-| Overlap window | 24 hours | Time keys remain in JWKS |
+| Setting                | Default  | Description              |
+| ---------------------- | -------- | ------------------------ |
+| `rotationIntervalDays` | 90       | Time between rotations   |
+| `retentionPeriodDays`  | 30       | Keep old keys for audit  |
+| Overlap window         | 24 hours | Time keys remain in JWKS |
 
 ### Rotation Process
 
@@ -196,13 +196,13 @@ sequenceDiagram
 
 ### Emergency vs Normal Rotation
 
-| Aspect | Normal Rotation | Emergency Rotation |
-|--------|-----------------|-------------------|
-| **Overlap Period** | 24 hours | None |
-| **Old Key in JWKS** | Yes (until expiry) | Immediately removed |
-| **Token Impact** | Seamless | May invalidate tokens |
-| **Audit Logging** | Standard | Enhanced with reason |
-| **Trigger** | Scheduled | Manual (requires reason) |
+| Aspect              | Normal Rotation    | Emergency Rotation       |
+| ------------------- | ------------------ | ------------------------ |
+| **Overlap Period**  | 24 hours           | None                     |
+| **Old Key in JWKS** | Yes (until expiry) | Immediately removed      |
+| **Token Impact**    | Seamless           | May invalidate tokens    |
+| **Audit Logging**   | Standard           | Enhanced with reason     |
+| **Trigger**         | Scheduled          | Manual (requires reason) |
 
 ---
 
@@ -249,10 +249,10 @@ flowchart LR
     Rotation[Key Rotation] --> Invalidate[Invalidate KV cache]
 ```
 
-| Cache Setting | Value |
-|---------------|-------|
-| **TTL** | 1 hour |
-| **Invalidation** | On key rotation |
+| Cache Setting     | Value                  |
+| ----------------- | ---------------------- |
+| **TTL**           | 1 hour                 |
+| **Invalidation**  | On key rotation        |
 | **Cache-Control** | `max-age=3600, public` |
 
 ---
@@ -330,13 +330,13 @@ Example: `ec-es256-1702000000000-abc123-def4-5678-90ab-cdef12345678`
 
 ### Key Management Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/admin/keys/status` | GET | Get all key statuses |
-| `/api/admin/keys/rotate` | POST | Trigger manual rotation |
-| `/api/admin/keys/emergency-rotate` | POST | Emergency rotation |
-| `/api/admin/keys/config` | GET/PUT | Rotation configuration |
-| `/api/admin/keys/ec/rotate/:alg` | POST | Rotate EC key |
+| Endpoint                           | Method  | Description             |
+| ---------------------------------- | ------- | ----------------------- |
+| `/api/admin/keys/status`           | GET     | Get all key statuses    |
+| `/api/admin/keys/rotate`           | POST    | Trigger manual rotation |
+| `/api/admin/keys/emergency-rotate` | POST    | Emergency rotation      |
+| `/api/admin/keys/config`           | GET/PUT | Rotation configuration  |
+| `/api/admin/keys/ec/rotate/:alg`   | POST    | Rotate EC key           |
 
 ### Status Response
 
@@ -376,12 +376,12 @@ Example: `ec-es256-1702000000000-abc123-def4-5678-90ab-cdef12345678`
 
 ### Key Metrics
 
-| Metric | Description | Alert Threshold |
-|--------|-------------|-----------------|
-| `key.rotation.due` | Days until rotation | < 7 days |
-| `key.overlap.count` | Overlap keys count | > 3 |
-| `key.emergency.rotation` | Emergency rotations | Any |
-| `key.signing.latency` | Key fetch latency | > 50ms |
+| Metric                   | Description         | Alert Threshold |
+| ------------------------ | ------------------- | --------------- |
+| `key.rotation.due`       | Days until rotation | < 7 days        |
+| `key.overlap.count`      | Overlap keys count  | > 3             |
+| `key.emergency.rotation` | Emergency rotations | Any             |
+| `key.signing.latency`    | Key fetch latency   | > 50ms          |
 
 ### Health Checks
 
@@ -402,12 +402,12 @@ async function keyHealthCheck(): Promise<KeyHealth> {
 
 ## Related Documents
 
-| Document | Description |
-|----------|-------------|
-| [Security](./security.md) | Security architecture |
-| [Durable Objects](./durable-objects.md) | DO patterns |
-| [Secret Management](../operations/secret-management.md) | Secret handling |
-| [Configuration](./configuration.md) | Settings management |
+| Document                                                | Description           |
+| ------------------------------------------------------- | --------------------- |
+| [Security](./security.md)                               | Security architecture |
+| [Durable Objects](./durable-objects.md)                 | DO patterns           |
+| [Secret Management](../operations/secret-management.md) | Secret handling       |
+| [Configuration](./configuration.md)                     | Settings management   |
 
 ---
 

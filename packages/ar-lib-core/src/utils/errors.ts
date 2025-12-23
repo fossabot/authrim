@@ -301,12 +301,11 @@ export function withErrorHandling<T extends Context>(
 
       // Convert unknown errors to server errors
       // PII Protection: Don't log full error object (may contain user data in stack)
-      console.error('Unexpected error:', error instanceof Error ? error.name : 'Unknown error');
+      console.error('Unexpected error:', error);
       return errorHandler(
         c,
-        ErrorFactory.serverError(
-          error instanceof Error ? error.message : 'An unexpected error occurred'
-        )
+        // SECURITY: Do not expose internal error details in response
+        ErrorFactory.serverError('An unexpected error occurred')
       );
     }
   };

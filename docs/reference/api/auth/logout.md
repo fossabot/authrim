@@ -5,6 +5,7 @@
 The Logout API implements OpenID Connect logout mechanisms, supporting both front-channel (browser-initiated) and back-channel (server-to-server) logout flows. It enables secure session termination and supports single logout across multiple relying parties.
 
 **Key Features:**
+
 - Front-channel logout with redirect support
 - Back-channel logout (RFC 8725 compliant)
 - ID token hint validation
@@ -13,6 +14,7 @@ The Logout API implements OpenID Connect logout mechanisms, supporting both fron
 - Multi-device session cleanup
 
 **Standards Compliance:**
+
 - OpenID Connect Session Management 1.0
 - OpenID Connect Front-Channel Logout 1.0
 - OpenID Connect Back-Channel Logout 1.0 (RFC 8725)
@@ -42,6 +44,7 @@ Browser-initiated logout with optional redirect to post-logout URI.
 Session can be provided via cookie.
 
 **Request Headers:**
+
 ```http
 Cookie: authrim_session={session_id}
 ```
@@ -50,6 +53,7 @@ Cookie: authrim_session={session_id}
 Redirects to `post_logout_redirect_uri` (if provided) or default logout page.
 
 **Response Headers:**
+
 ```http
 Location: https://yourapp.com/logged-out?state=xyz123
 Set-Cookie: authrim_session=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0
@@ -57,12 +61,13 @@ Set-Cookie: authrim_session=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | `post_logout_redirect_uri` is not registered for this client |
-| 500 | `server_error` | Failed to process logout request |
+| Status Code | Error             | Description                                                  |
+| ----------- | ----------------- | ------------------------------------------------------------ |
+| 400         | `invalid_request` | `post_logout_redirect_uri` is not registered for this client |
+| 500         | `server_error`    | Failed to process logout request                             |
 
 **Example:**
+
 ```bash
 # Basic logout
 curl -L "https://your-domain.com/logout" \
@@ -74,6 +79,7 @@ curl -L "https://your-domain.com/logout?id_token_hint=eyJhbGc...&post_logout_red
 ```
 
 **JavaScript Usage:**
+
 ```javascript
 // Simple logout
 function logout() {
@@ -85,7 +91,7 @@ function logoutWithRedirect(idToken, redirectUri, state) {
   const params = new URLSearchParams({
     id_token_hint: idToken,
     post_logout_redirect_uri: redirectUri,
-    state: state
+    state: state,
   });
 
   window.location.href = `https://your-domain.com/logout?${params.toString()}`;
@@ -133,12 +139,14 @@ Server-to-server logout notification (RFC 8725).
 HTTP Basic Authentication (client credentials).
 
 **Request Headers:**
+
 ```http
 Content-Type: application/x-www-form-urlencoded
 Authorization: Basic base64(client_id:client_secret)
 ```
 
 **Request Body:**
+
 ```
 logout_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
@@ -149,6 +157,7 @@ logout_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 | `logout_token` | string | Yes | JWT logout token |
 
 **Logout Token Claims:**
+
 ```json
 {
   "iss": "https://your-domain.com",
@@ -187,23 +196,25 @@ logout_token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 Empty body (success).
 
 **Response Headers:**
+
 ```http
 Content-Length: 0
 ```
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | `logout_token` is required |
-| 400 | `invalid_request` | Invalid logout token |
-| 400 | `invalid_request` | `logout_token` must contain `sub` claim |
-| 400 | `invalid_request` | `logout_token` must contain backchannel-logout event |
-| 400 | `invalid_request` | `logout_token` must not contain `nonce` claim |
-| 401 | `invalid_client` | Invalid client credentials |
-| 500 | `server_error` | Failed to process logout request |
+| Status Code | Error             | Description                                          |
+| ----------- | ----------------- | ---------------------------------------------------- |
+| 400         | `invalid_request` | `logout_token` is required                           |
+| 400         | `invalid_request` | Invalid logout token                                 |
+| 400         | `invalid_request` | `logout_token` must contain `sub` claim              |
+| 400         | `invalid_request` | `logout_token` must contain backchannel-logout event |
+| 400         | `invalid_request` | `logout_token` must not contain `nonce` claim        |
+| 401         | `invalid_client`  | Invalid client credentials                           |
+| 500         | `server_error`    | Failed to process logout request                     |
 
 **Example:**
+
 ```bash
 # Logout specific session
 curl -X POST "https://your-domain.com/logout/backchannel" \
@@ -213,6 +224,7 @@ curl -X POST "https://your-domain.com/logout/backchannel" \
 ```
 
 **JavaScript Usage (Node.js):**
+
 ```javascript
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
@@ -227,9 +239,9 @@ async function sendBackChannelLogout(userId, sessionId, clientId, clientSecret) 
       iat: Math.floor(Date.now() / 1000),
       jti: crypto.randomUUID(),
       events: {
-        'http://schemas.openid.net/event/backchannel-logout': {}
+        'http://schemas.openid.net/event/backchannel-logout': {},
       },
-      sid: sessionId
+      sid: sessionId,
     },
     privateKey,
     { algorithm: 'RS256' }
@@ -244,8 +256,8 @@ async function sendBackChannelLogout(userId, sessionId, clientId, clientSecret) 
     {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${credentials}`
-      }
+        Authorization: `Basic ${credentials}`,
+      },
     }
   );
 
@@ -350,12 +362,14 @@ async function sendBackChannelLogout(userId, sessionId, clientId, clientSecret) 
 ## Security Considerations
 
 ### Front-Channel Security
+
 - **ID Token Validation**: Verifies JWT signature to prevent token forgery
 - **Redirect URI Validation**: Only allows registered URIs to prevent open redirects
 - **State Parameter**: Maintains state between request and callback
 - **Session Cookie Clearing**: Ensures complete logout
 
 ### Back-Channel Security
+
 - **Client Authentication**: HTTP Basic Auth prevents unauthorized logout requests
 - **JWT Signature Validation**: Prevents token tampering
 - **Single-Use JTI**: Prevents replay attacks (should be tracked in production)
@@ -363,6 +377,7 @@ async function sendBackChannelLogout(userId, sessionId, clientId, clientSecret) 
 - **Logout Token vs ID Token**: Separate token types prevent confusion attacks
 
 ### Session Invalidation
+
 - **Instant Revocation**: SessionStore Durable Object provides immediate invalidation
 - **Multi-Source Cleanup**: Deletes from both memory (DO) and database (D1)
 - **Audit Trail**: Logs logout events for security monitoring
@@ -374,6 +389,7 @@ async function sendBackChannelLogout(userId, sessionId, clientId, clientSecret) 
 ### Common Error Scenarios
 
 **1. Invalid Post-Logout Redirect URI**
+
 ```http
 HTTP/1.1 400 Bad Request
 Content-Type: application/json
@@ -385,6 +401,7 @@ Content-Type: application/json
 ```
 
 **2. Invalid Logout Token**
+
 ```http
 HTTP/1.1 400 Bad Request
 Content-Type: application/json
@@ -396,6 +413,7 @@ Content-Type: application/json
 ```
 
 **3. Invalid Client Credentials**
+
 ```http
 HTTP/1.1 401 Unauthorized
 Content-Type: application/json
@@ -411,6 +429,7 @@ Content-Type: application/json
 ## Best Practices
 
 ### 1. Front-Channel Logout
+
 ```javascript
 // GOOD: Include ID token hint for better tracking
 function logout() {
@@ -418,7 +437,7 @@ function logout() {
   const params = new URLSearchParams({
     id_token_hint: idToken,
     post_logout_redirect_uri: window.location.origin + '/logged-out',
-    state: crypto.randomUUID()
+    state: crypto.randomUUID(),
   });
 
   // Clear local state
@@ -437,6 +456,7 @@ function logout() {
 ```
 
 ### 2. Back-Channel Logout
+
 ```javascript
 // GOOD: Implement back-channel endpoint at RP
 app.post('/logout/backchannel', async (req, res) => {
@@ -464,6 +484,7 @@ app.post('/logout/backchannel', async (req, res) => {
 ```
 
 ### 3. Logout Token Creation
+
 ```javascript
 // GOOD: Include all required claims
 const logoutToken = {
@@ -473,15 +494,15 @@ const logoutToken = {
   iat: Math.floor(Date.now() / 1000),
   jti: crypto.randomUUID(),
   events: {
-    'http://schemas.openid.net/event/backchannel-logout': {}
+    'http://schemas.openid.net/event/backchannel-logout': {},
   },
-  sid: sessionId // Optional
+  sid: sessionId, // Optional
 };
 
 // BAD: Missing required claims
 const logoutToken = {
   sub: userId,
-  sid: sessionId
+  sid: sessionId,
   // Missing: iss, aud, iat, jti, events
 };
 ```

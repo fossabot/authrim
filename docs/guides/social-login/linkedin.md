@@ -4,13 +4,13 @@ This guide walks you through setting up LinkedIn Sign-In with Authrim.
 
 ## Overview
 
-| Property | Value |
-|----------|-------|
-| Protocol | OpenID Connect 1.0 (since 2024) |
-| Issuer | `https://www.linkedin.com/oauth` |
-| ID Token | Yes |
-| UserInfo Endpoint | Yes |
-| Email Verified Claim | Yes |
+| Property             | Value                            |
+| -------------------- | -------------------------------- |
+| Protocol             | OpenID Connect 1.0 (since 2024)  |
+| Issuer               | `https://www.linkedin.com/oauth` |
+| ID Token             | Yes                              |
+| UserInfo Endpoint    | Yes                              |
+| Email Verified Claim | Yes                              |
 
 > **Note**: LinkedIn migrated to OpenID Connect in 2024. If you have an existing OAuth 2.0 integration, consider upgrading to OIDC for improved security and standardization.
 
@@ -44,6 +44,7 @@ https://your-domain.com/auth/external/linkedin/callback
 ```
 
 For local development:
+
 ```
 http://localhost:8787/auth/external/linkedin/callback
 ```
@@ -120,33 +121,33 @@ curl -X POST "https://your-domain.com/external-idp/admin/providers" \
 
 ### Available Scopes
 
-| Scope | Description |
-|-------|-------------|
-| `openid` | Required for OIDC |
+| Scope     | Description                     |
+| --------- | ------------------------------- |
+| `openid`  | Required for OIDC               |
 | `profile` | User's name and profile picture |
-| `email` | User's email address |
+| `email`   | User's email address            |
 
 ### Claim Mappings
 
-| Authrim Claim | LinkedIn Claim | Description |
-|---------------|----------------|-------------|
-| `sub` | `sub` | Unique user identifier |
-| `email` | `email` | Primary email address |
+| Authrim Claim    | LinkedIn Claim   | Description               |
+| ---------------- | ---------------- | ------------------------- |
+| `sub`            | `sub`            | Unique user identifier    |
+| `email`          | `email`          | Primary email address     |
 | `email_verified` | `email_verified` | Whether email is verified |
-| `name` | `name` | Full name |
-| `given_name` | `given_name` | First name |
-| `family_name` | `family_name` | Last name |
-| `picture` | `picture` | Profile picture URL |
-| `locale` | `locale` | User's locale preference |
+| `name`           | `name`           | Full name                 |
+| `given_name`     | `given_name`     | First name                |
+| `family_name`    | `family_name`    | Last name                 |
+| `picture`        | `picture`        | Profile picture URL       |
+| `locale`         | `locale`         | User's locale preference  |
 
 ## Token Lifecycle
 
 LinkedIn has a unique token lifecycle:
 
-| Property | Value |
-|----------|-------|
-| Access Token TTL | 60 days |
-| Refresh Token | Not provided |
+| Property            | Value         |
+| ------------------- | ------------- |
+| Access Token TTL    | 60 days       |
+| Refresh Token       | Not provided  |
 | Revocation Endpoint | Not available |
 
 > **Important**: LinkedIn does NOT provide a token revocation endpoint. Tokens expire naturally after 60 days. To "logout" a user, simply discard the tokens on your side.
@@ -168,6 +169,7 @@ LinkedIn has a unique token lifecycle:
 **Cause**: App not authorized for requested scopes or OIDC product not enabled.
 
 **Solution**:
+
 1. Go to LinkedIn Developer Portal → Your App → Products
 2. Ensure "Sign In with LinkedIn using OpenID Connect" is approved
 3. Wait a few minutes after approval before testing
@@ -177,6 +179,7 @@ LinkedIn has a unique token lifecycle:
 **Cause**: Redirect URI doesn't match configured URLs.
 
 **Solution**:
+
 1. Go to LinkedIn Developer Portal → Your App → Auth
 2. Verify the redirect URL exactly matches:
    ```
@@ -189,6 +192,7 @@ LinkedIn has a unique token lifecycle:
 **Cause**: Email scope not included.
 
 **Solution**: Ensure `email` is in the scopes:
+
 ```json
 {
   "scopes": "openid profile email"
@@ -200,6 +204,7 @@ LinkedIn has a unique token lifecycle:
 **Cause**: Incorrect credentials or app suspended.
 
 **Solution**:
+
 1. Verify Client ID and Secret are correct
 2. Check if app is still active in Developer Portal
 3. Regenerate credentials if needed
@@ -221,16 +226,17 @@ If migrating from the legacy OAuth 2.0 API:
 
 ### Legacy vs OIDC Claim Mapping
 
-| Data | Legacy Field | OIDC Field |
-|------|--------------|------------|
-| User ID | `id` | `sub` |
-| Email | `emailAddress` | `email` |
-| First Name | `firstName.localized.en_US` | `given_name` |
-| Last Name | `lastName.localized.en_US` | `family_name` |
+| Data       | Legacy Field                | OIDC Field    |
+| ---------- | --------------------------- | ------------- |
+| User ID    | `id`                        | `sub`         |
+| Email      | `emailAddress`              | `email`       |
+| First Name | `firstName.localized.en_US` | `given_name`  |
+| Last Name  | `lastName.localized.en_US`  | `family_name` |
 
 ## Compliance Notes
 
 LinkedIn's OIDC implementation follows the standard, making it compatible with:
+
 - GDPR data access requests
 - User consent management
 - Standard OIDC libraries

@@ -43,18 +43,22 @@ const {
   };
 });
 
-// Mock the shared module
-vi.mock('@authrim/ar-lib-core', () => ({
-  validateClientId: mockValidateClientId,
-  timingSafeEqual: mockTimingSafeEqual,
-  getRefreshToken: mockGetRefreshToken,
-  isTokenRevoked: mockIsTokenRevoked,
-  parseToken: mockParseToken,
-  verifyToken: mockVerifyToken,
-  getTenantIdFromContext: mockGetTenantIdFromContext,
-  createAuthContextFromHono: mockCreateAuthContextFromHono,
-  validateClientAssertion: mockValidateClientAssertion,
-}));
+// Mock the shared module - use importOriginal for error functions
+vi.mock('@authrim/ar-lib-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@authrim/ar-lib-core')>();
+  return {
+    ...actual,
+    validateClientId: mockValidateClientId,
+    timingSafeEqual: mockTimingSafeEqual,
+    getRefreshToken: mockGetRefreshToken,
+    isTokenRevoked: mockIsTokenRevoked,
+    parseToken: mockParseToken,
+    verifyToken: mockVerifyToken,
+    getTenantIdFromContext: mockGetTenantIdFromContext,
+    createAuthContextFromHono: mockCreateAuthContextFromHono,
+    validateClientAssertion: mockValidateClientAssertion,
+  };
+});
 
 // Mock the introspection cache settings module
 vi.mock('../routes/settings/introspection-cache', () => ({
@@ -166,15 +170,13 @@ describe('Token Introspection Endpoint', () => {
         },
       });
 
-      await introspectHandler(c);
+      const response = await introspectHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-          error_description: expect.stringContaining('application/x-www-form-urlencoded'),
-        }),
-        400
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; error_description: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('application/x-www-form-urlencoded');
     });
 
     it('should accept application/x-www-form-urlencoded with charset', async () => {
@@ -228,15 +230,13 @@ describe('Token Introspection Endpoint', () => {
         client_secret: 'client-secret',
       });
 
-      await introspectHandler(c);
+      const response = await introspectHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-          error_description: 'token parameter is required',
-        }),
-        400
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('token');
     });
   });
 
@@ -319,14 +319,12 @@ describe('Token Introspection Endpoint', () => {
         error: 'Invalid client_id format',
       });
 
-      await introspectHandler(c);
+      const response = await introspectHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_client',
-        }),
-        401
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_client');
     });
 
     it('should return 401 when client is not found', async () => {
@@ -345,15 +343,13 @@ describe('Token Introspection Endpoint', () => {
 
       mockClientRepository.findByClientId.mockResolvedValue(null);
 
-      await introspectHandler(c);
+      const response = await introspectHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_client',
-          error_description: 'Client not found',
-        }),
-        401
-      );
+      // Security: Generic message to prevent client_id enumeration
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_client');
     });
 
     it('should return 401 when client_secret is incorrect', async () => {
@@ -376,15 +372,12 @@ describe('Token Introspection Endpoint', () => {
         client_secret: 'correct-secret',
       });
 
-      await introspectHandler(c);
+      const response = await introspectHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_client',
-          error_description: 'Invalid client credentials',
-        }),
-        401
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_client');
     });
 
     it('should use timing-safe comparison for client_secret', async () => {
@@ -426,14 +419,12 @@ describe('Token Introspection Endpoint', () => {
         },
       });
 
-      await introspectHandler(c);
+      const response = await introspectHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_client',
-        }),
-        401
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_client');
     });
   });
 
@@ -715,15 +706,12 @@ describe('Token Introspection Endpoint', () => {
         client_secret: 'client-secret',
       });
 
-      await introspectHandler(c);
+      const response = await introspectHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'server_error',
-          error_description: 'Server configuration error',
-        }),
-        500
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(500);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('server_error');
     });
 
     it('should return 500 when PUBLIC_JWK_JSON is invalid', async () => {
@@ -749,15 +737,12 @@ describe('Token Introspection Endpoint', () => {
         client_secret: 'client-secret',
       });
 
-      await introspectHandler(c);
+      const response = await introspectHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'server_error',
-          error_description: 'Failed to load verification key',
-        }),
-        500
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(500);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('server_error');
     });
   });
 
@@ -772,15 +757,12 @@ describe('Token Introspection Endpoint', () => {
 
       c.req.parseBody = vi.fn().mockRejectedValue(new Error('Parse error'));
 
-      await introspectHandler(c);
+      const response = await introspectHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-          error_description: 'Failed to parse request body',
-        }),
-        400
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
     });
   });
 

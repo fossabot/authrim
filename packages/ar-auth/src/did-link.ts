@@ -28,6 +28,10 @@ import {
   type DIDDocument,
   type VerificationMethod,
   type ConsumeChallengeResponse,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import { jwtVerify, importJWK, decodeProtectedHeader } from 'jose';
 
@@ -80,10 +84,7 @@ export async function didRegisterChallengeHandler(
     // Verify user is authenticated
     const userId = await getAuthenticatedUserId(c);
     if (!userId) {
-      return c.json(
-        { error: 'unauthorized', error_description: 'Authentication required to register DID' },
-        401
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
     }
 
     const body = await c.req.json<{ did: string }>();
@@ -91,12 +92,12 @@ export async function didRegisterChallengeHandler(
 
     // SECURITY: Check for both null/undefined and empty/whitespace-only string
     if (!did || (typeof did === 'string' && did.trim() === '')) {
-      return c.json({ error: 'invalid_request', error_description: 'DID is required' }, 400);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'DID is required');
     }
 
     // Validate DID format
     if (!did.startsWith('did:')) {
-      return c.json({ error: 'invalid_request', error_description: 'Invalid DID format' }, 400);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Invalid DID format');
     }
 
     // Check if DID is already linked to another account
@@ -106,17 +107,18 @@ export async function didRegisterChallengeHandler(
 
     if (existingLink) {
       if (existingLink.user_id === userId) {
-        return c.json(
-          {
-            error: 'already_linked',
-            error_description: 'This DID is already linked to your account',
-          },
-          400
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'This DID is already linked to your account'
         );
       }
-      return c.json(
-        { error: 'did_already_linked', error_description: 'This DID is linked to another account' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'This DID is linked to another account'
       );
     }
 
@@ -125,9 +127,11 @@ export async function didRegisterChallengeHandler(
     try {
       didDocument = await resolveDID(did);
     } catch (error) {
-      return c.json(
-        { error: 'invalid_did', error_description: `Failed to resolve DID: ${did}` },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `Failed to resolve DID: ${did}`
       );
     }
 
@@ -146,12 +150,11 @@ export async function didRegisterChallengeHandler(
     }
 
     if (verificationMethods.length === 0) {
-      return c.json(
-        {
-          error: 'invalid_did',
-          error_description: 'No authentication methods found in DID document',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'No authentication methods found in DID document'
       );
     }
 
@@ -192,13 +195,7 @@ export async function didRegisterChallengeHandler(
     });
   } catch (error) {
     console.error('[did-link] Register challenge error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -220,9 +217,11 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
     const isEmptyString = (val: unknown): boolean => typeof val === 'string' && val.trim() === '';
 
     if (!challenge_id || !proof || isEmptyString(challenge_id) || isEmptyString(proof)) {
-      return c.json(
-        { error: 'invalid_request', error_description: 'challenge_id and proof are required' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'challenge_id and proof are required'
       );
     }
 
@@ -231,21 +230,28 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
     try {
       protectedHeader = decodeProtectedHeader(proof);
     } catch {
-      return c.json({ error: 'invalid_proof', error_description: 'Invalid JWS format' }, 400);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Invalid JWS format');
     }
 
     const kid = protectedHeader.kid;
     if (!kid) {
-      return c.json(
-        { error: 'invalid_proof', error_description: 'Proof must include kid header' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Proof must include kid header'
       );
     }
 
     // Extract DID from kid
     const didMatch = kid.match(/^(did:[^#]+)/);
     if (!didMatch) {
-      return c.json({ error: 'invalid_proof', error_description: 'kid must be a DID URL' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'kid must be a DID URL'
+      );
     }
     const did = didMatch[1];
 
@@ -255,12 +261,11 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
     const linkedIdentityRepo = new LinkedIdentityRepository(adapter);
     const existingLinkEarly = await linkedIdentityRepo.findByProviderUser('did', did);
     if (existingLinkEarly) {
-      return c.json(
-        {
-          error: 'did_already_linked',
-          error_description: 'This DID is already linked to an account',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'This DID is already linked to an account'
       );
     }
 
@@ -273,10 +278,7 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
         type: 'did_registration',
       });
     } catch {
-      return c.json(
-        { error: 'invalid_challenge', error_description: 'Challenge not found or expired' },
-        400
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
     }
 
     // Extract metadata
@@ -287,9 +289,11 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
 
     // Verify kid is in allowed methods
     if (!allowedMethods.includes(kid)) {
-      return c.json(
-        { error: 'invalid_proof', error_description: 'Verification method not allowed' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Verification method not allowed'
       );
     }
 
@@ -298,21 +302,22 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
     try {
       didDocument = await resolveDID(did);
     } catch {
-      return c.json(
-        { error: 'invalid_did', error_description: `Failed to resolve DID: ${did}` },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `Failed to resolve DID: ${did}`
       );
     }
 
     // Find verification method
     const verificationMethod = didDocument.verificationMethod?.find((vm) => vm.id === kid);
     if (!verificationMethod || !verificationMethod.publicKeyJwk) {
-      return c.json(
-        {
-          error: 'invalid_proof',
-          error_description: 'Verification method not found or no public key',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Verification method not found or no public key'
       );
     }
 
@@ -321,9 +326,11 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
     try {
       publicKey = await importJWK(verificationMethod.publicKeyJwk);
     } catch {
-      return c.json(
-        { error: 'invalid_proof', error_description: 'Failed to import public key' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Failed to import public key'
       );
     }
 
@@ -333,9 +340,11 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
     if (!issuerUrl) {
       // Log internally but return generic error to avoid revealing server configuration
       console.error('[did-link] ISSUER_URL is not configured');
-      return c.json(
-        { error: 'temporarily_unavailable', error_description: 'Service temporarily unavailable' },
-        503
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+        503,
+        'Service temporarily unavailable'
       );
     }
 
@@ -347,19 +356,26 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
       });
       payload = result.payload;
     } catch {
-      return c.json(
-        { error: 'invalid_proof', error_description: 'Signature verification failed' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Signature verification failed'
       );
     }
 
     // Verify required claims
     const expectedNonce = metadata?.nonce;
     if (payload.iss !== did) {
-      return c.json({ error: 'invalid_proof', error_description: 'Issuer must match DID' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Issuer must match DID'
+      );
     }
     if (payload.nonce !== expectedNonce) {
-      return c.json({ error: 'invalid_proof', error_description: 'Nonce mismatch' }, 400);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Nonce mismatch');
     }
 
     // Create the link with race condition protection
@@ -397,12 +413,11 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
             message: 'DID is already linked to your account',
           });
         }
-        return c.json(
-          {
-            error: 'did_already_linked',
-            error_description: 'This DID is already linked to another account',
-          },
-          400
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'This DID is already linked to another account'
         );
       }
       // Re-throw other errors
@@ -416,13 +431,7 @@ export async function didRegisterVerifyHandler(c: Context<{ Bindings: Env }>): P
     });
   } catch (error) {
     console.error('[did-link] Register verify error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -435,7 +444,7 @@ export async function didListHandler(c: Context<{ Bindings: Env }>): Promise<Res
   try {
     const userId = await getAuthenticatedUserId(c);
     if (!userId) {
-      return c.json({ error: 'unauthorized', error_description: 'Authentication required' }, 401);
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
     }
 
     const adapter = new D1Adapter({ db: c.env.DB_PII });
@@ -458,13 +467,7 @@ export async function didListHandler(c: Context<{ Bindings: Env }>): Promise<Res
     });
   } catch (error) {
     console.error('[did-link] List error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -477,20 +480,20 @@ export async function didUnlinkHandler(c: Context<{ Bindings: Env }>): Promise<R
   try {
     const userId = await getAuthenticatedUserId(c);
     if (!userId) {
-      return c.json({ error: 'unauthorized', error_description: 'Authentication required' }, 401);
+      return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
     }
 
     // Get DID from URL - URL encoded
     const didEncoded = c.req.param('did');
     if (!didEncoded) {
-      return c.json({ error: 'invalid_request', error_description: 'DID is required' }, 400);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'DID is required');
     }
 
     const did = decodeURIComponent(didEncoded);
 
     // Validate DID format
     if (!did.startsWith('did:')) {
-      return c.json({ error: 'invalid_request', error_description: 'Invalid DID format' }, 400);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Invalid DID format');
     }
 
     const adapter = new D1Adapter({ db: c.env.DB_PII });
@@ -499,14 +502,16 @@ export async function didUnlinkHandler(c: Context<{ Bindings: Env }>): Promise<R
     // Find the link
     const link = await linkedIdentityRepo.findByProviderUser('did', did);
     if (!link) {
-      return c.json({ error: 'not_found', error_description: 'DID link not found' }, 404);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 404, 'DID link not found');
     }
 
     // Verify ownership
     if (link.user_id !== userId) {
-      return c.json(
-        { error: 'forbidden', error_description: 'Cannot unlink DID belonging to another user' },
-        403
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.ACCESS_DENIED,
+        403,
+        'Cannot unlink DID belonging to another user'
       );
     }
 
@@ -520,12 +525,6 @@ export async function didUnlinkHandler(c: Context<{ Bindings: Env }>): Promise<R
     });
   } catch (error) {
     console.error('[did-link] Unlink error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

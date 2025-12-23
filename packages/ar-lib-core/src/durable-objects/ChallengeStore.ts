@@ -463,11 +463,24 @@ export class ChallengeStore extends DurableObject<Env> {
             headers: { 'Content-Type': 'application/json' },
           });
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
+          console.error('[ChallengeStore] consumeChallenge error:', error);
+          const message = error instanceof Error ? error.message : '';
+
+          // SECURITY: Use generic error descriptions
+          let errorDescription = 'Challenge is invalid or expired';
+
+          if (message.includes('already consumed')) {
+            errorDescription = 'Challenge has already been used';
+          } else if (message.includes('expired')) {
+            errorDescription = 'Challenge has expired';
+          } else if (message.includes('not found')) {
+            errorDescription = 'Challenge not found';
+          }
+
           return new Response(
             JSON.stringify({
               error: 'invalid_challenge',
-              error_description: message,
+              error_description: errorDescription,
             }),
             {
               status: 400,
@@ -534,11 +547,13 @@ export class ChallengeStore extends DurableObject<Env> {
 
       return new Response('Not Found', { status: 404 });
     } catch (error) {
+      // Log full error for debugging but don't expose to client
       console.error('ChallengeStore error:', error);
+      // SECURITY: Do not expose internal error details in response
       return new Response(
         JSON.stringify({
           error: 'server_error',
-          error_description: error instanceof Error ? error.message : 'Internal Server Error',
+          error_description: 'Internal server error',
         }),
         {
           status: 500,

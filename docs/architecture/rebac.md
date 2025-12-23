@@ -35,6 +35,7 @@ graph TB
 ### 1. Database Migrations
 
 #### Migration 017: relationship_closure Table
+
 - **Purpose**: Speed up `listObjects` / `listUsers` queries
 - **Table**: `relationship_closure`
 - **Features**: Stores pre-computed transitive relationships
@@ -57,6 +58,7 @@ CREATE TABLE relationship_closure (
 ```
 
 #### Migration 018: relation_definitions Table
+
 - **Purpose**: Store Relation DSL definitions (union, tuple-to-userset)
 - **Table**: `relation_definitions`
 
@@ -74,6 +76,7 @@ CREATE TABLE relation_definitions (
 ```
 
 #### Migration 019: VC/DID Abstraction Layer
+
 - **Purpose**: Foundation for future VC/DID support
 - **Tables**:
   - `subject_identifiers`: User identifier abstraction
@@ -122,6 +125,7 @@ const result = await rebacService.check({
 Phase 3 supports the following expression types:
 
 #### Direct Relation
+
 Matches direct relationship tuples
 
 ```json
@@ -132,6 +136,7 @@ Matches direct relationship tuples
 ```
 
 #### Union Relation
+
 OR of multiple expressions
 
 ```json
@@ -146,6 +151,7 @@ OR of multiple expressions
 ```
 
 #### Tuple-to-Userset
+
 Inheritance from related objects
 
 ```json
@@ -198,17 +204,17 @@ Added attribute-based conditions to the Policy Engine:
 ```typescript
 // New condition types
 type ConditionType =
-  | 'attribute_equals'   // Attribute value match
-  | 'attribute_exists'   // Attribute existence
-  | 'attribute_in';      // Attribute value in list
+  | 'attribute_equals' // Attribute value match
+  | 'attribute_exists' // Attribute existence
+  | 'attribute_in'; // Attribute value in list
 
 // Verified attributes
 interface VerifiedAttribute {
   name: string;
   value: string | null;
-  source: string;       // 'manual' | 'vc' | 'external'
-  issuer?: string;      // VC issuer (for future use)
-  expiresAt?: number;   // Expiration time
+  source: string; // 'manual' | 'vc' | 'external'
+  issuer?: string; // VC issuer (for future use)
+  expiresAt?: number; // Expiration time
 }
 ```
 
@@ -239,12 +245,12 @@ migrations/
 
 ### Why check() Doesn't Use Closure Table
 
-| Aspect | Recursive CTE | Closure Table |
-|--------|--------------|---------------|
-| Freshness | Always current | Has latency |
-| Write Cost | None | Recompute on relationship changes |
-| Read Cost | Moderate | Low |
-| Flexibility | High | Moderate |
+| Aspect      | Recursive CTE  | Closure Table                     |
+| ----------- | -------------- | --------------------------------- |
+| Freshness   | Always current | Has latency                       |
+| Write Cost  | None           | Recompute on relationship changes |
+| Read Cost   | Moderate       | Low                               |
+| Flexibility | High           | Moderate                          |
 
 **Conclusion**: `check()` uses Recursive CTE + KV Cache because real-time accuracy is critical.
 `listObjects/listUsers` uses Closure Table because pagination of large datasets is required.
@@ -252,6 +258,7 @@ migrations/
 ### Why Allow Only (No Deny)
 
 Phase 3 does not implement deny effects:
+
 - Reduced complexity
 - Performance optimization
 - Sufficient functionality for MVP
@@ -271,24 +278,16 @@ Deny effects will be implemented as `exclusion` expressions in Phase 4+.
 ### Initializing the ReBAC Service
 
 ```typescript
-import {
-  ReBACService,
-  ClosureManager,
-  ReBACCacheManager,
-  RelationParser
-} from '@authrim/shared';
+import { ReBACService, ClosureManager, ReBACCacheManager, RelationParser } from '@authrim/shared';
 
 const cacheManager = new ReBACCacheManager(env.REBAC_CACHE);
 const closureManager = new ClosureManager(adapter);
 const relationParser = new RelationParser();
 
-const rebacService = new ReBACService(
-  adapter,
-  cacheManager,
-  closureManager,
-  relationParser,
-  { cache_ttl: 60, max_depth: 5 }
-);
+const rebacService = new ReBACService(adapter, cacheManager, closureManager, relationParser, {
+  cache_ttl: 60,
+  max_depth: 5,
+});
 ```
 
 ### Authorization Check
@@ -311,7 +310,7 @@ const batchResult = await rebacService.batchCheck({
   checks: [
     { tenant_id: 't1', user_id: 'u1', relation: 'viewer', object: 'doc:d1' },
     { tenant_id: 't1', user_id: 'u1', relation: 'editor', object: 'doc:d2' },
-  ]
+  ],
 });
 ```
 

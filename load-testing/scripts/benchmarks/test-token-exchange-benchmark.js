@@ -479,9 +479,7 @@ export default function (data) {
   if (!expectSuccess && isSuccess) {
     if (tokenData.type === 'revoked') {
       revokedTokenAccepted.add(1);
-      console.error(
-        `⚠️  Revoked token accepted! Token should have been rejected (VU ${__VU})`
-      );
+      console.error(`⚠️  Revoked token accepted! Token should have been rejected (VU ${__VU})`);
     } else {
       invalidTokenAccepted.add(1);
       console.error(

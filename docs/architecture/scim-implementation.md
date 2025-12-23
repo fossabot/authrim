@@ -29,6 +29,7 @@ Full SCIM 2.0 User Provisioning support has been implemented in Authrim.
 #### ✅ Endpoints
 
 **User Endpoints** (`packages/op-management/src/scim.ts`)
+
 - `GET /scim/v2/Users` - User list (with filtering/pagination)
 - `GET /scim/v2/Users/{id}` - Get user details
 - `POST /scim/v2/Users` - Create user
@@ -37,6 +38,7 @@ Full SCIM 2.0 User Provisioning support has been implemented in Authrim.
 - `DELETE /scim/v2/Users/{id}` - Delete user
 
 **Group Endpoints**
+
 - `GET /scim/v2/Groups` - Group list
 - `GET /scim/v2/Groups/{id}` - Get group details
 - `POST /scim/v2/Groups` - Create group
@@ -45,6 +47,7 @@ Full SCIM 2.0 User Provisioning support has been implemented in Authrim.
 - `DELETE /scim/v2/Groups/{id}` - Delete group
 
 **SCIM Token Management**
+
 - `GET /api/admin/scim-tokens` - Token list
 - `POST /api/admin/scim-tokens` - Create token
 - `DELETE /api/admin/scim-tokens/{tokenHash}` - Revoke token
@@ -52,6 +55,7 @@ Full SCIM 2.0 User Provisioning support has been implemented in Authrim.
 #### ✅ Management UI
 
 **SCIM Token Management Page** (`packages/ui/src/routes/admin/scim-tokens/+page.svelte`)
+
 - Token creation/listing/revocation
 - Token information copy functionality
 - SCIM endpoint information display
@@ -60,6 +64,7 @@ Full SCIM 2.0 User Provisioning support has been implemented in Authrim.
 #### ✅ Tests
 
 **Unit Tests**
+
 - `packages/shared/src/utils/__tests__/scim-filter.test.ts` - Filter parser tests
 - `packages/shared/src/utils/__tests__/scim-mapper.test.ts` - Mapper tests
 
@@ -312,20 +317,24 @@ curl -X POST http://localhost:8786/scim/v2/Users \
 ### Common Issues
 
 **401 Unauthorized**
+
 - Verify token is correct
 - Check token is not expired
 - Verify `Authorization: Bearer TOKEN` header is correct
 
 **400 Invalid Filter**
+
 - Check filter syntax
 - Strings must be quoted
 - Verify operator spelling
 
 **409 Conflict (uniqueness)**
+
 - User with same email already exists
 - GET to verify, then PATCH to update
 
 **412 Precondition Failed**
+
 - ETag is outdated
 - Fetch latest resource and retry
 

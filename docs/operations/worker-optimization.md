@@ -10,12 +10,12 @@ This document examines the Worker splitting approach to address the issue of som
 
 ### Workers Exceeding CPU Time
 
-| Worker | Current CPU Time | Main Bottleneck |
-|--------|-----------------|-----------------|
-| op-token | 14.95ms | JWT signing ×3 (6-9ms) + JWE encryption (15-25ms) |
-| op-auth | 20-250ms | Request Object verification (10-20ms) + Passkey verification (15-25ms) + HTTPS fetch (50-200ms) |
-| op-management | 20-50ms | JWT verification (10-20ms) + D1 write (5-15ms) |
-| op-userinfo | 20-100ms | JWT verification (10-20ms) + JWE encryption (15-25ms) |
+| Worker        | Current CPU Time | Main Bottleneck                                                                                 |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------------------- |
+| op-token      | 14.95ms          | JWT signing ×3 (6-9ms) + JWE encryption (15-25ms)                                               |
+| op-auth       | 20-250ms         | Request Object verification (10-20ms) + Passkey verification (15-25ms) + HTTPS fetch (50-200ms) |
+| op-management | 20-50ms          | JWT verification (10-20ms) + D1 write (5-15ms)                                                  |
+| op-userinfo   | 20-100ms         | JWT verification (10-20ms) + JWE encryption (15-25ms)                                           |
 
 ### Issues with shared Library
 
@@ -23,14 +23,15 @@ This document examines the Worker splitting approach to address the issue of som
 
 ```typescript
 // packages/shared/src/index.ts
-export * from './utils/jwt';      // jose (~80KB)
-export * from './utils/jwe';      // jose dependency
-export * from './utils/passkey';  // @simplewebauthn (~120KB)
+export * from './utils/jwt'; // jose (~80KB)
+export * from './utils/jwe'; // jose dependency
+export * from './utils/passkey'; // @simplewebauthn (~120KB)
 export * from './middleware/rate-limit';
 // ... all Workers load everything
 ```
 
 **Impact**:
+
 - op-discovery: Includes jose (+80KB) but doesn't use signing
 - router: Includes all dependencies (+200KB) but doesn't use crypto
 - Increased cold start time
@@ -88,6 +89,7 @@ import { verifyJWT } from '@authrim/shared-crypto';
 ```
 
 **Expected Benefits**:
+
 - op-discovery: 200KB reduction → Improved cold start
 - op-token: 120KB reduction
 - All Workers: Average 15% bundle size reduction
@@ -196,14 +198,11 @@ class KeyCache {
   private static verifyingKeys = new Map<string, { key: CryptoKey; timestamp: number }>();
   private static readonly TTL = 60000; // 60 seconds
 
-  static async getSigningKey(
-    env: Env,
-    kid: string
-  ): Promise<CryptoKey> {
+  static async getSigningKey(env: Env, kid: string): Promise<CryptoKey> {
     const cached = this.signingKeys.get(kid);
     const now = Date.now();
 
-    if (cached && (now - cached.timestamp) < this.TTL) {
+    if (cached && now - cached.timestamp < this.TTL) {
       return cached.key;
     }
 
@@ -222,14 +221,11 @@ class KeyCache {
     return key;
   }
 
-  static async getVerifyingKey(
-    env: Env,
-    kid: string
-  ): Promise<CryptoKey> {
+  static async getVerifyingKey(env: Env, kid: string): Promise<CryptoKey> {
     const cached = this.verifyingKeys.get(kid);
     const now = Date.now();
 
-    if (cached && (now - cached.timestamp) < this.TTL) {
+    if (cached && now - cached.timestamp < this.TTL) {
       return cached.key;
     }
 
@@ -327,14 +323,15 @@ async function createAccessToken(
 
 **For op-token**:
 
-| Processing | Current | After crypto-service split |
-|-----------|---------|---------------------------|
-| Access Token signing | 10ms (in op-token) | 2ms (call) + 8ms (crypto-service) |
-| ID Token signing | 10ms (in op-token) | 2ms (call) + 8ms (crypto-service) |
-| Refresh Token signing | 10ms (in op-token) | 2ms (call) + 8ms (crypto-service) |
-| **Total** | **30ms** | **6ms (op-token)** + **24ms (crypto-service)** |
+| Processing            | Current            | After crypto-service split                     |
+| --------------------- | ------------------ | ---------------------------------------------- |
+| Access Token signing  | 10ms (in op-token) | 2ms (call) + 8ms (crypto-service)              |
+| ID Token signing      | 10ms (in op-token) | 2ms (call) + 8ms (crypto-service)              |
+| Refresh Token signing | 10ms (in op-token) | 2ms (call) + 8ms (crypto-service)              |
+| **Total**             | **30ms**           | **6ms (op-token)** + **24ms (crypto-service)** |
 
 **Important Considerations**:
+
 - op-token itself becomes under 10ms
 - crypto-service is 24ms but can process multiple requests in parallel
 - Service Binding call overhead: approximately 1-2ms per call
@@ -431,11 +428,13 @@ export default app;
 **Priority**: Highest
 
 **Tasks**:
+
 1. Split into shared-core, shared-crypto, shared-auth
 2. Import only required packages in each Worker
 3. Measure bundle sizes
 
 **Expected Benefits**:
+
 - Bundle size: 10-15% reduction
 - Cold start: 5-10% improvement
 - CPU time: 1-2ms reduction (due to reduced bundle parsing time)
@@ -446,11 +445,13 @@ export default app;
 **Priority**: High
 
 **Tasks**:
+
 1. Implement signing key cache in op-token
 2. Implement signing key cache in op-userinfo
 3. Performance testing
 
 **Expected Benefits**:
+
 - op-token: 14.95ms → 9-10ms
 - op-userinfo: 20-60ms → 12-35ms
 
@@ -460,11 +461,13 @@ export default app;
 **Priority**: High
 
 **Tasks**:
+
 1. Measure Phase 1-2 effects in production environment
 2. Verify if each Worker stays within 10ms limit
 3. Decide on Worker splitting necessity
 
 **Decision Criteria**:
+
 - All Workers under 10ms → Worker splitting not needed
 - Some Workers 10-15ms → Consider crypto-service
 - Multiple Workers over 15ms → Implement crypto-service
@@ -475,6 +478,7 @@ export default app;
 **Priority**: Medium (depending on Phase 3 results)
 
 **Tasks**:
+
 1. Implement crypto-service Worker
 2. Configure Service Bindings
 3. Modify op-token, op-auth, op-management, op-userinfo
@@ -482,6 +486,7 @@ export default app;
 5. Gradual rollout
 
 **Expected Benefits**:
+
 - All Workers stay within 10ms limit
 - However, end-to-end latency increases by +2-5ms
 
@@ -491,19 +496,19 @@ export default app;
 
 ### Scenario 1: op-token (Authorization Code Grant)
 
-| Approach | op-token CPU | crypto-service CPU | Total Latency |
-|----------|-------------|-------------------|---------------|
-| Current | 14.95ms | - | 14.95ms |
-| Phase 1-2 | 9-10ms | - | 9-10ms |
-| crypto-service | 4-6ms | 20-24ms | 9-10ms (+1-2ms) |
+| Approach       | op-token CPU | crypto-service CPU | Total Latency   |
+| -------------- | ------------ | ------------------ | --------------- |
+| Current        | 14.95ms      | -                  | 14.95ms         |
+| Phase 1-2      | 9-10ms       | -                  | 9-10ms          |
+| crypto-service | 4-6ms        | 20-24ms            | 9-10ms (+1-2ms) |
 
 ### Scenario 2: op-auth (Passkey Authentication)
 
-| Approach | op-auth CPU | auth-helper CPU | Total Latency |
-|----------|------------|----------------|---------------|
-| Current | 35-60ms | - | 35-60ms |
-| Phase 1-2 | 25-45ms | - | 25-45ms |
-| auth-helper | 10-20ms | 20-30ms | 25-45ms (+2-5ms) |
+| Approach    | op-auth CPU | auth-helper CPU | Total Latency    |
+| ----------- | ----------- | --------------- | ---------------- |
+| Current     | 35-60ms     | -               | 35-60ms          |
+| Phase 1-2   | 25-45ms     | -               | 25-45ms          |
+| auth-helper | 10-20ms     | 20-30ms         | 25-45ms (+2-5ms) |
 
 ---
 
@@ -512,16 +517,19 @@ export default app;
 ### Recommended Approach
 
 **1. Implement Immediately: Split shared Library**
+
 - Risk: Low
 - Effect: Medium
 - Cost: Low
 
 **2. Implement Next: Key Cache Implementation**
+
 - Risk: Low
 - Effect: High
 - Cost: Low
 
 **3. Conditional Implementation: crypto-service Worker**
+
 - Condition: Only if Phase 1-2 is insufficient
 - Risk: Medium
 - Effect: High
@@ -530,12 +538,14 @@ export default app;
 ### Decision Criteria
 
 **Cases Where crypto-service Worker Should Be Implemented**:
+
 1. After Phase 1-2, op-token is still 12ms or more
 2. Traffic is increasing and paid plan is being considered
 3. Microservices architecture migration is planned
 4. Want to scale crypto processing independently
 
 **Cases Where crypto-service Worker Should NOT Be Implemented**:
+
 1. All Workers are within 10ms after Phase 1-2
 2. Want to minimize end-to-end latency
 3. Want to maintain simple architecture
@@ -555,26 +565,31 @@ export default app;
 ### Service Bindings (Recommended)
 
 **Benefits**:
+
 - Low latency (<1ms)
 - Simple implementation
 - Direct Worker-to-Worker communication
 
 **Drawbacks**:
+
 - Stateless (cannot hold state)
 
 ### Durable Objects
 
 **Benefits**:
+
 - Stateful (can hold cache)
 - Transaction guarantees
 
 **Drawbacks**:
+
 - Slightly higher latency (1-3ms)
 - Complex implementation
 
 ### Recommendation
 
 Use **Service Bindings** for crypto-service:
+
 - Manage cache in Worker memory
 - Stateless design
 - Prioritize low latency

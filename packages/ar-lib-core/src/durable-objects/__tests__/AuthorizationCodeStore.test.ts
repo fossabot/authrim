@@ -228,7 +228,8 @@ describe('AuthorizationCodeStore', () => {
 
       const body = (await response2.json()) as any;
       expect(body.error).toBe('invalid_grant');
-      expect(body.error_description).toContain('already used');
+      // Security: Generic message to prevent information leakage about code state
+      expect(body.error_description).toContain('invalid, expired, or revoked');
     });
 
     it('should fail on non-existent code', async () => {

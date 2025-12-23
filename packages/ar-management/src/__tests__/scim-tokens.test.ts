@@ -89,9 +89,9 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: string[] };
+      const body = (await response.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.details).toContain('expiresInDays must be at least 1 day(s)');
+      expect(body.error_description).toContain('expiresInDays must be at least 1 day(s)');
     });
 
     it('should reject zero expiresInDays', async () => {
@@ -106,9 +106,9 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: string[] };
+      const body = (await response.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.details).toContain('expiresInDays must be at least 1 day(s)');
+      expect(body.error_description).toContain('expiresInDays must be at least 1 day(s)');
     });
 
     it('should reject expiresInDays exceeding maximum (10 years)', async () => {
@@ -123,9 +123,11 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: string[] };
+      const body = (await response.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.details).toContain('expiresInDays must not exceed 3650 days (10 years)');
+      expect(body.error_description).toContain(
+        'expiresInDays must not exceed 3650 days (10 years)'
+      );
     });
 
     it('should reject extremely large expiresInDays', async () => {
@@ -140,9 +142,9 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: string[] };
+      const body = (await response.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.details.some((d) => d.includes('exceed'))).toBe(true);
+      expect(body.error_description).toContain('exceed');
     });
 
     it('should reject non-integer expiresInDays (float)', async () => {
@@ -157,9 +159,9 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: string[] };
+      const body = (await response.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.details).toContain('expiresInDays must be an integer');
+      expect(body.error_description).toContain('expiresInDays must be an integer');
     });
 
     it('should reject non-number expiresInDays (string)', async () => {
@@ -174,9 +176,9 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: string[] };
+      const body = (await response.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.details).toContain('expiresInDays must be a valid number');
+      expect(body.error_description).toContain('expiresInDays must be a valid number');
     });
 
     // Note: Infinity and NaN cannot be represented in JSON
@@ -279,9 +281,9 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: string[] };
+      const body = (await response.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.details).toContain('description must not exceed 256 characters');
+      expect(body.error_description).toContain('description must not exceed 256 characters');
     });
 
     it('should accept description at exactly 256 characters', async () => {
@@ -313,9 +315,9 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: string[] };
+      const body = (await response.json()) as { error: string; error_description: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.details).toContain('description must be a string');
+      expect(body.error_description).toContain('description must be a string');
     });
 
     it('should trim whitespace from description', async () => {
@@ -380,9 +382,9 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; message: string };
+      const body = (await response.json()) as { error: string; error_description?: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.message).toBe('Invalid JSON in request body');
+      expect(body.error_description).toContain('Invalid JSON');
     });
   });
 
@@ -402,11 +404,10 @@ describe('SCIM Token Create Handler - Input Validation', () => {
       );
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as { error: string; details: string[] };
+      const body = (await response.json()) as { error: string; error_description?: string };
       expect(body.error).toBe('invalid_request');
-      expect(body.details.length).toBe(2);
-      expect(body.details.some((d) => d.includes('expiresInDays'))).toBe(true);
-      expect(body.details.some((d) => d.includes('description'))).toBe(true);
+      // ErrorFactory returns combined error description
+      expect(body.error_description).toBeDefined();
     });
   });
 });

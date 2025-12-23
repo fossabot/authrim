@@ -273,8 +273,9 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
     console.error('Callback error:', error);
 
     // Handle specific ExternalIdPError with appropriate error codes
+    // SECURITY: Do not expose internal error details in redirect URL
     if (error instanceof ExternalIdPError) {
-      return redirectWithError(c, error.code, error.message);
+      return redirectWithError(c, error.code, 'Authentication failed. Please try again.');
     }
 
     // Handle generic errors

@@ -86,9 +86,7 @@ async function createUserWithRetry(index, retryCount = 0) {
       const data = await listRes.json();
       if (data.users && data.users.length > 0) {
         // Find user with exact email match
-        const exactMatch = data.users.find(
-          (u) => u.email.toLowerCase() === email.toLowerCase()
-        );
+        const exactMatch = data.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
         if (exactMatch) {
           return { email, userId: exactMatch.id, created: false };
         }

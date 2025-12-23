@@ -5,6 +5,7 @@
 The Admin Session Management API provides comprehensive session management capabilities for administrators. It enables listing, monitoring, and revoking user sessions across the entire system, supporting security operations and compliance requirements.
 
 **Key Features:**
+
 - List sessions with pagination and filtering
 - View detailed session information
 - Revoke individual sessions (force logout)
@@ -13,11 +14,13 @@ The Admin Session Management API provides comprehensive session management capab
 - Session source tracking (memory/database)
 
 **Authentication:**
+
 - Requires admin privileges (Phase 6)
 - Bearer token authentication (Phase 6)
 - RBAC permissions: `sessions:read`, `sessions:write` (Phase 6)
 
 **Use Cases:**
+
 - Security incident response
 - Compliance auditing
 - User support (force logout)
@@ -47,6 +50,7 @@ Get a paginated list of sessions with optional filtering.
 | `status` | string | No | - | Filter by status: `active` or `expired` |
 
 **Response (200 OK):**
+
 ```json
 {
   "sessions": [
@@ -105,13 +109,14 @@ Pagination Object:
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 500 | `server_error` | Failed to retrieve sessions |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 500         | `server_error` | Failed to retrieve sessions             |
 
 **Example:**
+
 ```bash
 # List all sessions (first page)
 curl "https://your-domain.com/admin/sessions" \
@@ -131,27 +136,20 @@ curl "https://your-domain.com/admin/sessions?status=expired" \
 ```
 
 **JavaScript Usage:**
+
 ```javascript
 async function listSessions(options = {}) {
-  const {
-    page = 1,
-    limit = 20,
-    userId = null,
-    status = null
-  } = options;
+  const { page = 1, limit = 20, userId = null, status = null } = options;
 
   const params = new URLSearchParams({ page, limit });
   if (userId) params.append('user_id', userId);
   if (status) params.append('status', status);
 
-  const response = await fetch(
-    `https://your-domain.com/admin/sessions?${params}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${adminToken}`
-      }
-    }
-  );
+  const response = await fetch(`https://your-domain.com/admin/sessions?${params}`, {
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+    },
+  });
 
   const data = await response.json();
   return data;
@@ -177,6 +175,7 @@ Get detailed information about a specific session.
 | `id` | string | Yes | Session ID |
 
 **Response (200 OK):**
+
 ```json
 {
   "session": {
@@ -206,30 +205,29 @@ Get detailed information about a specific session.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 404 | `not_found` | Session not found |
-| 500 | `server_error` | Failed to retrieve session |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 404         | `not_found`    | Session not found                       |
+| 500         | `server_error` | Failed to retrieve session              |
 
 **Example:**
+
 ```bash
 curl "https://your-domain.com/admin/sessions/session_abc123" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 **JavaScript Usage:**
+
 ```javascript
 async function getSessionDetails(sessionId) {
-  const response = await fetch(
-    `https://your-domain.com/admin/sessions/${sessionId}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${adminToken}`
-      }
-    }
-  );
+  const response = await fetch(`https://your-domain.com/admin/sessions/${sessionId}`, {
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+    },
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to get session: ${response.status}`);
@@ -260,6 +258,7 @@ Force logout a specific session (immediate termination).
 | `id` | string | Yes | Session ID to revoke |
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -277,31 +276,30 @@ Force logout a specific session (immediate termination).
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 404 | `not_found` | Session not found |
-| 500 | `server_error` | Failed to revoke session |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 404         | `not_found`    | Session not found                       |
+| 500         | `server_error` | Failed to revoke session                |
 
 **Example:**
+
 ```bash
 curl -X POST "https://your-domain.com/admin/sessions/session_abc123/revoke" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 **JavaScript Usage:**
+
 ```javascript
 async function revokeSession(sessionId) {
-  const response = await fetch(
-    `https://your-domain.com/admin/sessions/${sessionId}/revoke`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${adminToken}`
-      }
-    }
-  );
+  const response = await fetch(`https://your-domain.com/admin/sessions/${sessionId}/revoke`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+    },
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to revoke session: ${response.status}`);
@@ -338,6 +336,7 @@ Revoke all sessions for a specific user (force logout from all devices).
 | `id` | string | Yes | User ID |
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -357,20 +356,22 @@ Revoke all sessions for a specific user (force logout from all devices).
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 404 | `not_found` | User not found |
-| 500 | `server_error` | Failed to revoke user sessions |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 404         | `not_found`    | User not found                          |
+| 500         | `server_error` | Failed to revoke user sessions          |
 
 **Example:**
+
 ```bash
 curl -X POST "https://your-domain.com/admin/users/user_123/revoke-all-sessions" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 **JavaScript Usage:**
+
 ```javascript
 async function revokeAllUserSessions(userId) {
   const response = await fetch(
@@ -378,8 +379,8 @@ async function revokeAllUserSessions(userId) {
     {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${adminToken}`
-      }
+        Authorization: `Bearer ${adminToken}`,
+      },
     }
   );
 
@@ -407,6 +408,7 @@ console.log('Revoked sessions:', result.revokedCount);
 6. **Count Reconciliation**: Returns max count from both sources
 
 **Use Cases:**
+
 - Account compromise response
 - Password reset enforcement
 - User account suspension
@@ -460,24 +462,28 @@ console.log('Revoked sessions:', result.revokedCount);
 ## Filtering Examples
 
 ### 1. Find All Active Sessions
+
 ```bash
 curl "https://your-domain.com/admin/sessions?status=active" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 ### 2. Find All Sessions for a User
+
 ```bash
 curl "https://your-domain.com/admin/sessions?user_id=user_123" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 ### 3. Find Active Sessions for a User
+
 ```bash
 curl "https://your-domain.com/admin/sessions?user_id=user_123&status=active" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 ### 4. Paginate Through All Sessions
+
 ```bash
 # Page 1
 curl "https://your-domain.com/admin/sessions?page=1&limit=50" \
@@ -502,33 +508,24 @@ class SessionMonitor {
   }
 
   async getActiveSessions() {
-    const response = await fetch(
-      `${this.baseUrl}?status=active&limit=100`,
-      {
-        headers: { 'Authorization': `Bearer ${this.adminToken}` }
-      }
-    );
+    const response = await fetch(`${this.baseUrl}?status=active&limit=100`, {
+      headers: { Authorization: `Bearer ${this.adminToken}` },
+    });
     return response.json();
   }
 
   async getUserSessions(userId) {
-    const response = await fetch(
-      `${this.baseUrl}?user_id=${userId}`,
-      {
-        headers: { 'Authorization': `Bearer ${this.adminToken}` }
-      }
-    );
+    const response = await fetch(`${this.baseUrl}?user_id=${userId}`, {
+      headers: { Authorization: `Bearer ${this.adminToken}` },
+    });
     return response.json();
   }
 
   async revokeSession(sessionId) {
-    const response = await fetch(
-      `${this.baseUrl}/${sessionId}/revoke`,
-      {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${this.adminToken}` }
-      }
-    );
+    const response = await fetch(`${this.baseUrl}/${sessionId}/revoke`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.adminToken}` },
+    });
     return response.json();
   }
 
@@ -537,7 +534,7 @@ class SessionMonitor {
       `https://your-domain.com/admin/users/${userId}/revoke-all-sessions`,
       {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${this.adminToken}` }
+        headers: { Authorization: `Bearer ${this.adminToken}` },
       }
     );
     return response.json();
@@ -564,7 +561,7 @@ const monitor = new SessionMonitor(adminToken);
 // Display active sessions
 monitor.monitorActiveSessions((sessions) => {
   console.log(`Active sessions: ${sessions.length}`);
-  sessions.forEach(session => {
+  sessions.forEach((session) => {
     console.log(`- ${session.userName} (${session.userEmail})`);
   });
 }, 30000); // Check every 30 seconds
@@ -578,17 +575,20 @@ await monitor.forceLogoutUser('user_123');
 ## Security Considerations
 
 ### 1. Session Revocation
+
 - **Instant Effect**: SessionStore Durable Object ensures immediate invalidation
 - **Multi-Source Cleanup**: Removes from both memory and database
 - **No Grace Period**: Session is terminated immediately
 - **Audit Trail**: All revocations are logged (Phase 6)
 
 ### 2. Admin Authentication
+
 - **Bearer Token**: Admin token required for all operations (Phase 6)
 - **RBAC**: Role-based access control enforces permissions (Phase 6)
 - **Audit Logging**: All admin actions are logged (Phase 6)
 
 ### 3. Data Privacy
+
 - **User Information**: Email and name included for admin convenience
 - **Session Data**: No sensitive session data exposed
 - **Filtering**: User-specific queries require user ID (prevents enumeration)
@@ -598,16 +598,19 @@ await monitor.forceLogoutUser('user_123');
 ## Performance Considerations
 
 ### 1. Hot/Cold Storage
+
 - **Hot (Memory)**: SessionStore DO provides sub-millisecond access
 - **Cold (Database)**: D1 database fallback with 100ms timeout
 - **Source Tracking**: `source` field indicates data origin
 
 ### 2. Pagination
+
 - **Default Limit**: 20 items per page
 - **Max Limit**: 100 items per page (prevents large queries)
 - **Efficient Queries**: Database indexes on `user_id` and `expires_at`
 
 ### 3. Filtering
+
 - **Status Filter**: Uses database index on `expires_at`
 - **User Filter**: Uses database index on `user_id`
 - **Combined Filters**: Efficient query plans with compound conditions
@@ -619,6 +622,7 @@ await monitor.forceLogoutUser('user_123');
 ### Common Error Scenarios
 
 **1. Session Not Found**
+
 ```http
 HTTP/1.1 404 Not Found
 Content-Type: application/json
@@ -630,6 +634,7 @@ Content-Type: application/json
 ```
 
 **2. User Not Found**
+
 ```http
 HTTP/1.1 404 Not Found
 Content-Type: application/json
@@ -641,6 +646,7 @@ Content-Type: application/json
 ```
 
 **3. Insufficient Permissions**
+
 ```http
 HTTP/1.1 403 Forbidden
 Content-Type: application/json
@@ -656,6 +662,7 @@ Content-Type: application/json
 ## Best Practices
 
 ### 1. Bulk Operations
+
 ```javascript
 // GOOD: Revoke all user sessions in one call
 await revokeAllUserSessions('user_123');
@@ -668,6 +675,7 @@ for (const session of sessions) {
 ```
 
 ### 2. Session Monitoring
+
 ```javascript
 // GOOD: Monitor with appropriate interval
 monitor.monitorActiveSessions(updateUI, 30000); // Every 30 seconds
@@ -677,6 +685,7 @@ monitor.monitorActiveSessions(updateUI, 1000); // Every second - too much!
 ```
 
 ### 3. Error Handling
+
 ```javascript
 // GOOD: Handle errors gracefully
 async function safeRevokeSession(sessionId) {

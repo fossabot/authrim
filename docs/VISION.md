@@ -21,9 +21,9 @@ Authrim focuses on delivering predictable authentication and authorization behav
 Identity systems often become difficult to implement and maintain.
 Authrim emphasizes:
 
-* lightweight integration
-* simple operation
-* clear, extensible architecture
+- lightweight integration
+- simple operation
+- clear, extensible architecture
 
 New standards such as passkeys, ReBAC, VC/DID, and FAPI should be usable without burdening developers.
 
@@ -54,10 +54,10 @@ Instead, it provides only the components that matter most, with an emphasis on c
 
 Authrim will continue to focus on:
 
-* consistent identity flows
-* edge-powered performance
-* lightweight integration and maintenance
-* adaptability to new identity standards
+- consistent identity flows
+- edge-powered performance
+- lightweight integration and maintenance
+- adaptability to new identity standards
 
 The goal is to make identity systems easier to understand, operate, and evolve.
 

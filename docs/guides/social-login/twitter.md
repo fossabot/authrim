@@ -4,13 +4,13 @@ This guide walks you through setting up X Sign-In with Authrim.
 
 ## Overview
 
-| Property | Value |
-|----------|-------|
-| Protocol | OAuth 2.0 with PKCE |
-| API Version | Twitter API v2 |
-| ID Token | No (uses API v2) |
-| UserInfo Endpoint | `/2/users/me` |
-| PKCE Required | Yes (mandatory) |
+| Property          | Value               |
+| ----------------- | ------------------- |
+| Protocol          | OAuth 2.0 with PKCE |
+| API Version       | Twitter API v2      |
+| ID Token          | No (uses API v2)    |
+| UserInfo Endpoint | `/2/users/me`       |
+| PKCE Required     | Yes (mandatory)     |
 
 > **Note**: X (formerly Twitter) requires OAuth 2.0 with PKCE for all new applications. OAuth 1.0a is still supported for legacy apps but not recommended.
 
@@ -53,12 +53,13 @@ Select **Web App, Automated App or Bot**
 
 ### App Info
 
-| Field | Value |
-|-------|-------|
+| Field        | Value                                                    |
+| ------------ | -------------------------------------------------------- |
 | Callback URI | `https://your-domain.com/auth/external/twitter/callback` |
-| Website URL | Your application URL |
+| Website URL  | Your application URL                                     |
 
 For local development:
+
 ```
 http://127.0.0.1:8787/auth/external/twitter/callback
 ```
@@ -157,48 +158,48 @@ curl -X POST "https://your-domain.com/external-idp/admin/providers" \
 
 ### Provider Quirks
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `useBasicAuth` | boolean | `true` | Use HTTP Basic auth for token exchange |
-| `pkceRequired` | boolean | `true` | PKCE is mandatory (informational) |
-| `userFields` | string | See above | Comma-separated user fields |
-| `includeEmail` | boolean | `false` | Request email (requires elevated access) |
-| `expansions` | string | - | API expansions (e.g., `pinned_tweet_id`) |
+| Property       | Type    | Default   | Description                              |
+| -------------- | ------- | --------- | ---------------------------------------- |
+| `useBasicAuth` | boolean | `true`    | Use HTTP Basic auth for token exchange   |
+| `pkceRequired` | boolean | `true`    | PKCE is mandatory (informational)        |
+| `userFields`   | string  | See above | Comma-separated user fields              |
+| `includeEmail` | boolean | `false`   | Request email (requires elevated access) |
+| `expansions`   | string  | -         | API expansions (e.g., `pinned_tweet_id`) |
 
 ### Available Scopes
 
-| Scope | Description |
-|-------|-------------|
-| `users.read` | Read user profile data |
-| `tweet.read` | Read tweets (required for OAuth 2.0) |
-| `offline.access` | Get refresh token |
+| Scope            | Description                          |
+| ---------------- | ------------------------------------ |
+| `users.read`     | Read user profile data               |
+| `tweet.read`     | Read tweets (required for OAuth 2.0) |
+| `offline.access` | Get refresh token                    |
 
 ### User Fields
 
-| Field | Description |
-|-------|-------------|
-| `id` | Unique user ID |
-| `name` | Display name |
-| `username` | @handle |
-| `profile_image_url` | Avatar URL |
-| `description` | Bio |
-| `url` | Profile URL |
-| `location` | Location |
-| `verified` | Legacy verification |
-| `verified_type` | New verification type |
-| `created_at` | Account creation date |
-| `public_metrics` | Follower counts, etc. |
+| Field               | Description           |
+| ------------------- | --------------------- |
+| `id`                | Unique user ID        |
+| `name`              | Display name          |
+| `username`          | @handle               |
+| `profile_image_url` | Avatar URL            |
+| `description`       | Bio                   |
+| `url`               | Profile URL           |
+| `location`          | Location              |
+| `verified`          | Legacy verification   |
+| `verified_type`     | New verification type |
+| `created_at`        | Account creation date |
+| `public_metrics`    | Follower counts, etc. |
 
 ### Claim Mappings
 
 X returns data in a nested `data` object:
 
-| Authrim Claim | X Response Path | Description |
-|---------------|-----------------|-------------|
-| `sub` | `data.id` | Unique user ID |
-| `name` | `data.name` | Display name |
-| `preferred_username` | `data.username` | @handle |
-| `picture` | `data.profile_image_url` | Avatar URL |
+| Authrim Claim        | X Response Path          | Description    |
+| -------------------- | ------------------------ | -------------- |
+| `sub`                | `data.id`                | Unique user ID |
+| `name`               | `data.name`              | Display name   |
+| `preferred_username` | `data.username`          | @handle        |
+| `picture`            | `data.profile_image_url` | Avatar URL     |
 
 ## Important: Email Access
 
@@ -262,6 +263,7 @@ Users can also revoke at: [X Settings - Connected Apps](https://twitter.com/sett
 **Cause**: Redirect URI doesn't match configuration.
 
 **Solution**:
+
 1. Go to Developer Portal → Your App → User authentication settings
 2. Verify Callback URI exactly matches:
    ```
@@ -274,6 +276,7 @@ Users can also revoke at: [X Settings - Connected Apps](https://twitter.com/sett
 **Cause**: OAuth 2.0 not enabled or credentials incorrect.
 
 **Solution**:
+
 1. Ensure User authentication settings are configured
 2. Use OAuth 2.0 Client ID, not API Key
 3. Regenerate client secret if needed
@@ -283,6 +286,7 @@ Users can also revoke at: [X Settings - Connected Apps](https://twitter.com/sett
 **Cause**: Requested fields not included in API response.
 
 **Solution**: Specify required fields in quirks:
+
 ```json
 {
   "provider_quirks": {
@@ -295,16 +299,17 @@ Users can also revoke at: [X Settings - Connected Apps](https://twitter.com/sett
 
 X has API rate limits:
 
-| Endpoint | Limit |
-|----------|-------|
+| Endpoint        | Limit               |
+| --------------- | ------------------- |
 | OAuth 2.0 Token | 300 requests/15 min |
-| /users/me | 75 requests/15 min |
+| /users/me       | 75 requests/15 min  |
 
 ### "tweet.read scope required"
 
 **Cause**: X requires `tweet.read` for OAuth 2.0.
 
 **Solution**: Include `tweet.read` in scopes even for sign-in only:
+
 ```json
 {
   "scopes": "users.read tweet.read offline.access"
@@ -313,12 +318,12 @@ X has API rate limits:
 
 ## API Access Levels
 
-| Level | Rate Limits | Features |
-|-------|-------------|----------|
-| Free | Limited | Basic OAuth 2.0 |
-| Basic | Higher | More endpoints |
-| Pro | Higher | Full API access |
-| Enterprise | Custom | Custom limits |
+| Level      | Rate Limits | Features        |
+| ---------- | ----------- | --------------- |
+| Free       | Limited     | Basic OAuth 2.0 |
+| Basic      | Higher      | More endpoints  |
+| Pro        | Higher      | Full API access |
+| Enterprise | Custom      | Custom limits   |
 
 ## Display Guidelines
 

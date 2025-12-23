@@ -317,12 +317,13 @@ export class UnifiedCheckService {
       return response;
     } catch (error) {
       // Handle parsing or evaluation errors
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[UnifiedCheckService] Evaluation error:', error);
       return {
         allowed: false,
         resolved_via: [],
         final_decision: 'deny',
-        reason: `evaluation_error: ${errorMessage}`,
+        // SECURITY: Do not expose internal error details in response
+        reason: 'evaluation_error: Permission check failed',
         cache_ttl: 0,
       };
     }

@@ -918,7 +918,8 @@ export class SessionStore extends DurableObject<Env> {
       return new Response(
         JSON.stringify({
           error: 'Internal Server Error',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          // SECURITY: Do not expose internal error details in response
+          message: 'An error occurred while processing the session',
         }),
         {
           status: 500,

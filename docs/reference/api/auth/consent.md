@@ -5,6 +5,7 @@
 The OAuth Consent Screen API handles user authorization consent for OAuth 2.0 and OpenID Connect flows. It provides endpoints to retrieve consent screen data and process user consent decisions (approve/deny).
 
 **Key Features:**
+
 - Retrieves pending authorization requests from session
 - Displays client metadata (name, logo, policy URL, etc.)
 - Converts OAuth scopes to human-readable descriptions
@@ -13,6 +14,7 @@ The OAuth Consent Screen API handles user authorization consent for OAuth 2.0 an
 - Integrates with SessionStore and AuthorizationCodeStore Durable Objects
 
 **Standards Compliance:**
+
 - OAuth 2.0 (RFC 6749)
 - OpenID Connect Core 1.0
 - OAuth 2.0 Security Best Current Practice
@@ -38,11 +40,13 @@ Retrieve consent screen data for a pending authorization request.
 
 **Alternative Authentication:**
 Can also read session ID from cookie:
+
 ```http
 Cookie: session_id={session_id}
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "client": {
@@ -84,20 +88,22 @@ Cookie: session_id={session_id}
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Session ID is missing |
-| 400 | `invalid_session` | Session not found or expired |
-| 400 | `invalid_request` | No pending authorization request |
-| 400 | `invalid_client` | Client not found |
-| 500 | `server_error` | Failed to retrieve consent data |
+| Status Code | Error             | Description                      |
+| ----------- | ----------------- | -------------------------------- |
+| 400         | `invalid_request` | Session ID is missing            |
+| 400         | `invalid_session` | Session not found or expired     |
+| 400         | `invalid_request` | No pending authorization request |
+| 400         | `invalid_client`  | Client not found                 |
+| 500         | `server_error`    | Failed to retrieve consent data  |
 
 **Example:**
+
 ```bash
 curl "https://your-domain.com/auth/consent?session_id=session_550e8400-e29b-41d4-a716-446655440000"
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 // Get consent screen data
 const sessionId = getSessionIdFromCookie(); // or from query param
@@ -118,6 +124,7 @@ Process user's consent decision (approve or deny).
 **Endpoint:** `POST /auth/consent`
 
 **Request Body:**
+
 ```json
 {
   "session_id": "session_550e8400-e29b-41d4-a716-446655440000",
@@ -134,6 +141,7 @@ Process user's consent decision (approve or deny).
 | `scopes` | string[] | No | Approved scopes (defaults to all requested scopes) |
 
 **Response (200 OK - Approved):**
+
 ```json
 {
   "approved": true,
@@ -143,6 +151,7 @@ Process user's consent decision (approve or deny).
 ```
 
 **Response (200 OK - Denied):**
+
 ```json
 {
   "approved": false,
@@ -152,14 +161,15 @@ Process user's consent decision (approve or deny).
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Session ID is missing |
-| 400 | `invalid_session` | Session not found or expired |
-| 400 | `invalid_request` | No pending authorization request |
-| 500 | `server_error` | Failed to process consent |
+| Status Code | Error             | Description                      |
+| ----------- | ----------------- | -------------------------------- |
+| 400         | `invalid_request` | Session ID is missing            |
+| 400         | `invalid_session` | Session not found or expired     |
+| 400         | `invalid_request` | No pending authorization request |
+| 500         | `server_error`    | Failed to process consent        |
 
 **Example:**
+
 ```bash
 # Approve consent
 curl -X POST https://your-domain.com/auth/consent \
@@ -180,6 +190,7 @@ curl -X POST https://your-domain.com/auth/consent \
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 // User clicks "Allow" button
 async function approveConsent(sessionId: string, scopes: string[]) {
@@ -189,8 +200,8 @@ async function approveConsent(sessionId: string, scopes: string[]) {
     body: JSON.stringify({
       session_id: sessionId,
       approved: true,
-      scopes: scopes
-    })
+      scopes: scopes,
+    }),
   });
 
   const data = await response.json();
@@ -207,8 +218,8 @@ async function denyConsent(sessionId: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       session_id: sessionId,
-      approved: false
-    })
+      approved: false,
+    }),
   });
 
   const data = await response.json();
@@ -223,17 +234,18 @@ async function denyConsent(sessionId: string) {
 
 The API converts OAuth/OIDC scopes to human-readable descriptions:
 
-| Scope | Title | Description |
-|-------|-------|-------------|
-| `openid` | Identity | Access your basic profile information |
-| `profile` | Profile | Access your full profile (name, picture, etc.) |
-| `email` | Email | Access your email address |
-| `phone` | Phone | Access your phone number |
-| `address` | Address | Access your physical address |
-| `offline_access` | Offline Access | Maintain access when you are offline |
+| Scope            | Title          | Description                                    |
+| ---------------- | -------------- | ---------------------------------------------- |
+| `openid`         | Identity       | Access your basic profile information          |
+| `profile`        | Profile        | Access your full profile (name, picture, etc.) |
+| `email`          | Email          | Access your email address                      |
+| `phone`          | Phone          | Access your phone number                       |
+| `address`        | Address        | Access your physical address                   |
+| `offline_access` | Offline Access | Maintain access when you are offline           |
 
 **Custom Scopes:**
 If a scope is not recognized, the API generates a generic description:
+
 - `custom_scope` → Title: "custom_scope", Description: "Access custom_scope data"
 
 ---
@@ -248,6 +260,7 @@ Upon consent approval, the API:
    - Single-use token
 
 2. **Stores code in AuthorizationCodeStore Durable Object:**
+
    ```json
    {
      "code": "auth_code_123",
@@ -314,18 +327,19 @@ The session must contain an `authRequest` object with the following structure:
 
 ```typescript
 interface AuthRequest {
-  client_id: string;          // OAuth client ID
-  redirect_uri: string;       // Callback URL
-  scope: string;              // Space-separated scopes
-  state?: string;             // CSRF token
-  nonce?: string;             // OIDC nonce
-  response_type: string;      // "code" or "id_token token"
-  code_challenge?: string;    // PKCE challenge
+  client_id: string; // OAuth client ID
+  redirect_uri: string; // Callback URL
+  scope: string; // Space-separated scopes
+  state?: string; // CSRF token
+  nonce?: string; // OIDC nonce
+  response_type: string; // "code" or "id_token token"
+  code_challenge?: string; // PKCE challenge
   code_challenge_method?: string; // "S256" or "plain"
 }
 ```
 
 **Example Session Data:**
+
 ```json
 {
   "sessionId": "session_123",
@@ -349,28 +363,33 @@ interface AuthRequest {
 ## Security Considerations
 
 ### Session Validation
+
 - Session must exist and not be expired
 - Session must contain valid `authRequest`
 - User must be authenticated before accessing consent screen
 
 ### Client Validation
+
 - Client must exist in database
 - Redirect URI is retrieved from auth request (validated earlier in `/authorize`)
 - Client metadata (name, logo) displayed to user for trust
 
 ### Authorization Code Security
+
 - 10-minute expiration
 - Single-use token (consumed during token exchange)
 - Stored in AuthorizationCodeStore Durable Object (isolated storage)
 - Bound to specific client_id and redirect_uri
 
 ### Scope Validation
+
 - `openid` scope is always required (marked as required)
 - User can approve subset of requested scopes
 - Approved scopes stored with authorization code
 - Client receives only approved scopes in tokens
 
 ### State Parameter
+
 - CSRF protection mechanism
 - Echoed back to client in redirect
 - Required for security (enforced by `/authorize`)
@@ -384,6 +403,7 @@ interface AuthRequest {
 When user denies consent:
 
 1. **Build error redirect URL:**
+
    ```
    https://yourapp.com/callback?error=access_denied&error_description=User+denied+the+consent+request&state=xyz
    ```
@@ -432,7 +452,7 @@ When user denies consent:
 ```html
 <div class="consent-screen">
   <div class="client-info">
-    <img src="${client.logo_uri}" alt="${client.client_name}">
+    <img src="${client.logo_uri}" alt="${client.client_name}" />
     <h2>${client.client_name} wants to access your account</h2>
     <p>Using account: ${user.email}</p>
   </div>
@@ -441,11 +461,11 @@ When user denies consent:
     <h3>This will allow ${client.client_name} to:</h3>
     <ul>
       ${scopes.map(scope => `
-        <li>
-          <strong>${scope.title}</strong>
-          <p>${scope.description}</p>
-          ${scope.required ? '<span class="badge">Required</span>' : ''}
-        </li>
+      <li>
+        <strong>${scope.title}</strong>
+        <p>${scope.description}</p>
+        ${scope.required ? '<span class="badge">Required</span>' : ''}
+      </li>
       `).join('')}
     </ul>
   </div>
@@ -469,6 +489,7 @@ When user denies consent:
 **Unit Tests:** `/packages/op-auth/src/__tests__/consent.test.ts`
 
 **Manual Testing:**
+
 ```bash
 # 1. Start authorization flow (requires authenticated session)
 curl "http://localhost:8787/authorize?client_id=test_client&redirect_uri=http://localhost:3000/callback&scope=openid+profile+email&response_type=code&state=xyz"
@@ -499,21 +520,25 @@ curl -X POST http://localhost:8787/auth/consent \
 ## Future Enhancements (Phase 6)
 
 ### Consent Persistence
+
 - Store consent decisions in D1 `user_consents` table
 - Skip consent screen if previously granted
 - Allow users to revoke consent
 
 ### Audit Logging
+
 - Log all consent decisions
 - Include timestamp, user ID, client ID, scopes
 - Support compliance and security investigations
 
 ### Granular Scope Selection
+
 - Allow users to approve/deny individual scopes
 - Update UI to show checkboxes for each scope
 - Validate that required scopes are approved
 
 ### Consent Expiration
+
 - Set expiration time for stored consents
 - Re-prompt after X days (e.g., 90 days)
 - Configurable per client

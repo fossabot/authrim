@@ -4,12 +4,12 @@ Strong consistency layer for distributed authentication and authorization.
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| **Total DOs** | 16 Durable Objects |
-| **Purpose** | Strong consistency for auth flows |
-| **Pattern** | Single-instance-per-key globally |
-| **Storage** | In-memory + persistent (DO storage/D1) |
+| Aspect        | Description                            |
+| ------------- | -------------------------------------- |
+| **Total DOs** | 16 Durable Objects                     |
+| **Purpose**   | Strong consistency for auth flows      |
+| **Pattern**   | Single-instance-per-key globally       |
+| **Storage**   | In-memory + persistent (DO storage/D1) |
 
 Authrim uses Cloudflare Durable Objects to provide **strong consistency** guarantees that are critical for security-sensitive operations like authorization codes, sessions, and token rotation.
 
@@ -19,38 +19,38 @@ Authrim uses Cloudflare Durable Objects to provide **strong consistency** guaran
 
 ### Core Authentication
 
-| Durable Object | Purpose | Consistency Guarantee |
-|----------------|---------|----------------------|
-| **KeyManager** | RSA/EC key management & rotation | Atomic key operations |
-| **SessionStore** | Active user session state | Real-time invalidation |
-| **AuthorizationCodeStore** | One-time auth codes | Single-use guarantee |
-| **RefreshTokenRotator** | Token rotation & family tracking | Theft detection |
+| Durable Object             | Purpose                          | Consistency Guarantee  |
+| -------------------------- | -------------------------------- | ---------------------- |
+| **KeyManager**             | RSA/EC key management & rotation | Atomic key operations  |
+| **SessionStore**           | Active user session state        | Real-time invalidation |
+| **AuthorizationCodeStore** | One-time auth codes              | Single-use guarantee   |
+| **RefreshTokenRotator**    | Token rotation & family tracking | Theft detection        |
 
 ### Security & Rate Limiting
 
-| Durable Object | Purpose | Consistency Guarantee |
-|----------------|---------|----------------------|
-| **DPoPJTIStore** | DPoP proof replay prevention | Unique JTI tracking |
-| **TokenRevocationStore** | Revoked token registry | Immediate propagation |
-| **RateLimiterCounter** | API rate limiting | Atomic counters |
-| **UserCodeRateLimiter** | Device flow rate limiting | Per-user limits |
-| **ChallengeStore** | WebAuthn challenge management | Single-use verification |
+| Durable Object           | Purpose                       | Consistency Guarantee   |
+| ------------------------ | ----------------------------- | ----------------------- |
+| **DPoPJTIStore**         | DPoP proof replay prevention  | Unique JTI tracking     |
+| **TokenRevocationStore** | Revoked token registry        | Immediate propagation   |
+| **RateLimiterCounter**   | API rate limiting             | Atomic counters         |
+| **UserCodeRateLimiter**  | Device flow rate limiting     | Per-user limits         |
+| **ChallengeStore**       | WebAuthn challenge management | Single-use verification |
 
 ### Protocol Stores
 
-| Durable Object | Purpose | Consistency Guarantee |
-|----------------|---------|----------------------|
-| **PARRequestStore** | Pushed Authorization Requests | Request URI binding |
-| **DeviceCodeStore** | Device Authorization Grant | Polling state management |
-| **CIBARequestStore** | CIBA authentication requests | Async flow state |
-| **SAMLRequestStore** | SAML request/response binding | Cross-domain state |
+| Durable Object       | Purpose                       | Consistency Guarantee    |
+| -------------------- | ----------------------------- | ------------------------ |
+| **PARRequestStore**  | Pushed Authorization Requests | Request URI binding      |
+| **DeviceCodeStore**  | Device Authorization Grant    | Polling state management |
+| **CIBARequestStore** | CIBA authentication requests  | Async flow state         |
+| **SAMLRequestStore** | SAML request/response binding | Cross-domain state       |
 
 ### Infrastructure
 
-| Durable Object | Purpose | Consistency Guarantee |
-|----------------|---------|----------------------|
-| **VersionManager** | Deployment versioning | Atomic version control |
-| **PermissionChangeHub** | Real-time permission updates | WebSocket broadcast |
+| Durable Object          | Purpose                      | Consistency Guarantee  |
+| ----------------------- | ---------------------------- | ---------------------- |
+| **VersionManager**      | Deployment versioning        | Atomic version control |
+| **PermissionChangeHub** | Real-time permission updates | WebSocket broadcast    |
 
 ---
 
@@ -133,22 +133,22 @@ timeline
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/active` | GET | Get active signing key |
-| `/jwks` | GET | Get all public keys (JWKS) |
-| `/rotate` | POST | Trigger key rotation |
-| `/should-rotate` | GET | Check if rotation needed |
-| `/config` | GET/POST | Key rotation configuration |
+| Endpoint         | Method   | Description                |
+| ---------------- | -------- | -------------------------- |
+| `/active`        | GET      | Get active signing key     |
+| `/jwks`          | GET      | Get all public keys (JWKS) |
+| `/rotate`        | POST     | Trigger key rotation       |
+| `/should-rotate` | GET      | Check if rotation needed   |
+| `/config`        | GET/POST | Key rotation configuration |
 
 ### Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Rotation Interval | 90 days | Time between rotations |
-| Retention Period | 30 days | Keep old keys for verification |
-| Key Algorithm | RS256 | Signing algorithm |
-| Key Size | 2048 bits | RSA key size |
+| Setting           | Default   | Description                    |
+| ----------------- | --------- | ------------------------------ |
+| Rotation Interval | 90 days   | Time between rotations         |
+| Retention Period  | 30 days   | Keep old keys for verification |
+| Key Algorithm     | RS256     | Signing algorithm              |
+| Key Size          | 2048 bits | RSA key size                   |
 
 ---
 
@@ -182,20 +182,20 @@ flowchart TB
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/session/:id` | GET | Get session by ID |
-| `/session` | POST | Create new session |
-| `/session/:id` | DELETE | Invalidate session |
-| `/sessions/user/:userId` | GET | List user's sessions |
+| Endpoint                 | Method | Description          |
+| ------------------------ | ------ | -------------------- |
+| `/session/:id`           | GET    | Get session by ID    |
+| `/session`               | POST   | Create new session   |
+| `/session/:id`           | DELETE | Invalidate session   |
+| `/sessions/user/:userId` | GET    | List user's sessions |
 
 ### Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Session TTL | 24 hours | Default session lifetime |
-| Max per User | 10 | Maximum concurrent sessions |
-| Cleanup Interval | 5 minutes | Expired session cleanup |
+| Setting          | Default   | Description                 |
+| ---------------- | --------- | --------------------------- |
+| Session TTL      | 24 hours  | Default session lifetime    |
+| Max per User     | 10        | Maximum concurrent sessions |
+| Cleanup Interval | 5 minutes | Expired session cleanup     |
 
 ---
 
@@ -236,17 +236,17 @@ sequenceDiagram
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/code` | POST | Store authorization code |
-| `/code/consume` | POST | Consume code (one-time) |
+| Endpoint        | Method | Description              |
+| --------------- | ------ | ------------------------ |
+| `/code`         | POST   | Store authorization code |
+| `/code/consume` | POST   | Consume code (one-time)  |
 
 ### Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Code TTL | 60 seconds | Authorization code lifetime |
-| Max per User | 5 | Concurrent codes per user |
+| Setting      | Default    | Description                 |
+| ------------ | ---------- | --------------------------- |
+| Code TTL     | 60 seconds | Authorization code lifetime |
+| Max per User | 5          | Concurrent codes per user   |
 
 ---
 
@@ -282,11 +282,11 @@ flowchart TB
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/rotate` | POST | Rotate refresh token |
-| `/revoke-family` | POST | Revoke entire token family |
-| `/validate` | POST | Check if token is current |
+| Endpoint         | Method | Description                |
+| ---------------- | ------ | -------------------------- |
+| `/rotate`        | POST   | Rotate refresh token       |
+| `/revoke-family` | POST   | Revoke entire token family |
+| `/validate`      | POST   | Check if token is current  |
 
 ---
 
@@ -303,17 +303,17 @@ Prevents DPoP proof replay by tracking used JTI values.
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/jti/check` | POST | Check and record JTI |
-| `/jti/cleanup` | POST | Clean expired JTIs |
+| Endpoint       | Method | Description          |
+| -------------- | ------ | -------------------- |
+| `/jti/check`   | POST   | Check and record JTI |
+| `/jti/cleanup` | POST   | Clean expired JTIs   |
 
 ### Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| JTI TTL | 5 minutes | JTI retention time |
-| Cleanup Interval | 1 minute | Automatic cleanup |
+| Setting          | Default   | Description        |
+| ---------------- | --------- | ------------------ |
+| JTI TTL          | 5 minutes | JTI retention time |
+| Cleanup Interval | 1 minute  | Automatic cleanup  |
 
 ---
 
@@ -330,11 +330,11 @@ Maintains registry of revoked tokens for immediate invalidation.
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/revoke` | POST | Revoke a token |
-| `/check` | POST | Check if revoked |
-| `/cleanup` | POST | Clean expired entries |
+| Endpoint   | Method | Description           |
+| ---------- | ------ | --------------------- |
+| `/revoke`  | POST   | Revoke a token        |
+| `/check`   | POST   | Check if revoked      |
+| `/cleanup` | POST   | Clean expired entries |
 
 ---
 
@@ -351,10 +351,10 @@ Provides atomic rate limiting counters for API endpoints.
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/check` | POST | Check and increment counter |
-| `/reset` | POST | Reset counter |
+| Endpoint | Method | Description                 |
+| -------- | ------ | --------------------------- |
+| `/check` | POST   | Check and increment counter |
+| `/reset` | POST   | Reset counter               |
 
 ---
 
@@ -383,10 +383,10 @@ Manages WebAuthn challenges for passkey authentication.
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/challenge` | POST | Store new challenge |
-| `/challenge/verify` | POST | Verify and consume challenge |
+| Endpoint            | Method | Description                  |
+| ------------------- | ------ | ---------------------------- |
+| `/challenge`        | POST   | Store new challenge          |
+| `/challenge/verify` | POST   | Verify and consume challenge |
 
 ---
 
@@ -403,11 +403,11 @@ Stores Pushed Authorization Requests for later authorization.
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/request` | POST | Store PAR request |
-| `/request/:uri` | GET | Retrieve request |
-| `/request/:uri/consume` | POST | Consume request |
+| Endpoint                | Method | Description       |
+| ----------------------- | ------ | ----------------- |
+| `/request`              | POST   | Store PAR request |
+| `/request/:uri`         | GET    | Retrieve request  |
+| `/request/:uri/consume` | POST   | Consume request   |
 
 ---
 
@@ -424,12 +424,12 @@ Manages Device Authorization Grant flow state.
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/device` | POST | Create device authorization |
-| `/device/:code` | GET | Check authorization status |
-| `/device/:code/authorize` | POST | User authorizes device |
-| `/device/:code/deny` | POST | User denies device |
+| Endpoint                  | Method | Description                 |
+| ------------------------- | ------ | --------------------------- |
+| `/device`                 | POST   | Create device authorization |
+| `/device/:code`           | GET    | Check authorization status  |
+| `/device/:code/authorize` | POST   | User authorizes device      |
+| `/device/:code/deny`      | POST   | User denies device          |
 
 ---
 
@@ -446,12 +446,12 @@ Manages Client-Initiated Backchannel Authentication requests.
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/request` | POST | Create CIBA request |
-| `/request/:id` | GET | Check request status |
-| `/request/:id/complete` | POST | Complete authentication |
-| `/request/:id/deny` | POST | Deny authentication |
+| Endpoint                | Method | Description             |
+| ----------------------- | ------ | ----------------------- |
+| `/request`              | POST   | Create CIBA request     |
+| `/request/:id`          | GET    | Check request status    |
+| `/request/:id/complete` | POST   | Complete authentication |
+| `/request/:id/deny`     | POST   | Deny authentication     |
 
 ---
 
@@ -468,11 +468,11 @@ Manages SAML 2.0 request/response state.
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/request` | POST | Store SAML request |
-| `/request/:id` | GET | Retrieve request |
-| `/request/:id/consume` | POST | Consume after response |
+| Endpoint               | Method | Description            |
+| ---------------------- | ------ | ---------------------- |
+| `/request`             | POST   | Store SAML request     |
+| `/request/:id`         | GET    | Retrieve request       |
+| `/request/:id/consume` | POST   | Consume after response |
 
 ---
 
@@ -502,10 +502,10 @@ Broadcasts real-time permission changes via WebSocket.
 
 ### API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/websocket` | GET | WebSocket upgrade |
-| `/broadcast` | POST | Broadcast change event |
+| Endpoint     | Method | Description            |
+| ------------ | ------ | ---------------------- |
+| `/websocket` | GET    | WebSocket upgrade      |
+| `/broadcast` | POST   | Broadcast change event |
 
 ---
 
@@ -526,11 +526,11 @@ flowchart LR
 
 ### Sharding Documents
 
-| DO | Sharding Doc |
-|----|--------------|
-| AuthorizationCodeStore | [durable-objects-sharding.md](./durable-objects-sharding.md) |
-| RefreshTokenRotator | [refresh-token-sharding.md](./refresh-token-sharding.md) |
-| PARRequestStore | [par-sharding.ts](../../packages/shared/src/utils/par-sharding.ts) |
+| DO                     | Sharding Doc                                                       |
+| ---------------------- | ------------------------------------------------------------------ |
+| AuthorizationCodeStore | [durable-objects-sharding.md](./durable-objects-sharding.md)       |
+| RefreshTokenRotator    | [refresh-token-sharding.md](./refresh-token-sharding.md)           |
+| PARRequestStore        | [par-sharding.ts](../../packages/shared/src/utils/par-sharding.ts) |
 
 ---
 
@@ -558,11 +558,11 @@ async fetch(request: Request): Promise<Response> {
 
 Per-DO rate limiting prevents abuse:
 
-| DO | Rate Limit |
-|----|------------|
+| DO                     | Rate Limit         |
+| ---------------------- | ------------------ |
 | AuthorizationCodeStore | 100/min per client |
-| SessionStore | 1000/min global |
-| RefreshTokenRotator | 10/min per user |
+| SessionStore           | 1000/min global    |
+| RefreshTokenRotator    | 10/min per user    |
 
 ---
 
@@ -570,32 +570,32 @@ Per-DO rate limiting prevents abuse:
 
 ### Latency Targets (p95)
 
-| Operation | Target | Notes |
-|-----------|--------|-------|
-| SessionStore GET (hot) | < 5ms | In-memory |
-| SessionStore GET (cold) | < 50ms | D1 fallback |
-| AuthCode consume | < 10ms | Atomic check |
-| Token rotate | < 15ms | + D1 audit |
-| KeyManager JWKS | < 5ms | Cached |
+| Operation               | Target | Notes        |
+| ----------------------- | ------ | ------------ |
+| SessionStore GET (hot)  | < 5ms  | In-memory    |
+| SessionStore GET (cold) | < 50ms | D1 fallback  |
+| AuthCode consume        | < 10ms | Atomic check |
+| Token rotate            | < 15ms | + D1 audit   |
+| KeyManager JWKS         | < 5ms  | Cached       |
 
 ### Scalability
 
-| Metric | Value |
-|--------|-------|
-| Requests per DO | ~1,000/sec |
+| Metric          | Value                    |
+| --------------- | ------------------------ |
+| Requests per DO | ~1,000/sec               |
 | Global capacity | Unlimited (auto-scaling) |
-| Concurrent ops | Single-threaded per DO |
+| Concurrent ops  | Single-threaded per DO   |
 
 ---
 
 ## Related Documents
 
-| Document | Description |
-|----------|-------------|
-| [Architecture Overview](./overview.md) | System architecture |
-| [Storage Strategy](./storage-strategy.md) | Multi-tier storage design |
-| [DO Sharding](./durable-objects-sharding.md) | Sharding patterns |
-| [Refresh Token Sharding](./refresh-token-sharding.md) | RTR sharding spec |
+| Document                                              | Description               |
+| ----------------------------------------------------- | ------------------------- |
+| [Architecture Overview](./overview.md)                | System architecture       |
+| [Storage Strategy](./storage-strategy.md)             | Multi-tier storage design |
+| [DO Sharding](./durable-objects-sharding.md)          | Sharding patterns         |
+| [Refresh Token Sharding](./refresh-token-sharding.md) | RTR sharding spec         |
 
 ---
 

@@ -106,7 +106,8 @@ describe('Policy Service API', () => {
 
       expect(res.status).toBe(401);
       const body = await res.json();
-      expect(body.error).toBe('unauthorized');
+      // RFC準拠: 認証が必要な場合は login_required
+      expect(body.error).toBe('login_required');
     });
 
     it('should return 400 for missing required fields', async () => {
@@ -471,16 +472,17 @@ describe('Policy Service API', () => {
       expect(res.status).toBe(401);
     });
 
-    it('should return 503 when ReBAC is not enabled', async () => {
+    it('should return 403 when ReBAC is not enabled', async () => {
       const req = createRequest('/api/rebac/check', {
         method: 'POST',
         body: { user_id: 'user:123', relation: 'viewer', object: 'document:doc_1' },
       });
       const res = await app.fetch(req, mockEnv);
 
-      expect(res.status).toBe(503);
+      // POLICY_FEATURE_DISABLED: RFC準拠で access_denied + 403
+      expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body.error).toBe('feature_disabled');
+      expect(body.error).toBe('access_denied');
     });
 
     it('should return 400 for missing required fields when ReBAC is enabled', async () => {
@@ -572,8 +574,9 @@ describe('Policy Service API', () => {
 
       expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.error).toBe('not_found');
-      expect(body.path).toBe('/unknown/path');
+      // RFC準拠: 404でも error は invalid_request を使用
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('not found');
     });
   });
 });

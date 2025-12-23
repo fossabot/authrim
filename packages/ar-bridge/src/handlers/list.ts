@@ -5,6 +5,7 @@
 
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
+import { createErrorResponse, AR_ERROR_CODES } from '@authrim/ar-lib-core';
 import { listEnabledProviders } from '../services/provider-store';
 import type { ProviderListResponse } from '../types';
 
@@ -33,6 +34,6 @@ export async function handleListProviders(c: Context<{ Bindings: Env }>): Promis
     return c.json(response);
   } catch (error) {
     console.error('Failed to list providers:', error);
-    return c.json({ error: 'internal_error', message: 'Failed to list providers' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

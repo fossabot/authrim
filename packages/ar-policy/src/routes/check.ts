@@ -20,6 +20,10 @@ import {
   createUnifiedCheckService,
   createReBACService,
   parsePermission,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
   type CheckApiRequest,
   type UnifiedCheckService,
   type ReBACConfig,
@@ -296,12 +300,11 @@ checkRoutes.post('/', async (c) => {
   // Check if feature is enabled
   const enabled = await isCheckApiEnabled(c.env);
   if (!enabled) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'Check API is not enabled. Set ENABLE_CHECK_API=true to enable.',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.ACCESS_DENIED,
+      403,
+      'Check API is not enabled. Set ENABLE_CHECK_API=true to enable.'
     );
   }
 
@@ -314,23 +317,16 @@ checkRoutes.post('/', async (c) => {
   });
 
   if (!auth.authenticated) {
-    return c.json(
-      {
-        error: auth.error || 'unauthorized',
-        error_description: auth.errorDescription || 'Authentication failed',
-      },
-      (auth.statusCode || 401) as 400 | 401 | 403 | 500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check operation permission
   if (!isOperationAllowed(auth, 'check')) {
-    return c.json(
-      {
-        error: 'forbidden',
-        error_description: 'API key does not have permission for check operation',
-      },
-      403
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.ACCESS_DENIED,
+      403,
+      'API key does not have permission for check operation'
     );
   }
 
@@ -348,7 +344,7 @@ checkRoutes.post('/', async (c) => {
   if (!rateLimitResult.allowed) {
     return c.json(
       {
-        error: 'rate_limit_exceeded',
+        error: 'slow_down',
         error_description: 'Too many requests. Please retry later.',
         retry_after: rateLimitResult.retryAfter,
       },
@@ -363,12 +359,11 @@ checkRoutes.post('/', async (c) => {
   const debugMode = isDebugModeEnabled(c.env);
   const checkService = getCheckService(c.env, debugMode);
   if (!checkService) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'D1 database not configured for Check API',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'D1 database not configured for Check API'
     );
   }
 
@@ -378,22 +373,20 @@ checkRoutes.post('/', async (c) => {
 
     // Validate required fields
     if (!body.subject_id) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'subject_id is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'subject_id is required'
       );
     }
 
     if (!body.permission) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'permission is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'permission is required'
       );
     }
 
@@ -401,13 +394,13 @@ checkRoutes.post('/', async (c) => {
     try {
       parsePermission(body.permission);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid permission format';
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: message,
-        },
-        400
+      console.error('[Check API] Permission parse error:', error);
+      // SECURITY: Do not expose internal parser error details
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Invalid permission format'
       );
     }
 
@@ -432,13 +425,7 @@ checkRoutes.post('/', async (c) => {
     });
   } catch (error) {
     console.error('[Check API] Check error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to check permission',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -450,12 +437,11 @@ checkRoutes.post('/batch', async (c) => {
   // Check if feature is enabled
   const enabled = await isCheckApiEnabled(c.env);
   if (!enabled) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'Check API is not enabled',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.ACCESS_DENIED,
+      403,
+      'Check API is not enabled'
     );
   }
 
@@ -468,23 +454,16 @@ checkRoutes.post('/batch', async (c) => {
   });
 
   if (!auth.authenticated) {
-    return c.json(
-      {
-        error: auth.error || 'unauthorized',
-        error_description: auth.errorDescription || 'Authentication failed',
-      },
-      (auth.statusCode || 401) as 400 | 401 | 403 | 500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check operation permission
   if (!isOperationAllowed(auth, 'batch')) {
-    return c.json(
-      {
-        error: 'forbidden',
-        error_description: 'API key does not have permission for batch operation',
-      },
-      403
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.ACCESS_DENIED,
+      403,
+      'API key does not have permission for batch operation'
     );
   }
 
@@ -502,7 +481,7 @@ checkRoutes.post('/batch', async (c) => {
   if (!rateLimitResult.allowed) {
     return c.json(
       {
-        error: 'rate_limit_exceeded',
+        error: 'slow_down',
         error_description: 'Too many requests. Please retry later.',
         retry_after: rateLimitResult.retryAfter,
       },
@@ -517,12 +496,11 @@ checkRoutes.post('/batch', async (c) => {
   const debugMode = isDebugModeEnabled(c.env);
   const checkService = getCheckService(c.env, debugMode);
   if (!checkService) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'D1 database not configured',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'D1 database not configured'
     );
   }
 
@@ -534,49 +512,46 @@ checkRoutes.post('/batch', async (c) => {
 
     // Validate request
     if (!body.checks || !Array.isArray(body.checks) || body.checks.length === 0) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'checks array is required and must not be empty',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'checks array is required and must not be empty'
       );
     }
 
     // Limit batch size (configurable via KV → Environment Variable → Default)
     const batchSizeLimit = await getBatchSizeLimit(c.env);
     if (body.checks.length > batchSizeLimit) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: `Maximum batch size is ${batchSizeLimit} checks`,
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `Maximum batch size is ${batchSizeLimit} checks`
       );
     }
 
     // Validate all permission formats first
     for (const check of body.checks) {
       if (!check.subject_id || !check.permission) {
-        return c.json(
-          {
-            error: 'invalid_request',
-            error_description: 'Each check must have subject_id and permission',
-          },
-          400
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'Each check must have subject_id and permission'
         );
       }
 
       try {
         parsePermission(check.permission);
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Invalid permission format';
-        return c.json(
-          {
-            error: 'invalid_request',
-            error_description: `Invalid permission in batch: ${message}`,
-          },
-          400
+        console.error('[Check API] Batch permission parse error:', error);
+        // SECURITY: Do not expose internal parser error details
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'Invalid permission format in batch request'
         );
       }
     }
@@ -602,13 +577,7 @@ checkRoutes.post('/batch', async (c) => {
     });
   } catch (error) {
     console.error('[Check API] Batch check error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to batch check permissions',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 

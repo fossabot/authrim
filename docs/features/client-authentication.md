@@ -4,11 +4,11 @@ Secure methods for OAuth 2.0 clients to authenticate to the authorization server
 
 ## Overview
 
-| Specification | Status | Methods |
-|---------------|--------|---------|
-| [OAuth 2.0 (RFC 6749)](https://datatracker.ietf.org/doc/html/rfc6749) | ✅ Implemented | Basic, POST |
+| Specification                                                               | Status         | Methods                            |
+| --------------------------------------------------------------------------- | -------------- | ---------------------------------- |
+| [OAuth 2.0 (RFC 6749)](https://datatracker.ietf.org/doc/html/rfc6749)       | ✅ Implemented | Basic, POST                        |
 | [JWT Client Auth (RFC 7523)](https://datatracker.ietf.org/doc/html/rfc7523) | ✅ Implemented | client_secret_jwt, private_key_jwt |
-| [MTLS (RFC 8705)](https://datatracker.ietf.org/doc/html/rfc8705) | ⏳ Planned | Certificate-bound |
+| [MTLS (RFC 8705)](https://datatracker.ietf.org/doc/html/rfc8705)            | ⏳ Planned     | Certificate-bound                  |
 
 Client authentication verifies that token requests come from legitimate clients, preventing unauthorized token issuance.
 
@@ -16,25 +16,25 @@ Client authentication verifies that token requests come from legitimate clients,
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Token Security** | Only authorized clients receive tokens |
-| **Non-Repudiation** | JWT auth provides cryptographic proof |
-| **Key Rotation** | Asymmetric methods enable rotation |
-| **FAPI Compliance** | Required for financial-grade security |
-| **Flexibility** | Choose method based on security needs |
+| Benefit             | Description                            |
+| ------------------- | -------------------------------------- |
+| **Token Security**  | Only authorized clients receive tokens |
+| **Non-Repudiation** | JWT auth provides cryptographic proof  |
+| **Key Rotation**    | Asymmetric methods enable rotation     |
+| **FAPI Compliance** | Required for financial-grade security  |
+| **Flexibility**     | Choose method based on security needs  |
 
 ---
 
 ## Supported Methods
 
-| Method | Security Level | Use Case |
-|--------|---------------|----------|
-| `client_secret_basic` | Standard | Traditional web apps |
-| `client_secret_post` | Standard | When headers impractical |
-| `client_secret_jwt` | High | Symmetric JWT auth |
-| `private_key_jwt` | Highest | Asymmetric JWT auth (FAPI) |
-| `none` | N/A | Public clients only |
+| Method                | Security Level | Use Case                   |
+| --------------------- | -------------- | -------------------------- |
+| `client_secret_basic` | Standard       | Traditional web apps       |
+| `client_secret_post`  | Standard       | When headers impractical   |
+| `client_secret_jwt`   | High           | Symmetric JWT auth         |
+| `private_key_jwt`     | Highest        | Asymmetric JWT auth (FAPI) |
+| `none`                | N/A            | Public clients only        |
 
 ---
 
@@ -74,14 +74,14 @@ async function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
   const response = await fetch('https://auth.example.com/token', {
     method: 'POST',
     headers: {
-      'Authorization': `Basic ${credentials}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
+      Authorization: `Basic ${credentials}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: 'https://app.example.com/callback'
-    })
+      redirect_uri: 'https://app.example.com/callback',
+    }),
   });
 
   if (!response.ok) {
@@ -166,10 +166,7 @@ async function getClientCredentialsToken(): Promise<string> {
   const tokenEndpoint = 'https://auth.bank.example.com/token';
 
   // Load private key (in production, use HSM/Key Vault)
-  const privateKey = await jose.importPKCS8(
-    process.env.CLIENT_PRIVATE_KEY!,
-    'RS256'
-  );
+  const privateKey = await jose.importPKCS8(process.env.CLIENT_PRIVATE_KEY!, 'RS256');
 
   // Build client assertion JWT
   const now = Math.floor(Date.now() / 1000);
@@ -187,15 +184,15 @@ async function getClientCredentialsToken(): Promise<string> {
   const response = await fetch(tokenEndpoint, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
       grant_type: 'client_credentials',
       scope: 'payments:write',
       client_id: clientId,
       client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-      client_assertion: clientAssertion
-    })
+      client_assertion: clientAssertion,
+    }),
   });
 
   const tokens = await response.json();
@@ -214,15 +211,17 @@ const clientRegistration = {
 
   // Option 2: Inline JWKS
   jwks: {
-    keys: [{
-      kty: 'RSA',
-      use: 'sig',
-      kid: 'key-2024-01',
-      alg: 'RS256',
-      n: '...',
-      e: 'AQAB'
-    }]
-  }
+    keys: [
+      {
+        kty: 'RSA',
+        use: 'sig',
+        kid: 'key-2024-01',
+        alg: 'RS256',
+        n: '...',
+        e: 'AQAB',
+      },
+    ],
+  },
 };
 ```
 
@@ -278,15 +277,15 @@ async function getTokenWithSecretJwt(): Promise<string> {
   const response = await fetch(tokenEndpoint, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
       grant_type: 'client_credentials',
       scope: 'api:read',
       client_id: clientId,
       client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-      client_assertion: clientAssertion
-    })
+      client_assertion: clientAssertion,
+    }),
   });
 
   const tokens = await response.json();
@@ -348,25 +347,25 @@ client_assertion=eyJhbGciOiJSUzI1NiJ9...
 
 ## Client Assertion JWT Claims
 
-| Claim | Required | Description |
-|-------|----------|-------------|
-| `iss` | ✅ | Client ID |
-| `sub` | ✅ | Client ID |
-| `aud` | ✅ | Token endpoint URL |
-| `exp` | ✅ | Expiration (max 5 minutes) |
-| `iat` | Recommended | Issued at |
-| `jti` | Recommended | Unique token ID |
+| Claim | Required    | Description                |
+| ----- | ----------- | -------------------------- |
+| `iss` | ✅          | Client ID                  |
+| `sub` | ✅          | Client ID                  |
+| `aud` | ✅          | Token endpoint URL         |
+| `exp` | ✅          | Expiration (max 5 minutes) |
+| `iat` | Recommended | Issued at                  |
+| `jti` | Recommended | Unique token ID            |
 
 ---
 
 ## Security Considerations
 
-| Method | Secret Transmission | Key Rotation | FAPI Compliant |
-|--------|---------------------|--------------|----------------|
-| `client_secret_basic` | In header | Requires IdP update | ❌ |
-| `client_secret_post` | In body | Requires IdP update | ❌ |
-| `client_secret_jwt` | Never transmitted | Requires IdP update | ❌ |
-| `private_key_jwt` | Never transmitted | Client-managed | ✅ |
+| Method                | Secret Transmission | Key Rotation        | FAPI Compliant |
+| --------------------- | ------------------- | ------------------- | -------------- |
+| `client_secret_basic` | In header           | Requires IdP update | ❌             |
+| `client_secret_post`  | In body             | Requires IdP update | ❌             |
+| `client_secret_jwt`   | Never transmitted   | Requires IdP update | ❌             |
+| `private_key_jwt`     | Never transmitted   | Client-managed      | ✅             |
 
 ---
 
@@ -393,11 +392,7 @@ client_assertion=eyJhbGciOiJSUzI1NiJ9...
     "client_secret_jwt",
     "private_key_jwt"
   ],
-  "token_endpoint_auth_signing_alg_values_supported": [
-    "HS256",
-    "RS256",
-    "ES256"
-  ]
+  "token_endpoint_auth_signing_alg_values_supported": ["HS256", "RS256", "ES256"]
 }
 ```
 
@@ -405,11 +400,11 @@ client_assertion=eyJhbGciOiJSUzI1NiJ9...
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Token Endpoint | `packages/op-token/src/token.ts` | Auth handling |
-| Client Auth | `packages/shared/src/utils/client-auth.ts` | Validation |
-| JWT Verify | `packages/shared/src/utils/jwt.ts` | Assertion verification |
+| Component      | File                                       | Description            |
+| -------------- | ------------------------------------------ | ---------------------- |
+| Token Endpoint | `packages/op-token/src/token.ts`           | Auth handling          |
+| Client Auth    | `packages/shared/src/utils/client-auth.ts` | Validation             |
+| JWT Verify     | `packages/shared/src/utils/jwt.ts`         | Assertion verification |
 
 ---
 

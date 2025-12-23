@@ -219,7 +219,8 @@ async function setupPreCreatedUsers() {
   console.log(`  📂 Loaded ${preCreatedUsers.length} pre-created users from ${TEST_USERS_FILE}`);
 
   // Determine number of users to use
-  const useCount = USER_COUNT > 0 ? Math.min(USER_COUNT, preCreatedUsers.length) : preCreatedUsers.length;
+  const useCount =
+    USER_COUNT > 0 ? Math.min(USER_COUNT, preCreatedUsers.length) : preCreatedUsers.length;
   const usersToUse = preCreatedUsers.slice(0, useCount);
   console.log(`  🔢 Using ${usersToUse.length} users for this run`);
 
@@ -233,7 +234,8 @@ async function setupPreCreatedUsers() {
     const batch = usersToUse.slice(i, i + batchSize).map(async (user, idx) => {
       try {
         const sessionCookie = await createTestSession(user.userId);
-        const shardIndex = user.shardIndex >= 0 ? user.shardIndex : calculateShardIndex(user.userId, CLIENT_ID, 32);
+        const shardIndex =
+          user.shardIndex >= 0 ? user.shardIndex : calculateShardIndex(user.userId, CLIENT_ID, 32);
         shardCoverage.add(shardIndex);
         userSessions.set(user.userId, { sessionCookie, shardIndex, userIndex: i + idx });
         successCount++;
@@ -324,7 +326,9 @@ async function fetchAuthorizationCode(userId, sessionCookie, shardIndex) {
   }
 
   if (!code) {
-    throw new Error(`authorization code not found in location=${location.substring(0, 100)}, status=${res.status}`);
+    throw new Error(
+      `authorization code not found in location=${location.substring(0, 100)}, status=${res.status}`
+    );
   }
 
   return {
@@ -452,7 +456,9 @@ async function main() {
 
   saveCodes(allCodes, 'Final save');
   console.log('');
-  console.log(`📁 Total: ${allCodes.length} codes in ${path.join(OUTPUT_DIR, 'authorization_codes.json')}`);
+  console.log(
+    `📁 Total: ${allCodes.length} codes in ${path.join(OUTPUT_DIR, 'authorization_codes.json')}`
+  );
   console.log('');
   console.log('💡 Tip: Run again to add more codes. Use AUTH_CODE_COUNT=2000 for batches.');
   console.log('🎉 done');

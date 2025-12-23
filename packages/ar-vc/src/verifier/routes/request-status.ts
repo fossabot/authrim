@@ -12,6 +12,12 @@
 import type { Context } from 'hono';
 import type { Env } from '../../types';
 import { getVPRequestStoreById } from '../../utils/vp-request-sharding';
+import {
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 
 /**
  * GET /vp/request/:id
@@ -23,7 +29,12 @@ export async function vpRequestStatusRoute(c: Context<{ Bindings: Env }>): Promi
     const requestId = c.req.param('id');
 
     if (!requestId) {
-      return c.json({ error: 'invalid_request', error_description: 'Request ID is required' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Request ID is required'
+      );
     }
 
     // Get DO stub using region-aware sharding (self-routing from ID)
@@ -33,7 +44,7 @@ export async function vpRequestStatusRoute(c: Context<{ Bindings: Env }>): Promi
     const response = await stub.fetch(new Request('https://internal/get'));
 
     if (!response.ok) {
-      return c.json({ error: 'not_found', error_description: 'VP request not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     const vpRequest = (await response.json()) as {
@@ -85,12 +96,6 @@ export async function vpRequestStatusRoute(c: Context<{ Bindings: Env }>): Promi
     return c.json(result);
   } catch (error) {
     console.error('[vpRequestStatus] Error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

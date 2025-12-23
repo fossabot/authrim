@@ -13,6 +13,10 @@ import {
   IssuedCredentialRepository,
   D1StatusListRepository,
   StatusListManager,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import { generateSecureNonce } from '../../utils/crypto';
 import { importPKCS8 } from 'jose';
@@ -112,7 +116,7 @@ export async function credentialRoute(c: Context<{ Bindings: Env }>): Promise<Re
     // Verify access token
     const authHeader = c.req.header('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ error: 'invalid_token', error_description: 'Missing access token' }, 401);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_TOKEN, 401, 'Missing access token');
     }
 
     const accessToken = authHeader.substring(7);
@@ -121,9 +125,11 @@ export async function credentialRoute(c: Context<{ Bindings: Env }>): Promise<Re
     const tokenResult = await validateVCIAccessToken(c.env, accessToken);
 
     if (!tokenResult.valid) {
-      return c.json(
-        { error: 'invalid_token', error_description: tokenResult.error || 'Invalid access token' },
-        401
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_TOKEN,
+        401,
+        tokenResult.error || 'Invalid access token'
       );
     }
 
@@ -132,9 +138,11 @@ export async function credentialRoute(c: Context<{ Bindings: Env }>): Promise<Re
     // The token signature verification ensures these claims cannot be tampered with.
     // This is the standard OAuth 2.0 / OpenID4VCI security model.
     if (!tokenResult.userId || !tokenResult.tenantId) {
-      return c.json(
-        { error: 'invalid_token', error_description: 'Token missing required claims' },
-        401
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_TOKEN,
+        401,
+        'Token missing required claims'
       );
     }
 
@@ -142,12 +150,11 @@ export async function credentialRoute(c: Context<{ Bindings: Env }>): Promise<Re
 
     // Validate format
     if (body.format !== 'dc+sd-jwt') {
-      return c.json(
-        {
-          error: 'unsupported_credential_format',
-          error_description: 'Only dc+sd-jwt is supported',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.UNSUPPORTED_CREDENTIAL_FORMAT,
+        400,
+        'Only dc+sd-jwt is supported'
       );
     }
 
@@ -159,9 +166,11 @@ export async function credentialRoute(c: Context<{ Bindings: Env }>): Promise<Re
     let holderBinding = tokenResult.holderBinding;
     if (body.proof) {
       if (!expectedNonce) {
-        return c.json(
-          { error: 'invalid_proof', error_description: 'No c_nonce found for this session' },
-          400
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_PROOF,
+          400,
+          'No c_nonce found for this session'
         );
       }
 
@@ -172,12 +181,11 @@ export async function credentialRoute(c: Context<{ Bindings: Env }>): Promise<Re
         expectedAudience
       );
       if (!proofResult.valid) {
-        return c.json(
-          {
-            error: 'invalid_proof',
-            error_description: proofResult.error || 'Proof of possession verification failed',
-          },
-          400
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_PROOF,
+          400,
+          proofResult.error || 'Proof of possession verification failed'
         );
       }
 
@@ -216,9 +224,11 @@ export async function credentialRoute(c: Context<{ Bindings: Env }>): Promise<Re
     const issuerUrl = c.env.ISSUER_IDENTIFIER;
     if (!issuerUrl) {
       console.error('[credential] ISSUER_IDENTIFIER is not configured');
-      return c.json(
-        { error: 'temporarily_unavailable', error_description: 'Service temporarily unavailable' },
-        503
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+        503,
+        'Service temporarily unavailable'
       );
     }
 
@@ -284,13 +294,7 @@ export async function credentialRoute(c: Context<{ Bindings: Env }>): Promise<Re
     return c.json(response);
   } catch (error) {
     console.error('[credential] Error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 

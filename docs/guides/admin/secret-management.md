@@ -48,6 +48,7 @@ pnpm run generate-keys
 ```
 
 This will:
+
 1. Generate a new RSA-2048 key pair
 2. Save the private key as `.keys/private.pem`
 3. Save the public key as `.keys/public.jwk.json`
@@ -121,22 +122,26 @@ vars = {
 During the initial phases, key rotation is manual:
 
 1. **Generate new key pair**:
+
    ```bash
    pnpm run generate-keys -- --kid=prod-key-new
    ```
 
 2. **Add new key to production**:
+
    ```bash
    cat .keys/private.pem | wrangler secret put PRIVATE_KEY_PEM
    ```
 
 3. **Update KEY_ID in wrangler.toml**:
+
    ```toml
    [env.production]
    vars = { KEY_ID = "prod-key-new" }
    ```
 
 4. **Deploy**:
+
    ```bash
    pnpm run deploy
    ```
@@ -159,12 +164,14 @@ See [Durable Objects Architecture](../architecture/durable-objects.md) for detai
 ### Key Generation
 
 ✅ **DO**:
+
 - Use the provided script for consistent key generation
 - Generate keys with sufficient entropy (system random)
 - Use 2048-bit or larger RSA keys
 - Generate unique key IDs with timestamps
 
 ❌ **DON'T**:
+
 - Use weak key sizes (< 2048 bits)
 - Reuse key IDs
 - Generate keys on untrusted systems
@@ -172,12 +179,14 @@ See [Durable Objects Architecture](../architecture/durable-objects.md) for detai
 ### Key Storage
 
 ✅ **DO**:
+
 - Store private keys as Wrangler secrets
 - Use environment variables for key IDs
 - Keep `.keys/` directory gitignored
 - Encrypt backups of private keys
 
 ❌ **DON'T**:
+
 - Commit private keys to version control
 - Store private keys in plaintext files on production servers
 - Share private keys via email or chat
@@ -186,12 +195,14 @@ See [Durable Objects Architecture](../architecture/durable-objects.md) for detai
 ### Key Rotation
 
 ✅ **DO**:
+
 - Rotate keys regularly (every 90 days recommended)
 - Keep old public keys available for token verification
 - Plan rotation windows to minimize disruption
 - Document rotation procedures
 
 ❌ **DON'T**:
+
 - Delete old keys immediately after rotation
 - Rotate keys without verification
 - Skip testing after rotation
@@ -201,11 +212,13 @@ See [Durable Objects Architecture](../architecture/durable-objects.md) for detai
 ### Backup Procedure
 
 1. **Export private key from Wrangler**:
+
    ```bash
    wrangler secret get PRIVATE_KEY_PEM > backup-private.pem
    ```
 
 2. **Encrypt the backup**:
+
    ```bash
    openssl enc -aes-256-cbc -salt -in backup-private.pem -out backup-private.pem.enc
    ```
@@ -220,16 +233,19 @@ See [Durable Objects Architecture](../architecture/durable-objects.md) for detai
 ### Recovery Procedure
 
 1. **Decrypt the backup**:
+
    ```bash
    openssl enc -aes-256-cbc -d -in backup-private.pem.enc -out private.pem
    ```
 
 2. **Restore to Wrangler**:
+
    ```bash
    cat private.pem | wrangler secret put PRIVATE_KEY_PEM
    ```
 
 3. **Verify restoration**:
+
    ```bash
    # Test JWT signing with restored key
    pnpm run test
@@ -256,6 +272,7 @@ Rotate keys if they're older than 90 days.
 ### Key Usage
 
 Log all key operations:
+
 - Key generation
 - Key rotation
 - JWT signing operations
@@ -264,6 +281,7 @@ Log all key operations:
 ### Security Alerts
 
 Set up alerts for:
+
 - Failed token verifications (potential key compromise)
 - Unusual signing patterns
 - Key rotation failures
@@ -281,6 +299,7 @@ Set up alerts for:
 **Error**: `JWT verification failed: signature mismatch`
 
 **Possible Causes**:
+
 - Wrong key ID (kid) in JWT header
 - Private/public key mismatch
 - Key rotation without updating public key
@@ -292,6 +311,7 @@ Set up alerts for:
 **Error**: `PRIVATE_KEY_PEM is not defined`
 
 **Solution**: Ensure the secret is added to Wrangler:
+
 ```bash
 cat .keys/private.pem | wrangler secret put PRIVATE_KEY_PEM
 ```

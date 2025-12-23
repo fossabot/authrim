@@ -4,9 +4,9 @@ Deliver OAuth authorization responses via HTTP POST for enhanced security and pr
 
 ## Overview
 
-| Specification | Status | Response Mode |
-|---------------|--------|---------------|
-| [OAuth 2.0 Form Post](https://openid.net/specs/oauth-v2-form-post-response-mode-1_0.html) | ✅ Implemented | `form_post` |
+| Specification                                                                             | Status         | Response Mode |
+| ----------------------------------------------------------------------------------------- | -------------- | ------------- |
+| [OAuth 2.0 Form Post](https://openid.net/specs/oauth-v2-form-post-response-mode-1_0.html) | ✅ Implemented | `form_post`   |
 
 Form Post Response Mode delivers authorization responses (code, state) via HTTP POST instead of URL parameters, providing:
 
@@ -19,13 +19,13 @@ Form Post Response Mode delivers authorization responses (code, state) via HTTP 
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **No URL Exposure** | Authorization code not visible in browser address bar |
-| **No History Leakage** | Parameters not saved in browser history |
-| **No Referer Leakage** | Code not leaked via HTTP Referer header |
-| **Server Log Safety** | POST bodies typically not logged by web servers |
-| **Longer Payloads** | Supports complex responses without URL limits |
+| Benefit                | Description                                           |
+| ---------------------- | ----------------------------------------------------- |
+| **No URL Exposure**    | Authorization code not visible in browser address bar |
+| **No History Leakage** | Parameters not saved in browser history               |
+| **No Referer Leakage** | Code not leaked via HTTP Referer header               |
+| **Server Log Safety**  | POST bodies typically not logged by web servers       |
+| **Longer Payloads**    | Supports complex responses without URL limits         |
 
 ---
 
@@ -102,7 +102,7 @@ app.post('/auth/callback', express.urlencoded({ extended: true }), async (req, r
       event: 'auth_state_mismatch',
       session_id: req.session.id,
       expected_state: req.session.authState?.slice(0, 8) + '...',
-      received_state: state?.slice(0, 8) + '...'
+      received_state: state?.slice(0, 8) + '...',
     });
     return res.status(403).render('error', { message: 'Security validation failed' });
   }
@@ -118,7 +118,7 @@ app.post('/auth/callback', express.urlencoded({ extended: true }), async (req, r
   auditLog.info({
     event: 'auth_success',
     user_id: tokens.sub,
-    session_id: req.session.id
+    session_id: req.session.id,
     // Note: No code or tokens in logs!
   });
 
@@ -196,11 +196,11 @@ const healthcareOAuthConfig = {
 
   // Audit configuration
   auditConfig: {
-    logCodes: false,         // Never log authorization codes
-    logTokens: false,        // Never log tokens
-    logUserIds: true,        // Log user IDs for audit trail
-    maskPHI: true            // Mask any PHI in logs
-  }
+    logCodes: false, // Never log authorization codes
+    logTokens: false, // Never log tokens
+    logUserIds: true, // Log user IDs for audit trail
+    maskPHI: true, // Mask any PHI in logs
+  },
 };
 
 // Callback handler with HIPAA-compliant logging
@@ -230,19 +230,18 @@ app.post('/oauth/callback', async (req, res) => {
       timestamp: new Date().toISOString(),
       duration_ms: Date.now() - startTime,
       ip: hashForAudit(req.ip), // Hashed IP for privacy
-      userAgent: req.headers['user-agent']
+      userAgent: req.headers['user-agent'],
     });
 
     req.session.tokens = tokens;
     res.redirect('/dashboard');
-
   } catch (error) {
     await hipaaAuditLog({
       correlationId,
       event: 'PATIENT_AUTHENTICATION',
       outcome: 'FAILURE',
       error: error.message, // No PHI in error messages
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     res.status(400).render('auth-error');
@@ -304,7 +303,7 @@ export function corporateSSOMiddleware(config: SSOConfig) {
       state: await generateSecureState(req.session.id),
       // Additional security parameters
       prompt: 'login', // Force fresh authentication
-      max_age: 3600    // Max 1 hour since last auth
+      max_age: 3600, // Max 1 hour since last auth
     });
 
     res.redirect(authUrl);
@@ -312,7 +311,8 @@ export function corporateSSOMiddleware(config: SSOConfig) {
 }
 
 // POST callback with extension-resistant security
-app.post('/sso/callback',
+app.post(
+  '/sso/callback',
   // Rate limiting
   rateLimit({ windowMs: 60000, max: 10 }),
 
@@ -328,7 +328,7 @@ app.post('/sso/callback',
       securityAlert({
         type: 'sso_state_mismatch',
         session: req.session.id,
-        ip: req.ip
+        ip: req.ip,
       });
       return res.status(403).send('Security validation failed');
     }
@@ -338,7 +338,7 @@ app.post('/sso/callback',
       securityAlert({
         type: 'code_in_url',
         message: 'Authorization code found in URL, expected POST body',
-        ip: req.ip
+        ip: req.ip,
       });
       return res.status(400).send('Invalid request');
     }
@@ -386,24 +386,24 @@ sequenceDiagram
 ```html
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Authorization</title>
-</head>
-<body>
-  <div class="loading">
-    <p>Redirecting to application...</p>
-  </div>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Authorization</title>
+  </head>
+  <body>
+    <div class="loading">
+      <p>Redirecting to application...</p>
+    </div>
 
-  <form id="auth-form" method="post" action="https://app.example.com/callback">
-    <input type="hidden" name="code" value="abc123..." />
-    <input type="hidden" name="state" value="xyz789" />
-  </form>
+    <form id="auth-form" method="post" action="https://app.example.com/callback">
+      <input type="hidden" name="code" value="abc123..." />
+      <input type="hidden" name="state" value="xyz789" />
+    </form>
 
-  <script>
-    document.getElementById('auth-form').submit();
-  </script>
-</body>
+    <script>
+      document.getElementById('auth-form').submit();
+    </script>
+  </body>
 </html>
 ```
 
@@ -465,12 +465,12 @@ function escapeHtml(unsafe: string): string {
 
 ### Comparison with Query Mode
 
-| Aspect | Query Mode | Form Post |
-|--------|------------|-----------|
-| URL Visibility | ❌ Code in URL | ✅ Clean URL |
-| Browser History | ❌ Saved | ✅ Not saved |
-| Server Logs | ❌ Logged | ✅ Not logged |
-| Referer Leakage | ❌ Possible | ✅ No leakage |
+| Aspect          | Query Mode     | Form Post     |
+| --------------- | -------------- | ------------- |
+| URL Visibility  | ❌ Code in URL | ✅ Clean URL  |
+| Browser History | ❌ Saved       | ✅ Not saved  |
+| Server Logs     | ❌ Logged      | ✅ Not logged |
+| Referer Leakage | ❌ Possible    | ✅ No leakage |
 
 ---
 
@@ -532,10 +532,10 @@ app.post('/callback', async (c) => {
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FORM_POST_TEMPLATE` | Custom HTML template | Built-in |
-| `FORM_POST_AUTO_SUBMIT` | Enable auto-submit JS | `true` |
+| Variable                | Description           | Default  |
+| ----------------------- | --------------------- | -------- |
+| `FORM_POST_TEMPLATE`    | Custom HTML template  | Built-in |
+| `FORM_POST_AUTO_SUBMIT` | Enable auto-submit JS | `true`   |
 
 ---
 
@@ -546,6 +546,7 @@ app.post('/callback', async (c) => {
 **Cause**: Callback endpoint only handles GET requests.
 
 **Solution**: Add POST handler:
+
 ```javascript
 app.post('/callback', handler); // Not app.get()
 ```
@@ -555,6 +556,7 @@ app.post('/callback', handler); // Not app.get()
 **Cause**: Reading from `req.query` instead of `req.body`.
 
 **Solution**: Read from POST body:
+
 ```javascript
 const code = req.body.code; // NOT req.query.code
 ```
@@ -563,11 +565,11 @@ const code = req.body.code; // NOT req.query.code
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Form Post Handler | `packages/op-auth/src/authorize.ts` | Response generation |
-| HTML Template | `packages/op-auth/src/templates/form-post.ts` | Form template |
-| Discovery | `packages/op-discovery/src/discovery.ts` | Metadata |
+| Component         | File                                          | Description         |
+| ----------------- | --------------------------------------------- | ------------------- |
+| Form Post Handler | `packages/op-auth/src/authorize.ts`           | Response generation |
+| HTML Template     | `packages/op-auth/src/templates/form-post.ts` | Form template       |
+| Discovery         | `packages/op-discovery/src/discovery.ts`      | Metadata            |
 
 ---
 

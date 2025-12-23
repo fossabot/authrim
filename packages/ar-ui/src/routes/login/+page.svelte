@@ -41,42 +41,44 @@
 	let externalProvidersLoading = $state(true);
 
 	// External IdP error code to user-friendly message mapping
-	const externalIdpErrorMessages: Record<string, { title: string; message: string; action?: string }> =
-		{
-			account_exists_link_required: {
-				title: 'Account Already Exists',
-				message:
-					'An account with this email already exists. Please log in with your existing credentials first.',
-				action: 'After logging in, you can link your external account from the settings page.'
-			},
-			email_not_verified: {
-				title: 'Email Not Verified',
-				message:
-					'The email from your external account is not verified. Please verify your email with the provider first.'
-			},
-			local_email_not_verified: {
-				title: 'Verify Your Email',
-				message:
-					'Your existing account email is not verified. Please verify your email first before linking external accounts.'
-			},
-			jit_provisioning_disabled: {
-				title: 'Registration Not Available',
-				message:
-					'New account registration via external providers is not available. Please register with email first or contact your administrator.'
-			},
-			no_account_found: {
-				title: 'No Account Found',
-				message: 'No account was found. Please register first.'
-			},
-			provider_error: {
-				title: 'Provider Error',
-				message: 'The external provider returned an error. Please try again later.'
-			},
-			callback_failed: {
-				title: 'Authentication Failed',
-				message: 'An error occurred during authentication. Please try again.'
-			}
-		};
+	const externalIdpErrorMessages: Record<
+		string,
+		{ title: string; message: string; action?: string }
+	> = {
+		account_exists_link_required: {
+			title: 'Account Already Exists',
+			message:
+				'An account with this email already exists. Please log in with your existing credentials first.',
+			action: 'After logging in, you can link your external account from the settings page.'
+		},
+		email_not_verified: {
+			title: 'Email Not Verified',
+			message:
+				'The email from your external account is not verified. Please verify your email with the provider first.'
+		},
+		local_email_not_verified: {
+			title: 'Verify Your Email',
+			message:
+				'Your existing account email is not verified. Please verify your email first before linking external accounts.'
+		},
+		jit_provisioning_disabled: {
+			title: 'Registration Not Available',
+			message:
+				'New account registration via external providers is not available. Please register with email first or contact your administrator.'
+		},
+		no_account_found: {
+			title: 'No Account Found',
+			message: 'No account was found. Please register first.'
+		},
+		provider_error: {
+			title: 'Provider Error',
+			message: 'The external provider returned an error. Please try again later.'
+		},
+		callback_failed: {
+			title: 'Authentication Failed',
+			message: 'An error occurred during authentication. Please try again.'
+		}
+	};
 
 	// External IdP error info
 	let externalIdpError = $state<{ title: string; message: string; action?: string } | null>(null);

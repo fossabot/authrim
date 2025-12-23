@@ -16,6 +16,13 @@
  */
 
 import type { Context } from 'hono';
+import type { Env } from '@authrim/ar-lib-core';
+import {
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 
 /**
  * Tombstone entity from database
@@ -48,10 +55,10 @@ const DEFAULT_RETENTION_DAYS = 90;
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 20, max: 100)
  */
-export async function listTombstones(c: Context) {
+export async function listTombstones(c: Context<{ Bindings: Env }>) {
   const db = c.env.DB_PII;
   if (!db) {
-    return c.json({ error: 'DB_PII binding not available' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.CONFIG_DB_NOT_CONFIGURED);
   }
 
   const tenantId = c.req.query('tenant_id');
@@ -104,19 +111,21 @@ export async function listTombstones(c: Context) {
       .bind(...params, limit, offset)
       .all();
 
-    const items = (dataResult.results as TombstoneRecord[]).map((row: TombstoneRecord) => ({
-      id: row.id,
-      tenant_id: row.tenant_id,
-      has_email_blind_index: row.email_blind_index !== null,
-      deleted_at: row.deleted_at,
-      deleted_at_iso: new Date(row.deleted_at).toISOString(),
-      deleted_by: row.deleted_by,
-      deletion_reason: row.deletion_reason,
-      retention_until: row.retention_until,
-      retention_until_iso: new Date(row.retention_until).toISOString(),
-      is_expired: row.retention_until < now,
-      metadata: row.deletion_metadata ? safeJsonParse(row.deletion_metadata) : null,
-    }));
+    const items = (dataResult.results as unknown as TombstoneRecord[]).map(
+      (row: TombstoneRecord) => ({
+        id: row.id,
+        tenant_id: row.tenant_id,
+        has_email_blind_index: row.email_blind_index !== null,
+        deleted_at: row.deleted_at,
+        deleted_at_iso: new Date(row.deleted_at).toISOString(),
+        deleted_by: row.deleted_by,
+        deletion_reason: row.deletion_reason,
+        retention_until: row.retention_until,
+        retention_until_iso: new Date(row.retention_until).toISOString(),
+        is_expired: row.retention_until < now,
+        metadata: row.deletion_metadata ? safeJsonParse(row.deletion_metadata) : null,
+      })
+    );
 
     const totalPages = Math.ceil(total / limit);
 
@@ -158,15 +167,20 @@ export async function listTombstones(c: Context) {
  *
  * Get a specific tombstone by ID.
  */
-export async function getTombstone(c: Context) {
+export async function getTombstone(c: Context<{ Bindings: Env }>) {
   const db = c.env.DB_PII;
   if (!db) {
-    return c.json({ error: 'DB_PII binding not available' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.CONFIG_DB_NOT_CONFIGURED);
   }
 
   const id = c.req.param('id');
   if (!id) {
-    return c.json({ error: 'id parameter is required' }, 400);
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'id parameter is required'
+    );
   }
 
   try {
@@ -176,7 +190,7 @@ export async function getTombstone(c: Context) {
       .first()) as TombstoneRecord | null;
 
     if (!row) {
-      return c.json({ error: 'Tombstone not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     const now = Date.now();
@@ -199,7 +213,8 @@ export async function getTombstone(c: Context) {
       metadata: row.deletion_metadata ? safeJsonParse(row.deletion_metadata) : null,
     });
   } catch (error) {
-    return c.json({ error: 'Database error' }, 500);
+    console.error('[tombstones] getTombstone error:', error);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -211,10 +226,10 @@ export async function getTombstone(c: Context) {
  * Query Parameters:
  * - tenant_id: Filter by tenant (optional)
  */
-export async function getTombstoneStats(c: Context) {
+export async function getTombstoneStats(c: Context<{ Bindings: Env }>) {
   const db = c.env.DB_PII;
   if (!db) {
-    return c.json({ error: 'DB_PII binding not available' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.CONFIG_DB_NOT_CONFIGURED);
   }
 
   const tenantId = c.req.query('tenant_id');
@@ -316,10 +331,10 @@ export async function getTombstoneStats(c: Context) {
  * - tenant_id: Only cleanup for specific tenant
  * - dry_run: If true, only return count without deleting (default: false)
  */
-export async function cleanupTombstones(c: Context) {
+export async function cleanupTombstones(c: Context<{ Bindings: Env }>) {
   const db = c.env.DB_PII;
   if (!db) {
-    return c.json({ error: 'DB_PII binding not available' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.CONFIG_DB_NOT_CONFIGURED);
   }
 
   let body: { tenant_id?: string; dry_run?: boolean } = {};
@@ -383,7 +398,8 @@ export async function cleanupTombstones(c: Context) {
       tenantId: tenantId ?? 'all',
     });
   } catch (error) {
-    return c.json({ error: 'Database error during cleanup' }, 500);
+    console.error('[tombstones] cleanupTombstones error:', error);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -393,15 +409,20 @@ export async function cleanupTombstones(c: Context) {
  * Force delete a specific tombstone.
  * Use with caution - this removes the deletion record.
  */
-export async function deleteTombstone(c: Context) {
+export async function deleteTombstone(c: Context<{ Bindings: Env }>) {
   const db = c.env.DB_PII;
   if (!db) {
-    return c.json({ error: 'DB_PII binding not available' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.CONFIG_DB_NOT_CONFIGURED);
   }
 
   const id = c.req.param('id');
   if (!id) {
-    return c.json({ error: 'id parameter is required' }, 400);
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'id parameter is required'
+    );
   }
 
   try {
@@ -412,7 +433,7 @@ export async function deleteTombstone(c: Context) {
       .first();
 
     if (!existing) {
-      return c.json({ error: 'Tombstone not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Delete
@@ -424,7 +445,8 @@ export async function deleteTombstone(c: Context) {
       message: 'Tombstone deleted. Note: This removes the deletion audit trail.',
     });
   } catch (error) {
-    return c.json({ error: 'Database error' }, 500);
+    console.error('[tombstones] deleteTombstone error:', error);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 

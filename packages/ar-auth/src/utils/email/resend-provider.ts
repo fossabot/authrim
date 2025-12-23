@@ -40,7 +40,8 @@ export class ResendEmailProvider implements IEmailProvider {
       console.error('Resend email exception:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        // SECURITY: Do not expose email provider error details
+        error: 'Failed to send email',
       };
     }
   }

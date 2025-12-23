@@ -149,7 +149,7 @@ async function fetchWorkersAnalytics(startTime, endTime) {
   const response = await fetch('https://api.cloudflare.com/client/v4/graphql', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${API_TOKEN}`,
+      Authorization: `Bearer ${API_TOKEN}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -171,7 +171,13 @@ async function fetchWorkersAnalytics(startTime, endTime) {
   const result = await response.json();
 
   if (result.errors) {
-    console.warn(`⚠️  GraphQL warnings: ${JSON.stringify(result.errors.map(e => e.message), null, 2)}`);
+    console.warn(
+      `⚠️  GraphQL warnings: ${JSON.stringify(
+        result.errors.map((e) => e.message),
+        null,
+        2
+      )}`
+    );
   }
 
   return result.data;
@@ -235,7 +241,7 @@ async function fetchDurableObjectsAnalytics(startTime, endTime) {
     const response = await fetch('https://api.cloudflare.com/client/v4/graphql', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${API_TOKEN}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -258,7 +264,13 @@ async function fetchDurableObjectsAnalytics(startTime, endTime) {
     const result = await response.json();
 
     if (result.errors) {
-      console.warn(`⚠️  DO GraphQL warnings: ${JSON.stringify(result.errors.map(e => e.message), null, 2)}`);
+      console.warn(
+        `⚠️  DO GraphQL warnings: ${JSON.stringify(
+          result.errors.map((e) => e.message),
+          null,
+          2
+        )}`
+      );
     }
 
     return result.data;
@@ -308,7 +320,7 @@ async function fetchD1Analytics(startTime) {
     const response = await fetch('https://api.cloudflare.com/client/v4/graphql', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${API_TOKEN}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -329,7 +341,13 @@ async function fetchD1Analytics(startTime) {
     const result = await response.json();
 
     if (result.errors) {
-      console.warn(`⚠️  D1 GraphQL warnings: ${JSON.stringify(result.errors.map(e => e.message), null, 2)}`);
+      console.warn(
+        `⚠️  D1 GraphQL warnings: ${JSON.stringify(
+          result.errors.map((e) => e.message),
+          null,
+          2
+        )}`
+      );
     }
 
     return result.data;
@@ -396,13 +414,17 @@ function aggregateMetrics(workersData, doData, d1Data, kvData, startTime, endTim
 
       // Count by status
       if (status.startsWith('5') || status === 'error') {
-        metrics.worker.requests_by_status['5xx/error'] = (metrics.worker.requests_by_status['5xx/error'] || 0) + requests;
+        metrics.worker.requests_by_status['5xx/error'] =
+          (metrics.worker.requests_by_status['5xx/error'] || 0) + requests;
       } else if (status.startsWith('4')) {
-        metrics.worker.requests_by_status['4xx'] = (metrics.worker.requests_by_status['4xx'] || 0) + requests;
+        metrics.worker.requests_by_status['4xx'] =
+          (metrics.worker.requests_by_status['4xx'] || 0) + requests;
       } else if (status === 'success' || status.startsWith('2')) {
-        metrics.worker.requests_by_status['success/2xx'] = (metrics.worker.requests_by_status['success/2xx'] || 0) + requests;
+        metrics.worker.requests_by_status['success/2xx'] =
+          (metrics.worker.requests_by_status['success/2xx'] || 0) + requests;
       } else {
-        metrics.worker.requests_by_status[status] = (metrics.worker.requests_by_status[status] || 0) + requests;
+        metrics.worker.requests_by_status[status] =
+          (metrics.worker.requests_by_status[status] || 0) + requests;
       }
 
       // By script
@@ -416,18 +438,48 @@ function aggregateMetrics(workersData, doData, d1Data, kvData, startTime, endTim
       // Quantiles (take max for percentiles)
       if (inv.quantiles) {
         // Duration (unit: seconds, converted to ms)
-        metrics.worker.duration.p50 = Math.max(metrics.worker.duration.p50, (inv.quantiles.durationP50 || 0) * 1000);
-        metrics.worker.duration.p75 = Math.max(metrics.worker.duration.p75, (inv.quantiles.durationP75 || 0) * 1000);
-        metrics.worker.duration.p90 = Math.max(metrics.worker.duration.p90, (inv.quantiles.durationP90 || 0) * 1000);
-        metrics.worker.duration.p99 = Math.max(metrics.worker.duration.p99, (inv.quantiles.durationP99 || 0) * 1000);
-        metrics.worker.duration.p999 = Math.max(metrics.worker.duration.p999, (inv.quantiles.durationP999 || 0) * 1000);
+        metrics.worker.duration.p50 = Math.max(
+          metrics.worker.duration.p50,
+          (inv.quantiles.durationP50 || 0) * 1000
+        );
+        metrics.worker.duration.p75 = Math.max(
+          metrics.worker.duration.p75,
+          (inv.quantiles.durationP75 || 0) * 1000
+        );
+        metrics.worker.duration.p90 = Math.max(
+          metrics.worker.duration.p90,
+          (inv.quantiles.durationP90 || 0) * 1000
+        );
+        metrics.worker.duration.p99 = Math.max(
+          metrics.worker.duration.p99,
+          (inv.quantiles.durationP99 || 0) * 1000
+        );
+        metrics.worker.duration.p999 = Math.max(
+          metrics.worker.duration.p999,
+          (inv.quantiles.durationP999 || 0) * 1000
+        );
 
         // CPU Time (unit: microseconds, converted to ms)
-        metrics.worker.cpu_time.p50 = Math.max(metrics.worker.cpu_time.p50, (inv.quantiles.cpuTimeP50 || 0) / 1000);
-        metrics.worker.cpu_time.p75 = Math.max(metrics.worker.cpu_time.p75, (inv.quantiles.cpuTimeP75 || 0) / 1000);
-        metrics.worker.cpu_time.p90 = Math.max(metrics.worker.cpu_time.p90, (inv.quantiles.cpuTimeP90 || 0) / 1000);
-        metrics.worker.cpu_time.p99 = Math.max(metrics.worker.cpu_time.p99, (inv.quantiles.cpuTimeP99 || 0) / 1000);
-        metrics.worker.cpu_time.p999 = Math.max(metrics.worker.cpu_time.p999, (inv.quantiles.cpuTimeP999 || 0) / 1000);
+        metrics.worker.cpu_time.p50 = Math.max(
+          metrics.worker.cpu_time.p50,
+          (inv.quantiles.cpuTimeP50 || 0) / 1000
+        );
+        metrics.worker.cpu_time.p75 = Math.max(
+          metrics.worker.cpu_time.p75,
+          (inv.quantiles.cpuTimeP75 || 0) / 1000
+        );
+        metrics.worker.cpu_time.p90 = Math.max(
+          metrics.worker.cpu_time.p90,
+          (inv.quantiles.cpuTimeP90 || 0) / 1000
+        );
+        metrics.worker.cpu_time.p99 = Math.max(
+          metrics.worker.cpu_time.p99,
+          (inv.quantiles.cpuTimeP99 || 0) / 1000
+        );
+        metrics.worker.cpu_time.p999 = Math.max(
+          metrics.worker.cpu_time.p999,
+          (inv.quantiles.cpuTimeP999 || 0) / 1000
+        );
       }
     }
   }
@@ -455,18 +507,36 @@ function aggregateMetrics(workersData, doData, d1Data, kvData, startTime, endTim
 
       // Quantiles (wallTime in microseconds -> ms)
       if (dg.quantiles) {
-        metrics.durable_objects.wall_time.p50 = Math.max(metrics.durable_objects.wall_time.p50, (dg.quantiles.wallTimeP50 || 0) / 1000);
-        metrics.durable_objects.wall_time.p75 = Math.max(metrics.durable_objects.wall_time.p75, (dg.quantiles.wallTimeP75 || 0) / 1000);
-        metrics.durable_objects.wall_time.p90 = Math.max(metrics.durable_objects.wall_time.p90, (dg.quantiles.wallTimeP90 || 0) / 1000);
-        metrics.durable_objects.wall_time.p99 = Math.max(metrics.durable_objects.wall_time.p99, (dg.quantiles.wallTimeP99 || 0) / 1000);
-        metrics.durable_objects.wall_time.p999 = Math.max(metrics.durable_objects.wall_time.p999, (dg.quantiles.wallTimeP999 || 0) / 1000);
+        metrics.durable_objects.wall_time.p50 = Math.max(
+          metrics.durable_objects.wall_time.p50,
+          (dg.quantiles.wallTimeP50 || 0) / 1000
+        );
+        metrics.durable_objects.wall_time.p75 = Math.max(
+          metrics.durable_objects.wall_time.p75,
+          (dg.quantiles.wallTimeP75 || 0) / 1000
+        );
+        metrics.durable_objects.wall_time.p90 = Math.max(
+          metrics.durable_objects.wall_time.p90,
+          (dg.quantiles.wallTimeP90 || 0) / 1000
+        );
+        metrics.durable_objects.wall_time.p99 = Math.max(
+          metrics.durable_objects.wall_time.p99,
+          (dg.quantiles.wallTimeP99 || 0) / 1000
+        );
+        metrics.durable_objects.wall_time.p999 = Math.max(
+          metrics.durable_objects.wall_time.p999,
+          (dg.quantiles.wallTimeP999 || 0) / 1000
+        );
       }
     }
 
     // DO Storage
     const storageGroups = account.durableObjectsStorageGroups || [];
     for (const sg of storageGroups) {
-      metrics.durable_objects.storage_bytes = Math.max(metrics.durable_objects.storage_bytes, sg.max?.storedBytes || 0);
+      metrics.durable_objects.storage_bytes = Math.max(
+        metrics.durable_objects.storage_bytes,
+        sg.max?.storedBytes || 0
+      );
     }
   }
 
@@ -647,18 +717,24 @@ async function main() {
       }
 
       const jsonPath = path.join(resultsDir, `cf-analytics_${timestamp}.json`);
-      fs.writeFileSync(jsonPath, JSON.stringify({
-        metrics,
-        raw: {
-          workers: workersData,
-          durable_objects: doData,
-          d1: d1Data,
-          kv: kvData,
-        },
-      }, null, 2));
+      fs.writeFileSync(
+        jsonPath,
+        JSON.stringify(
+          {
+            metrics,
+            raw: {
+              workers: workersData,
+              durable_objects: doData,
+              d1: d1Data,
+              kv: kvData,
+            },
+          },
+          null,
+          2
+        )
+      );
       console.log(`\n📁 Raw data saved to: ${jsonPath}`);
     }
-
   } catch (error) {
     console.error(`\n❌ Error: ${error.message}`);
     process.exit(1);

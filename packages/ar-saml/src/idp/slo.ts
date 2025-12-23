@@ -18,6 +18,10 @@ import {
   isShardedSessionId,
   D1Adapter,
   type DatabaseAdapter,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import {
   parseLogoutRequestPost,
@@ -50,13 +54,7 @@ export async function handleIdPSLO(c: Context<{ Bindings: Env }>): Promise<Respo
     }
   } catch (error) {
     console.error('IdP SLO Error:', error);
-    return c.json(
-      {
-        error: 'slo_error',
-        message: error instanceof Error ? error.message : 'Single logout failed',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -76,7 +74,12 @@ async function handlePostBinding(c: Context<{ Bindings: Env }>, env: Env): Promi
     const logoutResponse = parseLogoutResponsePost(samlResponse);
     return processLogoutResponse(c, env, logoutResponse, relayState);
   } else {
-    return c.json({ error: 'Missing SAMLRequest or SAMLResponse' }, 400);
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Missing SAMLRequest or SAMLResponse'
+    );
   }
 }
 
@@ -96,7 +99,12 @@ async function handleRedirectBinding(c: Context<{ Bindings: Env }>, env: Env): P
     const logoutResponse = parseLogoutResponseRedirect(samlResponse);
     return processLogoutResponse(c, env, logoutResponse, relayState);
   } else {
-    return c.json({ error: 'Missing SAMLRequest or SAMLResponse' }, 400);
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Missing SAMLRequest or SAMLResponse'
+    );
   }
 }
 
@@ -222,7 +230,8 @@ function validateLogoutRequest(logoutRequest: ParsedLogoutRequest, env: Env): vo
   if (logoutRequest.destination) {
     const expectedDestination = `${env.ISSUER_URL}/saml/idp/slo`;
     if (logoutRequest.destination !== expectedDestination) {
-      throw new Error(`Invalid Destination: expected ${expectedDestination}`);
+      // SECURITY: Do not expose endpoint URLs in error message
+      throw new Error('Invalid Destination in SAML LogoutRequest');
     }
   }
 }
@@ -465,7 +474,7 @@ export async function initiateIdPLogout(
   }
 
   if (!nameId) {
-    throw new Error('User not found');
+    throw new Error('Logout request could not be processed');
   }
   const issuer = `${env.ISSUER_URL}/saml/idp`;
   const destination = spConfig.sloUrl || spConfig.acsUrl;

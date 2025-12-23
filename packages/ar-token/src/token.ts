@@ -76,6 +76,44 @@ import { extractDPoPProof, validateDPoPProof } from '@authrim/ar-lib-core';
 import { parseDeviceCodeId, getDeviceCodeStoreById } from '@authrim/ar-lib-core';
 import { parseCIBARequestId, getCIBARequestStoreById } from '@authrim/ar-lib-core';
 
+// ===== RFC 6750 Compliant Error Response Helpers =====
+// RFC 6750 Section 3: WWW-Authenticate header MUST be included in 401 responses
+// for Bearer token authentication errors
+
+/**
+ * Create OAuth error response with proper headers
+ * RFC 6749 Section 5.2 + RFC 6750 Section 3 compliant
+ *
+ * @param c - Hono context
+ * @param error - OAuth error code
+ * @param errorDescription - Human-readable error description
+ * @param status - HTTP status code (default 400)
+ * @returns Response with proper headers
+ */
+function oauthError(
+  c: Context<{ Bindings: Env }>,
+  error: string,
+  errorDescription: string,
+  status: 400 | 401 | 403 | 500 = 400
+): Response {
+  // Set cache control headers (RFC 6749 Section 5.2)
+  c.header('Cache-Control', 'no-store');
+  c.header('Pragma', 'no-cache');
+
+  // RFC 6750 Section 3: Add WWW-Authenticate header for 401 responses
+  if (status === 401) {
+    c.header('WWW-Authenticate', `Bearer error="${error}"`);
+  }
+
+  return c.json(
+    {
+      error,
+      error_description: errorDescription,
+    },
+    status
+  );
+}
+
 // ===== Key Caching for Performance Optimization =====
 // Cache signing key to avoid expensive RSA key import (5-7ms) and DO hop on every request
 // Security considerations:
@@ -240,7 +278,8 @@ async function getVerificationKeyFromJWKS(env: Env, kid?: string): Promise<Crypt
       return requestedKey;
     }
     // After fetching from DO, kid still not found = token signed with revoked key
-    throw new Error(`Key not found for kid=${kid} (key may have been revoked)`);
+    // SECURITY: Do not expose kid value in error to prevent key enumeration
+    throw new Error('Signing key not found or has been revoked');
   }
 
   // Return first key
@@ -459,13 +498,7 @@ async function handleAuthorizationCodeGrant(
       // JWT assertion will be validated later against the client's registered public key
       // For now, we just extract the client_id to proceed with the flow
     } catch {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid client_assertion JWT format',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Invalid client_assertion JWT format', 401);
     }
   }
 
@@ -479,11 +512,10 @@ async function handleAuthorizationCodeGrant(
       const colonIndex = credentials.indexOf(':');
 
       if (colonIndex === -1) {
-        return c.json(
-          {
-            error: 'invalid_client',
-            error_description: 'Invalid Authorization header format: missing colon separator',
-          },
+        return oauthError(
+          c,
+          'invalid_client',
+          'Invalid Authorization header format: missing colon separator',
           401
         );
       }
@@ -500,13 +532,7 @@ async function handleAuthorizationCodeGrant(
         client_secret = basicClientSecret;
       }
     } catch {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid Authorization header format',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Invalid Authorization header format', 401);
     }
   }
 
@@ -540,38 +566,22 @@ async function handleAuthorizationCodeGrant(
   // Validate client_id
   const clientIdValidation = validateClientId(client_id);
   if (!clientIdValidation.valid) {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: clientIdValidation.error,
-      },
-      400
-    );
+    // RFC 6749: invalid_client should return 401
+    return oauthError(c, 'invalid_client', clientIdValidation.error as string, 401);
   }
 
   // Validate redirect_uri
   const allowHttp = c.env.ALLOW_HTTP_REDIRECT === 'true';
   const redirectUriValidation = validateRedirectUri(redirect_uri, allowHttp);
   if (!redirectUriValidation.valid) {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: redirectUriValidation.error,
-      },
-      400
-    );
+    return oauthError(c, 'invalid_request', redirectUriValidation.error as string, 400);
   }
 
   // Fetch client metadata early (needed for FAPI/DPoP checks)
   const clientMetadata = await getClient(c.env, client_id);
   if (!clientMetadata) {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: 'Client not found',
-      },
-      401
-    );
+    // Security: Generic message to prevent client_id enumeration
+    return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
   }
 
   // DPoP requirement (FAPI 2.0 / sender-constrained tokens)
@@ -592,15 +602,7 @@ async function handleAuthorizationCodeGrant(
   const dpopProof = extractDPoPProof(c.req.raw.headers);
 
   if ((requireDpop || clientRequiresDpop) && !dpopProof) {
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: 'DPoP proof is required for this request',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_request', 'DPoP proof is required for this request', 400);
   }
 
   // Validate DPoP proof early to get jkt for authorization code binding verification
@@ -616,13 +618,10 @@ async function handleAuthorizationCodeGrant(
     );
 
     if (!dpopValidation.valid) {
-      c.header('Cache-Control', 'no-store');
-      c.header('Pragma', 'no-cache');
-      return c.json(
-        {
-          error: dpopValidation.error || 'invalid_dpop_proof',
-          error_description: dpopValidation.error_description || 'Invalid DPoP proof',
-        },
+      return oauthError(
+        c,
+        dpopValidation.error || 'invalid_dpop_proof',
+        dpopValidation.error_description || 'Invalid DPoP proof',
         400
       );
     }
@@ -702,12 +701,11 @@ async function handleAuthorizationCodeGrant(
         }
       }
 
-      // Return error to the attacker
-      return c.json(
-        {
-          error: 'invalid_grant',
-          error_description: 'Authorization code already used',
-        },
+      // Return error to the attacker - use generic message to avoid confirming code existence
+      return oauthError(
+        c,
+        'invalid_grant',
+        'The provided authorization grant is invalid, expired, or revoked',
         400
       );
     }
@@ -731,32 +729,25 @@ async function handleAuthorizationCodeGrant(
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
     // Determine appropriate error type based on error message
+    // Security: Use generic message to avoid information leakage
     if (errorMessage.includes('already consumed') || errorMessage.includes('replay')) {
-      return c.json(
-        {
-          error: 'invalid_grant',
-          error_description: 'Authorization code already used',
-        },
+      return oauthError(
+        c,
+        'invalid_grant',
+        'The provided authorization grant is invalid, expired, or revoked',
         400
       );
     }
 
-    return c.json(
-      {
-        error: 'invalid_grant',
-        error_description: 'Authorization code is invalid or expired',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_grant', 'Authorization code is invalid or expired', 400);
   }
 
   // Verify redirect_uri matches (additional safety check)
   if (authCodeData.redirect_uri !== redirect_uri) {
-    return c.json(
-      {
-        error: 'invalid_grant',
-        error_description: 'redirect_uri does not match the one used in authorization request',
-      },
+    return oauthError(
+      c,
+      'invalid_grant',
+      'redirect_uri does not match the one used in authorization request',
       400
     );
   }
@@ -767,11 +758,10 @@ async function handleAuthorizationCodeGrant(
     // Authorization code is bound to a DPoP key, DPoP proof is required
     if (!dpopProof) {
       console.warn('[DPoP] Authorization code bound to DPoP key but no DPoP proof provided');
-      return c.json(
-        {
-          error: 'invalid_grant',
-          error_description: 'DPoP proof required (authorization code is bound to DPoP key)',
-        },
+      return oauthError(
+        c,
+        'invalid_grant',
+        'DPoP proof required (authorization code is bound to DPoP key)',
         400
       );
     }
@@ -784,11 +774,10 @@ async function handleAuthorizationCodeGrant(
         'Received:',
         dpopJkt
       );
-      return c.json(
-        {
-          error: 'invalid_grant',
-          error_description: 'DPoP key mismatch (authorization code is bound to different key)',
-        },
+      return oauthError(
+        c,
+        'invalid_grant',
+        'DPoP key mismatch (authorization code is bound to different key)',
         400
       );
     }
@@ -810,25 +799,19 @@ async function handleAuthorizationCodeGrant(
     );
 
     if (!assertionValidation.valid) {
-      return c.json(
-        {
-          error: assertionValidation.error || 'invalid_client',
-          error_description:
-            assertionValidation.error_description || 'Client assertion validation failed',
-        },
+      return oauthError(
+        c,
+        assertionValidation.error || 'invalid_client',
+        assertionValidation.error_description || 'Client assertion validation failed',
         401
       );
     }
   } else if (clientMetadata.client_secret) {
     // client_secret_basic or client_secret_post authentication
-    if (!client_secret || client_secret !== clientMetadata.client_secret) {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Client authentication failed',
-        },
-        401
-      );
+    // Security: Use timing-safe comparison to prevent timing attacks
+    const storedSecret = (clientMetadata.client_secret as string) ?? '';
+    if (!client_secret || !timingSafeEqual(storedSecret, client_secret)) {
+      return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
     }
   }
   // Public clients (no client_secret and no client_assertion) are allowed
@@ -844,13 +827,7 @@ async function handleAuthorizationCodeGrant(
     keyId = signingKey.kid;
   } catch (error) {
     console.error('Failed to get signing key from KeyManager:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to load signing key',
-      },
-      500
-    );
+    return oauthError(c, 'server_error', 'Failed to load signing key', 500);
   }
 
   // Token expiration (KV > env > default priority)
@@ -1342,15 +1319,7 @@ async function handleRefreshTokenGrant(
         client_id = assertionPayload.iss as string;
       }
     } catch {
-      c.header('Cache-Control', 'no-store');
-      c.header('Pragma', 'no-cache');
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid client_assertion JWT format',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Invalid client_assertion JWT format', 401);
     }
   }
 
@@ -1364,13 +1333,10 @@ async function handleRefreshTokenGrant(
       const colonIndex = credentials.indexOf(':');
 
       if (colonIndex === -1) {
-        c.header('Cache-Control', 'no-store');
-        c.header('Pragma', 'no-cache');
-        return c.json(
-          {
-            error: 'invalid_client',
-            error_description: 'Invalid Authorization header format: missing colon separator',
-          },
+        return oauthError(
+          c,
+          'invalid_client',
+          'Invalid Authorization header format: missing colon separator',
           401
         );
       }
@@ -1386,57 +1352,28 @@ async function handleRefreshTokenGrant(
         client_secret = basicClientSecret;
       }
     } catch {
-      c.header('Cache-Control', 'no-store');
-      c.header('Pragma', 'no-cache');
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid Authorization header format',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Invalid Authorization header format', 401);
     }
   }
 
   // Validate refresh_token parameter
   if (!refreshTokenValue) {
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: 'refresh_token is required',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_request', 'refresh_token is required', 400);
   }
 
   // Validate client_id
   const clientIdValidation = validateClientId(client_id);
   if (!clientIdValidation.valid) {
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: clientIdValidation.error,
-      },
-      400
-    );
+    // RFC 6749: invalid_client should return 401
+    return oauthError(c, 'invalid_client', clientIdValidation.error as string, 401);
   }
 
   // Fetch client metadata to verify client authentication
   const clientMetadata = await getClient(c.env, client_id);
   if (!clientMetadata) {
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: 'Client not found',
-      },
-      400
-    );
+    // Security: Generic message to prevent client_id enumeration
+    // RFC 6749: invalid_client should return 401
+    return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
   }
 
   // Cast to ClientMetadata for type safety
@@ -1456,14 +1393,10 @@ async function handleRefreshTokenGrant(
     );
 
     if (!assertionValidation.valid) {
-      c.header('Cache-Control', 'no-store');
-      c.header('Pragma', 'no-cache');
-      return c.json(
-        {
-          error: assertionValidation.error || 'invalid_client',
-          error_description:
-            assertionValidation.error_description || 'Client assertion validation failed',
-        },
+      return oauthError(
+        c,
+        assertionValidation.error || 'invalid_client',
+        assertionValidation.error_description || 'Client assertion validation failed',
         401
       );
     }
@@ -1471,15 +1404,7 @@ async function handleRefreshTokenGrant(
     // client_secret_basic or client_secret_post authentication
     // SV-015: Use timing-safe comparison to prevent timing attacks
     if (!client_secret || !timingSafeEqual(typedClient.client_secret, client_secret)) {
-      c.header('Cache-Control', 'no-store');
-      c.header('Pragma', 'no-cache');
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Client authentication failed',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
     }
   }
   // Public clients (no client_secret and no client_assertion) are allowed
@@ -1489,28 +1414,12 @@ async function handleRefreshTokenGrant(
   try {
     refreshTokenPayload = parseToken(refreshTokenValue);
   } catch {
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_grant',
-        error_description: 'Invalid refresh token format',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_grant', 'Invalid refresh token format', 400);
   }
 
   const jti = refreshTokenPayload.jti as string;
   if (!jti) {
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_grant',
-        error_description: 'Refresh token missing JTI',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_grant', 'Refresh token missing JTI', 400);
   }
 
   // V2: Extract userId (sub) and version (rtv) from JWT for validation
@@ -1518,42 +1427,18 @@ async function handleRefreshTokenGrant(
   const version = typeof refreshTokenPayload.rtv === 'number' ? refreshTokenPayload.rtv : 1;
 
   if (!userId) {
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_grant',
-        error_description: 'Refresh token missing subject',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_grant', 'Refresh token missing subject', 400);
   }
 
   // Retrieve refresh token metadata from RefreshTokenRotator DO (V2)
   const refreshTokenData = await getRefreshToken(c.env, userId, version, client_id, jti);
   if (!refreshTokenData) {
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_grant',
-        error_description: 'Refresh token is invalid or expired',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_grant', 'Refresh token is invalid or expired', 400);
   }
 
   // Verify client_id matches
   if (refreshTokenData.client_id !== client_id) {
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_grant',
-        error_description: 'Refresh token was issued to a different client',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_grant', 'Refresh token was issued to a different client', 400);
   }
 
   // Load public key for verification using cached JWKS
@@ -1574,15 +1459,7 @@ async function handleRefreshTokenGrant(
     publicKey = await getVerificationKeyFromJWKS(c.env, refreshTokenKid);
   } catch (err) {
     console.error('Failed to load verification key:', err);
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to load verification key',
-      },
-      500
-    );
+    return oauthError(c, 'server_error', 'Failed to load verification key', 500);
   }
 
   // Verify refresh token signature
@@ -1592,15 +1469,7 @@ async function handleRefreshTokenGrant(
     });
   } catch (error) {
     console.error('Refresh token verification failed:', error);
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'invalid_grant',
-        error_description: 'Refresh token signature verification failed',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_grant', 'Refresh token signature verification failed', 400);
   }
 
   // If scope is requested, validate it's a subset of the original scope
@@ -1612,15 +1481,7 @@ async function handleRefreshTokenGrant(
     // Check if all requested scopes are in the original scope
     const isSubset = requestedScopes.every((s) => originalScopes.includes(s));
     if (!isSubset) {
-      c.header('Cache-Control', 'no-store');
-      c.header('Pragma', 'no-cache');
-      return c.json(
-        {
-          error: 'invalid_scope',
-          error_description: 'Requested scope exceeds original scope',
-        },
-        400
-      );
+      return oauthError(c, 'invalid_scope', 'Requested scope exceeds original scope', 400);
     }
     grantedScope = scope;
   }
@@ -1637,15 +1498,7 @@ async function handleRefreshTokenGrant(
     keyId = signingKey.kid;
   } catch (error) {
     console.error('Failed to get signing key from KeyManager:', error);
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to load signing key',
-      },
-      500
-    );
+    return oauthError(c, 'server_error', 'Failed to load signing key', 500);
   }
 
   // Token expiration (KV > env > default priority)
@@ -1707,13 +1560,10 @@ async function handleRefreshTokenGrant(
     );
 
     if (!dpopValidation.valid) {
-      c.header('Cache-Control', 'no-store');
-      c.header('Pragma', 'no-cache');
-      return c.json(
-        {
-          error: dpopValidation.error || 'invalid_dpop_proof',
-          error_description: dpopValidation.error_description || 'DPoP proof validation failed',
-        },
+      return oauthError(
+        c,
+        dpopValidation.error || 'invalid_dpop_proof',
+        dpopValidation.error_description || 'DPoP proof validation failed',
         400
       );
     }
@@ -1767,15 +1617,7 @@ async function handleRefreshTokenGrant(
     accessToken = result.token;
   } catch (err) {
     console.error('Failed to create access token:', err);
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to create access token',
-      },
-      500
-    );
+    return oauthError(c, 'server_error', 'Failed to create access token', 500);
   }
 
   // Generate new ID Token (optional for refresh flow, but included for consistency)
@@ -1815,15 +1657,7 @@ async function handleRefreshTokenGrant(
     }
   } catch (error) {
     console.error('Failed to create ID token:', error);
-    c.header('Cache-Control', 'no-store');
-    c.header('Pragma', 'no-cache');
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to create ID token',
-      },
-      500
-    );
+    return oauthError(c, 'server_error', 'Failed to create ID token', 500);
   }
 
   // Check if Token Rotation is enabled (default: true for security)
@@ -1836,15 +1670,7 @@ async function handleRefreshTokenGrant(
   if (rotationEnabled) {
     // V2: Implement refresh token rotation with version-based theft detection
     if (!c.env.REFRESH_TOKEN_ROTATOR) {
-      c.header('Cache-Control', 'no-store');
-      c.header('Pragma', 'no-cache');
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Refresh token rotation unavailable',
-        },
-        500
-      );
+      return oauthError(c, 'server_error', 'Refresh token rotation unavailable', 500);
     }
 
     // V3: Parse JTI to extract generation and shard info for routing
@@ -1982,7 +1808,8 @@ async function verifyPKCE(codeVerifier: string, codeChallenge: string): Promise<
   const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 
   // Compare with code_challenge
-  return base64url === codeChallenge;
+  // SECURITY: Use timing-safe comparison to prevent timing attacks
+  return timingSafeEqual(base64url, codeChallenge);
 }
 
 /**
@@ -2724,10 +2551,11 @@ async function handleCIBAGrant(c: Context<{ Bindings: Env }>, formData: Record<s
   const userCore = await getCachedUserCore(c.env, metadata.sub);
 
   if (!userCore) {
+    // Security: Internal error - don't leak user existence
     return c.json(
       {
         error: 'server_error',
-        error_description: 'User not found',
+        error_description: 'An unexpected error occurred',
       },
       500
     );
@@ -2737,13 +2565,9 @@ async function handleCIBAGrant(c: Context<{ Bindings: Env }>, formData: Record<s
   const clientMetadata = await getClient(c.env, metadata.client_id);
 
   if (!clientMetadata) {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: 'Client not found',
-      },
-      400
-    );
+    // Security: Generic message to prevent client_id enumeration
+    // RFC 6749: invalid_client should return 401
+    return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
   }
 
   // Get signing key from KeyManager
@@ -3191,13 +3015,7 @@ async function handleTokenExchangeGrant(
         client_id = assertionPayload.sub as string;
       }
     } catch {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid client_assertion format',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Invalid client_assertion format', 401);
     }
   }
 
@@ -3211,11 +3029,10 @@ async function handleTokenExchangeGrant(
       const colonIndex = credentials.indexOf(':');
 
       if (colonIndex === -1) {
-        return c.json(
-          {
-            error: 'invalid_client',
-            error_description: 'Invalid Authorization header format: missing colon separator',
-          },
+        return oauthError(
+          c,
+          'invalid_client',
+          'Invalid Authorization header format: missing colon separator',
           401
         );
       }
@@ -3231,38 +3048,21 @@ async function handleTokenExchangeGrant(
         client_secret = basicClientSecret;
       }
     } catch {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid Authorization header format',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Invalid Authorization header format', 401);
     }
   }
 
   // Validate client_id
   const clientIdValidation = validateClientId(client_id);
   if (!clientIdValidation.valid) {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: clientIdValidation.error,
-      },
-      401
-    );
+    return oauthError(c, 'invalid_client', clientIdValidation.error as string, 401);
   }
 
   // Fetch client metadata
   const clientMetadata = await getClient(c.env, client_id!);
   if (!clientMetadata) {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: 'Client not found',
-      },
-      401
-    );
+    // Security: Generic message to prevent client_id enumeration
+    return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
   }
 
   // Cast to ClientMetadata for type safety
@@ -3279,60 +3079,39 @@ async function handleTokenExchangeGrant(
       typedClient
     );
     if (!assertionValidation.valid) {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description:
-            assertionValidation.error_description || 'Client assertion validation failed',
-        },
+      return oauthError(
+        c,
+        'invalid_client',
+        assertionValidation.error_description || 'Client assertion validation failed',
         401
       );
     }
   } else if (typedClient.client_secret) {
     // client_secret_basic or client_secret_post
     if (!client_secret || !timingSafeEqual(typedClient.client_secret, client_secret)) {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid client credentials',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Invalid client credentials', 401);
     }
   } else {
     // Public clients (no client_secret, no client_assertion) are NOT allowed to use Token Exchange
     // RFC 8693 allows optional client auth, but for enterprise security, we require authentication.
     // This prevents unauthorized token exchange by public clients.
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: 'Client authentication is required for Token Exchange',
-      },
+    return oauthError(
+      c,
+      'invalid_client',
+      'Client authentication is required for Token Exchange',
       401
     );
   }
 
   // 4. Check if client is allowed to use Token Exchange
   if (!typedClient.token_exchange_allowed) {
-    return c.json(
-      {
-        error: 'unauthorized_client',
-        error_description: 'Client is not authorized for Token Exchange',
-      },
-      403
-    );
+    return oauthError(c, 'unauthorized_client', 'Client is not authorized for Token Exchange', 403);
   }
 
   // Check delegation_mode
   const delegationMode = typedClient.delegation_mode || 'delegation';
   if (delegationMode === 'none') {
-    return c.json(
-      {
-        error: 'unauthorized_client',
-        error_description: 'Token Exchange is disabled for this client',
-      },
-      403
-    );
+    return oauthError(c, 'unauthorized_client', 'Token Exchange is disabled for this client', 403);
   }
 
   // 5. Validate requested_token_type (RFC 8693 §2.2.1)
@@ -3341,11 +3120,10 @@ async function handleTokenExchangeGrant(
     requested_token_type &&
     requested_token_type !== 'urn:ietf:params:oauth:token-type:access_token'
   ) {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: 'Only access_token is supported as requested_token_type',
-      },
+    return oauthError(
+      c,
+      'invalid_request',
+      'Only access_token is supported as requested_token_type',
       400
     );
   }
@@ -3357,13 +3135,7 @@ async function handleTokenExchangeGrant(
     subjectTokenPayload = parseToken(subject_token);
     subjectTokenHeader = parseTokenHeader(subject_token);
   } catch {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: 'Invalid subject_token format',
-      },
-      400
-    );
+    return oauthError(c, 'invalid_request', 'Invalid subject_token format', 400);
   }
 
   // Get verification key from header (kid is in JWT header, NOT payload)
@@ -3921,11 +3693,10 @@ async function handleClientCredentialsGrant(
       const colonIndex = credentials.indexOf(':');
 
       if (colonIndex === -1) {
-        return c.json(
-          {
-            error: 'invalid_client',
-            error_description: 'Invalid Authorization header format: missing colon separator',
-          },
+        return oauthError(
+          c,
+          'invalid_client',
+          'Invalid Authorization header format: missing colon separator',
           401
         );
       }
@@ -3941,38 +3712,21 @@ async function handleClientCredentialsGrant(
         client_secret = basicClientSecret;
       }
     } catch {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid Authorization header format',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Invalid Authorization header format', 401);
     }
   }
 
   // Validate client_id
   const clientIdValidation = validateClientId(client_id);
   if (!clientIdValidation.valid) {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: clientIdValidation.error,
-      },
-      401
-    );
+    return oauthError(c, 'invalid_client', clientIdValidation.error as string, 401);
   }
 
   // Fetch client metadata
   const clientMetadata = await getClient(c.env, client_id!);
   if (!clientMetadata) {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: 'Client not found',
-      },
-      401
-    );
+    // Security: Generic message to prevent client_id enumeration
+    return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
   }
 
   // Cast to ClientMetadata for type safety
@@ -3989,44 +3743,29 @@ async function handleClientCredentialsGrant(
       typedClient
     );
     if (!assertionValidation.valid) {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description:
-            assertionValidation.error_description || 'Client assertion validation failed',
-        },
+      return oauthError(
+        c,
+        'invalid_client',
+        assertionValidation.error_description || 'Client assertion validation failed',
         401
       );
     }
   } else if (typedClient.client_secret) {
     // client_secret_basic or client_secret_post
     if (!client_secret || !timingSafeEqual(typedClient.client_secret, client_secret)) {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid client credentials',
-        },
-        401
-      );
+      return oauthError(c, 'invalid_client', 'Invalid client credentials', 401);
     }
   } else {
     // Public clients are NOT allowed to use client_credentials
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: 'Client credentials authentication is required',
-      },
-      401
-    );
+    return oauthError(c, 'invalid_client', 'Client credentials authentication is required', 401);
   }
 
   // 3. Check if client is allowed to use Client Credentials grant
   if (!typedClient.client_credentials_allowed) {
-    return c.json(
-      {
-        error: 'unauthorized_client',
-        error_description: 'Client is not authorized for Client Credentials grant',
-      },
+    return oauthError(
+      c,
+      'unauthorized_client',
+      'Client is not authorized for Client Credentials grant',
       403
     );
   }
@@ -4041,11 +3780,10 @@ async function handleClientCredentialsGrant(
   if (allowedScopes.length > 0) {
     grantedScopes = scopes.filter((s) => allowedScopes.includes(s));
     if (grantedScopes.length === 0) {
-      return c.json(
-        {
-          error: 'invalid_scope',
-          error_description: 'None of the requested scopes are allowed for this client',
-        },
+      return oauthError(
+        c,
+        'invalid_scope',
+        'None of the requested scopes are allowed for this client',
         400
       );
     }
@@ -4066,13 +3804,7 @@ async function handleClientCredentialsGrant(
     keyId = signingKey.kid;
   } catch (error) {
     console.error('Failed to get signing key from KeyManager:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to load signing key',
-      },
-      500
-    );
+    return oauthError(c, 'server_error', 'Failed to load signing key', 500);
   }
 
   const configManager = createOAuthConfigManager(c.env);
@@ -4091,11 +3823,10 @@ async function handleClientCredentialsGrant(
       client_id!
     );
     if (!dpopValidation.valid) {
-      return c.json(
-        {
-          error: 'invalid_dpop_proof',
-          error_description: dpopValidation.error_description || 'DPoP validation failed',
-        },
+      return oauthError(
+        c,
+        'invalid_dpop_proof',
+        dpopValidation.error_description || 'DPoP validation failed',
         400
       );
     }
@@ -4128,13 +3859,7 @@ async function handleClientCredentialsGrant(
     accessToken = result.token;
   } catch (error) {
     console.error('Failed to create access token:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to create access token',
-      },
-      500
-    );
+    return oauthError(c, 'server_error', 'Failed to create access token', 500);
   }
 
   // Client Credentials does NOT issue refresh tokens (per RFC 6749)

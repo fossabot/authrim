@@ -4,8 +4,8 @@ Exchange tokens for different audiences, scopes, or token types using RFC 8693.
 
 ## Overview
 
-| Specification | Status | Grant Type |
-|---------------|--------|------------|
+| Specification                                             | Status         | Grant Type                                        |
+| --------------------------------------------------------- | -------------- | ------------------------------------------------- |
 | [RFC 8693](https://datatracker.ietf.org/doc/html/rfc8693) | ✅ Implemented | `urn:ietf:params:oauth:grant-type:token-exchange` |
 
 Token Exchange enables secure token transformation for microservices, delegation, and impersonation scenarios. A client can exchange one token for another with different characteristics.
@@ -14,24 +14,24 @@ Token Exchange enables secure token transformation for microservices, delegation
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Microservices Auth** | Propagate identity across services |
-| **Audience Restriction** | Get tokens for specific APIs |
-| **Scope Reduction** | Downscope tokens for least privilege |
-| **Delegation** | Act on behalf of users |
-| **Impersonation** | Admin access as another user |
+| Benefit                  | Description                          |
+| ------------------------ | ------------------------------------ |
+| **Microservices Auth**   | Propagate identity across services   |
+| **Audience Restriction** | Get tokens for specific APIs         |
+| **Scope Reduction**      | Downscope tokens for least privilege |
+| **Delegation**           | Act on behalf of users               |
+| **Impersonation**        | Admin access as another user         |
 
 ---
 
 ## Token Exchange Types
 
-| Type | Description | Use Case |
-|------|-------------|----------|
-| **Audience Exchange** | Change token audience | Service-to-service calls |
-| **Scope Reduction** | Reduce token permissions | Least privilege |
-| **Delegation** | `may_act` claim | Service acting for user |
-| **Impersonation** | Full identity swap | Admin support tools |
+| Type                  | Description              | Use Case                 |
+| --------------------- | ------------------------ | ------------------------ |
+| **Audience Exchange** | Change token audience    | Service-to-service calls |
+| **Scope Reduction**   | Reduce token permissions | Least privilege          |
+| **Delegation**        | `may_act` claim          | Service acting for user  |
+| **Impersonation**     | Full identity swap       | Admin support tools      |
 
 ---
 
@@ -99,7 +99,7 @@ class TokenExchangeService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${this.gatewayCredentials}`
+        Authorization: `Basic ${this.gatewayCredentials}`,
       },
       body: new URLSearchParams({
         grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
@@ -107,8 +107,8 @@ class TokenExchangeService {
         subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
         audience: targetAudience,
         scope: requiredScopes.join(' '),
-        requested_token_type: 'urn:ietf:params:oauth:token-type:access_token'
-      })
+        requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+      }),
     });
 
     const result = await response.json();
@@ -116,7 +116,7 @@ class TokenExchangeService {
     // Cache token
     this.tokenCache.set(cacheKey, {
       token: result.access_token,
-      expiresAt: Date.now() + (result.expires_in - 60) * 1000
+      expiresAt: Date.now() + (result.expires_in - 60) * 1000,
     });
 
     return result.access_token;
@@ -131,19 +131,19 @@ async function handleCheckout(req: Request) {
   // Get tokens for downstream services
   const [ordersToken, paymentsToken] = await Promise.all([
     tokenService.getServiceToken(userToken, 'https://orders.internal', ['orders:read']),
-    tokenService.getServiceToken(userToken, 'https://payments.internal', ['payments:charge'])
+    tokenService.getServiceToken(userToken, 'https://payments.internal', ['payments:charge']),
   ]);
 
   // Call downstream services with exchanged tokens
   const [orders, paymentResult] = await Promise.all([
     fetch('https://orders.internal/api/orders', {
-      headers: { 'Authorization': `Bearer ${ordersToken}` }
+      headers: { Authorization: `Bearer ${ordersToken}` },
     }),
     fetch('https://payments.internal/api/charge', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${paymentsToken}` },
-      body: JSON.stringify({ amount: 100 })
-    })
+      headers: { Authorization: `Bearer ${paymentsToken}` },
+      body: JSON.stringify({ amount: 100 }),
+    }),
   ]);
 
   return { orders: await orders.json(), payment: await paymentResult.json() };
@@ -183,19 +183,13 @@ sequenceDiagram
 
 ```typescript
 // Reduce token scope for third-party call
-async function callWebhookWithReducedToken(
-  userToken: string,
-  webhookUrl: string,
-  data: any
-) {
+async function callWebhookWithReducedToken(userToken: string, webhookUrl: string, data: any) {
   // Exchange for reduced-scope token
   const response = await fetch('https://auth.example.com/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': `Basic ${Buffer.from(
-        `${CLIENT_ID}:${CLIENT_SECRET}`
-      ).toString('base64')}`
+      Authorization: `Basic ${Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64')}`,
     },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
@@ -203,8 +197,8 @@ async function callWebhookWithReducedToken(
       subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
       // Request only the scopes needed for this specific operation
       scope: 'calendar:read',
-      requested_token_type: 'urn:ietf:params:oauth:token-type:access_token'
-    })
+      requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+    }),
   });
 
   const { access_token: reducedToken } = await response.json();
@@ -213,10 +207,10 @@ async function callWebhookWithReducedToken(
   return fetch(webhookUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${reducedToken}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${reducedToken}`,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(data)
+    body: JSON.stringify(data),
   });
 }
 ```
@@ -274,9 +268,9 @@ async function impersonateUser(
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': `Basic ${Buffer.from(
-        `${SUPPORT_CLIENT_ID}:${SUPPORT_CLIENT_SECRET}`
-      ).toString('base64')}`
+      Authorization: `Basic ${Buffer.from(`${SUPPORT_CLIENT_ID}:${SUPPORT_CLIENT_SECRET}`).toString(
+        'base64'
+      )}`,
     },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
@@ -294,8 +288,8 @@ async function impersonateUser(
 
       // What we're requesting
       requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-      scope: 'openid profile email' // Limited scope for safety
-    })
+      scope: 'openid profile email', // Limited scope for safety
+    }),
   });
 
   if (!response.ok) {
@@ -311,14 +305,14 @@ async function impersonateUser(
     admin_id: adminClaims.sub,
     target_user: targetUserEmail,
     timestamp: new Date().toISOString(),
-    session_id: result.session_id
+    session_id: result.session_id,
   });
 
   return {
     accessToken: result.access_token,
     expiresIn: result.expires_in,
     impersonatedUser: targetUserEmail,
-    actorClaim: result.act // { sub: "admin_123" }
+    actorClaim: result.act, // { sub: "admin_123" }
   };
 }
 
@@ -335,7 +329,7 @@ app.get('/api/profile', authenticate, (req, res) => {
       action: 'VIEW_PROFILE',
       real_subject: token.sub,
       acting_as: token.act.sub,
-      is_impersonation: true
+      is_impersonation: true,
     });
   }
 
@@ -365,25 +359,25 @@ requested_token_type=urn:ietf:params:oauth:token-type:access_token
 
 ### Request Parameters
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `grant_type` | ✅ | `urn:ietf:params:oauth:grant-type:token-exchange` |
-| `subject_token` | ✅ | Token to exchange |
-| `subject_token_type` | ✅ | Type of subject token |
-| `audience` | Optional | Target audience for new token |
-| `scope` | Optional | Requested scopes (subset) |
-| `requested_token_type` | Optional | Type of requested token |
-| `actor_token` | Optional | Token of acting party |
-| `actor_token_type` | Conditional | Type of actor token |
+| Parameter              | Required    | Description                                       |
+| ---------------------- | ----------- | ------------------------------------------------- |
+| `grant_type`           | ✅          | `urn:ietf:params:oauth:grant-type:token-exchange` |
+| `subject_token`        | ✅          | Token to exchange                                 |
+| `subject_token_type`   | ✅          | Type of subject token                             |
+| `audience`             | Optional    | Target audience for new token                     |
+| `scope`                | Optional    | Requested scopes (subset)                         |
+| `requested_token_type` | Optional    | Type of requested token                           |
+| `actor_token`          | Optional    | Token of acting party                             |
+| `actor_token_type`     | Conditional | Type of actor token                               |
 
 ### Token Types
 
-| Token Type URI | Description |
-|----------------|-------------|
-| `urn:ietf:params:oauth:token-type:access_token` | OAuth 2.0 access token |
+| Token Type URI                                   | Description             |
+| ------------------------------------------------ | ----------------------- |
+| `urn:ietf:params:oauth:token-type:access_token`  | OAuth 2.0 access token  |
 | `urn:ietf:params:oauth:token-type:refresh_token` | OAuth 2.0 refresh token |
-| `urn:ietf:params:oauth:token-type:id_token` | OIDC ID token |
-| `urn:ietf:params:oauth:token-type:jwt` | JWT |
+| `urn:ietf:params:oauth:token-type:id_token`      | OIDC ID token           |
+| `urn:ietf:params:oauth:token-type:jwt`           | JWT                     |
 
 ### Response
 
@@ -434,13 +428,13 @@ requested_token_type=urn:ietf:params:oauth:token-type:access_token
 
 ## Security Considerations
 
-| Consideration | Implementation |
-|---------------|----------------|
-| **Scope Validation** | Can only reduce, not expand scopes |
-| **Audience Restriction** | Pre-configured allowed audiences |
-| **Impersonation Policy** | Explicit permission required |
-| **Audit Logging** | Log all exchanges with context |
-| **Token Binding** | DPoP tokens bound to new proof |
+| Consideration            | Implementation                     |
+| ------------------------ | ---------------------------------- |
+| **Scope Validation**     | Can only reduce, not expand scopes |
+| **Audience Restriction** | Pre-configured allowed audiences   |
+| **Impersonation Policy** | Explicit permission required       |
+| **Audit Logging**        | Log all exchanges with context     |
+| **Token Binding**        | DPoP tokens bound to new proof     |
 
 ---
 
@@ -475,11 +469,11 @@ curl -X PUT "https://auth.example.com/api/admin/settings/token-exchange" \
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Token Exchange | `packages/op-token/src/token-exchange.ts` | Grant handler |
-| Policy | `packages/shared/src/utils/token-exchange-policy.ts` | Validation |
-| Audit | `packages/shared/src/utils/audit.ts` | Logging |
+| Component      | File                                                 | Description   |
+| -------------- | ---------------------------------------------------- | ------------- |
+| Token Exchange | `packages/op-token/src/token-exchange.ts`            | Grant handler |
+| Policy         | `packages/shared/src/utils/token-exchange-policy.ts` | Validation    |
+| Audit          | `packages/shared/src/utils/audit.ts`                 | Logging       |
 
 ---
 

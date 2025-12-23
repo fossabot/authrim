@@ -22,25 +22,27 @@ flowchart TB
 
 ## Routing Table
 
-| Path Pattern | Target Worker | Endpoints |
-|-------------|---------------|-----------|
-| `/.well-known/*` | op-discovery | Discovery, JWKS |
-| `/authorize` | op-auth | Authorization endpoint |
-| `/as/*` | op-auth | Pushed Authorization Requests (PAR) |
-| `/token` | op-token | Token endpoint |
-| `/userinfo` | op-userinfo | UserInfo endpoint |
-| `/register` | op-management | Dynamic Client Registration |
-| `/introspect` | op-management | Token Introspection |
-| `/revoke` | op-management | Token Revocation |
+| Path Pattern     | Target Worker | Endpoints                           |
+| ---------------- | ------------- | ----------------------------------- |
+| `/.well-known/*` | op-discovery  | Discovery, JWKS                     |
+| `/authorize`     | op-auth       | Authorization endpoint              |
+| `/as/*`          | op-auth       | Pushed Authorization Requests (PAR) |
+| `/token`         | op-token      | Token endpoint                      |
+| `/userinfo`      | op-userinfo   | UserInfo endpoint                   |
+| `/register`      | op-management | Dynamic Client Registration         |
+| `/introspect`    | op-management | Token Introspection                 |
+| `/revoke`        | op-management | Token Revocation                    |
 
 ## When to Use
 
 **Use Router Worker when:**
+
 - Deploying to workers.dev for testing/development
 - You don't have a custom domain
 - You need OpenID Connect specification compliance
 
 **Don't use Router Worker when:**
+
 - You have a custom domain managed by Cloudflare
 - You're using Cloudflare Routes for direct routing
 - You need optimal performance (Routes are faster)

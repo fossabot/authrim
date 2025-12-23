@@ -9,6 +9,7 @@ With Phase 3, the foundation for ReBAC + RBAC + ABAC is complete. This document 
 ### 4.1 Verifiable Credentials (VC) Support
 
 #### Goals
+
 - Claims verification compliant with W3C Verifiable Credentials standard
 - Automatic mapping from VC to verified attributes
 - Issuer trust chain management
@@ -28,9 +29,9 @@ interface VCVerificationResult {
 interface VerifiedAttribute {
   name: string;
   value: string;
-  source: 'vc';           // VC-derived
-  issuer: string;         // VC issuer DID
-  credential_id: string;  // Reference to original VC
+  source: 'vc'; // VC-derived
+  issuer: string; // VC issuer DID
+  credential_id: string; // Reference to original VC
   expiresAt: number;
 }
 ```
@@ -66,6 +67,7 @@ CREATE TABLE trusted_issuers (
 ### 4.2 Decentralized Identifier (DID) Support
 
 #### Goals
+
 - Support for DID:web, DID:key methods
 - DID Document resolution
 - DID integration with subject_identifiers table
@@ -84,7 +86,7 @@ type SupportedDIDMethod = 'did:web' | 'did:key';
 
 // Extension of subject_identifiers
 interface SubjectIdentifier {
-  identifier: string;      // email, DID, etc.
+  identifier: string; // email, DID, etc.
   identifier_type: 'email' | 'did:web' | 'did:key' | 'external_id';
   did_document_json?: string;
   verification_method?: string;
@@ -127,6 +129,7 @@ interface SubjectIdentifier {
 ### 4.4 RelationGraphDO (Durable Object)
 
 #### Goals
+
 - Global distributed relationship graph management
 - Optimization of operations requiring strong consistency
 - Real-time permission change notifications
@@ -245,18 +248,21 @@ interface PolicySimulator {
 ## Implementation Priority
 
 ### High Priority (Phase 4.0)
+
 1. ReBAC foundation (completed)
 2. Basic VC verification implementation
 3. DID:web support
 4. Intersection expression support
 
 ### Medium Priority (Phase 4.1)
+
 1. Exclusion expression (Deny effect)
 2. RelationGraphDO
 3. Audit Log foundation
 4. DID:key support
 
 ### Low Priority (Phase 5)
+
 1. Conditional Relations
 2. Policy Simulation
 3. Graph visualization UI
@@ -288,12 +294,12 @@ gantt
 
 ### Performance
 
-| Feature | Target Latency | Strategy |
-|---------|---------------|----------|
-| check() | < 10ms (p99) | KV Cache + Recursive CTE |
-| listObjects | < 50ms (p99) | Closure Table + Pagination |
-| VC Verification | < 100ms | Pre-verification + Cache |
-| DID Resolution | < 200ms | DNS/HTTP Cache |
+| Feature         | Target Latency | Strategy                   |
+| --------------- | -------------- | -------------------------- |
+| check()         | < 10ms (p99)   | KV Cache + Recursive CTE   |
+| listObjects     | < 50ms (p99)   | Closure Table + Pagination |
+| VC Verification | < 100ms        | Pre-verification + Cache   |
+| DID Resolution  | < 200ms        | DNS/HTTP Cache             |
 
 ### Security
 

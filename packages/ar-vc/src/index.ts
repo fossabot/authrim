@@ -19,7 +19,12 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { versionCheckMiddleware, requestContextMiddleware } from '@authrim/ar-lib-core';
+import {
+  versionCheckMiddleware,
+  requestContextMiddleware,
+  createErrorResponse,
+  AR_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 import type { Env } from './types';
 
 // Verifier routes
@@ -119,24 +124,11 @@ app.get('/did/resolve/:did', didResolveRoute);
 
 app.onError((err, c) => {
   console.error('[vc] Error:', err);
-
-  return c.json(
-    {
-      error: 'server_error',
-      error_description: err instanceof Error ? err.message : 'Internal server error',
-    },
-    500
-  );
+  return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
 });
 
 app.notFound((c) => {
-  return c.json(
-    {
-      error: 'not_found',
-      error_description: `Route ${c.req.method} ${c.req.path} not found`,
-    },
-    404
-  );
+  return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
 });
 
 // =============================================================================

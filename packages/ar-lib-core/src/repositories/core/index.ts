@@ -57,3 +57,11 @@ export {
   type CreateRoleInput,
   type UpdateRoleInput,
 } from './role';
+
+export {
+  SessionClientRepository,
+  type SessionClient,
+  type SessionClientWithDetails,
+  type CreateSessionClientInput,
+  type UpdateSessionClientInput,
+} from './session-client';

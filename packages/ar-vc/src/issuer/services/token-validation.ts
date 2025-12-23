@@ -123,9 +123,10 @@ export async function validateVCIAccessToken(
     };
   } catch (error) {
     console.error('[validateVCIAccessToken] Error:', error);
+    // SECURITY: Do not expose internal error details in response
     return {
       valid: false,
-      error: error instanceof Error ? error.message : 'Token validation failed',
+      error: 'Token validation failed',
     };
   }
 }
@@ -288,9 +289,10 @@ export async function validateProofOfPossession(
     };
   } catch (error) {
     console.error('[validateProofOfPossession] Error:', error);
+    // SECURITY: Do not expose internal error details in response
     return {
       valid: false,
-      error: error instanceof Error ? error.message : 'Proof validation failed',
+      error: 'Proof validation failed',
     };
   }
 }

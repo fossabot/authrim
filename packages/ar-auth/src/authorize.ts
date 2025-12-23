@@ -675,7 +675,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
             return c.json(
               {
                 error: 'invalid_client',
-                error_description: 'Client not found',
+                error_description: 'Client authentication failed',
               },
               401
             );
@@ -938,9 +938,9 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
     return c.json(
       {
         error: 'invalid_client',
-        error_description: 'Client not found',
+        error_description: 'Client authentication failed',
       },
-      400
+      401
     );
   }
 
@@ -2672,7 +2672,7 @@ async function createJARMResponse(
     // Get client metadata to check for encryption requirements
     const client = await getClient(c.env, clientId);
     if (!client) {
-      throw new Error('Client not found');
+      throw new Error('Client authentication failed');
     }
 
     // Build JWT payload from response parameters

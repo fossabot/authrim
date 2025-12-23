@@ -4,12 +4,12 @@ Tenant isolation design with preparation for future multi-tenant deployment.
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| **Current Mode** | Single-tenant (default tenant) |
-| **Future Ready** | Multi-tenant prepared architecture |
-| **Isolation** | Data and configuration per tenant |
-| **Identification** | Subdomain or header-based |
+| Aspect             | Description                        |
+| ------------------ | ---------------------------------- |
+| **Current Mode**   | Single-tenant (default tenant)     |
+| **Future Ready**   | Multi-tenant prepared architecture |
+| **Isolation**      | Data and configuration per tenant  |
+| **Identification** | Subdomain or header-based          |
 
 Authrim is architected with multi-tenancy in mind from the ground up, even though the current deployment operates in single-tenant mode. This document describes the tenant isolation patterns used throughout the codebase.
 
@@ -63,11 +63,11 @@ flowchart TB
 
 ### Planned Tenant Identification Methods
 
-| Method | Example | Use Case |
-|--------|---------|----------|
+| Method        | Example                    | Use Case        |
+| ------------- | -------------------------- | --------------- |
 | **Subdomain** | `tenant1.auth.example.com` | SaaS deployment |
-| **Header** | `X-Tenant-ID: tenant1` | API access |
-| **Path** | `/tenant1/authorize` | Shared domain |
+| **Header**    | `X-Tenant-ID: tenant1`     | API access      |
+| **Path**      | `/tenant1/authorize`       | Shared domain   |
 
 ---
 
@@ -153,14 +153,14 @@ flowchart TB
 
 ### Isolation Levels
 
-| Resource | Isolation | Implementation |
-|----------|-----------|----------------|
-| **Users** | Full | Tenant-prefixed D1 queries |
-| **OAuth Clients** | Full | Tenant-specific client IDs |
-| **Signing Keys** | Full | Per-tenant KeyManager DO |
-| **Sessions** | Full | Tenant-prefixed session IDs |
-| **Settings** | Full | Tenant-prefixed KV keys |
-| **Audit Logs** | Full | Tenant column in D1 |
+| Resource          | Isolation | Implementation              |
+| ----------------- | --------- | --------------------------- |
+| **Users**         | Full      | Tenant-prefixed D1 queries  |
+| **OAuth Clients** | Full      | Tenant-specific client IDs  |
+| **Signing Keys**  | Full      | Per-tenant KeyManager DO    |
+| **Sessions**      | Full      | Tenant-prefixed session IDs |
+| **Settings**      | Full      | Tenant-prefixed KV keys     |
+| **Audit Logs**    | Full      | Tenant column in D1         |
 
 ---
 
@@ -172,10 +172,10 @@ Every request carries tenant context:
 
 ```typescript
 interface RequestContext {
-  requestId: string;    // Unique request ID
-  tenantId: string;     // Resolved tenant
-  startTime: number;    // Request start time
-  logger: Logger;       // Tenant-aware logger
+  requestId: string; // Unique request ID
+  tenantId: string; // Resolved tenant
+  startTime: number; // Request start time
+  logger: Logger; // Tenant-aware logger
 }
 
 // Middleware sets context
@@ -279,13 +279,13 @@ flowchart TB
 
 ### Per-Tenant Settings
 
-| Setting | Scope | Storage |
-|---------|-------|---------|
-| Token expiry | Per-tenant | KV |
-| PKCE requirement | Per-tenant | KV |
-| Allowed scopes | Per-tenant | D1 |
-| Branding | Per-tenant | KV/D1 |
-| Rate limits | Per-tenant | KV |
+| Setting          | Scope      | Storage |
+| ---------------- | ---------- | ------- |
+| Token expiry     | Per-tenant | KV      |
+| PKCE requirement | Per-tenant | KV      |
+| Allowed scopes   | Per-tenant | D1      |
+| Branding         | Per-tenant | KV/D1   |
+| Rate limits      | Per-tenant | KV      |
 
 ---
 
@@ -350,23 +350,23 @@ async function getSession(tenantId: string, sessionId: string) {
 
 ### Cross-Tenant Protection
 
-| Protection | Implementation |
-|------------|----------------|
-| **Key Prefix** | All keys include tenant ID |
-| **Query Scoping** | SQL WHERE includes tenant |
-| **DO Naming** | Tenant in DO instance name |
-| **Validation** | Tenant match verified |
+| Protection        | Implementation             |
+| ----------------- | -------------------------- |
+| **Key Prefix**    | All keys include tenant ID |
+| **Query Scoping** | SQL WHERE includes tenant  |
+| **DO Naming**     | Tenant in DO instance name |
+| **Validation**    | Tenant match verified      |
 
 ---
 
 ## Related Documents
 
-| Document | Description |
-|----------|-------------|
-| [Architecture Overview](./overview.md) | System architecture |
-| [Storage Strategy](./storage-strategy.md) | Storage design |
-| [Configuration](./configuration.md) | Settings management |
-| [Deployment Patterns](./patterns.md) | Deployment architectures |
+| Document                                  | Description              |
+| ----------------------------------------- | ------------------------ |
+| [Architecture Overview](./overview.md)    | System architecture      |
+| [Storage Strategy](./storage-strategy.md) | Storage design           |
+| [Configuration](./configuration.md)       | Settings management      |
+| [Deployment Patterns](./patterns.md)      | Deployment architectures |
 
 ---
 

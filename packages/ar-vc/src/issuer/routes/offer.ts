@@ -12,6 +12,12 @@
 import type { Context } from 'hono';
 import type { Env } from '../../types';
 import { getCredentialOfferStoreById } from '../../utils/credential-offer-sharding';
+import {
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 
 interface CredentialOffer {
   credential_issuer: string;
@@ -41,7 +47,12 @@ export async function credentialOfferRoute(c: Context<{ Bindings: Env }>): Promi
     const offerId = c.req.param('id');
 
     if (!offerId) {
-      return c.json({ error: 'invalid_request', error_description: 'Offer ID is required' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Offer ID is required'
+      );
     }
 
     // Get DO stub using region-aware sharding (self-routing from ID)
@@ -51,7 +62,7 @@ export async function credentialOfferRoute(c: Context<{ Bindings: Env }>): Promi
     const response = await stub.fetch(new Request('https://internal/get'));
 
     if (!response.ok) {
-      return c.json({ error: 'not_found', error_description: 'Credential offer not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     const offer = (await response.json()) as {
@@ -65,14 +76,16 @@ export async function credentialOfferRoute(c: Context<{ Bindings: Env }>): Promi
 
     // Check expiration
     if (Date.now() > offer.expiresAt) {
-      return c.json({ error: 'invalid_request', error_description: 'Offer has expired' }, 400);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Offer has expired');
     }
 
     // Check status
     if (offer.status !== 'pending') {
-      return c.json(
-        { error: 'invalid_request', error_description: `Offer is ${offer.status}` },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `Offer is ${offer.status}`
       );
     }
 
@@ -99,12 +112,6 @@ export async function credentialOfferRoute(c: Context<{ Bindings: Env }>): Promi
     return c.json(credentialOffer);
   } catch (error) {
     console.error('[credentialOffer] Error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

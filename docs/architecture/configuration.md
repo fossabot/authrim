@@ -4,12 +4,12 @@ Hybrid configuration system with dynamic overrides and secure defaults.
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| **Pattern** | Hybrid (KV + Environment + Defaults) |
-| **Priority** | Cache → KV → Environment → Code Default |
-| **Management** | Admin API for dynamic changes |
-| **Defaults** | Security-first default values |
+| Aspect         | Description                             |
+| -------------- | --------------------------------------- |
+| **Pattern**    | Hybrid (KV + Environment + Defaults)    |
+| **Priority**   | Cache → KV → Environment → Code Default |
+| **Management** | Admin API for dynamic changes           |
+| **Defaults**   | Security-first default values           |
 
 Authrim uses a layered configuration system that allows runtime configuration changes without redeployment while maintaining secure defaults.
 
@@ -39,12 +39,12 @@ flowchart TB
 
 ### Priority Rationale
 
-| Level | Use Case | Change Method |
-|-------|----------|---------------|
-| **Cache** | Performance optimization | Automatic (10s TTL) |
-| **KV** | Runtime configuration | Admin API |
-| **Environment** | Deploy-time settings | `wrangler deploy` |
-| **Default** | Security fallback | Code change |
+| Level           | Use Case                 | Change Method       |
+| --------------- | ------------------------ | ------------------- |
+| **Cache**       | Performance optimization | Automatic (10s TTL) |
+| **KV**          | Runtime configuration    | Admin API           |
+| **Environment** | Deploy-time settings     | `wrangler deploy`   |
+| **Default**     | Security fallback        | Code change         |
 
 ---
 
@@ -85,18 +85,18 @@ All defaults are configured for maximum security:
 ```typescript
 const SECURE_DEFAULTS = {
   // Token lifetimes (short)
-  ACCESS_TOKEN_EXPIRY: '3600',           // 1 hour
-  REFRESH_TOKEN_EXPIRY: '2592000',       // 30 days
-  AUTH_CODE_EXPIRY: '60',                // 60 seconds
+  ACCESS_TOKEN_EXPIRY: '3600', // 1 hour
+  REFRESH_TOKEN_EXPIRY: '2592000', // 30 days
+  AUTH_CODE_EXPIRY: '60', // 60 seconds
 
   // Security features (enabled)
   PKCE_REQUIRED: 'true',
-  DPOP_REQUIRED: 'false',                // Enable for FAPI
-  PAR_REQUIRED: 'false',                 // Enable for FAPI
+  DPOP_REQUIRED: 'false', // Enable for FAPI
+  PAR_REQUIRED: 'false', // Enable for FAPI
 
   // Rate limiting (conservative)
-  RATE_LIMIT_TOKEN: '100',               // per minute
-  RATE_LIMIT_AUTHORIZE: '60',            // per minute
+  RATE_LIMIT_TOKEN: '100', // per minute
+  RATE_LIMIT_AUTHORIZE: '60', // per minute
 
   // Session (secure)
   SESSION_COOKIE_SECURE: 'true',
@@ -110,38 +110,38 @@ const SECURE_DEFAULTS = {
 
 ### Token Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `ACCESS_TOKEN_EXPIRY` | 3600 | Access token TTL (seconds) |
+| Setting                | Default | Description                 |
+| ---------------------- | ------- | --------------------------- |
+| `ACCESS_TOKEN_EXPIRY`  | 3600    | Access token TTL (seconds)  |
 | `REFRESH_TOKEN_EXPIRY` | 2592000 | Refresh token TTL (seconds) |
-| `ID_TOKEN_EXPIRY` | 3600 | ID token TTL (seconds) |
-| `AUTH_CODE_EXPIRY` | 60 | Auth code TTL (seconds) |
+| `ID_TOKEN_EXPIRY`      | 3600    | ID token TTL (seconds)      |
+| `AUTH_CODE_EXPIRY`     | 60      | Auth code TTL (seconds)     |
 
 ### Security Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `PKCE_REQUIRED` | true | Require PKCE for all flows |
-| `PKCE_PLAIN_ALLOWED` | false | Allow plain challenge method |
-| `DPOP_REQUIRED` | false | Require DPoP binding |
-| `PAR_REQUIRED` | false | Require PAR for authorization |
-| `JAR_REQUIRED` | false | Require signed requests |
+| Setting              | Default | Description                   |
+| -------------------- | ------- | ----------------------------- |
+| `PKCE_REQUIRED`      | true    | Require PKCE for all flows    |
+| `PKCE_PLAIN_ALLOWED` | false   | Allow plain challenge method  |
+| `DPOP_REQUIRED`      | false   | Require DPoP binding          |
+| `PAR_REQUIRED`       | false   | Require PAR for authorization |
+| `JAR_REQUIRED`       | false   | Require signed requests       |
 
 ### Session Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `SESSION_TTL` | 86400 | Session duration (seconds) |
-| `SESSION_IDLE_TIMEOUT` | 3600 | Idle timeout (seconds) |
-| `MAX_SESSIONS_PER_USER` | 10 | Concurrent sessions limit |
+| Setting                 | Default | Description                |
+| ----------------------- | ------- | -------------------------- |
+| `SESSION_TTL`           | 86400   | Session duration (seconds) |
+| `SESSION_IDLE_TIMEOUT`  | 3600    | Idle timeout (seconds)     |
+| `MAX_SESSIONS_PER_USER` | 10      | Concurrent sessions limit  |
 
 ### Rate Limiting
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `RATE_LIMIT_TOKEN` | 100 | Token requests per minute |
-| `RATE_LIMIT_AUTHORIZE` | 60 | Authorize requests per minute |
-| `RATE_LIMIT_USERINFO` | 120 | UserInfo requests per minute |
+| Setting                | Default | Description                   |
+| ---------------------- | ------- | ----------------------------- |
+| `RATE_LIMIT_TOKEN`     | 100     | Token requests per minute     |
+| `RATE_LIMIT_AUTHORIZE` | 60      | Authorize requests per minute |
+| `RATE_LIMIT_USERINFO`  | 120     | UserInfo requests per minute  |
 
 ---
 
@@ -154,6 +154,7 @@ settings:{key} = {value}
 ```
 
 Examples:
+
 ```
 settings:access_token_expiry = "3600"
 settings:pkce_required = "true"
@@ -167,6 +168,7 @@ feature:{flag_name} = "enabled" | "disabled"
 ```
 
 Examples:
+
 ```
 feature:dpop = "enabled"
 feature:ciba = "enabled"
@@ -179,16 +181,17 @@ feature:scim = "enabled"
 
 ### Settings Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/admin/settings` | GET | List all settings |
-| `/api/admin/settings/:key` | GET | Get specific setting |
-| `/api/admin/settings/:key` | PUT | Update setting |
-| `/api/admin/settings/:key` | DELETE | Reset to default |
+| Endpoint                   | Method | Description          |
+| -------------------------- | ------ | -------------------- |
+| `/api/admin/settings`      | GET    | List all settings    |
+| `/api/admin/settings/:key` | GET    | Get specific setting |
+| `/api/admin/settings/:key` | PUT    | Update setting       |
+| `/api/admin/settings/:key` | DELETE | Reset to default     |
 
 ### Example Requests
 
 **Get All Settings**
+
 ```bash
 GET /api/admin/settings
 
@@ -209,6 +212,7 @@ GET /api/admin/settings
 ```
 
 **Update Setting**
+
 ```bash
 PUT /api/admin/settings/access_token_expiry
 Content-Type: application/json
@@ -219,6 +223,7 @@ Content-Type: application/json
 ```
 
 **Reset to Default**
+
 ```bash
 DELETE /api/admin/settings/access_token_expiry
 ```
@@ -252,11 +257,11 @@ flowchart TB
 
 ### Flag States
 
-| State | Behavior |
-|-------|----------|
-| `enabled` | Feature fully available |
-| `disabled` | Feature returns 501/disabled error |
-| `beta` | Available but marked as experimental |
+| State      | Behavior                             |
+| ---------- | ------------------------------------ |
+| `enabled`  | Feature fully available              |
+| `disabled` | Feature returns 501/disabled error   |
+| `beta`     | Available but marked as experimental |
 
 ### Checking Feature Flags
 
@@ -267,11 +272,14 @@ async function isFeatureEnabled(env: Env, feature: string): Promise<boolean> {
 }
 
 // Usage
-if (!await isFeatureEnabled(env, 'ciba')) {
-  return new Response(JSON.stringify({
-    error: 'feature_disabled',
-    error_description: 'CIBA is not enabled'
-  }), { status: 501 });
+if (!(await isFeatureEnabled(env, 'ciba'))) {
+  return new Response(
+    JSON.stringify({
+      error: 'feature_disabled',
+      error_description: 'CIBA is not enabled',
+    }),
+    { status: 501 }
+  );
 }
 ```
 
@@ -281,29 +289,29 @@ if (!await isFeatureEnabled(env, 'ciba')) {
 
 ### Core Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ISSUER_DOMAIN` | ✅ | Issuer domain (e.g., auth.example.com) |
-| `D1` | ✅ | D1 database binding |
-| `KV` | ✅ | KV namespace binding |
-| `SETTINGS` | ✅ | Settings KV namespace |
+| Variable        | Required | Description                            |
+| --------------- | -------- | -------------------------------------- |
+| `ISSUER_DOMAIN` | ✅       | Issuer domain (e.g., auth.example.com) |
+| `D1`            | ✅       | D1 database binding                    |
+| `KV`            | ✅       | KV namespace binding                   |
+| `SETTINGS`      | ✅       | Settings KV namespace                  |
 
 ### Secret Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ADMIN_API_SECRET` | ✅ | Admin API authentication |
-| `KEY_MANAGER_SECRET` | ✅ | KeyManager DO authentication |
-| `PRIVATE_KEY_ENCRYPTED` | ✅ | Encrypted signing key |
-| `AES_KEY_BASE64` | ✅ | Encryption key for secrets |
+| Variable                | Required | Description                  |
+| ----------------------- | -------- | ---------------------------- |
+| `ADMIN_API_SECRET`      | ✅       | Admin API authentication     |
+| `KEY_MANAGER_SECRET`    | ✅       | KeyManager DO authentication |
+| `PRIVATE_KEY_ENCRYPTED` | ✅       | Encrypted signing key        |
+| `AES_KEY_BASE64`        | ✅       | Encryption key for secrets   |
 
 ### Optional Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOG_LEVEL` | info | Logging verbosity |
-| `AUTHRIM_CODE_SHARDS` | 4 | Authorization code shards |
-| `AUTHRIM_SESSION_SHARDS` | 4 | Session store shards |
+| Variable                 | Default | Description               |
+| ------------------------ | ------- | ------------------------- |
+| `LOG_LEVEL`              | info    | Logging verbosity         |
+| `AUTHRIM_CODE_SHARDS`    | 4       | Authorization code shards |
+| `AUTHRIM_SESSION_SHARDS` | 4       | Session store shards      |
 
 ---
 
@@ -357,6 +365,7 @@ sequenceDiagram
 ```
 
 For immediate invalidation (future enhancement):
+
 - Use DO for cache coordination
 - Broadcast invalidation via WebSocket
 
@@ -410,11 +419,11 @@ function validateSetting(key: string, value: string): ValidationResult {
 
 ### Configuration Metrics
 
-| Metric | Description |
-|--------|-------------|
-| `config.cache.hit` | Cache hit count |
-| `config.cache.miss` | Cache miss count |
-| `config.kv.reads` | KV read operations |
+| Metric                       | Description              |
+| ---------------------------- | ------------------------ |
+| `config.cache.hit`           | Cache hit count          |
+| `config.cache.miss`          | Cache miss count         |
+| `config.kv.reads`            | KV read operations       |
 | `config.validation.failures` | Invalid setting attempts |
 
 ### Audit Logging
@@ -437,12 +446,12 @@ All configuration changes are logged:
 
 ## Related Documents
 
-| Document | Description |
-|----------|-------------|
-| [Security](./security.md) | Security settings |
-| [Multi-Tenancy](./multi-tenancy.md) | Per-tenant configuration |
-| [Storage Strategy](./storage-strategy.md) | KV storage patterns |
-| [Secret Management](../operations/secret-management.md) | Secret handling |
+| Document                                                | Description              |
+| ------------------------------------------------------- | ------------------------ |
+| [Security](./security.md)                               | Security settings        |
+| [Multi-Tenancy](./multi-tenancy.md)                     | Per-tenant configuration |
+| [Storage Strategy](./storage-strategy.md)               | KV storage patterns      |
+| [Secret Management](../operations/secret-management.md) | Secret handling          |
 
 ---
 

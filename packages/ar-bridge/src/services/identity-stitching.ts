@@ -833,7 +833,8 @@ async function assignRoleToUserInternal(
     );
 
     if (!roleCheck) {
-      return { success: false, error: `Role ${roleId} not found` };
+      // SECURITY: Do not expose role ID to prevent enumeration
+      return { success: false, error: 'Role not found' };
     }
 
     // Check if already assigned
@@ -856,9 +857,11 @@ async function assignRoleToUserInternal(
 
     return { success: true, assignment_id: assignmentId };
   } catch (error) {
+    console.error('[assignRoleToUserInternal] Database error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      // SECURITY: Do not expose internal error details
+      error: 'Failed to assign role',
     };
   }
 }

@@ -7,6 +7,7 @@
 
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
+import { createErrorResponse, AR_ERROR_CODES } from '@authrim/ar-lib-core';
 import { SAML_NAMESPACES, BINDING_URIS, NAMEID_FORMATS } from '../common/constants';
 import {
   createDocument,
@@ -37,7 +38,7 @@ export async function handleSPMetadata(c: Context<{ Bindings: Env }>): Promise<R
     signingCertificate = await getSigningCertificate(env);
   } catch (error) {
     console.error('Failed to get signing certificate:', error);
-    return c.json({ error: 'Failed to generate metadata' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 
   // Build metadata XML

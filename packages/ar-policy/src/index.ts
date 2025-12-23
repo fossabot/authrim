@@ -45,6 +45,10 @@ import {
   D1Adapter,
   createPermissionChangeNotifier,
   createPermissionChangeEvent,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
   type DatabaseAdapter,
   type ReBACService,
   type CheckRequest,
@@ -190,13 +194,7 @@ policyRoutes.get('/health', async (c) => {
  */
 policyRoutes.get('/flags', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   const flagsManager = getFeatureFlagsManager(c.env);
@@ -214,13 +212,7 @@ policyRoutes.get('/flags', async (c) => {
  */
 policyRoutes.put('/flags/:name', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   const name = c.req.param('name');
@@ -233,24 +225,22 @@ policyRoutes.put('/flags/:name', async (c) => {
   ];
 
   if (!validNames.includes(name)) {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: `Invalid flag name. Valid names: ${validNames.join(', ')}`,
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      `Invalid flag name. Valid names: ${validNames.join(', ')}`
     );
   }
 
   try {
     const body = await c.req.json<{ value: boolean }>();
     if (typeof body.value !== 'boolean') {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'value must be a boolean',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'value must be a boolean'
       );
     }
 
@@ -264,13 +254,11 @@ policyRoutes.put('/flags/:name', async (c) => {
     });
   } catch (error) {
     if (error instanceof Error && error.message.includes('KV not configured')) {
-      return c.json(
-        {
-          error: 'not_available',
-          error_description:
-            'KV storage not configured. Dynamic flag changes require POLICY_FLAGS_KV binding.',
-        },
-        503
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+        503,
+        'KV storage not configured. Dynamic flag changes require POLICY_FLAGS_KV binding.'
       );
     }
     throw error;
@@ -283,13 +271,7 @@ policyRoutes.put('/flags/:name', async (c) => {
  */
 policyRoutes.delete('/flags/:name', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   const name = c.req.param('name');
@@ -302,12 +284,11 @@ policyRoutes.delete('/flags/:name', async (c) => {
   ];
 
   if (!validNames.includes(name)) {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: `Invalid flag name. Valid names: ${validNames.join(', ')}`,
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      `Invalid flag name. Valid names: ${validNames.join(', ')}`
     );
   }
 
@@ -322,12 +303,11 @@ policyRoutes.delete('/flags/:name', async (c) => {
     });
   } catch (error) {
     if (error instanceof Error && error.message.includes('KV not configured')) {
-      return c.json(
-        {
-          error: 'not_available',
-          error_description: 'KV storage not configured.',
-        },
-        503
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+        503,
+        'KV storage not configured.'
       );
     }
     throw error;
@@ -340,25 +320,18 @@ policyRoutes.delete('/flags/:name', async (c) => {
  */
 policyRoutes.post('/evaluate', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   try {
     const body = await c.req.json<PolicyContext>();
 
     if (!body.subject || !body.resource || !body.action) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'subject, resource, and action are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'subject, resource, and action are required'
       );
     }
 
@@ -371,13 +344,7 @@ policyRoutes.post('/evaluate', async (c) => {
     return c.json(decision);
   } catch (error) {
     console.error('Policy evaluation error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to evaluate policy',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -387,13 +354,7 @@ policyRoutes.post('/evaluate', async (c) => {
  */
 policyRoutes.post('/check-role', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   try {
@@ -407,13 +368,7 @@ policyRoutes.post('/check-role', async (c) => {
     }>();
 
     if (!body.subject) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'subject is required',
-        },
-        400
-      );
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'subject is required');
     }
 
     let subject: PolicySubject;
@@ -439,12 +394,11 @@ policyRoutes.post('/check-role', async (c) => {
         hasRequiredRole = hasAnyRole(subject, body.roles, options);
       }
     } else {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Either role or roles is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Either role or roles is required'
       );
     }
 
@@ -458,13 +412,7 @@ policyRoutes.post('/check-role', async (c) => {
     });
   } catch (error) {
     console.error('Role check error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to check role',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -474,13 +422,7 @@ policyRoutes.post('/check-role', async (c) => {
  */
 policyRoutes.post('/check-access', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   try {
@@ -497,12 +439,11 @@ policyRoutes.post('/check-access', async (c) => {
     }>();
 
     if (!body.resourceType || !body.resourceId || !body.action) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'resourceType, resourceId, and action are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'resourceType, resourceId, and action are required'
       );
     }
 
@@ -518,12 +459,11 @@ policyRoutes.post('/check-access', async (c) => {
         roles: body.roles,
       };
     } else {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Either claims or roles is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Either claims or roles is required'
       );
     }
 
@@ -550,13 +490,7 @@ policyRoutes.post('/check-access', async (c) => {
     });
   } catch (error) {
     console.error('Access check error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to check access',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -566,13 +500,7 @@ policyRoutes.post('/check-access', async (c) => {
  */
 policyRoutes.post('/is-admin', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   try {
@@ -591,12 +519,11 @@ policyRoutes.post('/is-admin', async (c) => {
         roles: body.roles.map((name) => ({ name, scope: 'global' as const })),
       };
     } else {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Either claims or roles is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Either claims or roles is required'
       );
     }
 
@@ -605,13 +532,7 @@ policyRoutes.post('/is-admin', async (c) => {
     });
   } catch (error) {
     console.error('Admin check error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to check admin status',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -738,36 +659,28 @@ rebacRoutes.get('/health', async (c) => {
  */
 rebacRoutes.post('/check', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check if ReBAC is enabled
   const flagsManager = getFeatureFlagsManager(c.env);
   const rebacEnabled = await flagsManager.getFlag('ENABLE_REBAC');
   if (!rebacEnabled) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'ReBAC is not enabled. Set ENABLE_REBAC=true to enable.',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.ACCESS_DENIED,
+      403,
+      'ReBAC is not enabled. Set ENABLE_REBAC=true to enable.'
     );
   }
 
   const rebacService = getReBACService(c.env);
   if (!rebacService) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'D1 database not configured for ReBAC',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'D1 database not configured for ReBAC'
     );
   }
 
@@ -781,12 +694,11 @@ rebacRoutes.post('/check', async (c) => {
     }>();
 
     if (!body.user_id || !body.relation || !body.object) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'user_id, relation, and object are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'user_id, relation, and object are required'
       );
     }
 
@@ -802,13 +714,7 @@ rebacRoutes.post('/check', async (c) => {
     return c.json(result);
   } catch (error) {
     console.error('ReBAC check error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to check relationship',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -826,36 +732,23 @@ rebacRoutes.post('/check', async (c) => {
  */
 rebacRoutes.post('/batch-check', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check if ReBAC is enabled
   const flagsManager = getFeatureFlagsManager(c.env);
   const rebacEnabled = await flagsManager.getFlag('ENABLE_REBAC');
   if (!rebacEnabled) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'ReBAC is not enabled',
-      },
-      503
-    );
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.ACCESS_DENIED, 403, 'ReBAC is not enabled');
   }
 
   const rebacService = getReBACService(c.env);
   if (!rebacService) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'D1 database not configured for ReBAC',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'D1 database not configured for ReBAC'
     );
   }
 
@@ -863,23 +756,21 @@ rebacRoutes.post('/batch-check', async (c) => {
     const body = await c.req.json<{ checks: CheckRequest[] }>();
 
     if (!body.checks || !Array.isArray(body.checks) || body.checks.length === 0) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'checks array is required and must not be empty',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'checks array is required and must not be empty'
       );
     }
 
     // Limit batch size
     if (body.checks.length > 100) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Maximum batch size is 100 checks',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Maximum batch size is 100 checks'
       );
     }
 
@@ -895,13 +786,7 @@ rebacRoutes.post('/batch-check', async (c) => {
     return c.json(result);
   } catch (error) {
     console.error('ReBAC batch check error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to batch check relationships',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -921,36 +806,23 @@ rebacRoutes.post('/batch-check', async (c) => {
  */
 rebacRoutes.post('/list-objects', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check if ReBAC is enabled
   const flagsManager = getFeatureFlagsManager(c.env);
   const rebacEnabled = await flagsManager.getFlag('ENABLE_REBAC');
   if (!rebacEnabled) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'ReBAC is not enabled',
-      },
-      503
-    );
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.ACCESS_DENIED, 403, 'ReBAC is not enabled');
   }
 
   const rebacService = getReBACService(c.env);
   if (!rebacService) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'D1 database not configured for ReBAC',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'D1 database not configured for ReBAC'
     );
   }
 
@@ -958,12 +830,11 @@ rebacRoutes.post('/list-objects', async (c) => {
     const body = await c.req.json<ListObjectsRequest>();
 
     if (!body.user_id || !body.relation || !body.object_type) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'user_id, relation, and object_type are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'user_id, relation, and object_type are required'
       );
     }
 
@@ -980,13 +851,7 @@ rebacRoutes.post('/list-objects', async (c) => {
     return c.json(result);
   } catch (error) {
     console.error('ReBAC list objects error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to list objects',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -1004,36 +869,23 @@ rebacRoutes.post('/list-objects', async (c) => {
  */
 rebacRoutes.post('/list-users', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check if ReBAC is enabled
   const flagsManager = getFeatureFlagsManager(c.env);
   const rebacEnabled = await flagsManager.getFlag('ENABLE_REBAC');
   if (!rebacEnabled) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'ReBAC is not enabled',
-      },
-      503
-    );
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.ACCESS_DENIED, 403, 'ReBAC is not enabled');
   }
 
   const rebacService = getReBACService(c.env);
   if (!rebacService) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'D1 database not configured for ReBAC',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'D1 database not configured for ReBAC'
     );
   }
 
@@ -1041,12 +893,11 @@ rebacRoutes.post('/list-users', async (c) => {
     const body = await c.req.json<ListUsersRequest>();
 
     if (!body.object || !body.relation) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'object and relation are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'object and relation are required'
       );
     }
 
@@ -1063,13 +914,7 @@ rebacRoutes.post('/list-users', async (c) => {
     return c.json(result);
   } catch (error) {
     console.error('ReBAC list users error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to list users',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -1090,35 +935,22 @@ rebacRoutes.post('/list-users', async (c) => {
  */
 rebacRoutes.post('/write', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check if ReBAC is enabled
   const flagsManager = getFeatureFlagsManager(c.env);
   const rebacEnabled = await flagsManager.getFlag('ENABLE_REBAC');
   if (!rebacEnabled) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'ReBAC is not enabled',
-      },
-      503
-    );
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.ACCESS_DENIED, 403, 'ReBAC is not enabled');
   }
 
   if (!c.env.DB) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'D1 database not configured for ReBAC',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'D1 database not configured for ReBAC'
     );
   }
 
@@ -1140,13 +972,11 @@ rebacRoutes.post('/write', async (c) => {
       !body.subject_type ||
       !body.subject_id
     ) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description:
-            'object_type, object_id, relation, subject_type, and subject_id are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'object_type, object_id, relation, subject_type, and subject_id are required'
       );
     }
 
@@ -1216,13 +1046,7 @@ rebacRoutes.post('/write', async (c) => {
     });
   } catch (error) {
     console.error('ReBAC write error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to write relationship tuple',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -1242,35 +1066,22 @@ rebacRoutes.post('/write', async (c) => {
  */
 rebacRoutes.delete('/tuples', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   // Check if ReBAC is enabled
   const flagsManager = getFeatureFlagsManager(c.env);
   const rebacEnabled = await flagsManager.getFlag('ENABLE_REBAC');
   if (!rebacEnabled) {
-    return c.json(
-      {
-        error: 'feature_disabled',
-        error_description: 'ReBAC is not enabled',
-      },
-      503
-    );
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.ACCESS_DENIED, 403, 'ReBAC is not enabled');
   }
 
   if (!c.env.DB) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'D1 database not configured for ReBAC',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'D1 database not configured for ReBAC'
     );
   }
 
@@ -1291,13 +1102,11 @@ rebacRoutes.delete('/tuples', async (c) => {
       !body.subject_type ||
       !body.subject_id
     ) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description:
-            'object_type, object_id, relation, subject_type, and subject_id are required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'object_type, object_id, relation, subject_type, and subject_id are required'
       );
     }
 
@@ -1352,13 +1161,7 @@ rebacRoutes.delete('/tuples', async (c) => {
     });
   } catch (error) {
     console.error('ReBAC delete error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to delete relationship tuple',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -1377,23 +1180,16 @@ rebacRoutes.delete('/tuples', async (c) => {
  */
 rebacRoutes.post('/invalidate', async (c) => {
   if (!authenticateRequest(c)) {
-    return c.json(
-      {
-        error: 'unauthorized',
-        error_description: 'Valid Bearer token required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.AUTH_LOGIN_REQUIRED);
   }
 
   const rebacService = getReBACService(c.env);
   if (!rebacService) {
-    return c.json(
-      {
-        error: 'not_configured',
-        error_description: 'D1 database not configured for ReBAC',
-      },
-      503
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      503,
+      'D1 database not configured for ReBAC'
     );
   }
 
@@ -1410,46 +1206,37 @@ rebacRoutes.post('/invalidate', async (c) => {
 
     if (body.type === 'user') {
       if (!body.user_id) {
-        return c.json(
-          {
-            error: 'invalid_request',
-            error_description: 'user_id is required for type=user',
-          },
-          400
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'user_id is required for type=user'
         );
       }
       await rebacService.invalidateUserCache(tenantId, body.user_id);
     } else if (body.type === 'object') {
       if (!body.object_type || !body.object_id) {
-        return c.json(
-          {
-            error: 'invalid_request',
-            error_description: 'object_type and object_id are required for type=object',
-          },
-          400
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'object_type and object_id are required for type=object'
         );
       }
       await rebacService.invalidateCache(tenantId, body.object_type, body.object_id);
     } else {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'type must be "user" or "object"',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'type must be "user" or "object"'
       );
     }
 
     return c.json({ success: true });
   } catch (error) {
     console.error('ReBAC invalidate error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'Failed to invalidate cache',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -1480,26 +1267,18 @@ app.route('/', policyRoutes);
 
 // 404 handler
 app.notFound((c) => {
-  return c.json(
-    {
-      error: 'not_found',
-      error_description: 'The requested resource was not found',
-      path: c.req.path,
-    },
-    404
+  return createRFCErrorResponse(
+    c,
+    RFC_ERROR_CODES.INVALID_REQUEST,
+    404,
+    'The requested resource was not found'
   );
 });
 
 // Error handler
 app.onError((err, c) => {
   console.error('Error:', err);
-  return c.json(
-    {
-      error: 'internal_server_error',
-      error_description: 'An unexpected error occurred',
-    },
-    500
-  );
+  return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
 });
 
 export default app;

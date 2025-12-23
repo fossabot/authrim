@@ -8,12 +8,12 @@ Authrim implements CIBA, an authentication flow where the client initiates authe
 
 ### Specification
 
-| Attribute | Value |
-|-----------|-------|
-| **Spec** | [OpenID Connect CIBA 1.0](https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html) |
-| **Status** | ✅ Implemented |
-| **Endpoint** | `POST /bc-authorize` |
-| **Delivery Modes** | Poll, Ping, Push |
+| Attribute          | Value                                                                                                                |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| **Spec**           | [OpenID Connect CIBA 1.0](https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html) |
+| **Status**         | ✅ Implemented                                                                                                       |
+| **Endpoint**       | `POST /bc-authorize`                                                                                                 |
+| **Delivery Modes** | Poll, Ping, Push                                                                                                     |
 
 ---
 
@@ -47,6 +47,7 @@ Authrim implements CIBA, an authentication flow where the client initiates authe
 **Challenge**: The bank needs strong authentication without requiring the user to enter sensitive credentials on the web portal. Traditional MFA (SMS, TOTP) still requires user interaction on the potentially compromised device.
 
 **CIBA Solution**:
+
 ```typescript
 // Bank's web portal initiates CIBA request
 const cibaRequest = await fetch('https://bank.authrim.com/bc-authorize', {
@@ -58,8 +59,8 @@ const cibaRequest = await fetch('https://bank.authrim.com/bc-authorize', {
     scope: 'openid wire:approve',
     login_hint: 'treasurer@acmecorp.com',
     binding_message: 'Approve wire transfer: $500,000 to Vendor Corp (Ref: INV-2024-789)',
-    acr_values: 'urn:bank:auth:biometric'
-  })
+    acr_values: 'urn:bank:auth:biometric',
+  }),
 });
 
 const { auth_req_id, interval } = await cibaRequest.json();
@@ -85,6 +86,7 @@ const tokens = await pollForTokens(auth_req_id, interval);
 **Challenge**: Traditional verification (security questions, SMS codes) is cumbersome for phone calls. The customer may not have access to email, and reading SMS codes over the phone is error-prone and insecure.
 
 **CIBA Solution**:
+
 ```python
 # Call center agent system initiates verification
 ciba_response = requests.post(
@@ -125,6 +127,7 @@ tokens = poll_for_tokens(auth_req_id)
 **Challenge**: TVs lack secure input methods. Typing long passwords with a remote control is poor UX. Device Flow exists but still requires entering a code on another device.
 
 **CIBA Solution**:
+
 ```javascript
 // Smart TV app initiates CIBA request
 const cibaRequest = await fetch('https://streaming.authrim.com/bc-authorize', {
@@ -134,9 +137,9 @@ const cibaRequest = await fetch('https://streaming.authrim.com/bc-authorize', {
     client_id: 'smart_tv_app',
     client_secret: tvAppSecret,
     scope: 'openid profile streaming:watch',
-    login_hint: userEmailFromSetup,  // From initial TV setup
-    binding_message: 'Sign in to StreamMax on Living Room TV'
-  })
+    login_hint: userEmailFromSetup, // From initial TV setup
+    binding_message: 'Sign in to StreamMax on Living Room TV',
+  }),
 });
 
 // TV displays: "Check your phone to approve sign-in to Living Room TV"
@@ -178,11 +181,11 @@ sequenceDiagram
 
 ### Token Delivery Modes
 
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| **Poll** | Client polls token endpoint | Default, most compatible |
-| **Ping** | Server notifies client, then client fetches tokens | Reduces polling overhead |
-| **Push** | Server pushes tokens directly to client | Lowest latency, requires secure callback |
+| Mode     | Description                                        | Use Case                                 |
+| -------- | -------------------------------------------------- | ---------------------------------------- |
+| **Poll** | Client polls token endpoint                        | Default, most compatible                 |
+| **Ping** | Server notifies client, then client fetches tokens | Reduces polling overhead                 |
+| **Push** | Server pushes tokens directly to client            | Lowest latency, requires secure callback |
 
 ---
 
@@ -192,20 +195,21 @@ sequenceDiagram
 
 **POST /bc-authorize**
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `scope` | ✅ Yes | OAuth scopes (must include `openid`) |
-| `client_id` | ✅ Yes | Client identifier |
-| `client_secret` | ✅ Yes | Client secret |
-| `login_hint` | One of | User identifier (email, phone, username) |
-| `login_hint_token` | One of | JWT containing login hint |
-| `id_token_hint` | One of | Previously issued ID token |
-| `binding_message` | Recommended | Human-readable context (max 140 chars) |
-| `user_code` | Optional | Additional verification code |
-| `requested_expiry` | Optional | Request expiry in seconds |
-| `acr_values` | Optional | Authentication context requirements |
+| Parameter          | Required    | Description                              |
+| ------------------ | ----------- | ---------------------------------------- |
+| `scope`            | ✅ Yes      | OAuth scopes (must include `openid`)     |
+| `client_id`        | ✅ Yes      | Client identifier                        |
+| `client_secret`    | ✅ Yes      | Client secret                            |
+| `login_hint`       | One of      | User identifier (email, phone, username) |
+| `login_hint_token` | One of      | JWT containing login hint                |
+| `id_token_hint`    | One of      | Previously issued ID token               |
+| `binding_message`  | Recommended | Human-readable context (max 140 chars)   |
+| `user_code`        | Optional    | Additional verification code             |
+| `requested_expiry` | Optional    | Request expiry in seconds                |
+| `acr_values`       | Optional    | Authentication context requirements      |
 
 **Success Response** (200 OK):
+
 ```json
 {
   "auth_req_id": "1c266114-a1be-4252-8ad1-04986c5b9ac1",
@@ -216,11 +220,11 @@ sequenceDiagram
 
 **Error Responses**:
 
-| Error | Description |
-|-------|-------------|
-| `invalid_request` | Missing required parameter |
-| `unauthorized_client` | Client not registered for CIBA |
-| `unknown_user_id` | User not found for given login hint |
+| Error                 | Description                         |
+| --------------------- | ----------------------------------- |
+| `invalid_request`     | Missing required parameter          |
+| `unauthorized_client` | Client not registered for CIBA      |
+| `unknown_user_id`     | User not found for given login hint |
 
 ---
 
@@ -241,13 +245,13 @@ grant_type=urn:openid:params:grant-type:ciba
 
 **Response States**:
 
-| State | HTTP | Response |
-|-------|------|----------|
-| Pending | 400 | `{"error": "authorization_pending"}` |
-| Too fast | 400 | `{"error": "slow_down"}` |
-| Denied | 400 | `{"error": "access_denied"}` |
-| Expired | 400 | `{"error": "expired_token"}` |
-| Success | 200 | `{"access_token": "...", "id_token": "..."}` |
+| State    | HTTP | Response                                     |
+| -------- | ---- | -------------------------------------------- |
+| Pending  | 400  | `{"error": "authorization_pending"}`         |
+| Too fast | 400  | `{"error": "slow_down"}`                     |
+| Denied   | 400  | `{"error": "access_denied"}`                 |
+| Expired  | 400  | `{"error": "expired_token"}`                 |
+| Success  | 200  | `{"access_token": "...", "id_token": "..."}` |
 
 ---
 
@@ -266,14 +270,14 @@ async function authenticateViaCIBA(userEmail: string, transactionDetails: string
       client_id: CLIENT_ID,
       client_secret: CLIENT_SECRET,
       login_hint: userEmail,
-      binding_message: transactionDetails
-    })
+      binding_message: transactionDetails,
+    }),
   });
 
   const { auth_req_id, interval, expires_in } = await cibaResponse.json();
 
   // Step 2: Poll for tokens
-  const deadline = Date.now() + (expires_in * 1000);
+  const deadline = Date.now() + expires_in * 1000;
 
   while (Date.now() < deadline) {
     await sleep(interval * 1000);
@@ -285,8 +289,8 @@ async function authenticateViaCIBA(userEmail: string, transactionDetails: string
         grant_type: 'urn:openid:params:grant-type:ciba',
         client_id: CLIENT_ID,
         client_secret: CLIENT_SECRET,
-        auth_req_id
-      })
+        auth_req_id,
+      }),
     });
 
     if (tokenResponse.ok) {
@@ -365,11 +369,11 @@ def authenticate_via_ciba(user_email: str, binding_message: str):
 
 ### Binding Message Security
 
-| Risk | Mitigation |
-|------|------------|
-| Phishing via fake messages | Display raw text only, no HTML |
-| UI overflow attacks | Limit to 140 characters |
-| Misleading content | Clearly label as "Requested action" |
+| Risk                       | Mitigation                          |
+| -------------------------- | ----------------------------------- |
+| Phishing via fake messages | Display raw text only, no HTML      |
+| UI overflow attacks        | Limit to 140 characters             |
+| Misleading content         | Clearly label as "Requested action" |
 
 ### Login Hint Validation
 
@@ -416,15 +420,15 @@ def authenticate_via_ciba(user_email: str, binding_message: str):
 
 ### Test Scenarios
 
-| Scenario | Expected Result |
-|----------|-----------------|
-| Valid CIBA request | 200 with auth_req_id |
-| Unknown login_hint | 400 unknown_user_id |
+| Scenario                | Expected Result           |
+| ----------------------- | ------------------------- |
+| Valid CIBA request      | 200 with auth_req_id      |
+| Unknown login_hint      | 400 unknown_user_id       |
 | Polling before approval | 400 authorization_pending |
-| Polling too fast | 400 slow_down |
-| User denies request | 400 access_denied |
-| Request expires | 400 expired_token |
-| User approves | 200 with tokens |
+| Polling too fast        | 400 slow_down             |
+| User denies request     | 400 access_denied         |
+| Request expires         | 400 expired_token         |
+| User approves           | 200 with tokens           |
 
 ### Running Tests
 

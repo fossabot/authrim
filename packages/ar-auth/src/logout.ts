@@ -2,13 +2,19 @@
  * Logout Functionality
  *
  * Implements OpenID Connect logout mechanisms:
- * - Front-channel logout (GET /logout)
+ * - Front-channel logout (GET /logout) with Backchannel Logout notification
  * - Back-channel logout (POST /logout/backchannel) - RFC 8725
  *
  * Front-channel: Browser-initiated logout with redirect
  * Back-channel: Server-to-server logout notification
  *
+ * Phase A-6: Added Backchannel Logout sender integration
+ * - Sends logout notifications to all RPs that have tokens for the session
+ * - Uses waitUntil() for non-blocking sends
+ * - Configurable via KV settings (LOGOUT_SETTINGS_KEY)
+ *
  * @see https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+ * @see https://openid.net/specs/openid-connect-backchannel-1_0.html
  */
 
 import { Context } from 'hono';
@@ -23,9 +29,64 @@ import {
   isShardedSessionId,
   createAuthContextFromHono,
   getTenantIdFromContext,
+  createBackchannelLogoutOrchestrator,
+  DEFAULT_LOGOUT_CONFIG,
+  LOGOUT_SETTINGS_KEY,
+  buildFrontchannelLogoutIframes,
+  generateFrontchannelLogoutHtml,
+  getFrontchannelLogoutConfig,
 } from '@authrim/ar-lib-core';
-import { importJWK, jwtVerify } from 'jose';
+import type { BackchannelLogoutConfig, LogoutSendResult, LogoutConfig } from '@authrim/ar-lib-core';
+import { importJWK, jwtVerify, importPKCS8 } from 'jose';
 import type { JSONWebKeySet, CryptoKey } from 'jose';
+
+/**
+ * Import a PEM-encoded RSA private key for JWT signing
+ *
+ * @param pem - PEM-encoded private key
+ * @returns CryptoKey for signing
+ */
+async function importPrivateKeyPem(pem: string): Promise<CryptoKey> {
+  return (await importPKCS8(pem, 'RS256')) as CryptoKey;
+}
+
+/**
+ * Get Logout Configuration
+ *
+ * Priority: KV → defaults
+ *
+ * @param env - Environment bindings
+ * @returns LogoutConfig
+ */
+async function getLogoutConfig(env: Env): Promise<LogoutConfig> {
+  // Try KV first
+  if (env.SETTINGS) {
+    try {
+      const kvConfig = await env.SETTINGS.get(LOGOUT_SETTINGS_KEY);
+      if (kvConfig) {
+        const parsed = JSON.parse(kvConfig);
+        return {
+          backchannel: {
+            ...DEFAULT_LOGOUT_CONFIG.backchannel,
+            ...(parsed.backchannel || {}),
+          },
+          frontchannel: {
+            ...DEFAULT_LOGOUT_CONFIG.frontchannel,
+            ...(parsed.frontchannel || {}),
+          },
+          session_management: {
+            ...DEFAULT_LOGOUT_CONFIG.session_management,
+            ...(parsed.session_management || {}),
+          },
+        };
+      }
+    } catch {
+      // Ignore KV errors, use defaults
+    }
+  }
+
+  return DEFAULT_LOGOUT_CONFIG;
+}
 
 /**
  * Front-channel Logout
@@ -86,13 +147,13 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
       if (targetKid) {
         key = jwks.keys.find((k) => k.kid === targetKid);
         if (!key) {
-          // Key not found by kid - this could mean the key was rotated out
-          throw new Error(`Key with kid '${targetKid}' not found in JWKS`);
+          // SECURITY: Do not expose kid value in error to prevent key enumeration
+          throw new Error('Key verification failed');
         }
       } else {
         key = jwks.keys[0];
         if (!key) {
-          throw new Error('No keys in JWKS');
+          throw new Error('Key verification failed');
         }
       }
 
@@ -122,7 +183,7 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // ========================================
-    // Step 2: Invalidate sessions
+    // Step 2: Invalidate sessions and prepare backchannel logout
     // ========================================
     // Per OIDC spec, when user visits logout endpoint, they intend to log out.
     // We delete sessions from:
@@ -130,10 +191,27 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
     // 2. sid from validated id_token_hint (if valid - for server-to-server logout)
     const sessionId = getCookie(c, 'authrim_session');
     const deletedSessions: string[] = [];
+    const sessionsToNotify: Array<{ sessionId: string; userId: string }> = [];
+
+    // Get context for repository access
+    const tenantId = getTenantIdFromContext(c);
+    const authCtx = createAuthContextFromHono(c, tenantId);
+
+    // Helper to collect session info before deletion
+    const collectSessionClients = async (sessId: string) => {
+      // Get session info first to get userId
+      const session = await authCtx.repositories.session.findById(sessId);
+      if (session && session.user_id) {
+        sessionsToNotify.push({ sessionId: sessId, userId: session.user_id });
+      }
+    };
 
     // Delete session from cookie if present (only sharded format)
     if (sessionId && isShardedSessionId(sessionId)) {
       try {
+        // Collect session info before deletion
+        await collectSessionClients(sessionId);
+
         const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sessionId);
         const deleted = await sessionStore.invalidateSessionRpc(sessionId);
 
@@ -158,6 +236,11 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
       isShardedSessionId(sid)
     ) {
       try {
+        // Collect session info before deletion
+        if (!sessionsToNotify.some((s) => s.sessionId === sid)) {
+          await collectSessionClients(sid);
+        }
+
         const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sid);
         const deleted = await sessionStore.invalidateSessionRpc(sid);
 
@@ -170,6 +253,92 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
       } catch (error) {
         console.warn('Failed to route to session store for sid:', sid, error);
       }
+    }
+
+    // ========================================
+    // Step 2.5: Send Backchannel Logout notifications (async)
+    // ========================================
+    // Use waitUntil() to send notifications without blocking the response
+    // Get logout config for both backchannel and frontchannel
+    const logoutConfig = await getLogoutConfig(c.env);
+
+    if (deletedSessions.length > 0 && c.executionCtx) {
+      c.executionCtx.waitUntil(
+        (async () => {
+          try {
+            if (!logoutConfig.backchannel.enabled) {
+              console.debug('[BACKCHANNEL_LOGOUT] Backchannel logout is disabled');
+              return;
+            }
+
+            // Get signing key for logout tokens
+            const keyManagerId = c.env.KEY_MANAGER.idFromName('default-v3');
+            const keyManager = c.env.KEY_MANAGER.get(keyManagerId);
+            const keys = await keyManager.getAllPublicKeysRpc();
+
+            if (!keys || keys.length === 0) {
+              console.error('[BACKCHANNEL_LOGOUT] No signing keys available');
+              return;
+            }
+
+            // Get the private key from KeyManager
+            const activeKey = await keyManager.getActiveKeyWithPrivateRpc();
+
+            if (!activeKey || !activeKey.privatePEM) {
+              console.error('[BACKCHANNEL_LOGOUT] No private key available');
+              return;
+            }
+
+            const kid = activeKey.kid;
+
+            // Import private key for signing
+            const privateKey = await importPrivateKeyPem(activeKey.privatePEM);
+
+            // Create orchestrator
+            const kv = c.env.SETTINGS || c.env.STATE_STORE;
+            const orchestrator = createBackchannelLogoutOrchestrator(kv);
+
+            // Send logout notifications for each deleted session
+            const allResults: LogoutSendResult[] = [];
+
+            for (const { sessionId: sessId, userId: sessUserId } of sessionsToNotify) {
+              // Get clients that need to be notified
+              const sessionClients =
+                await authCtx.repositories.sessionClient.findBackchannelLogoutClients(sessId);
+
+              if (sessionClients.length === 0) {
+                console.debug(`[BACKCHANNEL_LOGOUT] No clients to notify for session ${sessId}`);
+                continue;
+              }
+
+              console.log(
+                `[BACKCHANNEL_LOGOUT] Sending logout notifications for session ${sessId} to ${sessionClients.length} clients`
+              );
+
+              const results = await orchestrator.sendToAll(
+                sessionClients,
+                {
+                  issuer: c.env.ISSUER_URL,
+                  userId: sessUserId,
+                  sessionId: sessId,
+                  privateKey,
+                  kid,
+                },
+                logoutConfig.backchannel
+              );
+
+              allResults.push(...results);
+            }
+
+            // Log summary
+            const succeeded = allResults.filter((r) => r.success).length;
+            const failed = allResults.filter((r) => !r.success).length;
+            console.log(`[BACKCHANNEL_LOGOUT] Completed: ${succeeded} succeeded, ${failed} failed`);
+          } catch (error) {
+            console.error('[BACKCHANNEL_LOGOUT] Error sending notifications:', error);
+          }
+        })()
+      );
     }
 
     // Step 3: Clear session cookie immediately
@@ -216,9 +385,7 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
         canRedirectToRequestedUri = false;
         validationError = 'invalid_id_token_hint';
       } else {
-        // Get client configuration via Repository
-        const tenantId = getTenantIdFromContext(c);
-        const authCtx = createAuthContextFromHono(c, tenantId);
+        // Get client configuration via Repository (reuse authCtx from Step 2)
         const client = await authCtx.repositories.client.findByClientId(clientId);
 
         if (!client) {
@@ -286,7 +453,55 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
       redirectUrl = `${c.env.ISSUER_URL}/logged-out`;
     }
 
-    // Step 6: Redirect to post-logout URI
+    // ========================================
+    // Step 5.5: Check for Frontchannel Logout
+    // ========================================
+    // If any RP has frontchannel_logout_uri, show a page with iframes
+    // before redirecting to post_logout_redirect_uri
+    if (logoutConfig.frontchannel.enabled && deletedSessions.length > 0) {
+      // Collect all frontchannel logout clients from deleted sessions
+      const frontchannelClients = [];
+      const primarySessionId = deletedSessions[0]; // Use first deleted session for sid
+
+      for (const { sessionId: sessId } of sessionsToNotify) {
+        const clients =
+          await authCtx.repositories.sessionClient.findFrontchannelLogoutClients(sessId);
+        frontchannelClients.push(...clients);
+      }
+
+      if (frontchannelClients.length > 0) {
+        console.log(
+          `[FRONTCHANNEL_LOGOUT] Showing iframe page for ${frontchannelClients.length} clients`
+        );
+
+        // Build iframe configurations
+        const iframes = buildFrontchannelLogoutIframes(
+          frontchannelClients,
+          c.env.ISSUER_URL,
+          primarySessionId
+        );
+
+        // Generate HTML page with iframes
+        const html = generateFrontchannelLogoutHtml(
+          iframes,
+          logoutConfig.frontchannel,
+          redirectUrl,
+          undefined // state already included in redirectUrl
+        );
+
+        // Return HTML response with Set-Cookie header to clear session
+        return new Response(html, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'Set-Cookie': 'authrim_session=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0',
+          },
+        });
+      }
+    }
+
+    // Step 6: Redirect to post-logout URI (no frontchannel clients)
     // IMPORTANT: Hono's c.redirect() creates a new Response that doesn't include
     // headers set via setCookie(). We need to manually add the Set-Cookie header
     // to ensure the session cookie is properly cleared in the browser.
@@ -443,7 +658,8 @@ export async function backChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
         if (targetKid) {
           key = jwks.keys.find((k) => k.kid === targetKid);
           if (!key) {
-            throw new Error(`Key with kid '${targetKid}' not found in JWKS`);
+            // SECURITY: Do not expose kid value in error to prevent key enumeration
+            throw new Error('Key verification failed');
           }
         } else {
           key = jwks.keys[0];

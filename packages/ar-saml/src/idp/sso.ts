@@ -95,7 +95,7 @@ export async function handleIdPSSO(c: Context<{ Bindings: Env }>): Promise<Respo
     // Get user information
     const userInfo = await getUserInfo(env, userId);
     if (!userInfo) {
-      return createErrorResponse(c, 'User not found', STATUS_CODES.UNKNOWN_PRINCIPAL);
+      return createErrorResponse(c, 'Authentication failed', STATUS_CODES.UNKNOWN_PRINCIPAL);
     }
 
     // Generate SAML Response
@@ -105,11 +105,8 @@ export async function handleIdPSSO(c: Context<{ Bindings: Env }>): Promise<Respo
     return sendSAMLResponse(c, spConfig, responseXml, relayState);
   } catch (error) {
     console.error('SSO Error:', error);
-    return createErrorResponse(
-      c,
-      error instanceof Error ? error.message : 'SSO processing failed',
-      STATUS_CODES.RESPONDER
-    );
+    // SECURITY: Do not expose internal error details in response
+    return createErrorResponse(c, 'SSO processing failed', STATUS_CODES.RESPONDER);
   }
 }
 
@@ -250,7 +247,8 @@ async function validateAuthnRequest(authnRequest: SAMLAuthnRequest, env: Env): P
   if (authnRequest.destination) {
     const expectedDestination = `${env.ISSUER_URL}/saml/idp/sso`;
     if (authnRequest.destination !== expectedDestination) {
-      throw new Error(`Invalid Destination: expected ${expectedDestination}`);
+      // SECURITY: Do not expose endpoint URLs in error message
+      throw new Error('Invalid Destination in SAML AuthnRequest');
     }
   }
 }

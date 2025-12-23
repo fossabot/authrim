@@ -372,10 +372,11 @@ export function validateCIBAIdTokenHint(
 
   // Validate algorithm (must be asymmetric)
   if (!ALLOWED_JWT_ALGORITHMS.includes(header.alg as (typeof ALLOWED_JWT_ALGORITHMS)[number])) {
+    // SECURITY: Do not expose algorithm value in error
     return {
       valid: false,
       error: 'invalid_request',
-      error_description: `Invalid id_token_hint: algorithm '${header.alg}' is not allowed`,
+      error_description: 'Invalid id_token_hint: algorithm is not allowed',
     };
   }
 

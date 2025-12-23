@@ -276,4 +276,120 @@ describe('Discovery Handler', () => {
       expect(response.status).toBe(200);
     });
   });
+
+  describe('Logout Metadata', () => {
+    it('should include end_session_endpoint (RP-Initiated Logout)', async () => {
+      const env = createMockEnv();
+      const response = await app.request(
+        '/.well-known/openid-configuration',
+        {
+          method: 'GET',
+        },
+        env
+      );
+
+      const metadata = (await response.json()) as OIDCProviderMetadata;
+      expect(metadata.end_session_endpoint).toBe('https://test.example.com/logout');
+    });
+
+    it('should include frontchannel_logout_supported', async () => {
+      const env = createMockEnv();
+      const response = await app.request(
+        '/.well-known/openid-configuration',
+        {
+          method: 'GET',
+        },
+        env
+      );
+
+      const metadata = (await response.json()) as OIDCProviderMetadata;
+      // Default is enabled (from DEFAULT_LOGOUT_CONFIG)
+      expect(metadata).toHaveProperty('frontchannel_logout_supported');
+      expect(metadata).toHaveProperty('frontchannel_logout_session_supported');
+    });
+
+    it('should include backchannel_logout_supported', async () => {
+      const env = createMockEnv();
+      const response = await app.request(
+        '/.well-known/openid-configuration',
+        {
+          method: 'GET',
+        },
+        env
+      );
+
+      const metadata = (await response.json()) as OIDCProviderMetadata;
+      // Default is enabled (from DEFAULT_LOGOUT_CONFIG)
+      expect(metadata).toHaveProperty('backchannel_logout_supported');
+      expect(metadata).toHaveProperty('backchannel_logout_session_supported');
+    });
+
+    it('should respect logout configuration from KV', async () => {
+      const env = createMockEnv();
+      // Mock SETTINGS KV with logout config
+      env.SETTINGS = {
+        get: async (key: string) => {
+          if (key === 'logout_settings') {
+            return JSON.stringify({
+              frontchannel: { enabled: false },
+              backchannel: { enabled: true },
+              session_management: { enabled: true, check_session_iframe_enabled: true },
+            });
+          }
+          return null;
+        },
+      } as unknown as KVNamespace;
+
+      const response = await app.request(
+        '/.well-known/openid-configuration',
+        {
+          method: 'GET',
+        },
+        env
+      );
+
+      const metadata = (await response.json()) as OIDCProviderMetadata;
+
+      // Frontchannel disabled
+      expect(metadata.frontchannel_logout_supported).toBe(false);
+      expect(metadata.frontchannel_logout_session_supported).toBe(false);
+
+      // Backchannel enabled
+      expect(metadata.backchannel_logout_supported).toBe(true);
+      expect(metadata.backchannel_logout_session_supported).toBe(true);
+
+      // Session management enabled
+      expect(metadata.check_session_iframe).toBe('https://test.example.com/session/check');
+    });
+
+    it('should not include check_session_iframe when session management is disabled', async () => {
+      const env = createMockEnv();
+      // Mock SETTINGS KV with session management disabled
+      env.SETTINGS = {
+        get: async (key: string) => {
+          if (key === 'logout_settings') {
+            return JSON.stringify({
+              frontchannel: { enabled: true },
+              backchannel: { enabled: true },
+              session_management: { enabled: false },
+            });
+          }
+          return null;
+        },
+      } as unknown as KVNamespace;
+
+      const response = await app.request(
+        '/.well-known/openid-configuration',
+        {
+          method: 'GET',
+        },
+        env
+      );
+
+      const metadata = (await response.json()) as OIDCProviderMetadata;
+
+      // Session management disabled - no check_session_iframe
+      expect(metadata.check_session_iframe).toBeUndefined();
+    });
+  });
 });

@@ -153,7 +153,7 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
     // Verify client exists (uses Read-Through Cache: CLIENTS_CACHE → D1)
     const clientData = await getClient(c.env, params.client_id);
     if (!clientData) {
-      throw new OIDCError(ERROR_CODES.INVALID_CLIENT, 'Client not found');
+      throw new OIDCError(ERROR_CODES.INVALID_CLIENT, 'Client authentication failed');
     }
 
     // Cast to ClientMetadata for type safety

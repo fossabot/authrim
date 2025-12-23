@@ -23,21 +23,21 @@ This document describes the performance testing strategy, current benchmarks, an
 
 Based on user feedback, current production scores:
 
-| Metric | Score | Status |
-|--------|-------|--------|
-| **Performance** | 100 | ✅ Excellent |
-| **Accessibility** | 89 | ⚠️ Good |
-| **Best Practices** | 100 | ✅ Excellent |
-| **SEO** | 91 | ✅ Excellent |
+| Metric             | Score | Status       |
+| ------------------ | ----- | ------------ |
+| **Performance**    | 100   | ✅ Excellent |
+| **Accessibility**  | 89    | ⚠️ Good      |
+| **Best Practices** | 100   | ✅ Excellent |
+| **SEO**            | 91    | ✅ Excellent |
 
 ### Core Web Vitals
 
-| Metric | Current | Target | Status |
-|--------|---------|--------|--------|
-| **Largest Contentful Paint (LCP)** | 0.11s | < 2.5s | ✅ Excellent |
-| **First Input Delay (FID)** | N/A | < 100ms | - |
-| **Cumulative Layout Shift (CLS)** | N/A | < 0.1 | - |
-| **Total Blocking Time (TBT)** | N/A | < 300ms | - |
+| Metric                             | Current | Target  | Status       |
+| ---------------------------------- | ------- | ------- | ------------ |
+| **Largest Contentful Paint (LCP)** | 0.11s   | < 2.5s  | ✅ Excellent |
+| **First Input Delay (FID)**        | N/A     | < 100ms | -            |
+| **Cumulative Layout Shift (CLS)**  | N/A     | < 0.1   | -            |
+| **Total Blocking Time (TBT)**      | N/A     | < 300ms | -            |
 
 **Note**: Current LCP of 0.11s is exceptional, indicating optimal performance.
 
@@ -46,6 +46,7 @@ Based on user feedback, current production scores:
 **Test Script**: `scripts/performance-test.sh`
 
 **Metrics Measured**:
+
 - Response time (min/max/avg/p95)
 - DNS lookup time
 - TCP connect time
@@ -53,6 +54,7 @@ Based on user feedback, current production scores:
 - Time to First Byte (TTFB)
 
 **Endpoints Tested**:
+
 - Discovery endpoint (`/.well-known/openid-configuration`)
 - JWKS endpoint (`/.well-known/jwks.json`)
 - Authorization endpoint (`/authorize`)
@@ -67,12 +69,14 @@ Based on user feedback, current production scores:
 **Status**: Within Cloudflare Workers limits (1MB)
 
 **Optimizations**:
+
 - **SvelteKit**: Automatic code splitting
 - **UnoCSS**: Utility-first CSS (minimal footprint)
 - **Tree shaking**: Dead code elimination via Vite
 - **Lazy loading**: Dynamic imports for admin pages
 
 **Analysis**:
+
 ```bash
 # Analyze bundle size
 pnpm --filter=ui build
@@ -82,15 +86,18 @@ pnpm --filter=ui build
 #### 2. Asset Optimization
 
 **Images**:
+
 - Use WebP format for better compression
 - Implement responsive images (`srcset`)
 - Lazy load images below the fold
 
 **Fonts**:
+
 - System fonts preferred (no web fonts)
 - Font subsetting if custom fonts needed
 
 **CSS**:
+
 - UnoCSS generates minimal CSS (only used utilities)
 - Critical CSS inlined
 - Unused CSS purged automatically
@@ -98,15 +105,18 @@ pnpm --filter=ui build
 #### 3. Caching Strategy
 
 **Static Assets**:
+
 - Long-term caching for versioned assets (1 year)
 - Immutable cache headers
 
 **API Responses**:
+
 - Discovery endpoint: Cache for 1 hour
 - JWKS endpoint: Cache for 1 hour
 - User-specific data: No cache
 
 **Service Worker** (future):
+
 - Offline-first strategy for static assets
 - Stale-while-revalidate for API responses
 
@@ -115,11 +125,13 @@ pnpm --filter=ui build
 #### 1. Cloudflare Workers
 
 **Advantages**:
+
 - Edge compute (low latency worldwide)
 - Auto-scaling
 - Zero cold starts
 
 **Optimization Techniques**:
+
 - Minimal dependencies (reduce bundle size)
 - Efficient D1/KV queries
 - Durable Objects for strong consistency
@@ -127,11 +139,13 @@ pnpm --filter=ui build
 #### 2. Database Queries
 
 **D1 Optimization**:
+
 - Indexed columns for fast lookups
 - Pagination for large result sets
 - Query plan analysis (`EXPLAIN QUERY PLAN`)
 
 **KV Optimization**:
+
 - TTL-based expiration
 - Bulk operations where possible
 - Minimize read/write operations
@@ -139,6 +153,7 @@ pnpm --filter=ui build
 #### 3. Durable Objects
 
 **Performance Considerations**:
+
 - One DO instance per unique ID (natural partitioning)
 - In-memory caching within DO
 - Alarm-based cleanup (async)
@@ -150,6 +165,7 @@ pnpm --filter=ui build
 **Configuration**: `lighthouserc.json`
 
 **Assertions**:
+
 ```json
 {
   "categories:performance": ["error", { "minScore": 0.9 }],
@@ -164,6 +180,7 @@ pnpm --filter=ui build
 ```
 
 **Running Lighthouse CI**:
+
 ```bash
 pnpm test:lighthouse
 ```
@@ -171,6 +188,7 @@ pnpm test:lighthouse
 ### Real User Monitoring (RUM)
 
 **Future Enhancement**:
+
 - Integrate Web Vitals library
 - Send metrics to analytics service
 - Track p75, p90, p95 percentiles
@@ -179,20 +197,20 @@ pnpm test:lighthouse
 
 ### UI Pages
 
-| Metric | Budget | Current | Status |
-|--------|--------|---------|--------|
-| JavaScript bundle | < 200 KB | ~150 KB | ✅ |
-| CSS bundle | < 50 KB | ~30 KB | ✅ |
-| Total page weight | < 500 KB | ~300 KB | ✅ |
-| Requests | < 20 | ~15 | ✅ |
+| Metric            | Budget   | Current | Status |
+| ----------------- | -------- | ------- | ------ |
+| JavaScript bundle | < 200 KB | ~150 KB | ✅     |
+| CSS bundle        | < 50 KB  | ~30 KB  | ✅     |
+| Total page weight | < 500 KB | ~300 KB | ✅     |
+| Requests          | < 20     | ~15     | ✅     |
 
 ### API Endpoints
 
-| Metric | Budget | Status |
-|--------|--------|--------|
-| TTFB | < 200ms | ✅ |
-| Response time | < 500ms | ✅ |
-| Throughput | > 1000 req/s | ✅ (Cloudflare auto-scales) |
+| Metric        | Budget       | Status                      |
+| ------------- | ------------ | --------------------------- |
+| TTFB          | < 200ms      | ✅                          |
+| Response time | < 500ms      | ✅                          |
+| Throughput    | > 1000 req/s | ✅ (Cloudflare auto-scales) |
 
 ## Optimization Recommendations
 
@@ -224,11 +242,13 @@ pnpm test:lighthouse
 **GitHub Actions Workflow**: `.github/workflows/ci.yml`
 
 **Lighthouse Job**:
+
 - Runs on every PR and push to `main`
 - Fails if performance score drops below 90
 - Uploads reports as artifacts
 
 **Artifacts**:
+
 - Lighthouse reports stored for 30 days
 - HTML reports for detailed analysis
 

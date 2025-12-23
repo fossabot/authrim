@@ -5,12 +5,14 @@
 The RefreshTokenRotator Durable Object manages atomic refresh token rotation with **version-based theft detection**. V2 uses a lightweight state model that tracks rotation version numbers rather than storing actual token strings.
 
 **V2 Architecture Benefits:**
+
 - Minimal storage footprint (single `TokenFamilyV2` per user)
 - O(1) rotation operations via in-memory Maps
 - Version comparison for theft detection (simpler than token string comparison)
 - Consistent response format across create and rotate operations
 
 **Security Features:**
+
 - Version-based theft detection (`rtv` claim in JWT)
 - JTI (JWT ID) mismatch detection
 - Scope amplification prevention
@@ -19,11 +21,13 @@ The RefreshTokenRotator Durable Object manages atomic refresh token rotation wit
 - Critical event synchronous audit logging
 
 **OAuth 2.0 Security Best Current Practice (BCP) Compliance:**
+
 - Token Rotation: Refresh tokens rotated on every use
 - Theft Detection: Old version reuse triggers family revocation
 - Audit Trail: Critical events logged synchronously, routine events batched
 
 **References:**
+
 - OAuth 2.0 Security BCP: Draft 16, Section 4.13.2
 - RFC 6749: Section 10.4 (Refresh Token Protection)
 
@@ -35,13 +39,13 @@ The RefreshTokenRotator Durable Object manages atomic refresh token rotation wit
 
 ```typescript
 interface TokenFamilyV2 {
-  version: number;        // Rotation version (monotonically increasing, starts at 1)
-  last_jti: string;       // Last issued JWT ID
-  last_used_at: number;   // Timestamp of last use (ms)
-  expires_at: number;     // Absolute expiration (ms)
-  user_id: string;        // For tenant boundary enforcement
-  client_id: string;      // For scope validation
-  allowed_scope: string;  // Prevent scope amplification
+  version: number; // Rotation version (monotonically increasing, starts at 1)
+  last_jti: string; // Last issued JWT ID
+  last_used_at: number; // Timestamp of last use (ms)
+  expires_at: number; // Absolute expiration (ms)
+  user_id: string; // For tenant boundary enforcement
+  client_id: string; // For scope validation
+  allowed_scope: string; // Prevent scope amplification
 }
 ```
 
@@ -93,6 +97,7 @@ Create a new token family when issuing the first refresh token.
 **Endpoint:** `POST /family`
 
 **Request Body:**
+
 ```json
 {
   "jti": "rt_550e8400-e29b-41d4-a716-446655440000",
@@ -113,6 +118,7 @@ Create a new token family when issuing the first refresh token.
 | `ttl` | number | No | Time to live in seconds (default: 30 days) |
 
 **Response (201 Created):**
+
 ```json
 {
   "version": 1,
@@ -133,6 +139,7 @@ Rotate a refresh token with version-based validation.
 **Endpoint:** `POST /rotate`
 
 **Request Body:**
+
 ```json
 {
   "incomingVersion": 1,
@@ -153,6 +160,7 @@ Rotate a refresh token with version-based validation.
 | `requestedScope` | string | No | Requested scope (must be subset of allowed) |
 
 **Response (200 OK - Success):**
+
 ```json
 {
   "newVersion": 2,
@@ -163,6 +171,7 @@ Rotate a refresh token with version-based validation.
 ```
 
 **Response (400 Bad Request - Theft Detected):**
+
 ```json
 {
   "error": "invalid_grant",
@@ -172,6 +181,7 @@ Rotate a refresh token with version-based validation.
 ```
 
 **Response (400 Bad Request - Scope Amplification):**
+
 ```json
 {
   "error": "invalid_grant",
@@ -188,6 +198,7 @@ Revoke all tokens in a token family.
 **Endpoint:** `POST /revoke-family`
 
 **Request Body:**
+
 ```json
 {
   "userId": "user_123",
@@ -196,6 +207,7 @@ Revoke all tokens in a token family.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true
@@ -218,6 +230,7 @@ Validate token without rotation (for introspection).
 | `clientId` | string | Yes | Client ID |
 
 **Response (200 OK):**
+
 ```json
 {
   "valid": true,
@@ -236,6 +249,7 @@ Get information about a token family (admin/debugging).
 **Endpoint:** `GET /family/:userId`
 
 **Response (200 OK):**
+
 ```json
 {
   "version": 3,
@@ -254,6 +268,7 @@ Get information about a token family (admin/debugging).
 **Endpoint:** `GET /status`
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "ok",
@@ -316,18 +331,19 @@ if (requestedScope) {
 ### 4. Tenant Boundary Enforcement
 
 Family lookup is keyed by `userId`, ensuring:
+
 - User A cannot access User B's family
 - Even with a valid version, wrong userId = "not found"
 
 ### 5. Audit Logging Strategy
 
-| Event | Logging | Rationale |
-|-------|---------|-----------|
-| `created` | Async (batched) | Routine operation |
-| `rotated` | Async (batched) | Routine operation |
-| `theft_detected` | **Sync** | Security critical |
-| `family_revoked` | **Sync** | Security critical |
-| `expired` | Async (batched) | Routine cleanup |
+| Event            | Logging         | Rationale         |
+| ---------------- | --------------- | ----------------- |
+| `created`        | Async (batched) | Routine operation |
+| `rotated`        | Async (batched) | Routine operation |
+| `theft_detected` | **Sync**        | Security critical |
+| `family_revoked` | **Sync**        | Security critical |
+| `expired`        | Async (batched) | Routine cleanup   |
 
 ---
 
@@ -361,8 +377,8 @@ const refreshToken = await createRefreshToken(
   privateKey,
   kid,
   expiresIn,
-  newJti,  // JTI from DO
-  version  // rtv claim
+  newJti, // JTI from DO
+  version // rtv claim
 );
 ```
 
@@ -401,27 +417,28 @@ const { newVersion, newJti, expiresIn, allowedScope } = await rotateResponse.jso
 
 V2 is a complete rewrite with different API contracts:
 
-| V1 | V2 | Change |
-|----|----|----|
-| `token` (string) | `jti` (string) | Token stored externally |
-| `familyId` (generated) | `userId` (family key) | Simpler keying |
-| `currentToken` | `incomingVersion` + `incomingJti` | Version-based validation |
-| `newToken` | `newJti` + `newVersion` | JWT created by caller |
-| `rotationCount` | `version` | Same concept, different name |
-| Token string comparison | Version number comparison | More efficient |
+| V1                      | V2                                | Change                       |
+| ----------------------- | --------------------------------- | ---------------------------- |
+| `token` (string)        | `jti` (string)                    | Token stored externally      |
+| `familyId` (generated)  | `userId` (family key)             | Simpler keying               |
+| `currentToken`          | `incomingVersion` + `incomingJti` | Version-based validation     |
+| `newToken`              | `newJti` + `newVersion`           | JWT created by caller        |
+| `rotationCount`         | `version`                         | Same concept, different name |
+| Token string comparison | Version number comparison         | More efficient               |
 
 ---
 
 ## Performance Characteristics
 
-| Operation | Complexity | Latency |
-|-----------|------------|---------|
-| Create Family | O(1) | ~5ms |
-| Rotate Token | O(1) | ~5ms |
-| Revoke Family | O(1) | ~5ms |
-| Validate | O(1) | ~2ms |
+| Operation     | Complexity | Latency |
+| ------------- | ---------- | ------- |
+| Create Family | O(1)       | ~5ms    |
+| Rotate Token  | O(1)       | ~5ms    |
+| Revoke Family | O(1)       | ~5ms    |
+| Validate      | O(1)       | ~2ms    |
 
 **Memory Usage:**
+
 - ~200 bytes per TokenFamilyV2
 - In-memory Map for O(1) lookups
 - Periodic cleanup of expired families

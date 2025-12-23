@@ -266,11 +266,13 @@ export async function updateIntrospectionValidationConfig(c: Context<{ Bindings:
       note: 'Introspection validation settings updated successfully.',
     });
   } catch (error) {
+    // Log full error details for debugging but don't expose to client
     console.error('[Introspection Validation Settings API] Error updating settings:', error);
+    // SECURITY: Do not expose internal error details in response
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to update settings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error_description: 'Failed to update settings',
       },
       500
     );
@@ -322,7 +324,8 @@ export async function clearIntrospectionValidationConfig(c: Context<{ Bindings: 
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to clear settings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        // SECURITY: Do not expose internal error details
+        error_description: 'Failed to clear settings',
       },
       500
     );

@@ -12,7 +12,14 @@
 
 import type { Context } from 'hono';
 import type { Env, VPRequestState, VPVerificationResult } from '../../types';
-import { D1Adapter, AttributeVerificationRepository } from '@authrim/ar-lib-core';
+import {
+  D1Adapter,
+  AttributeVerificationRepository,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 import { verifyVPToken } from '../services/vp-verifier';
 import { getVPRequestStoreById } from '../../utils/vp-request-sharding';
 
@@ -50,12 +57,11 @@ export async function vpResponseRoute(c: Context<{ Bindings: Env }>): Promise<Re
             formData['presentation_submission'] as string
           ) as object;
         } catch {
-          return c.json(
-            {
-              error: 'invalid_request',
-              error_description: 'Invalid presentation_submission JSON format',
-            },
-            400
+          return createRFCErrorResponse(
+            c,
+            RFC_ERROR_CODES.INVALID_REQUEST,
+            400,
+            'Invalid presentation_submission JSON format'
           );
         }
       }
@@ -72,14 +78,21 @@ export async function vpResponseRoute(c: Context<{ Bindings: Env }>): Promise<Re
     // Validate vp_token
     // SECURITY: Check for both null/undefined and empty string
     if (!body.vp_token || (typeof body.vp_token === 'string' && body.vp_token.trim() === '')) {
-      return c.json({ error: 'invalid_request', error_description: 'vp_token is required' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'vp_token is required'
+      );
     }
 
     // Look up the VP request by state (which contains the request ID)
     if (!body.state) {
-      return c.json(
-        { error: 'invalid_request', error_description: 'state is required to match the request' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'state is required to match the request'
       );
     }
 
@@ -93,19 +106,23 @@ export async function vpResponseRoute(c: Context<{ Bindings: Env }>): Promise<Re
     // Get the stored request
     const requestResponse = await stub.fetch(new Request('https://internal/get'));
     if (!requestResponse.ok) {
-      return c.json({ error: 'invalid_request', error_description: 'VP request not found' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'VP request not found'
+      );
     }
 
     const vpRequest = (await requestResponse.json()) as VPRequestState;
 
     // Check if request is still valid
     if (vpRequest.status !== 'pending') {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: `VP request is ${vpRequest.status}`,
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `VP request is ${vpRequest.status}`
       );
     }
 
@@ -118,7 +135,12 @@ export async function vpResponseRoute(c: Context<{ Bindings: Env }>): Promise<Re
         })
       );
 
-      return c.json({ error: 'invalid_request', error_description: 'VP request has expired' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'VP request has expired'
+      );
     }
 
     // Verify the VP token
@@ -164,24 +186,16 @@ export async function vpResponseRoute(c: Context<{ Bindings: Env }>): Promise<Re
         })
       );
 
-      return c.json(
-        {
-          error: 'invalid_presentation',
-          error_description: verificationResult.errors.join('; '),
-          warnings: verificationResult.warnings,
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_PRESENTATION,
+        400,
+        verificationResult.errors.join('; ')
       );
     }
   } catch (error) {
     console.error('[vpResponse] Error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 

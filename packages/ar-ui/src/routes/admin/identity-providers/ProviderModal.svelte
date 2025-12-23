@@ -191,8 +191,9 @@
 				return;
 			}
 			// Validate format: GUID or domain
-			const isValidGuid =
-				/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customTenant);
+			const isValidGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+				customTenant
+			);
 			const isValidDomain = /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(customTenant);
 			if (!isValidGuid && !isValidDomain) {
 				error =

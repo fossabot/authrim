@@ -12,12 +12,12 @@ It provides flexible policy evaluation that integrates RBAC (Role-Based Access C
 
 ### Current Features
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **RBAC (Role-Based)** | Implemented | Role-based access control |
-| **ABAC (Attribute-Based)** | Implemented | Attribute-based access control |
+| Feature                        | Status      | Description                               |
+| ------------------------------ | ----------- | ----------------------------------------- |
+| **RBAC (Role-Based)**          | Implemented | Role-based access control                 |
+| **ABAC (Attribute-Based)**     | Implemented | Attribute-based access control            |
 | **ReBAC (Relationship-Based)** | Implemented | Zanzibar-style relationship-based control |
-| **Check API (Phase 8.3)** | Implemented | Unified real-time permission checking API |
+| **Check API (Phase 8.3)**      | Implemented | Unified real-time permission checking API |
 
 > **New:** See [Check API Reference](./CHECK_API.md) for the unified permission checking API with WebSocket push notifications.
 
@@ -73,6 +73,7 @@ Authorization: Bearer <POLICY_API_SECRET>
 No authentication required. Checks the operational status of the service.
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -91,13 +92,12 @@ No authentication required. Checks the operational status of the service.
 Performs full policy evaluation. The most flexible endpoint that allows specifying complete information about subject, resource, and action.
 
 **Request:**
+
 ```json
 {
   "subject": {
     "id": "user_123",
-    "roles": [
-      { "name": "org_admin", "scope": "organization", "scopeTarget": "org_456" }
-    ],
+    "roles": [{ "name": "org_admin", "scope": "organization", "scopeTarget": "org_456" }],
     "orgId": "org_456"
   },
   "resource": {
@@ -112,6 +112,7 @@ Performs full policy evaluation. The most flexible endpoint that allows specifyi
 ```
 
 **Response:**
+
 ```json
 {
   "allowed": true,
@@ -122,24 +123,24 @@ Performs full policy evaluation. The most flexible endpoint that allows specifyi
 
 **Subject Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | Yes | User ID |
-| `roles` | SubjectRole[] | Yes | Assigned roles |
-| `orgId` | string | - | Organization ID |
-| `userType` | string | - | User type |
-| `plan` | string | - | Subscription plan |
-| `relationships` | SubjectRelationship[] | - | Relationships with other users |
-| `verifiedAttributes` | VerifiedAttribute[] | - | Verified attributes (ABAC) |
+| Field                | Type                  | Required | Description                    |
+| -------------------- | --------------------- | -------- | ------------------------------ |
+| `id`                 | string                | Yes      | User ID                        |
+| `roles`              | SubjectRole[]         | Yes      | Assigned roles                 |
+| `orgId`              | string                | -        | Organization ID                |
+| `userType`           | string                | -        | User type                      |
+| `plan`               | string                | -        | Subscription plan              |
+| `relationships`      | SubjectRelationship[] | -        | Relationships with other users |
+| `verifiedAttributes` | VerifiedAttribute[]   | -        | Verified attributes (ABAC)     |
 
 **Role Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Role name (`system_admin`, `org_admin`, `end_user`, etc.) |
-| `scope` | string | Yes | Scope (`global`, `organization`, `resource`) |
-| `scopeTarget` | string | - | Scope target (e.g., `org:org_123`) |
-| `expiresAt` | number | - | Expiration time (UNIX ms) |
+| Field         | Type   | Required | Description                                               |
+| ------------- | ------ | -------- | --------------------------------------------------------- |
+| `name`        | string | Yes      | Role name (`system_admin`, `org_admin`, `end_user`, etc.) |
+| `scope`       | string | Yes      | Scope (`global`, `organization`, `resource`)              |
+| `scopeTarget` | string | -        | Scope target (e.g., `org:org_123`)                        |
+| `expiresAt`   | number | -        | Expiration time (UNIX ms)                                 |
 
 ---
 
@@ -148,6 +149,7 @@ Performs full policy evaluation. The most flexible endpoint that allows specifyi
 Simple check whether a user has a specific role.
 
 **Single Role Check:**
+
 ```json
 {
   "subject": {
@@ -159,6 +161,7 @@ Simple check whether a user has a specific role.
 ```
 
 **Multiple Roles Check (any mode):**
+
 ```json
 {
   "subject": {
@@ -171,6 +174,7 @@ Simple check whether a user has a specific role.
 ```
 
 **Multiple Roles Check (all mode):**
+
 ```json
 {
   "subject": {
@@ -186,6 +190,7 @@ Simple check whether a user has a specific role.
 ```
 
 **Response:**
+
 ```json
 {
   "hasRole": true,
@@ -200,6 +205,7 @@ Simple check whether a user has a specific role.
 Simple access check. Simplified version of `/policy/evaluate`.
 
 **Using Claims (conversion from JWT):**
+
 ```json
 {
   "claims": {
@@ -213,6 +219,7 @@ Simple access check. Simplified version of `/policy/evaluate`.
 ```
 
 **Using Direct Roles:**
+
 ```json
 {
   "subjectId": "user_123",
@@ -225,6 +232,7 @@ Simple access check. Simplified version of `/policy/evaluate`.
 ```
 
 **Response:**
+
 ```json
 {
   "allowed": true,
@@ -240,6 +248,7 @@ Simple access check. Simplified version of `/policy/evaluate`.
 Determines whether a user has administrator privileges.
 
 **Request:**
+
 ```json
 {
   "roles": ["admin"]
@@ -247,6 +256,7 @@ Determines whether a user has administrator privileges.
 ```
 
 Or from claims:
+
 ```json
 {
   "claims": {
@@ -257,6 +267,7 @@ Or from claims:
 ```
 
 **Response:**
+
 ```json
 {
   "isAdmin": true,
@@ -265,6 +276,7 @@ Or from claims:
 ```
 
 **Admin Roles:**
+
 - `system_admin`
 - `distributor_admin`
 - `org_admin`
@@ -283,6 +295,7 @@ Checks the operational status of the ReBAC service.
 Zanzibar-style relationship check (currently a placeholder).
 
 **Request:**
+
 ```json
 {
   "subject": "user:user_123",
@@ -292,6 +305,7 @@ Zanzibar-style relationship check (currently a placeholder).
 ```
 
 **Response:**
+
 ```json
 {
   "allowed": false,
@@ -307,13 +321,13 @@ Zanzibar-style relationship check (currently a placeholder).
 
 The Policy Engine has the following default rules built-in:
 
-| Priority | Rule ID | Description |
-|----------|---------|-------------|
-| 1000 | `system_admin_full_access` | System administrators can access all resources |
-| 900 | `distributor_admin_access` | Distributor administrators have broad access |
-| 800 | `org_admin_same_org` | Organization administrators can manage resources within their organization |
-| 700 | `owner_full_access` | Resource owners have full access to their own resources |
-| 600 | `guardian_access` | Guardians can access their ward's resources |
+| Priority | Rule ID                    | Description                                                                |
+| -------- | -------------------------- | -------------------------------------------------------------------------- |
+| 1000     | `system_admin_full_access` | System administrators can access all resources                             |
+| 900      | `distributor_admin_access` | Distributor administrators have broad access                               |
+| 800      | `org_admin_same_org`       | Organization administrators can manage resources within their organization |
+| 700      | `owner_full_access`        | Resource owners have full access to their own resources                    |
+| 600      | `guardian_access`          | Guardians can access their ward's resources                                |
 
 ### Condition Types
 
@@ -321,34 +335,34 @@ Condition types available for policy rules:
 
 #### RBAC Conditions
 
-| Type | Description | Params |
-|------|-------------|--------|
-| `has_role` | Has specific role | `role`, `scope?`, `scopeTarget?` |
-| `has_any_role` | Has any of the roles | `roles[]`, `scope?`, `scopeTarget?` |
-| `has_all_roles` | Has all roles | `roles[]`, `scope?`, `scopeTarget?` |
+| Type            | Description          | Params                              |
+| --------------- | -------------------- | ----------------------------------- |
+| `has_role`      | Has specific role    | `role`, `scope?`, `scopeTarget?`    |
+| `has_any_role`  | Has any of the roles | `roles[]`, `scope?`, `scopeTarget?` |
+| `has_all_roles` | Has all roles        | `roles[]`, `scope?`, `scopeTarget?` |
 
 #### Ownership Conditions
 
-| Type | Description | Params |
-|------|-------------|--------|
-| `is_resource_owner` | Is resource owner | None |
-| `same_organization` | Same organization | None |
+| Type                | Description       | Params |
+| ------------------- | ----------------- | ------ |
+| `is_resource_owner` | Is resource owner | None   |
+| `same_organization` | Same organization | None   |
 
 #### Relationship Conditions
 
-| Type | Description | Params |
-|------|-------------|--------|
-| `has_relationship` | Has relationship | `types[]` |
-| `user_type_is` | User type matches | `types[]` |
-| `plan_allows` | Plan allows | `plans[]` |
+| Type               | Description       | Params    |
+| ------------------ | ----------------- | --------- |
+| `has_relationship` | Has relationship  | `types[]` |
+| `user_type_is`     | User type matches | `types[]` |
+| `plan_allows`      | Plan allows       | `plans[]` |
 
 #### ABAC Conditions
 
-| Type | Description | Params |
-|------|-------------|--------|
-| `attribute_equals` | Attribute value matches | `name`, `value`, `checkExpiry?` |
-| `attribute_exists` | Attribute exists | `name`, `checkExpiry?` |
-| `attribute_in` | Attribute value in list | `name`, `values[]`, `checkExpiry?` |
+| Type               | Description             | Params                             |
+| ------------------ | ----------------------- | ---------------------------------- |
+| `attribute_equals` | Attribute value matches | `name`, `value`, `checkExpiry?`    |
+| `attribute_exists` | Attribute exists        | `name`, `checkExpiry?`             |
+| `attribute_in`     | Attribute value in list | `name`, `values[]`, `checkExpiry?` |
 
 ---
 
@@ -369,7 +383,7 @@ engine.addRule({
   priority: 500,
   effect: 'allow',
   conditions: [
-    { type: 'attribute_equals', params: { name: 'subscription_tier', value: 'premium' } }
+    { type: 'attribute_equals', params: { name: 'subscription_tier', value: 'premium' } },
   ],
 });
 
@@ -394,11 +408,13 @@ engine.addRule({
 ### cURL Examples
 
 **Health Check:**
+
 ```bash
 curl https://policy.authrim.com/policy/health
 ```
 
 **Policy Evaluation:**
+
 ```bash
 curl -X POST https://policy.authrim.com/policy/evaluate \
   -H "Authorization: Bearer $POLICY_API_SECRET" \
@@ -414,6 +430,7 @@ curl -X POST https://policy.authrim.com/policy/evaluate \
 ```
 
 **Check Role:**
+
 ```bash
 curl -X POST https://policy.authrim.com/policy/check-role \
   -H "Authorization: Bearer $POLICY_API_SECRET" \
@@ -428,6 +445,7 @@ curl -X POST https://policy.authrim.com/policy/check-role \
 ```
 
 **Is Admin Check:**
+
 ```bash
 curl -X POST https://policy.authrim.com/policy/is-admin \
   -H "Authorization: Bearer $POLICY_API_SECRET" \
@@ -450,19 +468,19 @@ async function checkAccess(
   const response = await fetch('https://policy.authrim.com/policy/check-access', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${POLICY_API_SECRET}`,
+      Authorization: `Bearer ${POLICY_API_SECRET}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       subjectId: userId,
-      roles: roles.map(name => ({ name, scope: 'global' })),
+      roles: roles.map((name) => ({ name, scope: 'global' })),
       resourceType,
       resourceId,
       action,
     }),
   });
 
-  const result = await response.json() as PolicyDecision;
+  const result = (await response.json()) as PolicyDecision;
   return result.allowed;
 }
 
@@ -475,6 +493,7 @@ const canDelete = await checkAccess('user_123', ['org_admin'], 'document', 'doc_
 ## Error Responses
 
 ### 401 Unauthorized
+
 ```json
 {
   "error": "unauthorized",
@@ -483,6 +502,7 @@ const canDelete = await checkAccess('user_123', ['org_admin'], 'document', 'doc_
 ```
 
 ### 400 Bad Request
+
 ```json
 {
   "error": "invalid_request",
@@ -491,6 +511,7 @@ const canDelete = await checkAccess('user_123', ['org_admin'], 'document', 'doc_
 ```
 
 ### 404 Not Found
+
 ```json
 {
   "error": "not_found",
@@ -505,10 +526,12 @@ const canDelete = await checkAccess('user_123', ['org_admin'], 'document', 'doc_
 Policy Service supports the following two access patterns:
 
 ### Custom Domain (Production)
+
 - URL: `https://policy.authrim.com/policy/*`
 - Path is forwarded directly to the Worker
 
 ### workers.dev (Development/Router)
+
 - URL: `https://router.authrim.workers.dev/policy/*`
 - Routed via Service Binding
 - Path prefix is handled by the Router

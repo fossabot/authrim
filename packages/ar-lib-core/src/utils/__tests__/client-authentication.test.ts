@@ -579,7 +579,8 @@ describe('Client Authentication', () => {
       const result = await validateClientAssertion(assertion, tokenEndpoint, client);
 
       expect(result.valid).toBe(false);
-      expect(result.error_description).toContain('No public key available');
+      // Security: Generic error message to prevent key enumeration
+      expect(result.error_description).toContain('No matching public key found');
     });
 
     it('should fail when no JWKS or jwks_uri configured', async () => {
@@ -594,7 +595,8 @@ describe('Client Authentication', () => {
       const result = await validateClientAssertion(assertion, tokenEndpoint, client);
 
       expect(result.valid).toBe(false);
-      expect(result.error_description).toContain('No public key available');
+      // Security: Generic error message to prevent key enumeration
+      expect(result.error_description).toContain('No matching public key found');
     });
 
     it('should prioritize jwks_uri over embedded jwks (for key rotation support)', async () => {
@@ -901,7 +903,8 @@ describe('Client Authentication', () => {
 
       expect(result.valid).toBe(false);
       expect(result.error).toBe('invalid_client');
-      expect(result.error_description).toContain("No public key found with kid 'non-existent-key'");
+      // Security: Generic error message to prevent kid enumeration
+      expect(result.error_description).toContain('No matching public key found');
     });
 
     it('should select key by kid from jwks_uri', async () => {
@@ -988,7 +991,8 @@ describe('Client Authentication', () => {
       const result = await validateClientAssertion(assertion, tokenEndpoint, client);
 
       expect(result.valid).toBe(false);
-      expect(result.error_description).toContain("No public key found with kid 'key-3'");
+      // Security: Generic error message to prevent kid enumeration
+      expect(result.error_description).toContain('No matching public key found');
     });
   });
 });

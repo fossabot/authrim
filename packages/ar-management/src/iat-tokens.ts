@@ -9,7 +9,13 @@
 
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core/types/env';
-import { hashInitialAccessToken } from '@authrim/ar-lib-core';
+import {
+  hashInitialAccessToken,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 
 /**
  * Validation constraints for IAT creation
@@ -123,13 +129,7 @@ function generateToken(): string {
 export async function adminIATListHandler(c: Context<{ Bindings: Env }>) {
   try {
     if (!c.env.INITIAL_ACCESS_TOKENS) {
-      return c.json(
-        {
-          error: 'kv_not_configured',
-          message: 'INITIAL_ACCESS_TOKENS KV namespace is not configured',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     const tokens: Array<{
@@ -162,13 +162,7 @@ export async function adminIATListHandler(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     console.error('List IAT tokens error:', error);
-    return c.json(
-      {
-        error: 'internal_server_error',
-        message: 'Failed to list Initial Access Tokens',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -178,38 +172,29 @@ export async function adminIATListHandler(c: Context<{ Bindings: Env }>) {
 export async function adminIATCreateHandler(c: Context<{ Bindings: Env }>) {
   try {
     if (!c.env.INITIAL_ACCESS_TOKENS) {
-      return c.json(
-        {
-          error: 'kv_not_configured',
-          message: 'INITIAL_ACCESS_TOKENS KV namespace is not configured',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     let body: { description?: unknown; expiresInDays?: unknown; single_use?: unknown };
     try {
       body = await c.req.json();
     } catch {
-      return c.json(
-        {
-          error: 'invalid_request',
-          message: 'Invalid JSON in request body',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Invalid JSON in request body'
       );
     }
 
     const validation = validateIATInput(body);
 
     if (!validation.valid) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          message: 'Validation failed',
-          details: validation.errors,
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `Validation failed: ${validation.errors.join(', ')}`
       );
     }
 
@@ -248,13 +233,7 @@ export async function adminIATCreateHandler(c: Context<{ Bindings: Env }>) {
     );
   } catch (error) {
     console.error('Create IAT token error:', error);
-    return c.json(
-      {
-        error: 'internal_server_error',
-        message: 'Failed to create Initial Access Token',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -264,37 +243,24 @@ export async function adminIATCreateHandler(c: Context<{ Bindings: Env }>) {
 export async function adminIATRevokeHandler(c: Context<{ Bindings: Env }>) {
   try {
     if (!c.env.INITIAL_ACCESS_TOKENS) {
-      return c.json(
-        {
-          error: 'kv_not_configured',
-          message: 'INITIAL_ACCESS_TOKENS KV namespace is not configured',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     const tokenHash = c.req.param('tokenHash');
 
     if (!tokenHash) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          message: 'Token hash is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Token hash is required'
       );
     }
 
     // Check if token exists
     const existing = await c.env.INITIAL_ACCESS_TOKENS.get(`iat:${tokenHash}`);
     if (!existing) {
-      return c.json(
-        {
-          error: 'not_found',
-          message: 'Token not found',
-        },
-        404
-      );
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 404, 'Token not found');
     }
 
     await c.env.INITIAL_ACCESS_TOKENS.delete(`iat:${tokenHash}`);
@@ -304,12 +270,6 @@ export async function adminIATRevokeHandler(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     console.error('Revoke IAT token error:', error);
-    return c.json(
-      {
-        error: 'internal_server_error',
-        message: 'Failed to revoke Initial Access Token',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

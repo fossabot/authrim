@@ -210,9 +210,10 @@ describe('CIBA Integration', () => {
       const response = await cibaAuthorizationHandler(ctx);
       const body = (await response.json()) as any;
 
-      expect(response.status).toBe(400);
+      // Security: Generic message to prevent client_id enumeration
+      expect(response.status).toBe(401);
       expect(body.error).toBe('invalid_client');
-      expect(body.error_description).toContain('Client not found');
+      expect(body.error_description).toContain('Client authentication failed');
     });
 
     it('should reject client not authorized for CIBA', async () => {
@@ -404,7 +405,8 @@ describe('CIBA Integration', () => {
       const body = (await response.json()) as any;
 
       expect(response.status).toBe(404);
-      expect(body.error).toBe('not_found');
+      // RFC準拠: リソース不在でも invalid_request を返す（status 404でリソース不在を示す）
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should reject approval for already approved request', async () => {

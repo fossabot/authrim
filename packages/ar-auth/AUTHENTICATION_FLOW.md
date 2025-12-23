@@ -21,17 +21,20 @@ The `UI_URL` environment variable controls where users are redirected for login,
 ### Setting UI_URL
 
 **Method 1: wrangler.toml**
+
 ```toml
 [vars]
 UI_URL = "https://your-ui-deployment.pages.dev"
 ```
 
 **Method 2: .dev.vars (for local development)**
+
 ```
 UI_URL=http://localhost:5173
 ```
 
 **Method 3: Cloudflare Dashboard**
+
 1. Navigate to Workers & Pages → authrim-op-auth → Settings → Variables
 2. Add environment variable: `UI_URL`
 3. Value: Your UI deployment URL
@@ -42,6 +45,7 @@ UI_URL=http://localhost:5173
 - **UI_URL not set**: Falls back to API-rendered HTML forms
 
 **Redirect URLs:**
+
 - Login: `${UI_URL}/login?challenge_id=<id>`
 - Consent: `${UI_URL}/consent?challenge_id=<id>`
 - Re-auth: `${UI_URL}/reauth?challenge_id=<id>`
@@ -53,6 +57,7 @@ UI_URL=http://localhost:5173
 ### When Login is Required
 
 Login screen is shown when:
+
 1. **No session exists** (`sessionUserId === undefined`)
 2. **prompt is NOT 'none'** (prompt=none returns `login_required` error instead)
 
@@ -78,10 +83,12 @@ flowchart TD
 ### API Endpoints
 
 **GET /authorize/login?challenge_id=xxx**
+
 - Displays simple HTML login form
 - Form fields: `username`, `password`, `challenge_id` (hidden)
 
 **POST /authorize/login**
+
 - Body: `challenge_id`, `username`, `password`
 - Stub implementation: Accepts any credentials
 - Creates user and session
@@ -94,6 +101,7 @@ flowchart TD
 ### When Re-authentication is Required
 
 Re-authentication confirmation is shown when:
+
 1. **prompt=login** is specified
 2. **max_age exceeded** and user has a session
 
@@ -122,10 +130,12 @@ flowchart TD
 ### API Endpoints
 
 **GET /authorize/confirm?challenge_id=xxx**
+
 - Displays re-auth confirmation form
 - Form fields: `username`, `password`, `challenge_id` (hidden)
 
 **POST /authorize/confirm**
+
 - Body: `challenge_id`, `username`, `password`
 - Stub implementation: Does not verify credentials
 - Redirects to `/authorize` with `_confirmed=true`
@@ -137,6 +147,7 @@ flowchart TD
 ### When Consent is Required
 
 Consent screen is shown when:
+
 1. **No existing consent** in D1 (`oauth_client_consents` table)
 2. **Consent expired** (`expires_at < now`)
 3. **Requested scopes exceed granted scopes**
@@ -148,7 +159,9 @@ Consent screen is shown when:
 // Query D1 for existing consent
 const existingConsent = await DB.prepare(
   'SELECT scope, granted_at, expires_at FROM oauth_client_consents WHERE user_id = ? AND client_id = ?'
-).bind(userId, clientId).first();
+)
+  .bind(userId, clientId)
+  .first();
 
 if (!existingConsent) {
   consentRequired = true;
@@ -161,7 +174,7 @@ if (!existingConsent) {
   // Check scope coverage
   const grantedScopes = existingConsent.scope.split(' ');
   const requestedScopes = scope.split(' ');
-  const hasAllScopes = requestedScopes.every(s => grantedScopes.includes(s));
+  const hasAllScopes = requestedScopes.every((s) => grantedScopes.includes(s));
 
   if (!hasAllScopes) {
     consentRequired = true;
@@ -197,11 +210,13 @@ flowchart TD
 ### API Endpoints
 
 **GET /auth/consent?challenge_id=xxx**
+
 - Displays consent screen with requested scopes
 - Shows client information from D1
 - Approve/Deny buttons
 
 **POST /auth/consent**
+
 - Body: `challenge_id`, `approved` (true/false)
 - If approved: Saves consent to D1 `oauth_client_consents` table
 - Redirects to `/authorize` with `_consent_confirmed=true`
@@ -228,23 +243,25 @@ CREATE TABLE oauth_client_consents (
 
 ## prompt Parameter Behavior
 
-| Situation         | prompt=null (or unspecified) | prompt=none             |
-|-------------------|------------------------------|-------------------------|
-| Session exists    | ✅ OK                        | ✅ OK                   |
-| No session        | ➡️ Redirect to login        | ❌ `login_required`     |
-| max_age exceeded  | ➡️ Re-auth screen           | ❌ `login_required`     |
-| Consent needed    | ➡️ Consent screen           | ❌ `consent_required`   |
-| UI allowed        | ✅ Can show UI              | ❌ Must NOT show UI     |
+| Situation        | prompt=null (or unspecified) | prompt=none           |
+| ---------------- | ---------------------------- | --------------------- |
+| Session exists   | ✅ OK                        | ✅ OK                 |
+| No session       | ➡️ Redirect to login         | ❌ `login_required`   |
+| max_age exceeded | ➡️ Re-auth screen            | ❌ `login_required`   |
+| Consent needed   | ➡️ Consent screen            | ❌ `consent_required` |
+| UI allowed       | ✅ Can show UI               | ❌ Must NOT show UI   |
 
 ### Error Responses
 
 **login_required** (prompt=none + no session)
+
 ```http
 HTTP/1.1 302 Found
 Location: https://client.example.com/callback?error=login_required&error_description=User+authentication+is+required&state=xyz
 ```
 
 **consent_required** (prompt=none + consent needed)
+
 ```http
 HTTP/1.1 302 Found
 Location: https://client.example.com/callback?error=consent_required&error_description=User+consent+is+required&state=xyz
@@ -354,11 +371,13 @@ Run the OpenID Connect Conformance Suite to test:
 ### Stub Implementation Note
 
 **⚠️ Current Implementation:**
+
 - Login and re-auth forms are **stubs**
 - **Any username/password is accepted**
 - No actual credential verification
 
 **For Production:**
+
 - Integrate with Passkey or Magic Link authentication
 - Verify credentials before creating session
 - Add rate limiting to prevent brute force

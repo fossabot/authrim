@@ -4,13 +4,13 @@ This guide walks you through setting up Microsoft Sign-In (Microsoft Entra ID / 
 
 ## Overview
 
-| Property | Value |
-|----------|-------|
-| Protocol | OpenID Connect 1.0 |
-| Issuer | `https://login.microsoftonline.com/{tenant}/v2.0` |
-| ID Token | Yes |
-| UserInfo Endpoint | Yes |
-| Email Verified Claim | Yes (for work/school accounts) |
+| Property             | Value                                             |
+| -------------------- | ------------------------------------------------- |
+| Protocol             | OpenID Connect 1.0                                |
+| Issuer               | `https://login.microsoftonline.com/{tenant}/v2.0` |
+| ID Token             | Yes                                               |
+| UserInfo Endpoint    | Yes                                               |
+| Email Verified Claim | Yes (for work/school accounts)                    |
 
 ## Prerequisites
 
@@ -22,12 +22,12 @@ This guide walks you through setting up Microsoft Sign-In (Microsoft Entra ID / 
 
 Microsoft supports different tenant configurations:
 
-| Tenant Type | Value | Description |
-|-------------|-------|-------------|
-| Common | `common` | All Microsoft accounts (personal + work/school) |
-| Organizations | `organizations` | Work and school accounts only |
-| Consumers | `consumers` | Personal Microsoft accounts only |
-| Single Tenant | `{tenant-id}` | Specific organization's accounts only |
+| Tenant Type   | Value           | Description                                     |
+| ------------- | --------------- | ----------------------------------------------- |
+| Common        | `common`        | All Microsoft accounts (personal + work/school) |
+| Organizations | `organizations` | Work and school accounts only                   |
+| Consumers     | `consumers`     | Personal Microsoft accounts only                |
+| Single Tenant | `{tenant-id}`   | Specific organization's accounts only           |
 
 ## Step 1: Register an Application
 
@@ -46,6 +46,7 @@ https://your-domain.com/auth/external/microsoft/callback
 ```
 
 For local development:
+
 ```
 http://localhost:8787/auth/external/microsoft/callback
 ```
@@ -74,6 +75,7 @@ http://localhost:8787/auth/external/microsoft/callback
 5. Click **Add permissions**
 
 For admin-consented permissions (enterprise apps):
+
 - Click **Grant admin consent for {tenant}**
 
 ## Step 4: Register Provider in Authrim
@@ -159,29 +161,29 @@ curl -X POST "https://your-domain.com/external-idp/admin/providers" \
 
 ### Provider Quirks
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
+| Property     | Type   | Default  | Description        |
+| ------------ | ------ | -------- | ------------------ |
 | `tenantType` | string | `common` | Tenant restriction |
 
 ### Tenant Type Values
 
-| Value | Issuer | Description |
-|-------|--------|-------------|
-| `common` | `.../common/v2.0` | Personal and work/school accounts |
-| `organizations` | `.../organizations/v2.0` | Work/school accounts only |
-| `consumers` | `.../consumers/v2.0` | Personal accounts only |
-| `{tenant-id}` | `.../{tenant-id}/v2.0` | Specific organization |
+| Value           | Issuer                   | Description                       |
+| --------------- | ------------------------ | --------------------------------- |
+| `common`        | `.../common/v2.0`        | Personal and work/school accounts |
+| `organizations` | `.../organizations/v2.0` | Work/school accounts only         |
+| `consumers`     | `.../consumers/v2.0`     | Personal accounts only            |
+| `{tenant-id}`   | `.../{tenant-id}/v2.0`   | Specific organization             |
 
 ### Claim Mappings
 
-| Authrim Claim | Microsoft Claim | Description |
-|---------------|-----------------|-------------|
-| `sub` | `sub` or `oid` | Unique identifier (oid for single-tenant) |
-| `email` | `email` | Primary email address |
-| `name` | `name` | Display name |
-| `given_name` | `given_name` | First name |
-| `family_name` | `family_name` | Last name |
-| `preferred_username` | `preferred_username` | UPN or email |
+| Authrim Claim        | Microsoft Claim      | Description                               |
+| -------------------- | -------------------- | ----------------------------------------- |
+| `sub`                | `sub` or `oid`       | Unique identifier (oid for single-tenant) |
+| `email`              | `email`              | Primary email address                     |
+| `name`               | `name`               | Display name                              |
+| `given_name`         | `given_name`         | First name                                |
+| `family_name`        | `family_name`        | Last name                                 |
+| `preferred_username` | `preferred_username` | UPN or email                              |
 
 ## Advanced Configuration
 
@@ -246,6 +248,7 @@ For enterprise deployments with Conditional Access:
 **Cause**: Redirect URI mismatch between Authrim and Azure.
 
 **Solution**:
+
 1. Go to App Registration → Authentication
 2. Verify the redirect URI exactly matches:
    ```
@@ -258,6 +261,7 @@ For enterprise deployments with Conditional Access:
 **Cause**: Invalid client ID or app registration issue.
 
 **Solution**:
+
 1. Verify the Application (client) ID is correct
 2. Ensure the app registration is not deleted
 3. Check the tenant configuration matches
@@ -267,6 +271,7 @@ For enterprise deployments with Conditional Access:
 **Cause**: Expired or incorrect client secret.
 
 **Solution**:
+
 1. Create a new client secret in Azure Portal
 2. Update the secret in Authrim
 3. Ensure no whitespace in the secret value
@@ -276,6 +281,7 @@ For enterprise deployments with Conditional Access:
 **Cause**: Tenant type set to `organizations`.
 
 **Solution**: Change `tenantType` to `common` to allow personal accounts:
+
 ```json
 {
   "provider_quirks": {
@@ -289,12 +295,14 @@ For enterprise deployments with Conditional Access:
 **Cause**: Personal accounts may not have verified email.
 
 **Solution**:
+
 1. Set `require_email_verified: false` for personal accounts
 2. Or use `preferred_username` as fallback
 
 ## Token Revocation
 
 Users can revoke access at:
+
 - [Microsoft Account Security](https://account.live.com/consent/Manage) (personal)
 - [Azure Portal - Enterprise Applications](https://portal.azure.com/#blade/Microsoft_AAD_IAM/StartboardApplicationsMenuBlade) (work/school)
 

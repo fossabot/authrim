@@ -53,20 +53,24 @@ const {
   };
 });
 
-// Mock the shared module
-vi.mock('@authrim/ar-lib-core', () => ({
-  validateClientId: mockValidateClientId,
-  timingSafeEqual: mockTimingSafeEqual,
-  deleteRefreshToken: mockDeleteRefreshToken,
-  getRefreshToken: mockGetRefreshToken,
-  revokeToken: mockRevokeToken,
-  parseToken: mockParseToken,
-  verifyToken: mockVerifyToken,
-  getTenantIdFromContext: mockGetTenantIdFromContext,
-  createAuthContextFromHono: mockCreateAuthContextFromHono,
-  validateClientAssertion: mockValidateClientAssertion,
-  createOAuthConfigManager: mockCreateOAuthConfigManager,
-}));
+// Mock the shared module - use importOriginal for error functions
+vi.mock('@authrim/ar-lib-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@authrim/ar-lib-core')>();
+  return {
+    ...actual,
+    validateClientId: mockValidateClientId,
+    timingSafeEqual: mockTimingSafeEqual,
+    deleteRefreshToken: mockDeleteRefreshToken,
+    getRefreshToken: mockGetRefreshToken,
+    revokeToken: mockRevokeToken,
+    parseToken: mockParseToken,
+    verifyToken: mockVerifyToken,
+    getTenantIdFromContext: mockGetTenantIdFromContext,
+    createAuthContextFromHono: mockCreateAuthContextFromHono,
+    validateClientAssertion: mockValidateClientAssertion,
+    createOAuthConfigManager: mockCreateOAuthConfigManager,
+  };
+});
 
 // Mock jose
 vi.mock('jose', () => ({
@@ -162,15 +166,13 @@ describe('Token Revocation Endpoint', () => {
         },
       });
 
-      await revokeHandler(c);
+      const response = await revokeHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-          error_description: expect.stringContaining('application/x-www-form-urlencoded'),
-        }),
-        400
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; error_description: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('application/x-www-form-urlencoded');
     });
 
     it('should accept application/x-www-form-urlencoded with charset', async () => {
@@ -221,15 +223,13 @@ describe('Token Revocation Endpoint', () => {
         client_secret: 'client-secret',
       });
 
-      await revokeHandler(c);
+      const response = await revokeHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-          error_description: 'token parameter is required',
-        }),
-        400
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('token');
     });
   });
 
@@ -306,14 +306,12 @@ describe('Token Revocation Endpoint', () => {
         error: 'Invalid client_id format',
       });
 
-      await revokeHandler(c);
+      const response = await revokeHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_client',
-        }),
-        401
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_client');
     });
 
     it('should return 401 when client is not found', async () => {
@@ -330,17 +328,15 @@ describe('Token Revocation Endpoint', () => {
 
       vi.mocked(validateClientId).mockReturnValue({ valid: true });
 
-      mockClientRepository.findByClientId.mockResolvedValue(null); // Client not found
+      mockClientRepository.findByClientId.mockResolvedValue(null);
 
-      await revokeHandler(c);
+      const response = await revokeHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_client',
-          error_description: 'Client not found',
-        }),
-        401
-      );
+      // Security: Generic message to prevent client_id enumeration
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_client');
     });
 
     it('should return 401 when client_secret is incorrect', async () => {
@@ -363,15 +359,12 @@ describe('Token Revocation Endpoint', () => {
         client_secret: 'correct-secret',
       });
 
-      await revokeHandler(c);
+      const response = await revokeHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_client',
-          error_description: 'Invalid client credentials',
-        }),
-        401
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_client');
     });
 
     it('should use timing-safe comparison for client_secret', async () => {
@@ -414,14 +407,11 @@ describe('Token Revocation Endpoint', () => {
         },
       });
 
-      await revokeHandler(c);
+      const response = await revokeHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_client',
-        }),
-        401
-      );
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_client');
     });
   });
 
@@ -771,15 +761,12 @@ describe('Token Revocation Endpoint', () => {
 
       c.req.parseBody = vi.fn().mockRejectedValue(new Error('Parse error'));
 
-      await revokeHandler(c);
+      const response = await revokeHandler(c);
 
-      expect(c.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'invalid_request',
-          error_description: 'Failed to parse request body',
-        }),
-        400
-      );
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string; error_description?: string };
+      expect(body.error).toBe('invalid_request');
+      expect(body.error_description).toContain('Failed to parse request body');
     });
   });
 });

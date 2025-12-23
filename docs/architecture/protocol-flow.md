@@ -4,12 +4,12 @@ End-to-end protocol flows for all supported OAuth 2.0 and OpenID Connect grants.
 
 ## Overview
 
-| Category | Flows Supported |
-|----------|-----------------|
-| **OIDC Flows** | Authorization Code, Implicit, Hybrid |
-| **OAuth 2.0 Grants** | Client Credentials, Refresh Token, Device Code |
-| **Advanced Grants** | CIBA, Token Exchange, PAR, JAR/JARM |
-| **Security Extensions** | PKCE, DPoP, mTLS |
+| Category                | Flows Supported                                |
+| ----------------------- | ---------------------------------------------- |
+| **OIDC Flows**          | Authorization Code, Implicit, Hybrid           |
+| **OAuth 2.0 Grants**    | Client Credentials, Refresh Token, Device Code |
+| **Advanced Grants**     | CIBA, Token Exchange, PAR, JAR/JARM            |
+| **Security Extensions** | PKCE, DPoP, mTLS                               |
 
 Authrim implements comprehensive OAuth 2.0 and OpenID Connect flows with enterprise-grade security extensions.
 
@@ -17,13 +17,13 @@ Authrim implements comprehensive OAuth 2.0 and OpenID Connect flows with enterpr
 
 ## Primary Actors
 
-| Actor | Description |
-|-------|-------------|
-| **User Agent (UA)** | Web browser or native application |
-| **Relying Party (RP)** | Client application requesting authentication |
-| **Authrim (OP)** | OpenID Provider / Authorization Server |
-| **Resource Server (RS)** | Protected API accepting access tokens |
-| **Authenticator** | Passkey, OTP, or external IdP |
+| Actor                    | Description                                  |
+| ------------------------ | -------------------------------------------- |
+| **User Agent (UA)**      | Web browser or native application            |
+| **Relying Party (RP)**   | Client application requesting authentication |
+| **Authrim (OP)**         | OpenID Provider / Authorization Server       |
+| **Resource Server (RS)** | Protected API accepting access tokens        |
+| **Authenticator**        | Passkey, OTP, or external IdP                |
 
 ---
 
@@ -69,16 +69,16 @@ sequenceDiagram
 
 ### Request Parameters
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `response_type` | ✅ | `code` |
-| `client_id` | ✅ | Client identifier |
-| `redirect_uri` | ✅ | Callback URL |
-| `scope` | ✅ | Space-separated scopes (include `openid`) |
-| `state` | Recommended | CSRF protection |
-| `nonce` | Recommended | Replay protection for ID token |
-| `code_challenge` | ✅ | PKCE challenge (S256) |
-| `code_challenge_method` | ✅ | `S256` or `plain` |
+| Parameter               | Required    | Description                               |
+| ----------------------- | ----------- | ----------------------------------------- |
+| `response_type`         | ✅          | `code`                                    |
+| `client_id`             | ✅          | Client identifier                         |
+| `redirect_uri`          | ✅          | Callback URL                              |
+| `scope`                 | ✅          | Space-separated scopes (include `openid`) |
+| `state`                 | Recommended | CSRF protection                           |
+| `nonce`                 | Recommended | Replay protection for ID token            |
+| `code_challenge`        | ✅          | PKCE challenge (S256)                     |
+| `code_challenge_method` | ✅          | `S256` or `plain`                         |
 
 ---
 
@@ -134,15 +134,15 @@ sequenceDiagram
 
 ### Response Type Combinations
 
-| response_type | Code | ID Token (fragment) | Access Token (fragment) |
-|--------------|------|---------------------|------------------------|
-| `code` | ✅ | | |
-| `id_token` | | ✅ | |
-| `token` | | | ✅ |
-| `code id_token` | ✅ | ✅ | |
-| `code token` | ✅ | | ✅ |
-| `id_token token` | | ✅ | ✅ |
-| `code id_token token` | ✅ | ✅ | ✅ |
+| response_type         | Code | ID Token (fragment) | Access Token (fragment) |
+| --------------------- | ---- | ------------------- | ----------------------- |
+| `code`                | ✅   |                     |                         |
+| `id_token`            |      | ✅                  |                         |
+| `token`               |      |                     | ✅                      |
+| `code id_token`       | ✅   | ✅                  |                         |
+| `code token`          | ✅   |                     | ✅                      |
+| `id_token token`      |      | ✅                  | ✅                      |
+| `code id_token token` | ✅   | ✅                  | ✅                      |
 
 ---
 
@@ -164,12 +164,12 @@ sequenceDiagram
 
 ### Client Authentication Methods
 
-| Method | Security | Use Case |
-|--------|----------|----------|
-| `client_secret_basic` | Standard | Traditional apps |
-| `client_secret_post` | Standard | When headers impractical |
-| `client_secret_jwt` | High | Symmetric JWT auth |
-| `private_key_jwt` | Highest | FAPI compliance |
+| Method                | Security | Use Case                 |
+| --------------------- | -------- | ------------------------ |
+| `client_secret_basic` | Standard | Traditional apps         |
+| `client_secret_post`  | Standard | When headers impractical |
+| `client_secret_jwt`   | High     | Symmetric JWT auth       |
+| `private_key_jwt`     | Highest  | FAPI compliance          |
 
 ---
 
@@ -297,9 +297,9 @@ sequenceDiagram
 
 ### CIBA Modes
 
-| Mode | Description |
-|------|-------------|
-| **Poll** | Client polls token endpoint |
+| Mode     | Description                           |
+| -------- | ------------------------------------- |
+| **Poll** | Client polls token endpoint           |
 | **Ping** | OP calls client's callback when ready |
 | **Push** | OP pushes tokens to client's callback |
 
@@ -328,12 +328,12 @@ sequenceDiagram
 
 ### Exchange Types
 
-| Type | Use Case |
-|------|----------|
+| Type              | Use Case                 |
+| ----------------- | ------------------------ |
 | Audience Exchange | Service-to-service calls |
-| Scope Reduction | Least privilege |
-| Delegation | `may_act` claim |
-| Impersonation | Admin support tools |
+| Scope Reduction   | Least privilege          |
+| Delegation        | `may_act` claim          |
+| Impersonation     | Admin support tools      |
 
 ---
 
@@ -461,16 +461,16 @@ stateDiagram-v2
 
 ### OAuth 2.0 Error Responses
 
-| Error | Description |
-|-------|-------------|
-| `invalid_request` | Missing/invalid parameters |
-| `invalid_client` | Client authentication failed |
-| `invalid_grant` | Code/token invalid or expired |
-| `unauthorized_client` | Client not allowed for grant |
-| `unsupported_grant_type` | Grant type not supported |
-| `invalid_scope` | Requested scope invalid |
-| `access_denied` | User denied authorization |
-| `server_error` | Internal server error |
+| Error                    | Description                   |
+| ------------------------ | ----------------------------- |
+| `invalid_request`        | Missing/invalid parameters    |
+| `invalid_client`         | Client authentication failed  |
+| `invalid_grant`          | Code/token invalid or expired |
+| `unauthorized_client`    | Client not allowed for grant  |
+| `unsupported_grant_type` | Grant type not supported      |
+| `invalid_scope`          | Requested scope invalid       |
+| `access_denied`          | User denied authorization     |
+| `server_error`           | Internal server error         |
 
 ### Error Response Format
 
@@ -486,26 +486,26 @@ stateDiagram-v2
 
 ## Temporal Constraints
 
-| Element | TTL | Notes |
-|---------|-----|-------|
-| Authorization Code | 60 seconds | One-time use |
-| PAR Request URI | 60 seconds | One-time use |
-| Access Token | 1 hour | Configurable |
-| ID Token | 1 hour | Matches access token |
-| Refresh Token | 30 days | Rotated on use |
-| Device Code | 15 minutes | Polling interval: 5s |
-| CIBA Request | 2 minutes | Polling interval: 2s |
+| Element            | TTL        | Notes                |
+| ------------------ | ---------- | -------------------- |
+| Authorization Code | 60 seconds | One-time use         |
+| PAR Request URI    | 60 seconds | One-time use         |
+| Access Token       | 1 hour     | Configurable         |
+| ID Token           | 1 hour     | Matches access token |
+| Refresh Token      | 30 days    | Rotated on use       |
+| Device Code        | 15 minutes | Polling interval: 5s |
+| CIBA Request       | 2 minutes  | Polling interval: 2s |
 
 ---
 
 ## Related Documents
 
-| Document | Description |
-|----------|-------------|
-| [Architecture Overview](./overview.md) | System architecture |
-| [Durable Objects](./durable-objects.md) | Consistency layer |
-| [Token Management](../features/token-management.md) | Token lifecycle |
-| [PKCE](../features/pkce.md) | PKCE implementation |
+| Document                                            | Description         |
+| --------------------------------------------------- | ------------------- |
+| [Architecture Overview](./overview.md)              | System architecture |
+| [Durable Objects](./durable-objects.md)             | Consistency layer   |
+| [Token Management](../features/token-management.md) | Token lifecycle     |
+| [PKCE](../features/pkce.md)                         | PKCE implementation |
 
 ---
 

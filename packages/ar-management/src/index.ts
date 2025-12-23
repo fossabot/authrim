@@ -13,6 +13,10 @@ import {
   requestContextMiddleware,
   D1Adapter,
   type DatabaseAdapter,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -126,6 +130,18 @@ import {
   clearProfileOverride,
 } from './routes/settings/rate-limit';
 import {
+  getErrorConfig,
+  getErrorLocale,
+  updateErrorLocale,
+  resetErrorLocale,
+  getErrorResponseFormat,
+  updateErrorResponseFormat,
+  resetErrorResponseFormat,
+  getErrorIdMode,
+  updateErrorIdMode,
+  resetErrorIdMode,
+} from './routes/settings/error-config';
+import {
   getTokenExchangeConfig,
   updateTokenExchangeConfig,
   clearTokenExchangeConfig,
@@ -210,6 +226,17 @@ import {
   deleteCheckApiKey,
   rotateCheckApiKey,
 } from './routes/settings/check-api-keys';
+import {
+  getLogoutConfig,
+  updateLogoutConfig,
+  resetLogoutConfig,
+} from './routes/settings/logout-config';
+import {
+  listLogoutFailures,
+  getLogoutFailure,
+  clearLogoutFailure,
+  clearAllLogoutFailures,
+} from './routes/settings/logout-failures';
 import {
   revokeCredentialHandler,
   suspendCredentialHandler,
@@ -460,6 +487,18 @@ app.get('/api/admin/settings/rate-limits/:profile', getRateLimitProfile);
 app.put('/api/admin/settings/rate-limits/:profile', updateRateLimitProfile);
 app.delete('/api/admin/settings/rate-limits/:profile', resetRateLimitProfile);
 
+// Admin Error Configuration endpoints
+app.get('/api/admin/settings/error-config', getErrorConfig);
+app.get('/api/admin/settings/error-locale', getErrorLocale);
+app.put('/api/admin/settings/error-locale', updateErrorLocale);
+app.delete('/api/admin/settings/error-locale', resetErrorLocale);
+app.get('/api/admin/settings/error-response-format', getErrorResponseFormat);
+app.put('/api/admin/settings/error-response-format', updateErrorResponseFormat);
+app.delete('/api/admin/settings/error-response-format', resetErrorResponseFormat);
+app.get('/api/admin/settings/error-id-mode', getErrorIdMode);
+app.put('/api/admin/settings/error-id-mode', updateErrorIdMode);
+app.delete('/api/admin/settings/error-id-mode', resetErrorIdMode);
+
 // Admin Token Exchange Configuration endpoints (RFC 8693)
 app.get('/api/admin/settings/token-exchange', getTokenExchangeConfig);
 app.put('/api/admin/settings/token-exchange', updateTokenExchangeConfig);
@@ -599,6 +638,17 @@ app.delete('/api/admin/resource-permissions/:id', deleteResourcePermission);
 app.get('/api/admin/settings/token-embedding', getTokenEmbeddingSettings);
 app.put('/api/admin/settings/token-embedding', updateTokenEmbeddingSettings);
 
+// Logout Configuration endpoints (Phase A-6)
+app.get('/api/admin/settings/logout', getLogoutConfig);
+app.put('/api/admin/settings/logout', updateLogoutConfig);
+app.delete('/api/admin/settings/logout', resetLogoutConfig);
+
+// Logout Failure Visibility endpoints (Phase A-6)
+app.get('/api/admin/settings/logout/failures', listLogoutFailures);
+app.get('/api/admin/settings/logout/failures/:clientId', getLogoutFailure);
+app.delete('/api/admin/settings/logout/failures/:clientId', clearLogoutFailure);
+app.delete('/api/admin/settings/logout/failures', clearAllLogoutFailures);
+
 // Check API Key Management endpoints (Phase 8.3)
 app.post('/api/admin/check-api-keys', createCheckApiKey);
 app.get('/api/admin/check-api-keys', listCheckApiKeys);
@@ -635,12 +685,11 @@ app.route('/scim/v2', scimApp);
  */
 app.use('/api/admin/test/*', async (c, next) => {
   if (c.env.ENABLE_TEST_ENDPOINTS !== 'true') {
-    return c.json(
-      {
-        error: 'not_found',
-        error_description: 'Test endpoints are disabled. Set ENABLE_TEST_ENDPOINTS=true to enable.',
-      },
-      404
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      404,
+      'Test endpoints are disabled. Set ENABLE_TEST_ENDPOINTS=true to enable.'
     );
   }
   return next();
@@ -686,36 +735,33 @@ app.post('/api/internal/versions/:workerName', adminAuthMiddleware(), async (c) 
     'ar-vc',
   ];
   if (!validWorkers.includes(workerName)) {
-    return c.json(
-      {
-        error: 'invalid_worker',
-        error_description: `Invalid worker name: ${workerName}`,
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      `Invalid worker name: ${workerName}`
     );
   }
 
   const body = (await c.req.json()) as { uuid: string; deployTime: string };
 
   if (!body.uuid || !body.deployTime) {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: 'uuid and deployTime are required',
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'uuid and deployTime are required'
     );
   }
 
   // Validate UUID format
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidRegex.test(body.uuid)) {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: 'uuid must be a valid UUID v4',
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'uuid must be a valid UUID v4'
     );
   }
 
@@ -740,13 +786,7 @@ app.post('/api/internal/versions/:workerName', adminAuthMiddleware(), async (c) 
     if (!response.ok) {
       const error = await response.text();
       console.error(`[Version API] Failed to register version: ${error}`);
-      return c.json(
-        {
-          error: 'internal_error',
-          error_description: 'Failed to register version',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     console.log(`[Version API] Registered version for ${workerName}`, {
@@ -757,13 +797,7 @@ app.post('/api/internal/versions/:workerName', adminAuthMiddleware(), async (c) 
     return c.json({ success: true, workerName, uuid: body.uuid });
   } catch (error) {
     console.error('[Version API] Error:', error);
-    return c.json(
-      {
-        error: 'internal_error',
-        error_description: 'Failed to register version',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
@@ -790,38 +824,31 @@ app.get('/api/internal/version-manager/status', adminAuthMiddleware(), async (c)
     if (!response.ok) {
       const error = await response.text();
       console.error(`[Version API] Failed to get status: ${error}`);
-      return c.json(
-        {
-          error: 'internal_error',
-          error_description: 'Failed to get version status',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     const data = await response.json();
     return c.json(data);
   } catch (error) {
     console.error('[Version API] Error:', error);
-    return c.json(
-      {
-        error: 'internal_error',
-        error_description: 'Failed to get version status',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });
 
 // 404 handler
 app.notFound((c) => {
-  return c.json({ error: 'not_found', message: 'The requested resource was not found' }, 404);
+  return createRFCErrorResponse(
+    c,
+    RFC_ERROR_CODES.INVALID_REQUEST,
+    404,
+    'The requested resource was not found'
+  );
 });
 
 // Error handler
 app.onError((err, c) => {
   console.error('Error:', err);
-  return c.json({ error: 'internal_server_error', message: 'An unexpected error occurred' }, 500);
+  return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
 });
 
 /**

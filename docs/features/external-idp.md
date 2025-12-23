@@ -4,11 +4,11 @@ Enable "Login with Google/GitHub/Microsoft" and enterprise SSO by federating wit
 
 ## Overview
 
-| Specification | Status | Protocols |
-|---------------|--------|-----------|
-| [OpenID Connect 1.0](https://openid.net/specs/openid-connect-core-1_0.html) | ✅ Implemented | OIDC |
-| [OAuth 2.0 (RFC 6749)](https://datatracker.ietf.org/doc/html/rfc6749) | ✅ Implemented | OAuth 2.0 |
-| [PKCE (RFC 7636)](https://datatracker.ietf.org/doc/html/rfc7636) | ✅ Required | All flows |
+| Specification                                                               | Status         | Protocols |
+| --------------------------------------------------------------------------- | -------------- | --------- |
+| [OpenID Connect 1.0](https://openid.net/specs/openid-connect-core-1_0.html) | ✅ Implemented | OIDC      |
+| [OAuth 2.0 (RFC 6749)](https://datatracker.ietf.org/doc/html/rfc6749)       | ✅ Implemented | OAuth 2.0 |
+| [PKCE (RFC 7636)](https://datatracker.ietf.org/doc/html/rfc7636)            | ✅ Required    | All flows |
 
 Authrim supports federation with external Identity Providers (IdPs), allowing users to authenticate with existing accounts from Google, Microsoft, GitHub, or any OIDC/OAuth 2.0 compliant provider.
 
@@ -16,25 +16,25 @@ Authrim supports federation with external Identity Providers (IdPs), allowing us
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Social Login** | One-click login with Google, GitHub, Microsoft |
-| **Enterprise SSO** | Integrate with Azure AD, Okta, OneLogin |
-| **JIT Provisioning** | Auto-create users on first external login |
-| **Account Linking** | Link external identities to existing users |
-| **Reduced Friction** | No password registration required |
+| Benefit              | Description                                    |
+| -------------------- | ---------------------------------------------- |
+| **Social Login**     | One-click login with Google, GitHub, Microsoft |
+| **Enterprise SSO**   | Integrate with Azure AD, Okta, OneLogin        |
+| **JIT Provisioning** | Auto-create users on first external login      |
+| **Account Linking**  | Link external identities to existing users     |
+| **Reduced Friction** | No password registration required              |
 
 ---
 
 ## Supported Providers
 
-| Provider | Type | ID Token | UserInfo | Enterprise |
-|----------|------|----------|----------|------------|
-| Google | OIDC | ✅ | ✅ | ❌ |
-| Microsoft (Entra ID) | OIDC | ✅ | ✅ | ✅ Multi-tenant |
-| GitHub | OAuth 2.0 | ❌ | ✅ | ✅ Enterprise Server |
-| Custom OIDC | OIDC | ✅ | ✅ | - |
-| Custom OAuth 2.0 | OAuth 2.0 | ❌ | ✅ | - |
+| Provider             | Type      | ID Token | UserInfo | Enterprise           |
+| -------------------- | --------- | -------- | -------- | -------------------- |
+| Google               | OIDC      | ✅       | ✅       | ❌                   |
+| Microsoft (Entra ID) | OIDC      | ✅       | ✅       | ✅ Multi-tenant      |
+| GitHub               | OAuth 2.0 | ❌       | ✅       | ✅ Enterprise Server |
+| Custom OIDC          | OIDC      | ✅       | ✅       | -                    |
+| Custom OAuth 2.0     | OAuth 2.0 | ❌       | ✅       | -                    |
 
 ---
 
@@ -117,9 +117,9 @@ async function handleCallback(url: string) {
       code,
       code_verifier: codeVerifier,
       redirect_uri: 'fitnessapp://auth/callback',
-      client_id: 'fitness-mobile-app'
-    })
-  }).then(r => r.json());
+      client_id: 'fitness-mobile-app',
+    }),
+  }).then((r) => r.json());
 
   // Store tokens and navigate to main app
   await SecureStore.setItemAsync('access_token', tokens.access_token);
@@ -232,8 +232,8 @@ async function configureCustomerIdP(config: CustomerIdPConfig) {
       sub: 'sub',
       email: 'email',
       name: 'name',
-      groups: 'groups'
-    }
+      groups: 'groups',
+    },
   };
 
   // Configure issuer based on IdP type
@@ -253,18 +253,21 @@ async function configureCustomerIdP(config: CustomerIdPConfig) {
   const response = await fetch('/external-idp/admin/providers', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${env.ADMIN_API_SECRET}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${env.ADMIN_API_SECRET}`,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(providerConfig)
+    body: JSON.stringify(providerConfig),
   });
 
   // Map email domains to this customer
   for (const domain of config.email_domains) {
-    await env.KV.put(`idp:domain:${domain}`, JSON.stringify({
-      customer_id: config.customer_id,
-      provider_slug: providerConfig.slug
-    }));
+    await env.KV.put(
+      `idp:domain:${domain}`,
+      JSON.stringify({
+        customer_id: config.customer_id,
+        provider_slug: providerConfig.slug,
+      })
+    );
   }
 
   return response.json();
@@ -416,8 +419,8 @@ async function configureHealthcareIdPs() {
   await fetch('/external-idp/admin/providers', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${env.ADMIN_API_SECRET}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${env.ADMIN_API_SECRET}`,
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       template: 'microsoft',
@@ -427,7 +430,7 @@ async function configureHealthcareIdPs() {
       client_secret: env.AZURE_AD_CLIENT_SECRET,
       provider_quirks: {
         // Single-tenant: only hospital employees
-        tenantType: env.AZURE_AD_TENANT_ID
+        tenantType: env.AZURE_AD_TENANT_ID,
       },
       // Staff-specific settings
       jit_provisioning: true,
@@ -437,19 +440,19 @@ async function configureHealthcareIdPs() {
         sub: 'oid',
         email: 'email',
         name: 'name',
-        roles: 'groups' // Azure AD group memberships
+        roles: 'groups', // Azure AD group memberships
       },
       // ACR values for policy enforcement
-      allowed_acr_values: ['staff', 'clinical']
-    })
+      allowed_acr_values: ['staff', 'clinical'],
+    }),
   });
 
   // 2. Patient Portal - Google
   await fetch('/external-idp/admin/providers', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${env.ADMIN_API_SECRET}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${env.ADMIN_API_SECRET}`,
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       template: 'google',
@@ -461,16 +464,16 @@ async function configureHealthcareIdPs() {
       auto_link_email: false, // Don't auto-link for security
       require_email_verified: true,
       scopes: 'openid email profile',
-      allowed_acr_values: ['patient']
-    })
+      allowed_acr_values: ['patient'],
+    }),
   });
 
   // 3. Patient Portal - Apple (alternative)
   await fetch('/external-idp/admin/providers', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${env.ADMIN_API_SECRET}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${env.ADMIN_API_SECRET}`,
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
       name: 'Apple',
@@ -480,8 +483,8 @@ async function configureHealthcareIdPs() {
       client_id: env.APPLE_CLIENT_ID,
       client_secret: env.APPLE_CLIENT_SECRET,
       jit_provisioning: true,
-      allowed_acr_values: ['patient']
-    })
+      allowed_acr_values: ['patient'],
+    }),
   });
 }
 
@@ -495,7 +498,7 @@ app.get('/authorize', async (c) => {
       `/auth/external/hospital-staff/start?${new URLSearchParams({
         redirect_uri: c.req.query('redirect_uri')!,
         state: c.req.query('state')!,
-        nonce: c.req.query('nonce') || ''
+        nonce: c.req.query('nonce') || '',
       })}`
     );
   }
@@ -505,7 +508,7 @@ app.get('/authorize', async (c) => {
     return renderPatientLoginPage(c, {
       providers: ['google-patient', 'apple-patient'],
       redirect_uri: c.req.query('redirect_uri'),
-      state: c.req.query('state')
+      state: c.req.query('state'),
     });
   }
 
@@ -524,7 +527,7 @@ async function auditExternalAuth(event: AuthEvent) {
     // HIPAA: Never log actual identifiers
     user_id_hash: await sha256(event.userId),
     ip_hash: await sha256(event.ip),
-    user_agent: event.userAgent
+    user_agent: event.userAgent,
   });
 }
 ```
@@ -539,18 +542,16 @@ async function mapExternalClaimsToRoles(
 ): Promise<string[]> {
   // Hospital staff: Map Azure AD groups to roles
   if (provider === 'hospital-staff') {
-    const azureGroups = externalClaims.groups as string[] || [];
+    const azureGroups = (externalClaims.groups as string[]) || [];
 
     const roleMapping: Record<string, string> = {
       '11111111-aaaa-bbbb-cccc-000000000001': 'physician',
       '11111111-aaaa-bbbb-cccc-000000000002': 'nurse',
       '11111111-aaaa-bbbb-cccc-000000000003': 'admin',
-      '11111111-aaaa-bbbb-cccc-000000000004': 'pharmacist'
+      '11111111-aaaa-bbbb-cccc-000000000004': 'pharmacist',
     };
 
-    return azureGroups
-      .map(groupId => roleMapping[groupId])
-      .filter(Boolean);
+    return azureGroups.map((groupId) => roleMapping[groupId]).filter(Boolean);
   }
 
   // Patient social login: Default patient role
@@ -603,20 +604,20 @@ Account linking follows this priority:
 
 ### User Flow Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/auth/external/:provider/start` | GET | Initiate external auth |
-| `/auth/external/:provider/callback` | GET | Handle IdP callback |
-| `/auth/external/:provider/backchannel-logout` | POST | Handle backchannel logout |
+| Endpoint                                      | Method | Description               |
+| --------------------------------------------- | ------ | ------------------------- |
+| `/auth/external/:provider/start`              | GET    | Initiate external auth    |
+| `/auth/external/:provider/callback`           | GET    | Handle IdP callback       |
+| `/auth/external/:provider/backchannel-logout` | POST   | Handle backchannel logout |
 
 ### Admin Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/external-idp/admin/providers` | GET | List providers |
-| `/external-idp/admin/providers` | POST | Create provider |
-| `/external-idp/admin/providers/:id` | GET | Get provider |
-| `/external-idp/admin/providers/:id` | PUT | Update provider |
+| Endpoint                            | Method | Description     |
+| ----------------------------------- | ------ | --------------- |
+| `/external-idp/admin/providers`     | GET    | List providers  |
+| `/external-idp/admin/providers`     | POST   | Create provider |
+| `/external-idp/admin/providers/:id` | GET    | Get provider    |
+| `/external-idp/admin/providers/:id` | PUT    | Update provider |
 | `/external-idp/admin/providers/:id` | DELETE | Delete provider |
 
 ---
@@ -655,6 +656,7 @@ curl -X POST "/external-idp/admin/providers" \
 ```
 
 **Tenant Types**:
+
 - `common`: All Microsoft accounts (personal + work)
 - `organizations`: Work/school accounts only
 - `consumers`: Personal accounts only
@@ -697,12 +699,12 @@ curl -X POST "/external-idp/admin/providers" \
 
 ## Security Considerations
 
-| Consideration | Implementation |
-|---------------|----------------|
-| **PKCE** | S256 method, required for all flows |
-| **State Parameter** | Cryptographically secure, 60s TTL |
-| **Nonce** | ID Token replay protection (OIDC) |
-| **Secret Encryption** | AES-256-GCM for client secrets |
+| Consideration          | Implementation                            |
+| ---------------------- | ----------------------------------------- |
+| **PKCE**               | S256 method, required for all flows       |
+| **State Parameter**    | Cryptographically secure, 60s TTL         |
+| **Nonce**              | ID Token replay protection (OIDC)         |
+| **Secret Encryption**  | AES-256-GCM for client secrets            |
 | **Email Verification** | `require_email_verified: true` by default |
 
 ---
@@ -711,25 +713,25 @@ curl -X POST "/external-idp/admin/providers" \
 
 ### Provider Configuration Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | ✅ | Display name |
-| `slug` | string | - | URL-friendly identifier |
-| `provider_type` | string | - | `oidc` or `oauth2` |
-| `client_id` | string | ✅ | OAuth Client ID |
-| `client_secret` | string | ✅ | OAuth Client Secret |
-| `issuer` | string | OIDC | OIDC Issuer URL |
-| `scopes` | string | - | OAuth scopes |
-| `jit_provisioning` | boolean | - | Auto-create users |
-| `auto_link_email` | boolean | - | Link by email match |
-| `require_email_verified` | boolean | - | Require verified email |
+| Field                    | Type    | Required | Description             |
+| ------------------------ | ------- | -------- | ----------------------- |
+| `name`                   | string  | ✅       | Display name            |
+| `slug`                   | string  | -        | URL-friendly identifier |
+| `provider_type`          | string  | -        | `oidc` or `oauth2`      |
+| `client_id`              | string  | ✅       | OAuth Client ID         |
+| `client_secret`          | string  | ✅       | OAuth Client Secret     |
+| `issuer`                 | string  | OIDC     | OIDC Issuer URL         |
+| `scopes`                 | string  | -        | OAuth scopes            |
+| `jit_provisioning`       | boolean | -        | Auto-create users       |
+| `auto_link_email`        | boolean | -        | Link by email match     |
+| `require_email_verified` | boolean | -        | Require verified email  |
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
+| Variable                  | Description                       |
+| ------------------------- | --------------------------------- |
 | `RP_TOKEN_ENCRYPTION_KEY` | Key for encrypting client secrets |
-| `ADMIN_API_SECRET` | Admin API authentication |
+| `ADMIN_API_SECRET`        | Admin API authentication          |
 
 ---
 
@@ -756,13 +758,13 @@ curl -X POST "/external-idp/admin/providers" \
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Start Handler | `packages/external-idp/src/start.ts` | Initiate auth flow |
-| Callback Handler | `packages/external-idp/src/callback.ts` | Process IdP response |
-| Provider Admin | `packages/external-idp/src/admin-providers.ts` | CRUD operations |
-| OIDC Client | `packages/external-idp/src/oidc-client.ts` | Token exchange |
-| State Management | `packages/external-idp/src/state.ts` | CSRF protection |
+| Component        | File                                           | Description          |
+| ---------------- | ---------------------------------------------- | -------------------- |
+| Start Handler    | `packages/external-idp/src/start.ts`           | Initiate auth flow   |
+| Callback Handler | `packages/external-idp/src/callback.ts`        | Process IdP response |
+| Provider Admin   | `packages/external-idp/src/admin-providers.ts` | CRUD operations      |
+| OIDC Client      | `packages/external-idp/src/oidc-client.ts`     | Token exchange       |
+| State Management | `packages/external-idp/src/state.ts`           | CSRF protection      |
 
 ---
 

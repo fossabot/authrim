@@ -200,10 +200,11 @@ export async function updatePolicyFlag(c: Context) {
     });
   } catch (error) {
     console.error(`[Policy Flags API] Error updating ${name}:`, error);
+    // SECURITY: Do not expose internal error details
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to update flag: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error_description: 'Failed to update flag',
       },
       500
     );
@@ -249,10 +250,11 @@ export async function clearPolicyFlag(c: Context) {
     });
   } catch (error) {
     console.error(`[Policy Flags API] Error clearing ${name}:`, error);
+    // SECURITY: Do not expose internal error details
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to clear flag: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error_description: 'Failed to clear flag',
       },
       500
     );

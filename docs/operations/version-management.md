@@ -42,10 +42,10 @@ flowchart TB
 
 ### Version Identifiers
 
-| Variable | Format | Example |
-|----------|--------|---------|
-| `CODE_VERSION_UUID` | UUID v4 | `a1b2c3d4-e5f6-7890-abcd-ef0123456789` |
-| `DEPLOY_TIME_UTC` | ISO 8601 | `2025-11-28T10:30:00Z` |
+| Variable            | Format   | Example                                |
+| ------------------- | -------- | -------------------------------------- |
+| `CODE_VERSION_UUID` | UUID v4  | `a1b2c3d4-e5f6-7890-abcd-ef0123456789` |
+| `DEPLOY_TIME_UTC`   | ISO 8601 | `2025-11-28T10:30:00Z`                 |
 
 ### Middleware Behavior
 
@@ -80,11 +80,11 @@ app.use('*', versionCheckMiddleware('op-auth')); // Specify Worker name
 
 ## Related Files
 
-| File | Description |
-|------|-------------|
-| `packages/shared/src/durable-objects/VersionManager.ts` | Version management DO |
-| `packages/shared/src/middleware/version-check.ts` | Version check middleware |
-| `scripts/deploy-with-retry.sh` | Deploy script |
+| File                                                    | Description              |
+| ------------------------------------------------------- | ------------------------ |
+| `packages/shared/src/durable-objects/VersionManager.ts` | Version management DO    |
+| `packages/shared/src/middleware/version-check.ts`       | Version check middleware |
+| `scripts/deploy-with-retry.sh`                          | Deploy script            |
 
 ## Testing
 

@@ -86,23 +86,25 @@ describe('Authorization Code Flow', () => {
   }): Promise<string> {
     const testCode = `auth_code_${Date.now()}_${crypto.randomUUID()}`;
     const authCodeStub = env.AUTH_CODE_STORE.get(env.AUTH_CODE_STORE.idFromName('global'));
-    await authCodeStub.fetch(new Request('http://localhost/code/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        code: testCode,
-        clientId: options.client_id,
-        redirectUri: options.redirect_uri,
-        userId: options.userId ?? 'test-user',
-        scope: options.scope,
-        nonce: options.nonce ?? generateNonce(),
-        state: options.state ?? generateState(),
-        claims: options.claims,
-        codeChallenge: options.codeChallenge,
-        codeChallengeMethod: options.codeChallengeMethod,
-        ttlMs: 120000,
-      }),
-    }));
+    await authCodeStub.fetch(
+      new Request('http://localhost/code/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: testCode,
+          clientId: options.client_id,
+          redirectUri: options.redirect_uri,
+          userId: options.userId ?? 'test-user',
+          scope: options.scope,
+          nonce: options.nonce ?? generateNonce(),
+          state: options.state ?? generateState(),
+          claims: options.claims,
+          codeChallenge: options.codeChallenge,
+          codeChallengeMethod: options.codeChallengeMethod,
+          ttlMs: 120000,
+        }),
+      })
+    );
     return testCode;
   }
 
@@ -120,19 +122,27 @@ describe('Authorization Code Flow', () => {
       redirect_uri: options.redirect_uri,
       client_secret: options.client_secret,
     });
-    return app.request('/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: tokenBody,
-    }, env);
+    return app.request(
+      '/token',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenBody,
+      },
+      env
+    );
   }
 
   // Helper function to get userinfo
   async function getUserInfo(accessToken: string) {
-    return app.request('/userinfo', {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }, env);
+    return app.request(
+      '/userinfo',
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+      env
+    );
   }
 
   // Helper function to get JWKS
@@ -344,11 +354,15 @@ describe('Authorization Code Flow', () => {
         client_secret: client.client_secret,
       });
 
-      const tokenRes = await app.request('/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: tokenBody,
-      }, env);
+      const tokenRes = await app.request(
+        '/token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenBody,
+        },
+        env
+      );
 
       // Should be rejected with invalid_grant error
       expect(tokenRes.status).toBe(400);
@@ -378,11 +392,15 @@ describe('Authorization Code Flow', () => {
         client_secret: client.client_secret,
       });
 
-      const tokenRes1 = await app.request('/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: tokenBody1,
-      }, env);
+      const tokenRes1 = await app.request(
+        '/token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenBody1,
+        },
+        env
+      );
 
       expect(tokenRes1.status).toBe(200);
 
@@ -395,11 +413,15 @@ describe('Authorization Code Flow', () => {
         client_secret: client.client_secret,
       });
 
-      const tokenRes2 = await app.request('/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: tokenBody2,
-      }, env);
+      const tokenRes2 = await app.request(
+        '/token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenBody2,
+        },
+        env
+      );
 
       expect(tokenRes2.status).toBe(400);
       const data = (await tokenRes2.json()) as { error: string };
@@ -427,21 +449,29 @@ describe('Authorization Code Flow', () => {
         client_secret: client.client_secret,
       });
 
-      const tokenRes1 = await app.request('/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: tokenBody1,
-      }, env);
+      const tokenRes1 = await app.request(
+        '/token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenBody1,
+        },
+        env
+      );
 
       expect(tokenRes1.status).toBe(200);
       const tokenData1 = (await tokenRes1.json()) as { access_token: string };
       const accessToken = tokenData1.access_token;
 
       // Step 3: Verify access token works
-      const userinfoRes1 = await app.request('/userinfo', {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }, env);
+      const userinfoRes1 = await app.request(
+        '/userinfo',
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+        env
+      );
       expect(userinfoRes1.status).toBe(200);
 
       // Step 4: Try to reuse the same code (this should trigger token revocation)
@@ -453,11 +483,15 @@ describe('Authorization Code Flow', () => {
         client_secret: client.client_secret,
       });
 
-      const tokenRes2 = await app.request('/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: tokenBody2,
-      }, env);
+      const tokenRes2 = await app.request(
+        '/token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: tokenBody2,
+        },
+        env
+      );
 
       expect(tokenRes2.status).toBe(400);
       const data = (await tokenRes2.json()) as { error: string };
@@ -467,10 +501,14 @@ describe('Authorization Code Flow', () => {
       // Note: OAuth 2.1 RECOMMENDS (but does not REQUIRE) revoking all tokens
       // issued from the reused code. Our implementation may or may not
       // implement this optional security feature.
-      const userinfoRes2 = await app.request('/userinfo', {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }, env);
+      const userinfoRes2 = await app.request(
+        '/userinfo',
+        {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+        env
+      );
 
       // The test passes if either:
       // 1. Token is revoked (401) - stricter implementation per OAuth 2.1 recommendation
@@ -639,7 +677,9 @@ describe('Authorization Code Flow', () => {
 
       // Tamper with the ID token by modifying the payload
       const parts = tokenData.id_token!.split('.');
-      const tamperedPayload = btoa(JSON.stringify({ ...JSON.parse(atob(parts[1])), sub: 'tampered-user' }))
+      const tamperedPayload = btoa(
+        JSON.stringify({ ...JSON.parse(atob(parts[1])), sub: 'tampered-user' })
+      )
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');

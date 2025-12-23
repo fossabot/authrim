@@ -1,4 +1,11 @@
 import type { Context } from 'hono';
+import type { Env } from '@authrim/ar-lib-core';
+import {
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 
 /**
  * GET /api/admin/settings/code-shards
@@ -21,16 +28,26 @@ export async function getCodeShards(c: Context) {
  * PUT /api/admin/settings/code-shards
  * シャード数を動的に変更（KVに保存）
  */
-export async function updateCodeShards(c: Context) {
+export async function updateCodeShards(c: Context<{ Bindings: Env }>) {
+  const kv = c.env.AUTHRIM_CONFIG;
+  if (!kv) {
+    return createErrorResponse(c, AR_ERROR_CODES.CONFIG_KV_NOT_CONFIGURED);
+  }
+
   const { shards } = await c.req.json();
 
   // バリデーション
   if (typeof shards !== 'number' || shards <= 0 || shards > 256) {
-    return c.json({ error: 'Invalid shard count: must be between 1 and 256' }, 400);
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Invalid shard count: must be between 1 and 256'
+    );
   }
 
   // KVに保存
-  await c.env.AUTHRIM_CONFIG.put('code_shards', shards.toString());
+  await kv.put('code_shards', shards.toString());
 
   // キャッシュクリア（10秒待てば自動的にリフレッシュされる）
   return c.json({

@@ -9,6 +9,7 @@ Authrim is primarily a **solo development project** by [sgrastar](https://github
 ### What We Accept
 
 ✅ **Bug Reports** - We welcome issue reports for bugs and problems
+
 - Please use GitHub Issues to report bugs
 - Include detailed reproduction steps
 - Provide error messages and logs when available
@@ -16,6 +17,7 @@ Authrim is primarily a **solo development project** by [sgrastar](https://github
 ### What We Don't Accept
 
 ❌ **Pull Requests** - We do not accept pull requests at this time
+
 - The project is maintained solely by the original author
 - Code contributions are not currently being accepted
 

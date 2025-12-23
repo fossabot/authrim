@@ -4,10 +4,10 @@ Automate OAuth 2.0/OpenID Connect client onboarding with programmatic registrati
 
 ## Overview
 
-| Specification | Status | Endpoint |
-|---------------|--------|----------|
-| [OpenID Connect DCR 1.0](https://openid.net/specs/openid-connect-registration-1_0.html) | ✅ Implemented | `POST /register` |
-| [RFC 7591](https://tools.ietf.org/html/rfc7591) | ✅ Implemented | OAuth 2.0 DCR Protocol |
+| Specification                                                                           | Status         | Endpoint               |
+| --------------------------------------------------------------------------------------- | -------------- | ---------------------- |
+| [OpenID Connect DCR 1.0](https://openid.net/specs/openid-connect-registration-1_0.html) | ✅ Implemented | `POST /register`       |
+| [RFC 7591](https://tools.ietf.org/html/rfc7591)                                         | ✅ Implemented | OAuth 2.0 DCR Protocol |
 
 Dynamic Client Registration (DCR) enables OAuth 2.0 and OpenID Connect clients to register programmatically without manual administrator intervention, supporting:
 
@@ -20,13 +20,13 @@ Dynamic Client Registration (DCR) enables OAuth 2.0 and OpenID Connect clients t
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Zero-Touch Onboarding** | Clients register instantly without admin approval |
-| **CI/CD Compatible** | Automated test client creation and cleanup |
-| **Scalable Architecture** | Supports thousands of clients without bottlenecks |
-| **Secure Credentials** | Cryptographically strong client ID (~135 chars) and secret |
-| **Standards Compliant** | Full OpenID Connect DCR 1.0 compatibility |
+| Benefit                   | Description                                                |
+| ------------------------- | ---------------------------------------------------------- |
+| **Zero-Touch Onboarding** | Clients register instantly without admin approval          |
+| **CI/CD Compatible**      | Automated test client creation and cleanup                 |
+| **Scalable Architecture** | Supports thousands of clients without bottlenecks          |
+| **Secure Credentials**    | Cryptographically strong client ID (~135 chars) and secret |
+| **Standards Compliant**   | Full OpenID Connect DCR 1.0 compatibility                  |
 
 ---
 
@@ -97,8 +97,8 @@ portal.post('/apps', async (c) => {
       token_endpoint_auth_method:
         body.environment === 'development' ? 'none' : 'client_secret_basic',
       application_type: 'web',
-      contacts: [developer.email]
-    })
+      contacts: [developer.email],
+    }),
   });
 
   if (!dcrResponse.ok) {
@@ -116,7 +116,7 @@ portal.post('/apps', async (c) => {
       clientId: client.client_id,
       appName: body.appName,
       environment: body.environment,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     })
   );
 
@@ -124,11 +124,14 @@ portal.post('/apps', async (c) => {
   const encryptedSecret = await encryptForStorage(client.client_secret);
   await c.env.CLIENT_SECRETS.put(client.client_id, encryptedSecret);
 
-  return c.json({
-    clientId: client.client_id,
-    clientSecret: client.client_secret, // Only returned on first registration
-    message: 'Save your client secret now. It cannot be retrieved again.'
-  }, 201);
+  return c.json(
+    {
+      clientId: client.client_id,
+      clientSecret: client.client_secret, // Only returned on first registration
+      message: 'Save your client secret now. It cannot be retrieved again.',
+    },
+    201
+  );
 });
 ```
 
@@ -262,8 +265,8 @@ class ServiceAuthClient {
         token_endpoint_auth_method: 'client_secret_basic',
         software_id: this.config.serviceName,
         software_version: this.config.serviceVersion,
-        contacts: ['platform-team@company.com']
-      })
+        contacts: ['platform-team@company.com'],
+      }),
     });
 
     if (!response.ok) {
@@ -289,20 +292,18 @@ class ServiceAuthClient {
   }
 
   private async refreshAccessToken(): Promise<void> {
-    const credentials = Buffer.from(
-      `${this.clientId}:${this.clientSecret}`
-    ).toString('base64');
+    const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
 
     const response = await fetch(`${this.config.authrimIssuer}/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${credentials}`
+        Authorization: `Basic ${credentials}`,
       },
       body: new URLSearchParams({
         grant_type: 'client_credentials',
-        scope: this.config.requiredScopes.join(' ')
-      })
+        scope: this.config.requiredScopes.join(' '),
+      }),
     });
 
     if (!response.ok) {
@@ -311,7 +312,7 @@ class ServiceAuthClient {
 
     const token = await response.json();
     this.accessToken = token.access_token;
-    this.tokenExpiry = Date.now() + (token.expires_in * 1000);
+    this.tokenExpiry = Date.now() + token.expires_in * 1000;
   }
 }
 
@@ -320,7 +321,7 @@ const authClient = new ServiceAuthClient({
   serviceName: 'order-service',
   serviceVersion: '2.1.0',
   authrimIssuer: process.env.AUTHRIM_ISSUER!,
-  requiredScopes: ['inventory:read', 'payments:create']
+  requiredScopes: ['inventory:read', 'payments:create'],
 });
 
 await authClient.initialize();
@@ -328,7 +329,7 @@ await authClient.initialize();
 // Use in API calls
 const token = await authClient.getAccessToken();
 const response = await fetch('https://api.internal/inventory/items', {
-  headers: { 'Authorization': `Bearer ${token}` }
+  headers: { Authorization: `Bearer ${token}` },
 });
 ```
 
@@ -348,7 +349,7 @@ spec:
           image: order-service:2.1.0
           env:
             - name: AUTHRIM_ISSUER
-              value: "https://auth.company.com"
+              value: 'https://auth.company.com'
             - name: HOSTNAME
               valueFrom:
                 fieldRef:
@@ -356,7 +357,7 @@ spec:
           lifecycle:
             preStop:
               exec:
-                command: ["/bin/sh", "-c", "sleep 5"]
+                command: ['/bin/sh', '-c', 'sleep 5']
 ```
 
 ---
@@ -446,8 +447,8 @@ async function createTenantIntegration(
       // Tenant-specific URIs
       client_uri: `https://${tenantId}.saas.example.com`,
       tos_uri: `https://${tenantId}.saas.example.com/terms`,
-      policy_uri: `https://${tenantId}.saas.example.com/privacy`
-    })
+      policy_uri: `https://${tenantId}.saas.example.com/privacy`,
+    }),
   });
 
   if (!response.ok) {
@@ -465,7 +466,7 @@ async function createTenantIntegration(
     name: integration.name,
     description: integration.description,
     allowedScopes: integration.scopes,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   });
 
   // Audit log
@@ -474,20 +475,17 @@ async function createTenantIntegration(
     tenantId,
     actorId: adminUserId,
     resourceId: client.client_id,
-    details: { name: integration.name }
+    details: { name: integration.name },
   });
 
   return {
     clientId: client.client_id,
-    clientSecret: client.client_secret
+    clientSecret: client.client_secret,
   };
 }
 
 // Token endpoint middleware: Add tenant claim
-async function addTenantClaimToToken(
-  clientId: string,
-  token: TokenPayload
-): Promise<TokenPayload> {
+async function addTenantClaimToToken(clientId: string, token: TokenPayload): Promise<TokenPayload> {
   const binding = await getIntegrationBinding(clientId);
 
   if (!binding) {
@@ -497,7 +495,7 @@ async function addTenantClaimToToken(
   return {
     ...token,
     tenant_id: binding.tenantId,
-    allowed_scopes: binding.allowedScopes
+    allowed_scopes: binding.allowedScopes,
   };
 }
 ```
@@ -599,20 +597,20 @@ Content-Type: application/json
 
 #### Request Parameters
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `redirect_uris` | ✅ Yes | string[] | Redirect URIs (HTTPS required, except localhost) |
-| `client_name` | ❌ No | string | Human-readable name |
-| `grant_types` | ❌ No | string[] | OAuth grant types (default: `authorization_code`) |
-| `response_types` | ❌ No | string[] | OAuth response types (default: `code`) |
-| `token_endpoint_auth_method` | ❌ No | string | Auth method: `client_secret_basic`, `client_secret_post`, `none` |
-| `scope` | ❌ No | string | Requested scopes (space-separated) |
-| `application_type` | ❌ No | string | `web` (default) or `native` |
-| `subject_type` | ❌ No | string | `public` (default) or `pairwise` |
-| `contacts` | ❌ No | string[] | Contact email addresses |
-| `jwks_uri` | ❌ No | string | JWKS endpoint for client keys |
-| `software_id` | ❌ No | string | Unique software identifier |
-| `software_version` | ❌ No | string | Software version |
+| Parameter                    | Required | Type     | Description                                                      |
+| ---------------------------- | -------- | -------- | ---------------------------------------------------------------- |
+| `redirect_uris`              | ✅ Yes   | string[] | Redirect URIs (HTTPS required, except localhost)                 |
+| `client_name`                | ❌ No    | string   | Human-readable name                                              |
+| `grant_types`                | ❌ No    | string[] | OAuth grant types (default: `authorization_code`)                |
+| `response_types`             | ❌ No    | string[] | OAuth response types (default: `code`)                           |
+| `token_endpoint_auth_method` | ❌ No    | string   | Auth method: `client_secret_basic`, `client_secret_post`, `none` |
+| `scope`                      | ❌ No    | string   | Requested scopes (space-separated)                               |
+| `application_type`           | ❌ No    | string   | `web` (default) or `native`                                      |
+| `subject_type`               | ❌ No    | string   | `public` (default) or `pairwise`                                 |
+| `contacts`                   | ❌ No    | string[] | Contact email addresses                                          |
+| `jwks_uri`                   | ❌ No    | string   | JWKS endpoint for client keys                                    |
+| `software_id`                | ❌ No    | string   | Unique software identifier                                       |
+| `software_version`           | ❌ No    | string   | Software version                                                 |
 
 #### Success Response
 
@@ -633,23 +631,23 @@ Content-Type: application/json
 
 #### Error Responses
 
-| Error | HTTP Status | Description |
-|-------|-------------|-------------|
-| `invalid_redirect_uri` | 400 | Missing, invalid, or insecure redirect URI |
-| `invalid_client_metadata` | 400 | Invalid metadata field |
-| `invalid_request` | 400 | Malformed JSON body |
+| Error                     | HTTP Status | Description                                |
+| ------------------------- | ----------- | ------------------------------------------ |
+| `invalid_redirect_uri`    | 400         | Missing, invalid, or insecure redirect URI |
+| `invalid_client_metadata` | 400         | Invalid metadata field                     |
+| `invalid_request`         | 400         | Malformed JSON body                        |
 
 ---
 
 ## Security Considerations
 
-| Consideration | Implementation |
-|---------------|----------------|
-| **HTTPS Required** | All redirect URIs must use HTTPS (except `localhost`) |
-| **Strong Credentials** | Client ID ~135 chars, Secret 32 bytes (base64url) |
-| **No Fragments** | Redirect URIs cannot contain `#` fragments |
-| **Exact Matching** | Redirect URIs matched exactly during authorization |
-| **Sector Identifier** | Required for pairwise with multi-host redirect URIs |
+| Consideration          | Implementation                                        |
+| ---------------------- | ----------------------------------------------------- |
+| **HTTPS Required**     | All redirect URIs must use HTTPS (except `localhost`) |
+| **Strong Credentials** | Client ID ~135 chars, Secret 32 bytes (base64url)     |
+| **No Fragments**       | Redirect URIs cannot contain `#` fragments            |
+| **Exact Matching**     | Redirect URIs matched exactly during authorization    |
+| **Sector Identifier**  | Required for pairwise with multi-host redirect URIs   |
 
 ---
 
@@ -657,20 +655,20 @@ Content-Type: application/json
 
 ### Supported Authentication Methods
 
-| Method | Use Case | Security Level |
-|--------|----------|----------------|
-| `client_secret_basic` | Server-side apps (default) | High |
-| `client_secret_post` | Limited HTTP basic support | Medium |
-| `none` | Public clients (mobile, SPA) | Use with PKCE |
+| Method                | Use Case                     | Security Level |
+| --------------------- | ---------------------------- | -------------- |
+| `client_secret_basic` | Server-side apps (default)   | High           |
+| `client_secret_post`  | Limited HTTP basic support   | Medium         |
+| `none`                | Public clients (mobile, SPA) | Use with PKCE  |
 
 ### Supported Grant Types
 
-| Grant Type | Use Case |
-|------------|----------|
-| `authorization_code` | Standard OAuth flow |
-| `refresh_token` | Long-lived sessions |
-| `client_credentials` | Service-to-service |
-| `implicit` | Legacy SPAs (not recommended) |
+| Grant Type           | Use Case                      |
+| -------------------- | ----------------------------- |
+| `authorization_code` | Standard OAuth flow           |
+| `refresh_token`      | Long-lived sessions           |
+| `client_credentials` | Service-to-service            |
+| `implicit`           | Legacy SPAs (not recommended) |
 
 ---
 
@@ -679,16 +677,8 @@ Content-Type: application/json
 ```json
 {
   "registration_endpoint": "https://auth.example.com/register",
-  "token_endpoint_auth_methods_supported": [
-    "client_secret_basic",
-    "client_secret_post",
-    "none"
-  ],
-  "grant_types_supported": [
-    "authorization_code",
-    "refresh_token",
-    "client_credentials"
-  ]
+  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
+  "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"]
 }
 ```
 
@@ -701,6 +691,7 @@ Content-Type: application/json
 #### "redirect_uris must use HTTPS"
 
 Use HTTPS for production. For development:
+
 ```json
 { "redirect_uris": ["http://localhost:3000/callback"] }
 ```
@@ -708,6 +699,7 @@ Use HTTPS for production. For development:
 #### "sector_identifier_uri is required"
 
 Required when using `pairwise` with multiple redirect URI hosts:
+
 ```json
 {
   "redirect_uris": ["https://app1.com/cb", "https://app2.com/cb"],
@@ -720,12 +712,12 @@ Required when using `pairwise` with multiple redirect URI hosts:
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Registration Handler | `packages/op-auth/src/register.ts` | DCR endpoint |
-| Client Storage | `packages/shared/src/repositories/client.ts` | KV storage |
-| Validation | `packages/op-auth/src/validation/client.ts` | Metadata validation |
-| Discovery | `packages/op-discovery/src/discovery.ts` | Metadata endpoint |
+| Component            | File                                         | Description         |
+| -------------------- | -------------------------------------------- | ------------------- |
+| Registration Handler | `packages/op-auth/src/register.ts`           | DCR endpoint        |
+| Client Storage       | `packages/shared/src/repositories/client.ts` | KV storage          |
+| Validation           | `packages/op-auth/src/validation/client.ts`  | Metadata validation |
+| Discovery            | `packages/op-discovery/src/discovery.ts`     | Metadata endpoint   |
 
 ---
 

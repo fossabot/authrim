@@ -488,36 +488,36 @@ Data separation architecture for GDPR/CCPA compliance:
 
 ### Phase 7-12 (In Progress / Planned)
 
-| Metric                   | Target      | Current                       | Phase |
-| ------------------------ | ----------- | ----------------------------- | ----- |
+| Metric                   | Target      | Current                                           | Phase |
+| ------------------------ | ----------- | ------------------------------------------------- | ----- |
 | Social login providers   | 7+          | ✅ 7 (Google, MS, GitHub, Apple, LinkedIn, FB, X) | P7 ✅ |
-| OIDC RP Client tests     | 50+         | ✅ 315 tests                  | P7 ✅ |
-| Identity linking tests   | 50+         | ✅ 14,666 lines               | P7 ✅ |
-| Provider Management UI   | Complete    | ✅ Complete                   | P7 ✅ |
-| Policy integration tests | 100+        | ✅ Complete                   | P8 ✅ |
-| VC/DID tests             | 100+        | ✅ 227 tests                  | P9 ✅ |
-| SDK downloads            | 1000+       | -                             | P10   |
-| Load test RPS            | 10,000+     | ✅ 3,500 (Silent Auth)        | P11   |
-| Security hardening       | 100%        | ⏳ ~20%                       | P11   |
-| OpenID Certification     | ✅ Obtained | -                             | P12   |
+| OIDC RP Client tests     | 50+         | ✅ 315 tests                                      | P7 ✅ |
+| Identity linking tests   | 50+         | ✅ 14,666 lines                                   | P7 ✅ |
+| Provider Management UI   | Complete    | ✅ Complete                                       | P7 ✅ |
+| Policy integration tests | 100+        | ✅ Complete                                       | P8 ✅ |
+| VC/DID tests             | 100+        | ✅ 227 tests                                      | P9 ✅ |
+| SDK downloads            | 1000+       | -                                                 | P10   |
+| Load test RPS            | 10,000+     | ✅ 3,500 (Silent Auth)                            | P11   |
+| Security hardening       | 100%        | ⏳ ~20%                                           | P11   |
+| OpenID Certification     | ✅ Obtained | -                                                 | P12   |
 
 ---
 
 ## Competitive Positioning
 
-| Capability                | Auth0 | Okta | Keycloak | Ory | **Authrim** |
-| ------------------------- | ----- | ---- | -------- | --- | ----------- |
-| **Authentication**        | ✅    | ✅   | ✅       | ✅  | ✅          |
+| Capability                | Auth0 | Okta | Keycloak | Ory | **Authrim**      |
+| ------------------------- | ----- | ---- | -------- | --- | ---------------- |
+| **Authentication**        | ✅    | ✅   | ✅       | ✅  | ✅               |
 | **Social Login**          | ✅    | ✅   | ✅       | ✅  | ✅ (7 providers) |
-| **RBAC**                  | ✅    | ✅   | ✅       | ✅  | ✅          |
-| **ABAC**                  | ⚠️    | ⚠️   | ✅       | ✅  | ✅          |
-| **ReBAC**                 | ❌    | ❌   | ❌       | ✅  | ✅          |
-| **AuthN + AuthZ Unified** | ⚠️    | ⚠️   | ⚠️       | ❌  | ✅          |
-| **OpenID4VP**             | ❌    | ❌   | ❌       | ❌  | ✅          |
-| **OpenID4VCI**            | ❌    | ❌   | ❌       | ❌  | ✅          |
-| **DID Support**           | ❌    | ❌   | ❌       | ❌  | ✅          |
-| **Edge Deployment**       | ❌    | ❌   | ❌       | ❌  | ✅          |
-| **Self-hosted**           | ❌    | ❌   | ✅       | ✅  | ✅          |
+| **RBAC**                  | ✅    | ✅   | ✅       | ✅  | ✅               |
+| **ABAC**                  | ⚠️    | ⚠️   | ✅       | ✅  | ✅               |
+| **ReBAC**                 | ❌    | ❌   | ❌       | ✅  | ✅               |
+| **AuthN + AuthZ Unified** | ⚠️    | ⚠️   | ⚠️       | ❌  | ✅               |
+| **OpenID4VP**             | ❌    | ❌   | ❌       | ❌  | ✅               |
+| **OpenID4VCI**            | ❌    | ❌   | ❌       | ❌  | ✅               |
+| **DID Support**           | ❌    | ❌   | ❌       | ❌  | ✅               |
+| **Edge Deployment**       | ❌    | ❌   | ❌       | ❌  | ✅               |
+| **Self-hosted**           | ❌    | ❌   | ✅       | ✅  | ✅               |
 
 ---
 
@@ -567,9 +567,9 @@ By 2026-Q1, Authrim will be:
 | 2025-12-18 | **8.4 Policy Admin Console → Moved to Phase 10**: Develop alongside SDK for consistent developer experience                                                                                                |
 | 2025-12-18 | **8.1 Policy ↔ Identity Integration ✅ Complete**: Rule Evaluator, JIT Provisioning with dynamic role assignment, org auto-join, email domain hash with key rotation, Admin APIs                          |
 | 2025-12-19 | **Phase 8 ✅ Complete**: Token Embedding Model (8.2), Real-time Check API (8.3) with UnifiedCheckService, Permission Parser, WebSocket Push via PermissionChangeHub DO, Check API Keys Admin API           |
-| 2025-12-20 | **Phase 7 ✅ Complete**: All 7 social login providers (Google, Microsoft, GitHub, Apple, LinkedIn, Facebook, Twitter/X)                                                                                      |
-| 2025-12-20 | **Phase 9 ✅ Complete**: OpenID4VP/VCI, DID Support (did:web, did:key, DID Auth), 227 tests                                                                                                                   |
-| 2025-12-21 | **Phase 11 Security Hardening**: DPoP `ath` timing-safe comparison (RFC 9449), JWT algorithm consistency (`ALLOWED_ASYMMETRIC_ALGS`), Policy Flags Admin API (CLAUDE.md準拠)                                |
+| 2025-12-20 | **Phase 7 ✅ Complete**: All 7 social login providers (Google, Microsoft, GitHub, Apple, LinkedIn, Facebook, Twitter/X)                                                                                    |
+| 2025-12-20 | **Phase 9 ✅ Complete**: OpenID4VP/VCI, DID Support (did:web, did:key, DID Auth), 227 tests                                                                                                                |
+| 2025-12-21 | **Phase 11 Security Hardening**: DPoP `ath` timing-safe comparison (RFC 9449), JWT algorithm consistency (`ALLOWED_ASYMMETRIC_ALGS`), Policy Flags Admin API (CLAUDE.md準拠)                               |
 
 ---
 

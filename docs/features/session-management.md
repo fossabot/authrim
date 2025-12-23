@@ -4,10 +4,10 @@ Monitor and manage user authentication sessions with Check Session iframe and IT
 
 ## Overview
 
-| Specification | Status | Mechanism |
-|---------------|--------|-----------|
+| Specification                                                                           | Status         | Mechanism            |
+| --------------------------------------------------------------------------------------- | -------------- | -------------------- |
 | [OIDC Session Management 1.0](https://openid.net/specs/openid-connect-session-1_0.html) | ✅ Implemented | Check Session iframe |
-| ITP-Compatible Session API | ✅ Implemented | Token-based |
+| ITP-Compatible Session API                                                              | ✅ Implemented | Token-based          |
 
 Session Management enables applications to monitor user session state at the authorization server, allowing detection of logout or session changes without full page redirects.
 
@@ -15,13 +15,13 @@ Session Management enables applications to monitor user session state at the aut
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Session Monitoring** | Detect logout from other apps |
-| **Silent Checks** | No user-visible redirects |
-| **ITP Compatible** | Works with Safari/Firefox cookie restrictions |
-| **Real-time Status** | Immediate session state awareness |
-| **SSO Coordination** | Consistent state across applications |
+| Benefit                | Description                                   |
+| ---------------------- | --------------------------------------------- |
+| **Session Monitoring** | Detect logout from other apps                 |
+| **Silent Checks**      | No user-visible redirects                     |
+| **ITP Compatible**     | Works with Safari/Firefox cookie restrictions |
+| **Real-time Status**   | Immediate session state awareness             |
+| **SSO Coordination**   | Consistent state across applications          |
 
 ---
 
@@ -210,8 +210,8 @@ class ITPSessionManager {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.accessToken}`
-      }
+        Authorization: `Bearer ${this.accessToken}`,
+      },
     });
 
     const data = await response.json();
@@ -223,7 +223,7 @@ class ITPSessionManager {
 
   private startVerification(expiresIn: number) {
     // Check at 1/5 of expiry time
-    const interval = Math.min(expiresIn * 1000 / 5, 60000);
+    const interval = Math.min((expiresIn * 1000) / 5, 60000);
 
     this.refreshInterval = window.setInterval(async () => {
       const isValid = await this.verifySession();
@@ -240,16 +240,15 @@ class ITPSessionManager {
       const response = await fetch('https://auth.example.com/api/sessions/verify', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          session_token: this.sessionToken
-        })
+          session_token: this.sessionToken,
+        }),
       });
 
       const data = await response.json();
       return data.active === true;
-
     } catch (error) {
       console.error('Session verification failed', error);
       return false;
@@ -264,11 +263,11 @@ class ITPSessionManager {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.accessToken}`
+        Authorization: `Bearer ${this.accessToken}`,
       },
       body: JSON.stringify({
-        session_token: this.sessionToken
-      })
+        session_token: this.sessionToken,
+      }),
     });
 
     const data = await response.json();
@@ -294,10 +293,14 @@ const sessionManager = new ITPSessionManager(accessToken);
 await sessionManager.issueSessionToken();
 
 // Refresh on user activity
-['click', 'keypress', 'scroll'].forEach(event => {
-  document.addEventListener(event, () => {
-    sessionManager.refreshSession();
-  }, { passive: true });
+['click', 'keypress', 'scroll'].forEach((event) => {
+  document.addEventListener(
+    event,
+    () => {
+      sessionManager.refreshSession();
+    },
+    { passive: true }
+  );
 });
 
 // Handle expiration
@@ -403,7 +406,7 @@ function useSessionManagement() {
       sessionState: getSessionState(),
       onSessionChange: () => {
         setIsAuthenticated(false);
-      }
+      },
     });
 
     return () => monitor.stop();
@@ -481,6 +484,7 @@ Response:
 ## Session State
 
 The session state is a hash that changes when:
+
 - User logs in
 - User logs out
 - Session expires
@@ -492,22 +496,22 @@ Format: `{state}.{salt}` (e.g., `abc123.xyz789`)
 
 ## Security Considerations
 
-| Consideration | Implementation |
-|---------------|----------------|
-| **Origin Validation** | Check iframe message origin |
-| **Token Binding** | Session tokens bound to access token |
-| **Short TTL** | Session tokens expire quickly |
-| **Secure Context** | HTTPS required |
+| Consideration         | Implementation                       |
+| --------------------- | ------------------------------------ |
+| **Origin Validation** | Check iframe message origin          |
+| **Token Binding**     | Session tokens bound to access token |
+| **Short TTL**         | Session tokens expire quickly        |
+| **Secure Context**    | HTTPS required                       |
 
 ---
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Check Session | `packages/op-auth/src/session-check.ts` | Iframe endpoint |
-| Session APIs | `packages/op-auth/src/session-api.ts` | ITP-compatible APIs |
-| Session Store | `packages/shared/src/durable-objects/SessionStore.ts` | State management |
+| Component     | File                                                  | Description         |
+| ------------- | ----------------------------------------------------- | ------------------- |
+| Check Session | `packages/op-auth/src/session-check.ts`               | Iframe endpoint     |
+| Session APIs  | `packages/op-auth/src/session-api.ts`                 | ITP-compatible APIs |
+| Session Store | `packages/shared/src/durable-objects/SessionStore.ts` | State management    |
 
 ---
 

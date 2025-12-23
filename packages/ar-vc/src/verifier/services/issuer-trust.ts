@@ -77,9 +77,10 @@ export async function checkIssuerTrust(
     };
   } catch (error) {
     console.error('[checkIssuerTrust] Error:', error);
+    // SECURITY: Do not expose internal error details in response
     return {
       trusted: false,
-      reason: `Database error: ${error instanceof Error ? error.message : 'Unknown'}`,
+      reason: 'Failed to verify issuer trust',
     };
   }
 }
@@ -144,7 +145,8 @@ async function getKeyFromDid(env: Env, did: string): Promise<CryptoKey> {
   const didDocument = await resolveDID(did);
 
   if (!didDocument) {
-    throw new Error(`Failed to resolve DID: ${did}`);
+    // SECURITY: Do not expose DID value in error message
+    throw new Error('Failed to resolve DID document');
   }
 
   // Find verification method with public key

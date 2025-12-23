@@ -5,6 +5,7 @@
 The Admin Client Management API provides OAuth 2.0 client management capabilities for administrators. It enables listing, viewing, and managing registered OAuth clients (applications) that can authenticate with the Authrim OIDC Provider.
 
 **Key Features:**
+
 - List OAuth clients with pagination and search
 - Get detailed client information
 - Create, update, and delete clients (Phase 6)
@@ -12,6 +13,7 @@ The Admin Client Management API provides OAuth 2.0 client management capabilitie
 - View client metadata (name, logo, redirect URIs, etc.)
 
 **Authentication:**
+
 - Requires admin privileges (Phase 6)
 - Bearer token authentication (Phase 6)
 - RBAC permissions: `clients:read`, `clients:write`, `clients:delete` (Phase 6)
@@ -38,6 +40,7 @@ Get a paginated list of registered OAuth clients with optional search.
 | `search` | string | No | - | Search by client_name or client_id |
 
 **Response (200 OK):**
+
 ```json
 {
   "clients": [
@@ -83,13 +86,14 @@ Get a paginated list of registered OAuth clients with optional search.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 500 | `server_error` | Failed to retrieve clients |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 500         | `server_error` | Failed to retrieve clients              |
 
 **Example:**
+
 ```bash
 # List all clients (first page)
 curl "https://your-domain.com/admin/clients" \
@@ -105,18 +109,19 @@ curl "https://your-domain.com/admin/clients?page=2&limit=50" \
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 async function listClients(page = 1, search = '') {
   const params = new URLSearchParams({
     page: page.toString(),
     limit: '20',
-    ...(search && { search })
+    ...(search && { search }),
   });
 
   const response = await fetch(`/admin/clients?${params}`, {
     headers: {
-      'Authorization': `Bearer ${getAdminToken()}`
-    }
+      Authorization: `Bearer ${getAdminToken()}`,
+    },
   });
 
   const data = await response.json();
@@ -138,6 +143,7 @@ Retrieve detailed information about a specific OAuth client.
 | `id` | string | Yes | Client ID |
 
 **Response (200 OK):**
+
 ```json
 {
   "client": {
@@ -170,26 +176,28 @@ Retrieve detailed information about a specific OAuth client.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 404 | `not_found` | Client not found |
-| 500 | `server_error` | Failed to retrieve client |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 404         | `not_found`    | Client not found                        |
+| 500         | `server_error` | Failed to retrieve client               |
 
 **Example:**
+
 ```bash
 curl "https://your-domain.com/admin/clients/client_abc123" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 async function getClientDetails(clientId: string) {
   const response = await fetch(`/admin/clients/${clientId}`, {
     headers: {
-      'Authorization': `Bearer ${getAdminToken()}`
-    }
+      Authorization: `Bearer ${getAdminToken()}`,
+    },
   });
 
   if (!response.ok) {
@@ -231,6 +239,7 @@ Create a new OAuth client with admin privileges.
 | `allow_claims_without_scope` | boolean | No | `false` | Allow claims parameter without scope |
 
 **Example Request:**
+
 ```bash
 curl -X POST "https://your-domain.com/api/admin/clients" \
   -H "Authorization: Bearer YOUR_ADMIN_API_SECRET" \
@@ -244,6 +253,7 @@ curl -X POST "https://your-domain.com/api/admin/clients" \
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "client": {
@@ -273,13 +283,14 @@ curl -X POST "https://your-domain.com/api/admin/clients" \
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Missing required fields or invalid data |
-| 401 | `unauthorized` | Missing or invalid authentication |
-| 500 | `server_error` | Database error |
+| Status Code | Error             | Description                             |
+| ----------- | ----------------- | --------------------------------------- |
+| 400         | `invalid_request` | Missing required fields or invalid data |
+| 401         | `unauthorized`    | Missing or invalid authentication       |
+| 500         | `server_error`    | Database error                          |
 
 **JavaScript Usage:**
+
 ```typescript
 async function createClient(clientData: {
   client_name: string;
@@ -290,10 +301,10 @@ async function createClient(clientData: {
   const response = await fetch('/api/admin/clients', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${process.env.ADMIN_API_SECRET}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${process.env.ADMIN_API_SECRET}`,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(clientData)
+    body: JSON.stringify(clientData),
   });
 
   const data = await response.json();
@@ -307,6 +318,7 @@ async function createClient(clientData: {
 ```
 
 **Important Notes:**
+
 - `client_secret` is only returned once at creation time - store it securely!
 - Unlike Dynamic Client Registration (DCR), this endpoint allows setting admin-only flags like `skip_consent` and `is_trusted`
 - The `client_id` is a UUID generated by the server
@@ -342,6 +354,7 @@ Update an existing OAuth client's metadata.
 | `allow_claims_without_scope` | boolean | Allow claims parameter without scope |
 
 **Example Request:**
+
 ```bash
 curl -X PUT "https://your-domain.com/api/admin/clients/CLIENT_ID" \
   -H "Authorization: Bearer YOUR_ADMIN_API_SECRET" \
@@ -353,6 +366,7 @@ curl -X PUT "https://your-domain.com/api/admin/clients/CLIENT_ID" \
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "client": {
@@ -366,12 +380,12 @@ curl -X PUT "https://your-domain.com/api/admin/clients/CLIENT_ID" \
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Invalid request body |
-| 401 | `unauthorized` | Missing or invalid authentication |
-| 404 | `not_found` | Client not found |
-| 500 | `server_error` | Database error |
+| Status Code | Error             | Description                       |
+| ----------- | ----------------- | --------------------------------- |
+| 400         | `invalid_request` | Invalid request body              |
+| 401         | `unauthorized`    | Missing or invalid authentication |
+| 404         | `not_found`       | Client not found                  |
+| 500         | `server_error`    | Database error                    |
 
 ---
 
@@ -389,6 +403,7 @@ Generate a new client secret and invalidate the old one.
 | `id` | string | Yes | Client ID |
 
 **Expected Response (200 OK):**
+
 ```json
 {
   "client_id": "client_abc123",
@@ -398,6 +413,7 @@ Generate a new client secret and invalidate the old one.
 ```
 
 **Security:**
+
 - Old secret is immediately invalidated
 - New secret is shown only once
 - Audit log entry created
@@ -418,12 +434,14 @@ Delete an OAuth client.
 | `id` | string | Yes | Client ID |
 
 **Example Request:**
+
 ```bash
 curl -X DELETE "https://your-domain.com/api/admin/clients/CLIENT_ID" \
   -H "Authorization: Bearer YOUR_ADMIN_API_SECRET"
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -433,11 +451,11 @@ curl -X DELETE "https://your-domain.com/api/admin/clients/CLIENT_ID" \
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication |
-| 404 | `not_found` | Client not found |
-| 500 | `server_error` | Database error |
+| Status Code | Error          | Description                       |
+| ----------- | -------------- | --------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication |
+| 404         | `not_found`    | Client not found                  |
+| 500         | `server_error` | Database error                    |
 
 ---
 
@@ -450,6 +468,7 @@ Delete multiple OAuth clients at once.
 **Authentication:** Bearer token (ADMIN_API_SECRET)
 
 **Request Body:**
+
 ```json
 {
   "client_ids": ["client_id_1", "client_id_2", "client_id_3"]
@@ -457,6 +476,7 @@ Delete multiple OAuth clients at once.
 ```
 
 **Example Request:**
+
 ```bash
 curl -X DELETE "https://your-domain.com/api/admin/clients/bulk" \
   -H "Authorization: Bearer YOUR_ADMIN_API_SECRET" \
@@ -465,6 +485,7 @@ curl -X DELETE "https://your-domain.com/api/admin/clients/bulk" \
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -474,6 +495,7 @@ curl -X DELETE "https://your-domain.com/api/admin/clients/bulk" \
 ```
 
 **Partial Success Response:**
+
 ```json
 {
   "success": true,
@@ -492,35 +514,35 @@ curl -X DELETE "https://your-domain.com/api/admin/clients/bulk" \
 ```typescript
 interface OAuthClient {
   // Basic metadata
-  client_id: string;                        // Unique client identifier
-  client_secret: string;                    // Hashed secret (masked in responses)
-  client_name: string;                      // Application name
-  client_uri: string | null;                // Application homepage URL
-  logo_uri: string | null;                  // Application logo URL
-  tos_uri: string | null;                   // Terms of Service URL
-  policy_uri: string | null;                // Privacy Policy URL
+  client_id: string; // Unique client identifier
+  client_secret: string; // Hashed secret (masked in responses)
+  client_name: string; // Application name
+  client_uri: string | null; // Application homepage URL
+  logo_uri: string | null; // Application logo URL
+  tos_uri: string | null; // Terms of Service URL
+  policy_uri: string | null; // Privacy Policy URL
 
   // OAuth configuration
-  redirect_uris: string;                    // Space-separated redirect URIs
+  redirect_uris: string; // Space-separated redirect URIs
   post_logout_redirect_uris: string | null; // Space-separated logout redirect URIs
-  grant_types: string;                      // Space-separated grant types
-  response_types: string;                   // Space-separated response types
-  scope: string;                            // Space-separated scopes
-  token_endpoint_auth_method: string;       // client_secret_basic, client_secret_post, etc.
+  grant_types: string; // Space-separated grant types
+  response_types: string; // Space-separated response types
+  scope: string; // Space-separated scopes
+  token_endpoint_auth_method: string; // client_secret_basic, client_secret_post, etc.
 
   // Advanced configuration
-  jwks_uri: string | null;                  // JWKS endpoint URL
-  subject_type: string;                     // "public" or "pairwise"
-  id_token_signed_response_alg: string;     // "RS256", "ES256", etc.
-  require_auth_time: 0 | 1;                 // Require auth_time in ID token
-  default_max_age: number | null;           // Default max authentication age
+  jwks_uri: string | null; // JWKS endpoint URL
+  subject_type: string; // "public" or "pairwise"
+  id_token_signed_response_alg: string; // "RS256", "ES256", etc.
+  require_auth_time: 0 | 1; // Require auth_time in ID token
+  default_max_age: number | null; // Default max authentication age
   require_pushed_authorization_requests: 0 | 1; // Require PAR
 
   // Metadata
-  software_id: string | null;               // Software identifier
-  software_version: string | null;          // Software version
-  created_at: number;                       // Unix timestamp (milliseconds)
-  updated_at: number;                       // Unix timestamp (milliseconds)
+  software_id: string | null; // Software identifier
+  software_version: string | null; // Software version
+  created_at: number; // Unix timestamp (milliseconds)
+  updated_at: number; // Unix timestamp (milliseconds)
 }
 ```
 
@@ -574,6 +596,7 @@ LIMIT ? OFFSET ?;
 ```
 
 **Search Examples:**
+
 - `search=myapp` - Matches "My Application", "MyApp Dashboard", client IDs containing "myapp"
 - `search=client_abc` - Matches client_id "client_abc123"
 - `search=test` - Matches "Test Client", "Testing App"
@@ -586,12 +609,12 @@ LIMIT ? OFFSET ?;
 
 ```typescript
 interface Pagination {
-  page: number;          // Current page (1-indexed)
-  limit: number;         // Items per page
-  total: number;         // Total number of clients
-  totalPages: number;    // Total number of pages
-  hasNext: boolean;      // Whether there is a next page
-  hasPrev: boolean;      // Whether there is a previous page
+  page: number; // Current page (1-indexed)
+  limit: number; // Items per page
+  total: number; // Total number of clients
+  totalPages: number; // Total number of pages
+  hasNext: boolean; // Whether there is a next page
+  hasPrev: boolean; // Whether there is a previous page
 }
 ```
 
@@ -627,10 +650,10 @@ All admin actions should be logged:
 interface AuditLog {
   timestamp: number;
   admin_id: string;
-  action: string;          // "client_created", "client_updated", "client_deleted", "secret_regenerated"
-  resource_type: string;   // "oauth_client"
-  resource_id: string;     // Client ID
-  changes: object;         // What changed
+  action: string; // "client_created", "client_updated", "client_deleted", "secret_regenerated"
+  resource_type: string; // "oauth_client"
+  resource_id: string; // Client ID
+  changes: object; // What changed
   ip_address: string;
   user_agent: string;
 }
@@ -643,11 +666,13 @@ interface AuditLog {
 OAuth clients are cached in KV for performance. When a client is updated or deleted:
 
 1. **Invalidate KV cache:**
+
    ```typescript
    await KV_CACHE.delete(`oauth_client:${client_id}`);
    ```
 
 2. **Update D1 database:**
+
    ```sql
    UPDATE oauth_clients SET ... WHERE client_id = ?;
    ```
@@ -662,14 +687,14 @@ OAuth clients are cached in KV for performance. When a client is updated or dele
 
 Recommended rate limits for admin endpoints:
 
-| Endpoint | Limit | Period | Unit |
-|----------|-------|--------|------|
-| `GET /admin/clients` | 100 | 1 min | admin token |
-| `GET /admin/clients/:id` | 60 | 1 min | admin token |
-| `POST /admin/clients` | 10 | 1 min | admin token |
-| `PUT /admin/clients/:id` | 30 | 1 min | admin token |
-| `POST /admin/clients/:id/regenerate-secret` | 5 | 1 min | admin token |
-| `DELETE /admin/clients/:id` | 10 | 1 min | admin token |
+| Endpoint                                    | Limit | Period | Unit        |
+| ------------------------------------------- | ----- | ------ | ----------- |
+| `GET /admin/clients`                        | 100   | 1 min  | admin token |
+| `GET /admin/clients/:id`                    | 60    | 1 min  | admin token |
+| `POST /admin/clients`                       | 10    | 1 min  | admin token |
+| `PUT /admin/clients/:id`                    | 30    | 1 min  | admin token |
+| `POST /admin/clients/:id/regenerate-secret` | 5     | 1 min  | admin token |
+| `DELETE /admin/clients/:id`                 | 10    | 1 min  | admin token |
 
 ---
 
@@ -678,6 +703,7 @@ Recommended rate limits for admin endpoints:
 **Unit Tests:** `/packages/op-management/src/__tests__/admin.test.ts`
 
 **Manual Testing:**
+
 ```bash
 # List clients
 curl "http://localhost:8787/admin/clients"
@@ -702,13 +728,13 @@ The Admin Client Management API complements the existing Dynamic Client Registra
 
 **Comparison:**
 
-| Feature | DCR (`POST /register`) | Admin API (`POST /admin/clients`) |
-|---------|------------------------|-----------------------------------|
-| **Authentication** | None (public) or Initial Access Token | Admin Bearer Token |
-| **Use Case** | Client self-registration | Admin-initiated registration |
-| **Validation** | Strict RFC 7591 compliance | More flexible |
-| **Metadata** | Standard OIDC metadata | Can include custom fields |
-| **Audit** | Limited | Full audit trail |
+| Feature            | DCR (`POST /register`)                | Admin API (`POST /admin/clients`) |
+| ------------------ | ------------------------------------- | --------------------------------- |
+| **Authentication** | None (public) or Initial Access Token | Admin Bearer Token                |
+| **Use Case**       | Client self-registration              | Admin-initiated registration      |
+| **Validation**     | Strict RFC 7591 compliance            | More flexible                     |
+| **Metadata**       | Standard OIDC metadata                | Can include custom fields         |
+| **Audit**          | Limited                               | Full audit trail                  |
 
 ---
 
@@ -716,12 +742,12 @@ The Admin Client Management API complements the existing Dynamic Client Registra
 
 Supported OAuth 2.0 grant types:
 
-| Grant Type | Description |
-|------------|-------------|
+| Grant Type           | Description                                 |
+| -------------------- | ------------------------------------------- |
 | `authorization_code` | Standard authorization code flow (REQUIRED) |
-| `refresh_token` | Refresh token for long-lived access |
+| `refresh_token`      | Refresh token for long-lived access         |
 | `client_credentials` | Machine-to-machine authentication (Phase 7) |
-| `implicit` | Implicit flow (NOT RECOMMENDED) |
+| `implicit`           | Implicit flow (NOT RECOMMENDED)             |
 
 **Default:** `authorization_code`
 
@@ -731,13 +757,13 @@ Supported OAuth 2.0 grant types:
 
 Supported client authentication methods:
 
-| Method | Description |
-|--------|-------------|
+| Method                | Description                         |
+| --------------------- | ----------------------------------- |
 | `client_secret_basic` | HTTP Basic authentication (default) |
-| `client_secret_post` | POST body parameters |
-| `client_secret_jwt` | JWT with client secret (RFC 7523) |
-| `private_key_jwt` | JWT with private key (RFC 7523) |
-| `none` | Public clients (PKCE required) |
+| `client_secret_post`  | POST body parameters                |
+| `client_secret_jwt`   | JWT with client secret (RFC 7523)   |
+| `private_key_jwt`     | JWT with private key (RFC 7523)     |
+| `none`                | Public clients (PKCE required)      |
 
 **Default:** `client_secret_basic`
 
@@ -747,15 +773,15 @@ Supported client authentication methods:
 
 Supported OAuth 2.0 response types:
 
-| Response Type | Flow | Description |
-|---------------|------|-------------|
-| `code` | Authorization Code | Standard flow (RECOMMENDED) |
-| `token` | Implicit | Access token (NOT RECOMMENDED) |
-| `id_token` | Implicit | ID token only |
-| `id_token token` | Implicit | Both tokens |
-| `code id_token` | Hybrid | Code + ID token |
-| `code token` | Hybrid | Code + access token |
-| `code id_token token` | Hybrid | All tokens |
+| Response Type         | Flow               | Description                    |
+| --------------------- | ------------------ | ------------------------------ |
+| `code`                | Authorization Code | Standard flow (RECOMMENDED)    |
+| `token`               | Implicit           | Access token (NOT RECOMMENDED) |
+| `id_token`            | Implicit           | ID token only                  |
+| `id_token token`      | Implicit           | Both tokens                    |
+| `code id_token`       | Hybrid             | Code + ID token                |
+| `code token`          | Hybrid             | Code + access token            |
+| `code id_token token` | Hybrid             | All tokens                     |
 
 **Default:** `code`
 
@@ -764,6 +790,7 @@ Supported OAuth 2.0 response types:
 ## Future Enhancements
 
 ### Phase 6
+
 - Create client endpoint
 - Update client endpoint
 - Regenerate client secret
@@ -772,6 +799,7 @@ Supported OAuth 2.0 response types:
 - KV cache invalidation
 
 ### Phase 7
+
 - Bulk operations (bulk delete)
 - Client export (CSV, JSON)
 - Client usage statistics (token counts, last used)

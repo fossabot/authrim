@@ -5,6 +5,7 @@
 The Admin User Management API provides comprehensive user management capabilities for administrators. It enables CRUD operations on user accounts, searching, filtering, and retrieving detailed user information including passkeys and custom fields.
 
 **Key Features:**
+
 - List users with pagination, search, and filtering
 - Get detailed user information
 - Create new users programmatically
@@ -13,6 +14,7 @@ The Admin User Management API provides comprehensive user management capabilitie
 - View user's passkeys and custom fields
 
 **Authentication:**
+
 - Requires admin privileges (Phase 6)
 - Bearer token authentication (Phase 6)
 - RBAC permissions: `users:read`, `users:write`, `users:delete` (Phase 6)
@@ -40,6 +42,7 @@ Get a paginated list of users with optional search and filtering.
 | `verified` | string | No | - | Filter by email verification ("true" or "false") |
 
 **Response (200 OK):**
+
 ```json
 {
   "users": [
@@ -81,13 +84,14 @@ Get a paginated list of users with optional search and filtering.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 500 | `server_error` | Failed to retrieve users |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 500         | `server_error` | Failed to retrieve users                |
 
 **Example:**
+
 ```bash
 # List all users (first page)
 curl "https://your-domain.com/admin/users" \
@@ -107,18 +111,19 @@ curl "https://your-domain.com/admin/users?page=2&limit=50" \
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 async function listUsers(page = 1, search = '') {
   const params = new URLSearchParams({
     page: page.toString(),
     limit: '20',
-    ...(search && { search })
+    ...(search && { search }),
   });
 
   const response = await fetch(`/admin/users?${params}`, {
     headers: {
-      'Authorization': `Bearer ${getAdminToken()}`
-    }
+      Authorization: `Bearer ${getAdminToken()}`,
+    },
   });
 
   const data = await response.json();
@@ -140,6 +145,7 @@ Retrieve detailed information about a specific user.
 | `id` | string | Yes | User ID |
 
 **Response (200 OK):**
+
 ```json
 {
   "user": {
@@ -180,26 +186,28 @@ Retrieve detailed information about a specific user.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 404 | `not_found` | User not found |
-| 500 | `server_error` | Failed to retrieve user |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 404         | `not_found`    | User not found                          |
+| 500         | `server_error` | Failed to retrieve user                 |
 
 **Example:**
+
 ```bash
 curl "https://your-domain.com/admin/users/user_123" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 async function getUserDetails(userId: string) {
   const response = await fetch(`/admin/users/${userId}`, {
     headers: {
-      'Authorization': `Bearer ${getAdminToken()}`
-    }
+      Authorization: `Bearer ${getAdminToken()}`,
+    },
   });
 
   if (!response.ok) {
@@ -219,6 +227,7 @@ Create a new user account.
 **Endpoint:** `POST /admin/users`
 
 **Request Body:**
+
 ```json
 {
   "email": "newuser@example.com",
@@ -242,6 +251,7 @@ Create a new user account.
 | `[custom]` | any | No | Additional custom attributes stored in `custom_attributes_json` |
 
 **Response (201 Created):**
+
 ```json
 {
   "user": {
@@ -261,15 +271,16 @@ Create a new user account.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | Email is missing or invalid |
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 409 | `conflict` | User with this email already exists |
-| 500 | `server_error` | Failed to create user |
+| Status Code | Error             | Description                             |
+| ----------- | ----------------- | --------------------------------------- |
+| 400         | `invalid_request` | Email is missing or invalid             |
+| 401         | `unauthorized`    | Missing or invalid authentication token |
+| 403         | `forbidden`       | Insufficient permissions                |
+| 409         | `conflict`        | User with this email already exists     |
+| 500         | `server_error`    | Failed to create user                   |
 
 **Example:**
+
 ```bash
 curl -X POST "https://your-domain.com/admin/users" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
@@ -283,6 +294,7 @@ curl -X POST "https://your-domain.com/admin/users" \
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 async function createUser(userData: {
   email: string;
@@ -293,10 +305,10 @@ async function createUser(userData: {
   const response = await fetch('/admin/users', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${getAdminToken()}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${getAdminToken()}`,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(userData)
+    body: JSON.stringify(userData),
   });
 
   if (!response.ok) {
@@ -322,6 +334,7 @@ Update an existing user's attributes.
 | `id` | string | Yes | User ID |
 
 **Request Body:**
+
 ```json
 {
   "name": "Updated Name",
@@ -342,6 +355,7 @@ Update an existing user's attributes.
 **Note:** Email address cannot be changed. Custom fields update is planned for Phase 6.
 
 **Response (200 OK):**
+
 ```json
 {
   "user": {
@@ -361,15 +375,16 @@ Update an existing user's attributes.
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 400 | `invalid_request` | No fields to update |
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 404 | `not_found` | User not found |
-| 500 | `server_error` | Failed to update user |
+| Status Code | Error             | Description                             |
+| ----------- | ----------------- | --------------------------------------- |
+| 400         | `invalid_request` | No fields to update                     |
+| 401         | `unauthorized`    | Missing or invalid authentication token |
+| 403         | `forbidden`       | Insufficient permissions                |
+| 404         | `not_found`       | User not found                          |
+| 500         | `server_error`    | Failed to update user                   |
 
 **Example:**
+
 ```bash
 curl -X PUT "https://your-domain.com/admin/users/user_123" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
@@ -381,20 +396,24 @@ curl -X PUT "https://your-domain.com/admin/users/user_123" \
 ```
 
 **JavaScript Usage:**
+
 ```typescript
-async function updateUser(userId: string, updates: {
-  name?: string;
-  email_verified?: boolean;
-  phone_number?: string;
-  phone_number_verified?: boolean;
-}) {
+async function updateUser(
+  userId: string,
+  updates: {
+    name?: string;
+    email_verified?: boolean;
+    phone_number?: string;
+    phone_number_verified?: boolean;
+  }
+) {
   const response = await fetch(`/admin/users/${userId}`, {
     method: 'PUT',
     headers: {
-      'Authorization': `Bearer ${getAdminToken()}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${getAdminToken()}`,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(updates)
+    body: JSON.stringify(updates),
   });
 
   if (!response.ok) {
@@ -420,6 +439,7 @@ Delete a user account. This cascades to delete related data (passkeys, custom fi
 | `id` | string | Yes | User ID |
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -429,30 +449,34 @@ Delete a user account. This cascades to delete related data (passkeys, custom fi
 
 **Error Responses:**
 
-| Status Code | Error | Description |
-|-------------|-------|-------------|
-| 401 | `unauthorized` | Missing or invalid authentication token |
-| 403 | `forbidden` | Insufficient permissions |
-| 404 | `not_found` | User not found |
-| 500 | `server_error` | Failed to delete user |
+| Status Code | Error          | Description                             |
+| ----------- | -------------- | --------------------------------------- |
+| 401         | `unauthorized` | Missing or invalid authentication token |
+| 403         | `forbidden`    | Insufficient permissions                |
+| 404         | `not_found`    | User not found                          |
+| 500         | `server_error` | Failed to delete user                   |
 
 **Example:**
+
 ```bash
 curl -X DELETE "https://your-domain.com/admin/users/user_123" \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
 
 **JavaScript Usage:**
+
 ```typescript
 async function deleteUser(userId: string) {
-  const confirmed = confirm('Are you sure you want to delete this user? This action cannot be undone.');
+  const confirmed = confirm(
+    'Are you sure you want to delete this user? This action cannot be undone.'
+  );
   if (!confirmed) return;
 
   const response = await fetch(`/admin/users/${userId}`, {
     method: 'DELETE',
     headers: {
-      'Authorization': `Bearer ${getAdminToken()}`
-    }
+      Authorization: `Bearer ${getAdminToken()}`,
+    },
   });
 
   if (!response.ok) {
@@ -472,15 +496,15 @@ async function deleteUser(userId: string) {
 
 ```typescript
 interface User {
-  id: string;                      // UUID
-  email: string;                   // Unique email address
-  name: string | null;             // Display name
-  email_verified: 0 | 1;           // Email verification status
-  phone_number: string | null;     // Phone number (E.164 format)
-  phone_number_verified: 0 | 1;    // Phone verification status
-  created_at: number;              // Unix timestamp (milliseconds)
-  updated_at: number;              // Unix timestamp (milliseconds)
-  last_login_at: number | null;    // Unix timestamp (milliseconds)
+  id: string; // UUID
+  email: string; // Unique email address
+  name: string | null; // Display name
+  email_verified: 0 | 1; // Email verification status
+  phone_number: string | null; // Phone number (E.164 format)
+  phone_number_verified: 0 | 1; // Phone verification status
+  created_at: number; // Unix timestamp (milliseconds)
+  updated_at: number; // Unix timestamp (milliseconds)
+  last_login_at: number | null; // Unix timestamp (milliseconds)
   custom_attributes_json: string | null; // JSON string of custom attributes
 }
 ```
@@ -489,11 +513,11 @@ interface User {
 
 ```typescript
 interface Passkey {
-  id: string;                      // UUID
-  credential_id: string;           // WebAuthn credential ID (base64)
-  device_name: string;             // Human-readable device name
-  created_at: number;              // Unix timestamp (milliseconds)
-  last_used_at: number;            // Unix timestamp (milliseconds)
+  id: string; // UUID
+  credential_id: string; // WebAuthn credential ID (base64)
+  device_name: string; // Human-readable device name
+  created_at: number; // Unix timestamp (milliseconds)
+  last_used_at: number; // Unix timestamp (milliseconds)
 }
 ```
 
@@ -501,9 +525,9 @@ interface Passkey {
 
 ```typescript
 interface CustomField {
-  field_name: string;              // Field name
-  field_value: string;             // Field value
-  field_type: string;              // Field type (string, number, boolean, etc.)
+  field_name: string; // Field name
+  field_value: string; // Field value
+  field_type: string; // Field type (string, number, boolean, etc.)
 }
 ```
 
@@ -571,6 +595,7 @@ When a user is deleted, the following related data is automatically deleted:
 5. **Consents** - All stored consent decisions (Phase 6)
 
 **Database Constraint:**
+
 ```sql
 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ```
@@ -591,13 +616,15 @@ LIMIT ? OFFSET ?;
 ```
 
 **Search Examples:**
+
 - `search=john` - Matches "john@example.com", "John Doe", "johnny@test.com"
-- `search=@example` - Matches all emails with "@example" (e.g., "*@example.com")
+- `search=@example` - Matches all emails with "@example" (e.g., "\*@example.com")
 - `search=doe` - Matches "John Doe", "Jane Doe"
 
 ### Filtering
 
 **Email Verification Filter:**
+
 ```bash
 # Verified users only
 curl "/admin/users?verified=true"
@@ -610,6 +637,7 @@ curl "/admin/users"
 ```
 
 **Combining Search and Filter:**
+
 ```bash
 curl "/admin/users?search=john&verified=true"
 ```
@@ -622,12 +650,12 @@ curl "/admin/users?search=john&verified=true"
 
 ```typescript
 interface Pagination {
-  page: number;          // Current page (1-indexed)
-  limit: number;         // Items per page
-  total: number;         // Total number of items
-  totalPages: number;    // Total number of pages
-  hasNext: boolean;      // Whether there is a next page
-  hasPrev: boolean;      // Whether there is a previous page
+  page: number; // Current page (1-indexed)
+  limit: number; // Items per page
+  total: number; // Total number of items
+  totalPages: number; // Total number of pages
+  hasNext: boolean; // Whether there is a next page
+  hasPrev: boolean; // Whether there is a previous page
 }
 ```
 
@@ -686,10 +714,10 @@ All admin actions should be logged:
 interface AuditLog {
   timestamp: number;
   admin_id: string;
-  action: string;          // "user_created", "user_updated", "user_deleted"
-  resource_type: string;   // "user"
-  resource_id: string;     // User ID
-  changes: object;         // What changed
+  action: string; // "user_created", "user_updated", "user_deleted"
+  resource_type: string; // "user"
+  resource_id: string; // User ID
+  changes: object; // What changed
   ip_address: string;
   user_agent: string;
 }
@@ -701,13 +729,13 @@ interface AuditLog {
 
 Recommended rate limits for admin endpoints:
 
-| Endpoint | Limit | Period | Unit |
-|----------|-------|--------|------|
-| `GET /admin/users` | 100 | 1 min | admin token |
-| `GET /admin/users/:id` | 60 | 1 min | admin token |
-| `POST /admin/users` | 10 | 1 min | admin token |
-| `PUT /admin/users/:id` | 30 | 1 min | admin token |
-| `DELETE /admin/users/:id` | 10 | 1 min | admin token |
+| Endpoint                  | Limit | Period | Unit        |
+| ------------------------- | ----- | ------ | ----------- |
+| `GET /admin/users`        | 100   | 1 min  | admin token |
+| `GET /admin/users/:id`    | 60    | 1 min  | admin token |
+| `POST /admin/users`       | 10    | 1 min  | admin token |
+| `PUT /admin/users/:id`    | 30    | 1 min  | admin token |
+| `DELETE /admin/users/:id` | 10    | 1 min  | admin token |
 
 ---
 
@@ -716,6 +744,7 @@ Recommended rate limits for admin endpoints:
 **Unit Tests:** `/packages/op-management/src/__tests__/admin.test.ts`
 
 **Manual Testing:**
+
 ```bash
 # List users
 curl "http://localhost:8787/admin/users"
@@ -742,6 +771,7 @@ curl -X DELETE "http://localhost:8787/admin/users/USER_ID"
 ## Future Enhancements (Phase 6+)
 
 ### Phase 6
+
 - Admin authentication and authorization
 - RBAC permissions
 - Audit logging
@@ -749,6 +779,7 @@ curl -X DELETE "http://localhost:8787/admin/users/USER_ID"
 - Session invalidation on user delete
 
 ### Phase 7
+
 - Bulk operations (bulk delete, bulk update)
 - User export (CSV, JSON)
 - Advanced filtering (by date range, custom fields)

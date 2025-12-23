@@ -6,6 +6,8 @@ import {
   getShardCount,
   buildAuthCodeShardInstanceName,
   timingSafeEqual,
+  createErrorResponse,
+  AR_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -29,7 +31,7 @@ export async function warmupHandler(c: Context<{ Bindings: Env }>) {
   const secret = c.req.header('X-Admin-Secret') || c.req.query('secret');
   // Use timing-safe comparison to prevent timing attacks
   if (!secret || !c.env.ADMIN_API_SECRET || !timingSafeEqual(secret, c.env.ADMIN_API_SECRET)) {
-    return c.json({ error: 'unauthorized', message: 'Invalid or missing admin secret' }, 401);
+    return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
   }
 
   const startTime = Date.now();

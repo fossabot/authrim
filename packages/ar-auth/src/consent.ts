@@ -166,9 +166,9 @@ export async function consentGetHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'invalid_client',
-          error_description: 'Client not found',
+          error_description: 'Client authentication failed',
         },
-        400
+        401
       );
     }
 
@@ -244,10 +244,10 @@ async function handleJsonConsentGet(
   if (!userInfo) {
     return c.json(
       {
-        error: 'invalid_request',
-        error_description: 'User not found',
+        error: 'access_denied',
+        error_description: 'Authentication required',
       },
-      400
+      401
     );
   }
 

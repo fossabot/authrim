@@ -155,7 +155,16 @@ paths:
           required: true
           schema:
             type: string
-            enum: [code, token, id_token, 'code id_token', 'code token', 'id_token token', 'code id_token token']
+            enum:
+              [
+                code,
+                token,
+                id_token,
+                'code id_token',
+                'code token',
+                'id_token token',
+                'code id_token token',
+              ]
           example: code
         - name: client_id
           in: query

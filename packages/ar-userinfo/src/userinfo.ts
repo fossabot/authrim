@@ -157,10 +157,12 @@ export async function userinfoHandler(c: Context<{ Bindings: Env }>) {
   const user = await getCachedUser(c.env, sub);
 
   if (!user) {
+    // Security: Generic message to prevent user enumeration
+    // The subject from the token was valid but user data is missing
     return c.json(
       {
         error: 'invalid_token',
-        error_description: 'User not found',
+        error_description: 'The access token is invalid',
       },
       401
     );
@@ -322,11 +324,13 @@ export async function userinfoHandler(c: Context<{ Bindings: Env }>) {
     try {
       validateJWEOptions(alg, enc);
     } catch (validationError) {
+      // Log full error details for debugging but don't expose to client
       console.error('Invalid JWE options for UserInfo:', validationError);
+      // SECURITY: Do not expose validation error details in response
       return c.json(
         {
           error: 'invalid_client_metadata',
-          error_description: `Client encryption configuration is invalid: ${validationError instanceof Error ? validationError.message : 'Unknown error'}`,
+          error_description: 'Client encryption configuration is invalid',
         },
         400
       );

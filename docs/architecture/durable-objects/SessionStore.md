@@ -5,12 +5,14 @@
 The SessionStore Durable Object manages active user sessions with in-memory hot data and D1 database fallback for persistence. It provides instant session invalidation and ITP-compatible session management.
 
 **Hot/Cold Pattern:**
+
 1. Active sessions stored in-memory for sub-millisecond access (hot)
 2. Cold sessions loaded from D1 database on demand
 3. Sessions promoted to hot storage on access
 4. Expired sessions cleaned up periodically
 
 **Security Features:**
+
 - Instant session revocation (security requirement)
 - Automatic expiration handling
 - Multi-device session management
@@ -31,6 +33,7 @@ Create a new user session.
 **Endpoint:** `POST /session`
 
 **Request Body:**
+
 ```json
 {
   "userId": "user_123",
@@ -53,6 +56,7 @@ Create a new user session.
 | `data` | object | No | Additional session metadata |
 
 **Response (201 Created):**
+
 ```json
 {
   "id": "session_550e8400-e29b-41d4-a716-446655440000",
@@ -63,6 +67,7 @@ Create a new user session.
 ```
 
 **Example:**
+
 ```bash
 curl -X POST https://session-store.example.workers.dev/session \
   -H "Content-Type: application/json" \
@@ -90,6 +95,7 @@ Retrieve a session by ID. Checks in-memory storage first, then falls back to D1 
 | `id` | string | Yes | Session ID |
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "session_550e8400-e29b-41d4-a716-446655440000",
@@ -100,6 +106,7 @@ Retrieve a session by ID. Checks in-memory storage first, then falls back to D1 
 ```
 
 **Response (404 Not Found):**
+
 ```json
 {
   "error": "Session not found"
@@ -107,6 +114,7 @@ Retrieve a session by ID. Checks in-memory storage first, then falls back to D1 
 ```
 
 **Example:**
+
 ```bash
 curl https://session-store.example.workers.dev/session/session_550e8400-e29b-41d4-a716-446655440000
 ```
@@ -125,6 +133,7 @@ Invalidate a session immediately (instant revocation).
 | `id` | string | Yes | Session ID to invalidate |
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -133,6 +142,7 @@ Invalidate a session immediately (instant revocation).
 ```
 
 **Example:**
+
 ```bash
 curl -X DELETE https://session-store.example.workers.dev/session/session_550e8400-e29b-41d4-a716-446655440000
 ```
@@ -151,6 +161,7 @@ List all active sessions for a specific user (multi-device support).
 | `userId` | string | Yes | User ID |
 
 **Response (200 OK):**
+
 ```json
 {
   "sessions": [
@@ -171,6 +182,7 @@ List all active sessions for a specific user (multi-device support).
 ```
 
 **Example:**
+
 ```bash
 curl https://session-store.example.workers.dev/sessions/user/user_123
 ```
@@ -189,6 +201,7 @@ Extend session expiration (Active TTL pattern).
 | `id` | string | Yes | Session ID |
 
 **Request Body:**
+
 ```json
 {
   "seconds": 3600
@@ -201,6 +214,7 @@ Extend session expiration (Active TTL pattern).
 | `seconds` | number | Yes | Seconds to add to expiration (must be > 0) |
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "session_550e8400-e29b-41d4-a716-446655440000",
@@ -211,6 +225,7 @@ Extend session expiration (Active TTL pattern).
 ```
 
 **Response (404 Not Found):**
+
 ```json
 {
   "error": "Session not found"
@@ -218,6 +233,7 @@ Extend session expiration (Active TTL pattern).
 ```
 
 **Response (400 Bad Request):**
+
 ```json
 {
   "error": "Invalid seconds value"
@@ -225,6 +241,7 @@ Extend session expiration (Active TTL pattern).
 ```
 
 **Example:**
+
 ```bash
 curl -X POST https://session-store.example.workers.dev/session/session_550e8400-e29b-41d4-a716-446655440000/extend \
   -H "Content-Type: application/json" \
@@ -240,6 +257,7 @@ Get health status and statistics.
 **Endpoint:** `GET /status`
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "ok",
@@ -249,6 +267,7 @@ Get health status and statistics.
 ```
 
 **Example:**
+
 ```bash
 curl https://session-store.example.workers.dev/status
 ```
@@ -260,6 +279,7 @@ curl https://session-store.example.workers.dev/status
 All endpoints may return the following error responses:
 
 ### 400 Bad Request
+
 ```json
 {
   "error": "Missing required fields: userId, ttl"
@@ -267,6 +287,7 @@ All endpoints may return the following error responses:
 ```
 
 ### 404 Not Found
+
 ```json
 {
   "error": "Session not found"
@@ -274,6 +295,7 @@ All endpoints may return the following error responses:
 ```
 
 ### 500 Internal Server Error
+
 ```json
 {
   "error": "Internal Server Error",
@@ -286,20 +308,22 @@ All endpoints may return the following error responses:
 ## Data Types
 
 ### Session Object
+
 ```typescript
 interface Session {
   id: string;
   userId: string;
-  expiresAt: number;  // Unix timestamp in milliseconds
-  createdAt: number;  // Unix timestamp in milliseconds
+  expiresAt: number; // Unix timestamp in milliseconds
+  createdAt: number; // Unix timestamp in milliseconds
 }
 ```
 
 ### SessionData Object
+
 ```typescript
 interface SessionData {
-  amr?: string[];      // Authentication Methods References
-  acr?: string;        // Authentication Context Class Reference
+  amr?: string[]; // Authentication Methods References
+  acr?: string; // Authentication Context Class Reference
   deviceName?: string;
   ipAddress?: string;
   userAgent?: string;

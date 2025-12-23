@@ -13,13 +13,13 @@
 
 ### 移行対象ファイル
 
-| ファイル | 直接SQL数 | 優先度 |
-|---------|----------|--------|
-| `packages/op-management/src/admin.ts` | 47+ | 高 |
-| `packages/op-token/src/token.ts` | 10+ | 高 |
-| `packages/op-auth/src/authorize.ts` | 5+ | 中 |
-| `packages/external-idp/src/services/linked-identity-store.ts` | 8+ | 中 |
-| `packages/shared/src/storage/adapters/cloudflare-adapter.ts` | 10+ | 中 |
+| ファイル                                                      | 直接SQL数 | 優先度 |
+| ------------------------------------------------------------- | --------- | ------ |
+| `packages/op-management/src/admin.ts`                         | 47+       | 高     |
+| `packages/op-token/src/token.ts`                              | 10+       | 高     |
+| `packages/op-auth/src/authorize.ts`                           | 5+        | 中     |
+| `packages/external-idp/src/services/linked-identity-store.ts` | 8+        | 中     |
+| `packages/shared/src/storage/adapters/cloudflare-adapter.ts`  | 10+       | 中     |
 
 ## 移行パターン
 
@@ -28,9 +28,7 @@
 ```typescript
 // 旧コード: 直接D1を使用
 export async function getUserById(c: Context, userId: string) {
-  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?')
-    .bind(userId)
-    .first();
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   return user;
 }
 ```
@@ -68,11 +66,7 @@ export async function getUserWithPII(ctx: PIIContext, userId: string) {
 ```typescript
 // packages/op-auth/src/index.ts (例)
 import { Hono } from 'hono';
-import {
-  ContextFactory,
-  createD1Adapter,
-  createPIIPartitionRouter,
-} from '@authrim/shared';
+import { ContextFactory, createD1Adapter, createPIIPartitionRouter } from '@authrim/shared';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -87,11 +81,14 @@ app.use('*', async (c, next) => {
     c.env.AUTHRIM_CONFIG
   );
 
-  c.set('contextFactory', new ContextFactory({
-    coreAdapter,
-    defaultPiiAdapter: piiAdapter,
-    partitionRouter,
-  }));
+  c.set(
+    'contextFactory',
+    new ContextFactory({
+      coreAdapter,
+      defaultPiiAdapter: piiAdapter,
+      partitionRouter,
+    })
+  );
 
   await next();
 });
@@ -114,7 +111,7 @@ export interface Env {
   DB: D1Database;
 
   // 新規追加
-  DB_PII: D1Database;  // PII専用D1
+  DB_PII: D1Database; // PII専用D1
 
   // 将来のリージョン別DB (オプション)
   // DB_PII_EU?: D1Database;
@@ -200,13 +197,16 @@ async function deleteUserWithGDPR(ctx: PIIContext, userId: string, actor: string
 
   // 1. Tombstone作成 (削除記録)
   const pii = await ctx.piiRepositories.userPII.findByUserId(userId, piiAdapter);
-  await ctx.piiRepositories.tombstone.createTombstone({
-    id: userId,
-    tenant_id: userCore.tenant_id,
-    email_blind_index: pii?.email_blind_index,
-    deleted_by: actor,
-    deletion_reason: 'user_request',
-  }, piiAdapter);
+  await ctx.piiRepositories.tombstone.createTombstone(
+    {
+      id: userId,
+      tenant_id: userCore.tenant_id,
+      email_blind_index: pii?.email_blind_index,
+      deleted_by: actor,
+      deletion_reason: 'user_request',
+    },
+    piiAdapter
+  );
 
   // 2. PII削除
   await ctx.piiRepositories.userPII.deletePII(userId, piiAdapter);
@@ -218,14 +218,14 @@ async function deleteUserWithGDPR(ctx: PIIContext, userId: string, actor: string
 
 ## 移行スケジュール (推奨)
 
-| 週 | 作業内容 |
-|---|---------|
-| 1日目 | admin.ts: ユーザー一覧・詳細取得 |
-| 2日目 | admin.ts: ユーザー作成・更新 |
-| 3日目 | admin.ts: ユーザー削除・GDPR対応 |
-| 4日目 | token.ts: 認証フロー |
-| 5日目 | authorize.ts, external-idp |
-| 6-7日目 | テスト・デバッグ・ドキュメント |
+| 週      | 作業内容                         |
+| ------- | -------------------------------- |
+| 1日目   | admin.ts: ユーザー一覧・詳細取得 |
+| 2日目   | admin.ts: ユーザー作成・更新     |
+| 3日目   | admin.ts: ユーザー削除・GDPR対応 |
+| 4日目   | token.ts: 認証フロー             |
+| 5日目   | authorize.ts, external-idp       |
+| 6-7日目 | テスト・デバッグ・ドキュメント   |
 
 ## 関連ファイル
 

@@ -94,7 +94,9 @@ async function fetchShardConfig(clientId = null) {
 
   const data = await res.json();
   shardConfigCache = data.config;
-  console.log(`🔧 Shard config: generation=${shardConfigCache.currentGeneration}, shards=${shardConfigCache.currentShardCount}`);
+  console.log(
+    `🔧 Shard config: generation=${shardConfigCache.currentGeneration}, shards=${shardConfigCache.currentShardCount}`
+  );
   return shardConfigCache;
 }
 
@@ -152,7 +154,15 @@ async function fetchSigningKey() {
  * @param {number} expiresIn - Token expiration in seconds (default: 30 days)
  * @param {number} rtv - Refresh token version (default: 1)
  */
-async function createRefreshToken(privateKey, kid, claims, generation, shardIndex, expiresIn = 2592000, rtv = 1) {
+async function createRefreshToken(
+  privateKey,
+  kid,
+  claims,
+  generation,
+  shardIndex,
+  expiresIn = 2592000,
+  rtv = 1
+) {
   const now = Math.floor(Date.now() / 1000);
   const randomPart = generateSecureRandomString(64);
   // V3: JTI format with generation and shard info
@@ -315,7 +325,15 @@ async function main() {
     const remaining = COUNT - currentIndex;
     const batchSize = Math.min(CONCURRENCY, remaining);
 
-    const results = await generateBatch(privateKey, signingKey.kid, issuer, scope, batchSize, currentIndex, shardConfig);
+    const results = await generateBatch(
+      privateKey,
+      signingKey.kid,
+      issuer,
+      scope,
+      batchSize,
+      currentIndex,
+      shardConfig
+    );
     currentIndex += batchSize;
 
     for (const result of results) {
@@ -351,8 +369,12 @@ async function main() {
   fs.writeFileSync(outputPath, JSON.stringify(refreshTokens, null, 2));
 
   console.log('');
-  console.log(`✅ Generated ${refreshTokens.length} refresh tokens (V3 with sharding) in ${totalTime.toFixed(2)}s`);
-  console.log(`   Generation: ${shardConfig.currentGeneration}, Shards: ${shardConfig.currentShardCount}`);
+  console.log(
+    `✅ Generated ${refreshTokens.length} refresh tokens (V3 with sharding) in ${totalTime.toFixed(2)}s`
+  );
+  console.log(
+    `   Generation: ${shardConfig.currentGeneration}, Shards: ${shardConfig.currentShardCount}`
+  );
   console.log(`   Rate: ${(refreshTokens.length / totalTime).toFixed(1)} tokens/sec`);
   console.log(`   Errors: ${errorCount}`);
   console.log(`📁 Saved to: ${outputPath}`);

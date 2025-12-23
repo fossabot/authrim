@@ -297,9 +297,10 @@ describe('Check API Feature Flag - Dynamic Override', () => {
       });
       const res = await app.fetch(req, env);
 
-      expect(res.status).toBe(503);
+      // POLICY_FEATURE_DISABLED: RFC準拠で access_denied + 403
+      expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body.error).toBe('feature_disabled');
+      expect(body.error).toBe('access_denied');
     });
 
     it('should process request when Check API is enabled via KV', async () => {
@@ -323,11 +324,11 @@ describe('Check API Feature Flag - Dynamic Override', () => {
       });
       const res = await app.fetch(req, env);
 
-      // Should not return 503 feature_disabled
-      expect(res.status).not.toBe(503);
+      // Should not return 403 feature_disabled
+      expect(res.status).not.toBe(403);
     });
 
-    it('should return 503 for batch when Check API is disabled', async () => {
+    it('should return 403 for batch when Check API is disabled', async () => {
       const mockD1 = createMockD1();
 
       const env = {
@@ -345,9 +346,10 @@ describe('Check API Feature Flag - Dynamic Override', () => {
       });
       const res = await app.fetch(req, env);
 
-      expect(res.status).toBe(503);
+      // POLICY_FEATURE_DISABLED: RFC準拠で access_denied + 403
+      expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body.error).toBe('feature_disabled');
+      expect(body.error).toBe('access_denied');
     });
   });
 });

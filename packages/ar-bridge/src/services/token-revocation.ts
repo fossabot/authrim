@@ -48,7 +48,8 @@ export async function revokeLinkedIdentityTokens(
     // Get provider configuration
     const provider = await getProvider(env, identity.providerId);
     if (!provider) {
-      result.errors.push(`Provider ${identity.providerId} not found`);
+      // SECURITY: Do not expose provider ID in error to prevent enumeration
+      result.errors.push('Provider not found');
       return result;
     }
 
@@ -118,7 +119,8 @@ export async function revokeLinkedIdentityTokens(
   } catch (error) {
     // PII Protection: Don't log full error object
     console.error('Token revocation error:', error instanceof Error ? error.name : 'Unknown error');
-    result.errors.push(error instanceof Error ? error.message : 'Unknown error');
+    // SECURITY: Do not expose internal error details
+    result.errors.push('Token revocation failed');
     return result;
   }
 }
@@ -216,9 +218,11 @@ async function revokeToken(
       return { success: false, error: `HTTP ${response.status}` };
     }
   } catch (error) {
+    console.error('[revokeToken] Request error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Network error',
+      // SECURITY: Do not expose network error details (may contain URLs)
+      error: 'Request failed',
     };
   }
 }

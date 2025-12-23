@@ -589,7 +589,10 @@ export class AuthorizationCodeStore extends DurableObject<Env> {
       }
 
       // Throw error to deny the request per RFC 6749
-      throw new Error('invalid_grant: Authorization code already used (replay attack detected)');
+      // Note: Generic message to avoid leaking security information to attackers
+      throw new Error(
+        'invalid_grant: The provided authorization grant is invalid, expired, or revoked'
+      );
     }
 
     // Validate client ID
@@ -763,19 +766,27 @@ export class AuthorizationCodeStore extends DurableObject<Env> {
             headers: { 'Content-Type': 'application/json' },
           });
         } catch (error) {
+          console.error('[AuthorizationCodeStore] consumeCode error:', error);
           const message = error instanceof Error ? error.message : 'Unknown error';
 
-          // Extract OAuth 2.0 error code
-          let errorCode = 'invalid_grant';
-          let errorDescription = message;
+          // SECURITY: Use generic error descriptions to prevent information leakage
+          // Only use structured error messages that don't expose internal details
+          let errorDescription = 'Authorization code is invalid or expired';
 
-          if (message.startsWith('invalid_grant:')) {
-            errorDescription = message.substring(14).trim();
+          // Only expose safe, predefined error messages
+          if (message.includes('already consumed') || message.includes('replay')) {
+            errorDescription = 'Authorization code has already been used';
+          } else if (message.includes('expired')) {
+            errorDescription = 'Authorization code has expired';
+          } else if (message.includes('PKCE') || message.includes('code_verifier')) {
+            errorDescription = 'PKCE verification failed';
+          } else if (message.includes('client_id') || message.includes('client mismatch')) {
+            errorDescription = 'Invalid client';
           }
 
           return new Response(
             JSON.stringify({
-              error: errorCode,
+              error: 'invalid_grant',
               error_description: errorDescription,
             }),
             {
@@ -915,7 +926,8 @@ export class AuthorizationCodeStore extends DurableObject<Env> {
           return new Response(
             JSON.stringify({
               status: 'error',
-              message: error instanceof Error ? error.message : 'Failed to reload config',
+              // SECURITY: Do not expose internal error details
+              message: 'Failed to reload configuration',
             }),
             {
               status: 500,
@@ -927,11 +939,13 @@ export class AuthorizationCodeStore extends DurableObject<Env> {
 
       return new Response('Not Found', { status: 404 });
     } catch (error) {
+      // Log full error for debugging but don't expose to client
       console.error('AuthCodeStore error:', error);
+      // SECURITY: Do not expose internal error details in response
       return new Response(
         JSON.stringify({
           error: 'server_error',
-          error_description: error instanceof Error ? error.message : 'Internal Server Error',
+          error_description: 'Internal server error',
         }),
         {
           status: 500,

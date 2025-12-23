@@ -4,11 +4,11 @@ User authentication methods supporting passwordless, multi-factor, and federated
 
 ## Overview
 
-| Aspect | Description |
-|--------|-------------|
-| **Primary Method** | Passkey (WebAuthn/FIDO2) |
-| **Fallback Methods** | Password + OTP, Magic Link |
-| **Federation** | OIDC, SAML, Social Login |
+| Aspect                 | Description                    |
+| ---------------------- | ------------------------------ |
+| **Primary Method**     | Passkey (WebAuthn/FIDO2)       |
+| **Fallback Methods**   | Password + OTP, Magic Link     |
+| **Federation**         | OIDC, SAML, Social Login       |
 | **Session Management** | ITP-compatible, secure cookies |
 
 Authrim supports multiple authentication methods to balance security and user experience across different use cases.
@@ -111,17 +111,18 @@ sequenceDiagram
 
 ### Passkey Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `rpId` | Domain | Relying Party ID |
-| `rpName` | "Authrim" | Display name |
-| `attestation` | "none" | Attestation preference |
-| `userVerification` | "preferred" | UV requirement |
+| Setting                  | Default                   | Description            |
+| ------------------------ | ------------------------- | ---------------------- |
+| `rpId`                   | Domain                    | Relying Party ID       |
+| `rpName`                 | "Authrim"                 | Display name           |
+| `attestation`            | "none"                    | Attestation preference |
+| `userVerification`       | "preferred"               | UV requirement         |
 | `authenticatorSelection` | Platform + Cross-platform | Allowed authenticators |
 
 ### Challenge Management
 
 Challenges are stored in `ChallengeStore` Durable Object:
+
 - **TTL**: 5 minutes (configurable)
 - **Single-use**: Consumed on verification
 - **Sharding**: By tenant and user for scalability
@@ -165,21 +166,21 @@ sequenceDiagram
 
 ### Password Security
 
-| Feature | Implementation |
-|---------|----------------|
+| Feature     | Implementation               |
+| ----------- | ---------------------------- |
 | **Hashing** | Argon2id (OWASP recommended) |
-| **Salt** | Unique per-user (32 bytes) |
-| **Pepper** | Server-side secret |
-| **Lockout** | 5 attempts / 15 minutes |
+| **Salt**    | Unique per-user (32 bytes)   |
+| **Pepper**  | Server-side secret           |
+| **Lockout** | 5 attempts / 15 minutes      |
 
 ### OTP Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `algorithm` | SHA-1 | TOTP algorithm |
-| `digits` | 6 | OTP length |
-| `period` | 30 | Time step (seconds) |
-| `window` | 1 | Clock drift tolerance |
+| Setting     | Default | Description           |
+| ----------- | ------- | --------------------- |
+| `algorithm` | SHA-1   | TOTP algorithm        |
+| `digits`    | 6       | OTP length            |
+| `period`    | 30      | Time step (seconds)   |
+| `window`    | 1       | Clock drift tolerance |
 
 ---
 
@@ -219,12 +220,12 @@ sequenceDiagram
 
 ### Security Features
 
-| Feature | Implementation |
-|---------|----------------|
+| Feature           | Implementation                |
+| ----------------- | ----------------------------- |
 | **Token entropy** | 256 bits (crypto.randomBytes) |
-| **Single-use** | Deleted on use |
-| **TTL** | 15 minutes (configurable) |
-| **Rate limit** | 3 per email per hour |
+| **Single-use**    | Deleted on use                |
+| **TTL**           | 15 minutes (configurable)     |
+| **Rate limit**    | 3 per email per hour          |
 
 ---
 
@@ -232,14 +233,14 @@ sequenceDiagram
 
 ### Supported Providers
 
-| Provider | Protocol | Features |
-|----------|----------|----------|
-| **Google** | OIDC | Email verification, profile |
-| **Microsoft** | OIDC | Azure AD, personal accounts |
-| **Apple** | OIDC | Hide my email, private relay |
-| **GitHub** | OAuth 2.0 | User profile, emails |
-| **Generic OIDC** | OIDC | Any OIDC-compliant IdP |
-| **SAML IdPs** | SAML 2.0 | Enterprise SSO |
+| Provider         | Protocol  | Features                     |
+| ---------------- | --------- | ---------------------------- |
+| **Google**       | OIDC      | Email verification, profile  |
+| **Microsoft**    | OIDC      | Azure AD, personal accounts  |
+| **Apple**        | OIDC      | Hide my email, private relay |
+| **GitHub**       | OAuth 2.0 | User profile, emails         |
+| **Generic OIDC** | OIDC      | Any OIDC-compliant IdP       |
+| **SAML IdPs**    | SAML 2.0  | Enterprise SSO               |
 
 ### OIDC Federation Flow
 
@@ -310,9 +311,9 @@ interface JITProvisioningConfig {
   createUsers: boolean;
   updateAttributes: boolean;
   attributeMapping: {
-    email: string;      // e.g., "email"
-    name: string;       // e.g., "name"
-    picture: string;    // e.g., "picture"
+    email: string; // e.g., "email"
+    name: string; // e.g., "name"
+    picture: string; // e.g., "picture"
   };
   groupMapping?: {
     [idpGroup: string]: string; // local role
@@ -355,12 +356,12 @@ sequenceDiagram
 
 ### ACR Values
 
-| ACR Value | Requirement | Use Case |
-|-----------|-------------|----------|
-| `urn:authrim:acr:password` | Password only | Basic access |
-| `urn:authrim:acr:mfa` | Password + OTP | Standard access |
-| `urn:authrim:acr:passkey` | Passkey | Sensitive operations |
-| `urn:authrim:acr:phishing-resistant` | Passkey | Financial transactions |
+| ACR Value                            | Requirement    | Use Case               |
+| ------------------------------------ | -------------- | ---------------------- |
+| `urn:authrim:acr:password`           | Password only  | Basic access           |
+| `urn:authrim:acr:mfa`                | Password + OTP | Standard access        |
+| `urn:authrim:acr:passkey`            | Passkey        | Sensitive operations   |
+| `urn:authrim:acr:phishing-resistant` | Passkey        | Financial transactions |
 
 ---
 
@@ -372,13 +373,13 @@ After successful authentication, a session is created:
 
 ```typescript
 interface Session {
-  id: string;              // Unique session ID
-  userId: string;          // User identifier
-  clientId: string;        // OAuth client
-  acr: string;             // Authentication level
-  amr: string[];           // Methods used
-  authTime: number;        // Authentication timestamp
-  expiresAt: number;       // Session expiry
+  id: string; // Unique session ID
+  userId: string; // User identifier
+  clientId: string; // OAuth client
+  acr: string; // Authentication level
+  amr: string[]; // Methods used
+  authTime: number; // Authentication timestamp
+  expiresAt: number; // Session expiry
   metadata: {
     ip: string;
     userAgent: string;
@@ -390,6 +391,7 @@ interface Session {
 ### Session Storage
 
 Sessions are stored in `SessionStore` Durable Object:
+
 - **Hot storage**: In-memory for active sessions
 - **Cold storage**: D1 for historical/inactive sessions
 - **Sharding**: By session ID for scalability
@@ -420,25 +422,25 @@ flowchart TB
 
 ### Event Types
 
-| Event | Trigger | Logged Data |
-|-------|---------|-------------|
-| `auth.started` | Authorization begins | client_id, scopes |
-| `auth.method.selected` | Method chosen | method type |
-| `auth.success` | Successful auth | user_id, acr, amr |
-| `auth.failure` | Failed auth | reason, attempt count |
-| `session.created` | New session | session_id, expiry |
-| `session.revoked` | Session ended | reason |
+| Event                  | Trigger              | Logged Data           |
+| ---------------------- | -------------------- | --------------------- |
+| `auth.started`         | Authorization begins | client_id, scopes     |
+| `auth.method.selected` | Method chosen        | method type           |
+| `auth.success`         | Successful auth      | user_id, acr, amr     |
+| `auth.failure`         | Failed auth          | reason, attempt count |
+| `session.created`      | New session          | session_id, expiry    |
+| `session.revoked`      | Session ended        | reason                |
 
 ---
 
 ## Related Documents
 
-| Document | Description |
-|----------|-------------|
-| [Security](./security.md) | Security architecture |
-| [Protocol Flow](./protocol-flow.md) | OAuth/OIDC protocol flows |
-| [Session Management](../features/session-management.md) | Session details |
-| [Passkey/WebAuthn](../features/passkey-webauthn.md) | Passkey implementation |
+| Document                                                | Description               |
+| ------------------------------------------------------- | ------------------------- |
+| [Security](./security.md)                               | Security architecture     |
+| [Protocol Flow](./protocol-flow.md)                     | OAuth/OIDC protocol flows |
+| [Session Management](../features/session-management.md) | Session details           |
+| [Passkey/WebAuthn](../features/passkey-webauthn.md)     | Passkey implementation    |
 
 ---
 

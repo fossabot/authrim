@@ -4,11 +4,11 @@ The foundation of Authrim's identity layer - standards-compliant OpenID Connect 
 
 ## Overview
 
-| Specification | Status | Certification |
-|---------------|--------|---------------|
-| [OIDC Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html) | ✅ Implemented | Dynamic OP |
-| [OAuth 2.0 (RFC 6749)](https://datatracker.ietf.org/doc/html/rfc6749) | ✅ Implemented | |
-| [JWT (RFC 7519)](https://datatracker.ietf.org/doc/html/rfc7519) | ✅ Implemented | |
+| Specification                                                          | Status         | Certification |
+| ---------------------------------------------------------------------- | -------------- | ------------- |
+| [OIDC Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html) | ✅ Implemented | Dynamic OP    |
+| [OAuth 2.0 (RFC 6749)](https://datatracker.ietf.org/doc/html/rfc6749)  | ✅ Implemented |               |
+| [JWT (RFC 7519)](https://datatracker.ietf.org/doc/html/rfc7519)        | ✅ Implemented |               |
 
 OpenID Connect (OIDC) is an identity layer on top of OAuth 2.0 that enables clients to verify user identity and obtain basic profile information. Authrim implements the full OIDC Core specification.
 
@@ -16,13 +16,13 @@ OpenID Connect (OIDC) is an identity layer on top of OAuth 2.0 that enables clie
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
+| Benefit                   | Description                                  |
+| ------------------------- | -------------------------------------------- |
 | **Standardized Identity** | Interoperable with any OIDC-compliant client |
-| **ID Tokens** | Cryptographically signed identity assertions |
-| **Claims & Scopes** | Fine-grained access to user attributes |
-| **Multiple Flows** | Authorization Code, Implicit, Hybrid |
-| **Extensible** | Custom claims, ACR values, and more |
+| **ID Tokens**             | Cryptographically signed identity assertions |
+| **Claims & Scopes**       | Fine-grained access to user attributes       |
+| **Multiple Flows**        | Authorization Code, Implicit, Hybrid         |
+| **Extensible**            | Custom claims, ACR values, and more          |
 
 ---
 
@@ -116,15 +116,15 @@ app.get('/callback', async (req, res) => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': `Basic ${Buffer.from(
+      Authorization: `Basic ${Buffer.from(
         `${process.env.CLIENT_ID}:${process.env.CLIENT_SECRET}`
-      ).toString('base64')}`
+      ).toString('base64')}`,
     },
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: 'https://app.example.com/callback'
-    })
+      redirect_uri: 'https://app.example.com/callback',
+    }),
   });
 
   const tokens = await tokenResponse.json();
@@ -133,14 +133,14 @@ app.get('/callback', async (req, res) => {
   const idToken = await validateIdToken(tokens.id_token, {
     issuer: 'https://auth.example.com',
     audience: process.env.CLIENT_ID,
-    nonce: req.session.authNonce
+    nonce: req.session.authNonce,
   });
 
   // Create session
   req.session.user = {
     sub: idToken.sub,
     email: idToken.email,
-    name: idToken.name
+    name: idToken.name,
   };
   req.session.accessToken = tokens.access_token;
 
@@ -257,8 +257,8 @@ class AuthService {
         code: code!,
         redirect_uri: window.location.origin + '/callback',
         client_id: 'spa-client',
-        code_verifier: codeVerifier!
-      })
+        code_verifier: codeVerifier!,
+      }),
     });
 
     const tokens = await response.json();
@@ -330,13 +330,13 @@ async function authenticateWithCustomClaims() {
 
       // Standard claims with specific requirements
       email: { essential: true },
-      email_verified: { essential: true, value: true }
+      email_verified: { essential: true, value: true },
     },
     userinfo: {
       // Additional claims for userinfo endpoint
       transaction_limits: null,
-      linked_accounts: null
-    }
+      linked_accounts: null,
+    },
   };
 
   const authUrl = new URL('https://auth.bank.example.com/authorize');
@@ -359,9 +359,9 @@ async function authenticateWithCustomClaims() {
   console.log('ID Token claims:', {
     sub: idToken.sub,
     email: idToken.email,
-    account_tier: idToken.account_tier,    // Custom claim: "premium" | "standard"
-    kyc_status: idToken.kyc_status,        // Custom claim: "verified" | "pending"
-    acr: idToken.acr                        // Actual authentication level
+    account_tier: idToken.account_tier, // Custom claim: "premium" | "standard"
+    kyc_status: idToken.kyc_status, // Custom claim: "verified" | "pending"
+    acr: idToken.acr, // Actual authentication level
   });
 
   // Customize app based on account tier
@@ -380,7 +380,7 @@ const clientConfig = {
   // Custom claims configuration
   custom_claims: {
     id_token: ['account_tier', 'kyc_status'],
-    userinfo: ['transaction_limits', 'linked_accounts']
+    userinfo: ['transaction_limits', 'linked_accounts'],
   },
 
   // Claims source mapping
@@ -388,8 +388,8 @@ const clientConfig = {
     account_tier: 'user.subscription.tier',
     kyc_status: 'user.kyc.status',
     transaction_limits: 'user.limits',
-    linked_accounts: 'user.accounts'
-  }
+    linked_accounts: 'user.accounts',
+  },
 };
 ```
 
@@ -399,41 +399,41 @@ const clientConfig = {
 
 ### Authorization Code Flow
 
-| Aspect | Description |
-|--------|-------------|
-| **response_type** | `code` |
-| **Use Case** | Server-side web applications |
-| **Security** | Highest - tokens never exposed to browser |
-| **PKCE** | Optional for confidential clients, required for public clients |
+| Aspect            | Description                                                    |
+| ----------------- | -------------------------------------------------------------- |
+| **response_type** | `code`                                                         |
+| **Use Case**      | Server-side web applications                                   |
+| **Security**      | Highest - tokens never exposed to browser                      |
+| **PKCE**          | Optional for confidential clients, required for public clients |
 
 ### Implicit Flow (Legacy)
 
-| Aspect | Description |
-|--------|-------------|
-| **response_type** | `id_token`, `id_token token` |
-| **Use Case** | Legacy SPAs (not recommended) |
-| **Security** | Lower - tokens in URL fragment |
-| **Note** | Use Authorization Code + PKCE instead |
+| Aspect            | Description                           |
+| ----------------- | ------------------------------------- |
+| **response_type** | `id_token`, `id_token token`          |
+| **Use Case**      | Legacy SPAs (not recommended)         |
+| **Security**      | Lower - tokens in URL fragment        |
+| **Note**          | Use Authorization Code + PKCE instead |
 
 ### Hybrid Flow
 
-| Aspect | Description |
-|--------|-------------|
+| Aspect            | Description                                          |
+| ----------------- | ---------------------------------------------------- |
 | **response_type** | `code id_token`, `code token`, `code id_token token` |
-| **Use Case** | When immediate ID token is needed |
-| **Security** | High - combines code and token flows |
+| **Use Case**      | When immediate ID token is needed                    |
+| **Security**      | High - combines code and token flows                 |
 
 ---
 
 ## Standard Scopes
 
-| Scope | Claims Returned |
-|-------|-----------------|
-| `openid` | `sub` (required for OIDC) |
+| Scope     | Claims Returned                                                                                                       |
+| --------- | --------------------------------------------------------------------------------------------------------------------- |
+| `openid`  | `sub` (required for OIDC)                                                                                             |
 | `profile` | `name`, `family_name`, `given_name`, `nickname`, `picture`, `gender`, `birthdate`, `zoneinfo`, `locale`, `updated_at` |
-| `email` | `email`, `email_verified` |
-| `address` | `address` (structured) |
-| `phone` | `phone_number`, `phone_number_verified` |
+| `email`   | `email`, `email_verified`                                                                                             |
+| `address` | `address` (structured)                                                                                                |
+| `phone`   | `phone_number`, `phone_number_verified`                                                                               |
 
 ---
 
@@ -502,13 +502,13 @@ client_secret=CLIENT_SECRET
 
 ## Security Considerations
 
-| Consideration | Implementation |
-|---------------|----------------|
-| **State Parameter** | Required - prevents CSRF attacks |
-| **Nonce** | Required for ID tokens - prevents replay |
-| **PKCE** | Required for public clients |
+| Consideration        | Implementation                                 |
+| -------------------- | ---------------------------------------------- |
+| **State Parameter**  | Required - prevents CSRF attacks               |
+| **Nonce**            | Required for ID tokens - prevents replay       |
+| **PKCE**             | Required for public clients                    |
 | **Token Validation** | Verify signature, issuer, audience, expiration |
-| **HTTPS** | All endpoints require TLS |
+| **HTTPS**            | All endpoints require TLS                      |
 
 ---
 
@@ -516,23 +516,23 @@ client_secret=CLIENT_SECRET
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OIDC_ISSUER` | Issuer identifier | `https://{domain}` |
-| `ID_TOKEN_LIFETIME` | ID token validity (seconds) | `3600` |
-| `ACCESS_TOKEN_LIFETIME` | Access token validity (seconds) | `3600` |
-| `AUTHORIZATION_CODE_LIFETIME` | Code validity (seconds) | `60` |
+| Variable                      | Description                     | Default            |
+| ----------------------------- | ------------------------------- | ------------------ |
+| `OIDC_ISSUER`                 | Issuer identifier               | `https://{domain}` |
+| `ID_TOKEN_LIFETIME`           | ID token validity (seconds)     | `3600`             |
+| `ACCESS_TOKEN_LIFETIME`       | Access token validity (seconds) | `3600`             |
+| `AUTHORIZATION_CODE_LIFETIME` | Code validity (seconds)         | `60`               |
 
 ---
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| Authorize | `packages/op-auth/src/authorize.ts` | Authorization endpoint |
-| Token | `packages/op-token/src/token.ts` | Token endpoint |
-| ID Token | `packages/shared/src/utils/id-token.ts` | Token generation |
-| Claims | `packages/shared/src/utils/claims.ts` | Claim handling |
+| Component | File                                    | Description            |
+| --------- | --------------------------------------- | ---------------------- |
+| Authorize | `packages/op-auth/src/authorize.ts`     | Authorization endpoint |
+| Token     | `packages/op-token/src/token.ts`        | Token endpoint         |
+| ID Token  | `packages/shared/src/utils/id-token.ts` | Token generation       |
+| Claims    | `packages/shared/src/utils/claims.ts`   | Claim handling         |
 
 ---
 

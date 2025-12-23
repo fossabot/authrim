@@ -171,7 +171,7 @@ export async function adminOrganizationGetHandler(c: Context<{ Bindings: Env }>)
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Organization not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -317,7 +317,7 @@ export async function adminOrganizationUpdateHandler(c: Context<{ Bindings: Env 
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Organization not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -439,7 +439,7 @@ export async function adminOrganizationDeleteHandler(c: Context<{ Bindings: Env 
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Organization not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -491,7 +491,7 @@ export async function adminOrganizationMembersListHandler(c: Context<{ Bindings:
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Organization not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -609,7 +609,7 @@ export async function adminOrganizationMemberAddHandler(c: Context<{ Bindings: E
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Organization not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -625,7 +625,7 @@ export async function adminOrganizationMemberAddHandler(c: Context<{ Bindings: E
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -711,7 +711,7 @@ export async function adminOrganizationMemberRemoveHandler(c: Context<{ Bindings
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Membership not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -796,7 +796,7 @@ export async function adminRoleGetHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Role not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -852,7 +852,7 @@ export async function adminUserRolesListHandler(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -939,7 +939,7 @@ export async function adminUserRoleAssignHandler(c: Context<{ Bindings: Env }>) 
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -963,7 +963,7 @@ export async function adminUserRoleAssignHandler(c: Context<{ Bindings: Env }>) 
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Role not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1082,7 +1082,7 @@ export async function adminUserRoleRemoveHandler(c: Context<{ Bindings: Env }>) 
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Role assignment not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1130,7 +1130,7 @@ export async function adminUserRelationshipsListHandler(c: Context<{ Bindings: E
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1309,7 +1309,7 @@ export async function adminUserRelationshipCreateHandler(c: Context<{ Bindings: 
       return c.json(
         {
           error: 'not_found',
-          error_description: 'User not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1324,7 +1324,7 @@ export async function adminUserRelationshipCreateHandler(c: Context<{ Bindings: 
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Related user not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );
@@ -1415,7 +1415,7 @@ export async function adminUserRelationshipDeleteHandler(c: Context<{ Bindings: 
       return c.json(
         {
           error: 'not_found',
-          error_description: 'Relationship not found',
+          error_description: 'The requested resource was not found',
         },
         404
       );

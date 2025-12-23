@@ -163,9 +163,11 @@ export function getOIDCErrorForDOError(error: unknown): {
     };
   }
 
+  // SECURITY: Do not expose internal error details in response
+  console.error('[getDOErrorResponse] Internal error:', error);
   return {
     error: 'server_error',
-    errorDescription: error instanceof Error ? error.message : 'Internal server error',
+    errorDescription: 'Internal server error',
     httpStatus: 500,
   };
 }

@@ -294,11 +294,12 @@ export class DPoPJTIStore {
             headers: { 'Content-Type': 'application/json' },
           });
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
+          console.error('[DPoPJTIStore] checkAndStoreJTI error:', error);
           return new Response(
             JSON.stringify({
               error: 'replay_detected',
-              error_description: message,
+              // SECURITY: Do not expose internal error details
+              error_description: 'DPoP proof replay detected or JTI already used',
             }),
             {
               status: 400,
@@ -353,11 +354,13 @@ export class DPoPJTIStore {
 
       return new Response('Not Found', { status: 404 });
     } catch (error) {
+      // Log full error for debugging but don't expose to client
       console.error('DPoPJTIStore error:', error);
+      // SECURITY: Do not expose internal error details in response
       return new Response(
         JSON.stringify({
           error: 'server_error',
-          error_description: error instanceof Error ? error.message : 'Internal Server Error',
+          error_description: 'Internal server error',
         }),
         {
           status: 500,

@@ -283,10 +283,11 @@ describe('UserInfo Endpoint', () => {
 
       await userinfoHandler(c);
 
+      // Security: Generic message to prevent user enumeration
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'invalid_token',
-          error_description: 'User not found',
+          error_description: 'The access token is invalid',
         }),
         401
       );
@@ -771,10 +772,11 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7JHoJfg6yNzLM
 
       await userinfoHandler(c);
 
+      // SECURITY: Error message must not expose specific algorithm details
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'invalid_client_metadata',
-          error_description: expect.stringContaining('Unsupported algorithm'),
+          error_description: 'Client encryption configuration is invalid',
         }),
         400
       );

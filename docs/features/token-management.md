@@ -6,11 +6,11 @@ Authrim implements comprehensive token management features for OAuth 2.0 and Ope
 
 ### Specifications
 
-| Feature | RFC | Endpoint |
-|---------|-----|----------|
-| Refresh Token | [RFC 6749 §6](https://tools.ietf.org/html/rfc6749#section-6) | `POST /token` |
-| Token Introspection | [RFC 7662](https://tools.ietf.org/html/rfc7662) | `POST /introspect` |
-| Token Revocation | [RFC 7009](https://tools.ietf.org/html/rfc7009) | `POST /revoke` |
+| Feature             | RFC                                                          | Endpoint           |
+| ------------------- | ------------------------------------------------------------ | ------------------ |
+| Refresh Token       | [RFC 6749 §6](https://tools.ietf.org/html/rfc6749#section-6) | `POST /token`      |
+| Token Introspection | [RFC 7662](https://tools.ietf.org/html/rfc7662)              | `POST /introspect` |
+| Token Revocation    | [RFC 7009](https://tools.ietf.org/html/rfc7009)              | `POST /revoke`     |
 
 ---
 
@@ -44,6 +44,7 @@ Authrim implements comprehensive token management features for OAuth 2.0 and Ope
 **Challenge**: Access tokens expire quickly (1 hour). Users don't want to re-login daily. But when a device is reported stolen, access must be revoked immediately.
 
 **Token Management Solution**:
+
 ```typescript
 class BankingSessionManager {
   private refreshToken: string;
@@ -65,23 +66,23 @@ class BankingSessionManager {
       body: new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: this.refreshToken,
-        client_id: CLIENT_ID
-      })
+        client_id: CLIENT_ID,
+      }),
     });
 
     const tokens = await response.json();
 
     // Rotation: old refresh token is now invalid
-    this.refreshToken = tokens.refresh_token;  // New token
+    this.refreshToken = tokens.refresh_token; // New token
     this.accessToken = tokens.access_token;
-    this.tokenExpiry = Date.now() + (tokens.expires_in * 1000);
+    this.tokenExpiry = Date.now() + tokens.expires_in * 1000;
   }
 
   async logout(): Promise<void> {
     // Revoke both tokens
     await Promise.all([
       this.revokeToken(this.accessToken, 'access_token'),
-      this.revokeToken(this.refreshToken, 'refresh_token')
+      this.revokeToken(this.refreshToken, 'refresh_token'),
     ]);
   }
 
@@ -89,13 +90,14 @@ class BankingSessionManager {
     await fetch('https://bank.authrim.com/revoke', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ token, token_type_hint: hint })
+      body: new URLSearchParams({ token, token_type_hint: hint }),
     });
   }
 }
 ```
 
 **Backend - Stolen Device Report**:
+
 ```python
 def handle_stolen_device_report(user_id: str):
     # Get all active refresh tokens for user
@@ -123,6 +125,7 @@ def handle_stolen_device_report(user_id: str):
 **Challenge**: Validating JWTs locally only checks signature and expiry. It can't detect revoked tokens or get real-time token status.
 
 **Token Management Solution**:
+
 ```python
 class APIGateway:
     def __init__(self):
@@ -172,6 +175,7 @@ class APIGateway:
 ```
 
 **Introspection Response**:
+
 ```json
 {
   "active": true,
@@ -195,6 +199,7 @@ class APIGateway:
 **Challenge**: Users may have active sessions across multiple devices and applications. Access tokens issued before removal are still valid until they expire.
 
 **Token Management Solution**:
+
 ```javascript
 // Admin removes user from tenant
 async function removeUserFromTenant(tenantId, userId) {
@@ -205,23 +210,25 @@ async function removeUserFromTenant(tenantId, userId) {
   const tokens = await db.tokens.find({
     userId,
     tenantId,
-    status: 'active'
+    status: 'active',
   });
 
   // 3. Revoke all tokens
-  await Promise.all(tokens.map(token =>
-    fetch('https://auth.saas.com/revoke', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${btoa(ADMIN_CLIENT_ID + ':' + ADMIN_CLIENT_SECRET)}`
-      },
-      body: new URLSearchParams({
-        token: token.refreshToken,
-        token_type_hint: 'refresh_token'
+  await Promise.all(
+    tokens.map((token) =>
+      fetch('https://auth.saas.com/revoke', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Basic ${btoa(ADMIN_CLIENT_ID + ':' + ADMIN_CLIENT_SECRET)}`,
+        },
+        body: new URLSearchParams({
+          token: token.refreshToken,
+          token_type_hint: 'refresh_token',
+        }),
       })
-    })
-  ));
+    )
+  );
 
   // 4. Any active session will fail on next API call or token refresh
   console.log(`Revoked ${tokens.length} tokens for user ${userId}`);
@@ -231,7 +238,7 @@ async function removeUserFromTenant(tenantId, userId) {
 async function makeApiCall(endpoint) {
   try {
     const response = await fetch(endpoint, {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     if (response.status === 401) {
@@ -273,6 +280,7 @@ grant_type=refresh_token
 ```
 
 **Success Response**:
+
 ```json
 {
   "access_token": "eyJhbGciOiJSUzI1NiJ9...",
@@ -301,6 +309,7 @@ token=eyJhbGciOiJSUzI1NiJ9...
 ```
 
 **Active Token Response**:
+
 ```json
 {
   "active": true,
@@ -314,6 +323,7 @@ token=eyJhbGciOiJSUzI1NiJ9...
 ```
 
 **Inactive Token Response**:
+
 ```json
 {
   "active": false
@@ -343,12 +353,12 @@ token=eyJhbGciOiJSUzI1NiJ9...
 
 ### Refresh Token Rotation
 
-| Aspect | Behavior |
-|--------|----------|
-| Old token | Immediately invalidated |
-| New token | Returned with each refresh |
-| Replay attack | Detected and blocked |
-| Compliance | OAuth 2.0 Security BCP |
+| Aspect        | Behavior                   |
+| ------------- | -------------------------- |
+| Old token     | Immediately invalidated    |
+| New token     | Returned with each refresh |
+| Replay attack | Detected and blocked       |
+| Compliance    | OAuth 2.0 Security BCP     |
 
 ### Authorization Code Reuse Detection
 
@@ -367,9 +377,9 @@ if (authCode.used && authCode.tokenJti) {
 
 ### Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `access_token_expiry` | `3600` | Access token lifetime (1 hour) |
+| Setting                | Default  | Description                     |
+| ---------------------- | -------- | ------------------------------- |
+| `access_token_expiry`  | `3600`   | Access token lifetime (1 hour)  |
 | `refresh_token_expiry` | `604800` | Refresh token lifetime (7 days) |
 
 ### Discovery Metadata
@@ -388,14 +398,14 @@ if (authCode.used && authCode.tokenJti) {
 
 ### Test Scenarios
 
-| Scenario | Expected Result |
-|----------|-----------------|
-| Valid refresh | New access + refresh token |
-| Expired refresh token | 400 invalid_grant |
-| Revoked refresh token | 400 invalid_grant |
-| Introspect active token | active: true with claims |
-| Introspect revoked token | active: false |
-| Revoke any token | 200 OK (always) |
+| Scenario                 | Expected Result            |
+| ------------------------ | -------------------------- |
+| Valid refresh            | New access + refresh token |
+| Expired refresh token    | 400 invalid_grant          |
+| Revoked refresh token    | 400 invalid_grant          |
+| Introspect active token  | active: true with claims   |
+| Introspect revoked token | active: false              |
+| Revoke any token         | 200 OK (always)            |
 
 ### Running Tests
 
@@ -411,6 +421,7 @@ pnpm --filter @authrim/op-management run test
 ### "invalid_grant: Refresh token is invalid or expired"
 
 **Causes**:
+
 - Token expired (default: 7 days)
 - Token already used (rotation)
 - Token was revoked

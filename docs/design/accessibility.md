@@ -7,6 +7,7 @@ This document describes Authrim's accessibility implementation, testing strategy
 **Target Compliance**: WCAG 2.1 Level AA
 
 **Testing Tools**:
+
 - **axe-core**: Automated accessibility testing
 - **Playwright**: E2E accessibility testing
 - **Manual testing**: Keyboard navigation, screen readers
@@ -16,14 +17,17 @@ This document describes Authrim's accessibility implementation, testing strategy
 ### 1. Perceivable
 
 #### 1.1 Text Alternatives
+
 - ✅ All images have `alt` attributes
 - ✅ Icons have `aria-label` or `aria-labelledby`
 - ✅ Decorative images marked with `alt=""`
 
 #### 1.2 Time-based Media
+
 - N/A (No video/audio content)
 
 #### 1.3 Adaptable
+
 - ✅ Semantic HTML (`<header>`, `<nav>`, `<main>`, `<footer>`)
 - ✅ Proper heading hierarchy (`<h1>` → `<h2>` → `<h3>`)
 - ✅ Lists use `<ul>`, `<ol>`, `<li>`
@@ -32,6 +36,7 @@ This document describes Authrim's accessibility implementation, testing strategy
 #### 1.4 Distinguishable
 
 **Color Contrast** (WCAG 2.1 AA):
+
 - ✅ **Normal text**: 4.5:1 minimum
 - ✅ **Large text** (18pt+): 3:1 minimum
 - ✅ **UI components**: 3:1 minimum
@@ -39,6 +44,7 @@ This document describes Authrim's accessibility implementation, testing strategy
 **Defined in**: `packages/ui/docs/DESIGN_SYSTEM.md`
 
 **Color Palette**:
+
 ```css
 /* Primary colors with WCAG AA contrast */
 --primary-600: #3b82f6; /* On white: 4.5:1 */
@@ -50,10 +56,12 @@ This document describes Authrim's accessibility implementation, testing strategy
 ```
 
 **Resize Text**:
+
 - ✅ Text can be resized up to 200% without loss of functionality
 - ✅ Responsive design: 320px - 1920px
 
 **Text Spacing**:
+
 - ✅ Line height: 1.5+ for body text
 - ✅ Paragraph spacing: 2x font size
 - ✅ Letter spacing: adjustable
@@ -61,19 +69,23 @@ This document describes Authrim's accessibility implementation, testing strategy
 ### 2. Operable
 
 #### 2.1 Keyboard Accessible
+
 - ✅ All functionality available via keyboard
 - ✅ No keyboard traps
 - ✅ Skip navigation links (if applicable)
 - ✅ Focus order follows visual order
 
 #### 2.2 Enough Time
+
 - ✅ Session timeout warnings
 - ✅ Adjustable time limits (where applicable)
 
 #### 2.3 Seizures and Physical Reactions
+
 - ✅ No content flashes more than 3 times per second
 
 #### 2.4 Navigable
+
 - ✅ Page titles describe purpose
 - ✅ Focus order is logical
 - ✅ Link purpose clear from context
@@ -81,26 +93,31 @@ This document describes Authrim's accessibility implementation, testing strategy
 - ✅ Headings and labels descriptive
 
 **Focus Indicators**:
+
 - ✅ Visible focus indicators (2px outline)
 - ✅ 3:1 contrast ratio for focus indicators
 - ✅ Defined in UnoCSS configuration
 
 #### 2.5 Input Modalities
+
 - ✅ Pointer gestures have keyboard alternatives
 - ✅ Touch targets ≥ 44x44 pixels
 
 ### 3. Understandable
 
 #### 3.1 Readable
+
 - ✅ Language of page identified (`lang="en"` or `lang="ja"`)
 - ✅ Language changes marked (`lang` attribute)
 
 #### 3.2 Predictable
+
 - ✅ Consistent navigation
 - ✅ Consistent identification of components
 - ✅ No unexpected context changes
 
 #### 3.3 Input Assistance
+
 - ✅ Error identification in forms
 - ✅ Labels or instructions provided
 - ✅ Error suggestions (where applicable)
@@ -109,6 +126,7 @@ This document describes Authrim's accessibility implementation, testing strategy
 ### 4. Robust
 
 #### 4.1 Compatible
+
 - ✅ Valid HTML (no parsing errors)
 - ✅ ARIA attributes used correctly
 - ✅ Status messages announced to screen readers
@@ -120,6 +138,7 @@ This document describes Authrim's accessibility implementation, testing strategy
 **Tool**: axe-core + Playwright
 
 **Test Coverage**:
+
 - Homepage (`/`)
 - Login page (`/login`)
 - Register page (`/register`)
@@ -127,6 +146,7 @@ This document describes Authrim's accessibility implementation, testing strategy
 - Error page (`/error`)
 
 **Running Accessibility Tests**:
+
 ```bash
 pnpm test:e2e test-e2e/accessibility.spec.ts
 ```
@@ -134,6 +154,7 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 **Test Suite**: `test-e2e/accessibility.spec.ts`
 
 **Test Cases** (15+ tests):
+
 1. No WCAG 2.1 AA violations on homepage
 2. No violations on login page
 3. No violations on register page
@@ -150,12 +171,14 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 #### Keyboard Navigation
 
 **Test Procedure**:
+
 1. Navigate using only keyboard (Tab, Shift+Tab, Enter, Escape)
 2. Ensure all interactive elements are reachable
 3. Verify focus indicators are visible
 4. Check focus order is logical
 
 **Keyboard Shortcuts**:
+
 - `Tab`: Move focus forward
 - `Shift+Tab`: Move focus backward
 - `Enter`: Activate buttons, submit forms
@@ -165,11 +188,13 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 #### Screen Reader Testing
 
 **Recommended Tools**:
+
 - **macOS**: VoiceOver (built-in)
 - **Windows**: NVDA (free), JAWS (commercial)
 - **Linux**: Orca
 
 **Test Checklist**:
+
 - [ ] Page title announced correctly
 - [ ] Headings announced with levels
 - [ ] Form labels associated with inputs
@@ -184,22 +209,20 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 ### Common ARIA Patterns
 
 **Buttons**:
+
 ```html
 <button aria-label="Close dialog">×</button>
 ```
 
 **Form Inputs**:
+
 ```html
-<input
-  type="email"
-  id="email"
-  aria-invalid="false"
-  aria-describedby="email-error"
-/>
+<input type="email" id="email" aria-invalid="false" aria-describedby="email-error" />
 <p id="email-error" role="alert">Invalid email format</p>
 ```
 
 **Loading States**:
+
 ```html
 <div role="status" aria-label="Loading">
   <span class="sr-only">Loading...</span>
@@ -207,10 +230,9 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 ```
 
 **Alerts**:
+
 ```html
-<div role="alert" aria-live="polite">
-  Your changes have been saved.
-</div>
+<div role="alert" aria-live="polite">Your changes have been saved.</div>
 ```
 
 ### ARIA Attributes Used
@@ -229,12 +251,14 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 **Framework**: [Melt UI](https://melt-ui.com/) (headless, accessible)
 
 **Benefits**:
+
 - Pre-built accessibility
 - ARIA patterns included
 - Keyboard navigation handled
 - Focus management automatic
 
 **Components Used**:
+
 - Buttons
 - Forms
 - Dialogs/Modals
@@ -245,6 +269,7 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 **Location**: `packages/ui/docs/DESIGN_SYSTEM.md`
 
 **Accessibility Guidelines**:
+
 - Color contrast ratios defined
 - Typography scale (rem-based)
 - Responsive breakpoints
@@ -257,6 +282,7 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 **Languages**: English (EN), Japanese (JA)
 
 **Accessibility Benefit**:
+
 - Users can read content in preferred language
 - `lang` attribute updated on language change
 
@@ -269,6 +295,7 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 **Target**: 90+
 
 **Action Items**:
+
 1. Review and fix remaining axe-core violations
 2. Ensure all ARIA labels are present
 3. Verify keyboard navigation on all pages
@@ -277,6 +304,7 @@ pnpm test:e2e test-e2e/accessibility.spec.ts
 ### Automated Test Results
 
 **axe-core Rules Tested**:
+
 - `wcag2a`: WCAG 2.0 Level A
 - `wcag2aa`: WCAG 2.0 Level AA
 - `wcag21a`: WCAG 2.1 Level A

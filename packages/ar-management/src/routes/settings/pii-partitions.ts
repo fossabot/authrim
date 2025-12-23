@@ -15,6 +15,7 @@
  */
 
 import type { Context } from 'hono';
+import type { Env } from '@authrim/ar-lib-core';
 import {
   type PartitionSettings,
   type PartitionRule,
@@ -25,6 +26,10 @@ import {
   getDefaultPartitionSettings,
   buildPartitionSettingsKvKey,
   DEFAULT_PARTITION,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -100,7 +105,7 @@ function getAvailablePartitions(env: Record<string, unknown>): string[] {
  */
 export async function getPartitionSettings(c: Context) {
   const kv = c.env.AUTHRIM_CONFIG;
-  const availablePartitions = getAvailablePartitions(c.env as Record<string, unknown>);
+  const availablePartitions = getAvailablePartitions(c.env as unknown as Record<string, unknown>);
 
   let settings: PartitionSettings | null = null;
 
@@ -148,20 +153,20 @@ export async function getPartitionSettings(c: Context) {
  * - All referenced partitions must be available
  * - Rule names must be unique
  */
-export async function updatePartitionSettings(c: Context) {
+export async function updatePartitionSettings(c: Context<{ Bindings: Env }>) {
   const kv = c.env.AUTHRIM_CONFIG;
   if (!kv) {
-    return c.json({ error: 'AUTHRIM_CONFIG KV binding not available' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.CONFIG_KV_NOT_CONFIGURED);
   }
 
   let body: UpdatePartitionSettingsRequest;
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Invalid JSON body');
   }
 
-  const availablePartitions = getAvailablePartitions(c.env as Record<string, unknown>);
+  const availablePartitions = getAvailablePartitions(c.env as unknown as Record<string, unknown>);
 
   // Get current settings
   const kvKey = buildPartitionSettingsKvKey(DEFAULT_TENANT_ID);
@@ -192,7 +197,7 @@ export async function updatePartitionSettings(c: Context) {
   // Validate settings
   const validation = validatePartitionSettings(newSettings, availablePartitions);
   if (!validation.valid) {
-    return c.json({ error: validation.error }, 400);
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, validation.error);
   }
 
   // Save to KV
@@ -225,20 +230,20 @@ export async function updatePartitionSettings(c: Context) {
  * - method: How the partition was determined
  * - ruleName: Rule name if resolved by custom rule
  */
-export async function testPartitionRouting(c: Context) {
+export async function testPartitionRouting(c: Context<{ Bindings: Env }>) {
   let body: TestPartitionRoutingRequest;
   try {
     body = await c.req.json();
   } catch {
-    return c.json({ error: 'Invalid JSON body' }, 400);
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Invalid JSON body');
   }
 
   if (!body.tenantId) {
-    return c.json({ error: 'tenantId is required' }, 400);
+    return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'tenantId is required');
   }
 
   const kv = c.env.AUTHRIM_CONFIG;
-  const availablePartitions = getAvailablePartitions(c.env as Record<string, unknown>);
+  const availablePartitions = getAvailablePartitions(c.env as unknown as Record<string, unknown>);
 
   // Get settings
   let settings: PartitionSettings | null = null;
@@ -297,14 +302,14 @@ export async function testPartitionRouting(c: Context) {
  * - total: Total user count
  * - byPartition: Map of partition → user count
  */
-export async function getPartitionStats(c: Context) {
+export async function getPartitionStats(c: Context<{ Bindings: Env }>) {
   const db = c.env.DB;
   if (!db) {
-    return c.json({ error: 'DB binding not available' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.CONFIG_DB_NOT_CONFIGURED);
   }
 
   const tenantId = c.req.query('tenant_id');
-  const availablePartitions = getAvailablePartitions(c.env as Record<string, unknown>);
+  const availablePartitions = getAvailablePartitions(c.env as unknown as Record<string, unknown>);
 
   // Query partition statistics
   const sql = tenantId
@@ -357,16 +362,16 @@ export async function getPartitionStats(c: Context) {
  *
  * Reset PII partition configuration to defaults.
  */
-export async function deletePartitionSettings(c: Context) {
+export async function deletePartitionSettings(c: Context<{ Bindings: Env }>) {
   const kv = c.env.AUTHRIM_CONFIG;
   if (!kv) {
-    return c.json({ error: 'AUTHRIM_CONFIG KV binding not available' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.CONFIG_KV_NOT_CONFIGURED);
   }
 
   const kvKey = buildPartitionSettingsKvKey(DEFAULT_TENANT_ID);
   await kv.delete(kvKey);
 
-  const availablePartitions = getAvailablePartitions(c.env as Record<string, unknown>);
+  const availablePartitions = getAvailablePartitions(c.env as unknown as Record<string, unknown>);
   const defaults = getDefaultPartitionSettings(availablePartitions);
 
   return c.json({

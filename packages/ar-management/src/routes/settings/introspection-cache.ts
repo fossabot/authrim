@@ -269,7 +269,8 @@ export async function updateIntrospectionCacheConfigHandler(c: Context<{ Binding
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to update settings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        // SECURITY: Do not expose internal error details
+        error_description: 'Failed to update settings',
       },
       500
     );
@@ -321,7 +322,8 @@ export async function clearIntrospectionCacheConfigHandler(c: Context<{ Bindings
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to clear settings: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        // SECURITY: Do not expose internal error details
+        error_description: 'Failed to clear settings',
       },
       500
     );

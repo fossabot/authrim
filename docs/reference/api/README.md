@@ -22,16 +22,16 @@
 
 Authrim OIDC OP provides 39+ API endpoints:
 
-| Category | Endpoint Count | Status |
-|---------|----------------|-----------|
-| **OIDC Core** | 7 | ✅ Phase 2 Complete |
-| **OIDC Extensions** | 4 | ✅ Phase 4 Complete |
-| **Auth UI** | 6 | ✅ Phase 5 Stage 2 Complete |
-| **Admin API** | 9 | 🔄 Phase 5 Stage 2 Partial (6/9) |
-| **Session Management** | 6 | 📝 Phase 5 Planned |
-| **Logout** | 2 | 📝 Phase 5 Planned |
-| **Token Exchange** | 2+ | 🔄 Under Consideration |
-| **Total** | **39+** | - |
+| Category               | Endpoint Count | Status                           |
+| ---------------------- | -------------- | -------------------------------- |
+| **OIDC Core**          | 7              | ✅ Phase 2 Complete              |
+| **OIDC Extensions**    | 4              | ✅ Phase 4 Complete              |
+| **Auth UI**            | 6              | ✅ Phase 5 Stage 2 Complete      |
+| **Admin API**          | 9              | 🔄 Phase 5 Stage 2 Partial (6/9) |
+| **Session Management** | 6              | 📝 Phase 5 Planned               |
+| **Logout**             | 2              | 📝 Phase 5 Planned               |
+| **Token Exchange**     | 2+             | 🔄 Under Consideration           |
+| **Total**              | **39+**        | -                                |
 
 ---
 
@@ -59,6 +59,7 @@ Enterprise-grade security features:
 - `POST /revoke` - Token Revocation (RFC 7009)
 
 **Additional Features**:
+
 - DPoP (RFC 9449) - Token Binding
 - Pairwise Subject Identifiers - Privacy Protection
 - Refresh Token Rotation
@@ -68,20 +69,24 @@ Enterprise-grade security features:
 Passwordless authentication endpoints:
 
 #### Passkey Authentication
+
 - `POST /auth/passkey/register/options` - Generate Passkey Registration Options
 - `POST /auth/passkey/register/verify` - Verify Passkey Registration
 - `POST /auth/passkey/login/options` - Generate Passkey Login Options
 - `POST /auth/passkey/login/verify` - Verify Passkey Login
 
 #### Magic Link Authentication
+
 - `POST /auth/magic-link/send` - Send Magic Link Email
 - `GET /auth/magic-link/verify` - Verify Magic Link Token
 
 #### OAuth Consent
+
 - `GET /auth/consent` - Get Consent Screen Data
 - `POST /auth/consent` - Submit Consent Decision
 
 **Documentation:**
+
 - [Passkey API](./auth/passkey.md)
 - [Magic Link API](./auth/magic-link.md)
 - [Consent API](./auth/consent.md)
@@ -91,6 +96,7 @@ Passwordless authentication endpoints:
 Admin-only APIs for user and client management:
 
 #### User Management ✅ Implemented
+
 - `GET /admin/users` - List/Search Users (pagination, search, filtering)
 - `GET /admin/users/:id` - Get User Details
 - `POST /admin/users` - Create User
@@ -98,19 +104,23 @@ Admin-only APIs for user and client management:
 - `DELETE /admin/users/:id` - Delete User (cascade)
 
 #### Client Management ✅ Implemented (Read-only)
+
 - `GET /admin/clients` - List Clients (pagination, search)
 - `GET /admin/clients/:id` - Get Client Details
 
 #### Client Management 📝 Planned (Phase 6)
+
 - `POST /admin/clients` - Create Client
 - `PUT /admin/clients/:id` - Update Client
 - `POST /admin/clients/:id/regenerate-secret` - Regenerate Client Secret
 - `DELETE /admin/clients/:id` - Delete Client
 
 #### Statistics ✅ Implemented
+
 - `GET /admin/stats` - System Statistics & Recent Activity
 
 **Documentation:**
+
 - [Admin User Management API](./admin/users.md)
 - [Admin Client Management API](./admin/clients.md)
 - [Admin Statistics API](./admin/statistics.md)
@@ -154,6 +164,7 @@ Authorization: Bearer {access_token}
 **Target**: `/token`, `/introspect`, `/revoke`
 
 **Supported Methods**:
+
 - `client_secret_basic` - Basic authentication (default)
 - `client_secret_post` - POST parameters
 - `client_secret_jwt` - JWT (RFC 7523)
@@ -180,16 +191,17 @@ DPoP: {dpop_proof_jwt}
 
 ## Rate Limiting
 
-| Endpoint | Limit | Period | Unit |
-|--------------|------|------|------|
-| `/login` | 5 | 1 min | IP |
-| `/register` | 3 | 1 min | IP |
-| `/auth/magic-link/send` | 3 | 15 min | email |
-| `/token` | 10 | 1 min | client_id |
-| `/admin/*` | 100 | 1 min | session |
-| Others | 60 | 1 min | IP |
+| Endpoint                | Limit | Period | Unit      |
+| ----------------------- | ----- | ------ | --------- |
+| `/login`                | 5     | 1 min  | IP        |
+| `/register`             | 3     | 1 min  | IP        |
+| `/auth/magic-link/send` | 3     | 15 min | email     |
+| `/token`                | 10    | 1 min  | client_id |
+| `/admin/*`              | 100   | 1 min  | session   |
+| Others                  | 60    | 1 min  | IP        |
 
 **When Rate Limit Exceeded**:
+
 ```json
 {
   "error": "rate_limit_exceeded",
@@ -199,6 +211,7 @@ DPoP: {dpop_proof_jwt}
 ```
 
 **Headers**:
+
 ```http
 X-RateLimit-Limit: 5
 X-RateLimit-Remaining: 2
@@ -247,37 +260,37 @@ curl -X DELETE https://your-domain.com/api/admin/settings/rate-limit/loadTest \
 
 #### OAuth 2.0 Standard Errors (RFC 6749)
 
-| Error Code | HTTP Status | Description |
-|-------------|-------------|------|
-| `invalid_request` | 400 | Invalid request parameters |
-| `invalid_client` | 401 | Client authentication failed |
-| `invalid_grant` | 400 | Invalid authorization code/refresh token |
-| `unauthorized_client` | 400 | Client is not authorized |
-| `unsupported_grant_type` | 400 | Grant type is not supported |
-| `invalid_scope` | 400 | Invalid scope |
-| `access_denied` | 403 | User denied consent |
-| `server_error` | 500 | Internal server error |
-| `temporarily_unavailable` | 503 | Temporarily unavailable |
+| Error Code                | HTTP Status | Description                              |
+| ------------------------- | ----------- | ---------------------------------------- |
+| `invalid_request`         | 400         | Invalid request parameters               |
+| `invalid_client`          | 401         | Client authentication failed             |
+| `invalid_grant`           | 400         | Invalid authorization code/refresh token |
+| `unauthorized_client`     | 400         | Client is not authorized                 |
+| `unsupported_grant_type`  | 400         | Grant type is not supported              |
+| `invalid_scope`           | 400         | Invalid scope                            |
+| `access_denied`           | 403         | User denied consent                      |
+| `server_error`            | 500         | Internal server error                    |
+| `temporarily_unavailable` | 503         | Temporarily unavailable                  |
 
 #### OIDC Errors
 
-| Error Code | HTTP Status | Description |
-|-------------|-------------|------|
-| `interaction_required` | 400 | User interaction required |
-| `login_required` | 400 | Login required |
-| `consent_required` | 400 | Consent required |
-| `invalid_request_uri` | 400 | Invalid request_uri |
-| `invalid_request_object` | 400 | Invalid request JWT |
+| Error Code               | HTTP Status | Description               |
+| ------------------------ | ----------- | ------------------------- |
+| `interaction_required`   | 400         | User interaction required |
+| `login_required`         | 400         | Login required            |
+| `consent_required`       | 400         | Consent required          |
+| `invalid_request_uri`    | 400         | Invalid request_uri       |
+| `invalid_request_object` | 400         | Invalid request JWT       |
 
 #### Authrim Custom Errors
 
-| Error Code | HTTP Status | Description |
-|-------------|-------------|------|
-| `passkey_not_supported` | 400 | Passkey is not supported |
-| `magic_link_expired` | 400 | Magic Link expired |
-| `session_expired` | 401 | Session expired |
-| `rate_limit_exceeded` | 429 | Rate limit exceeded |
-| `insufficient_permissions` | 403 | Insufficient permissions (Admin API) |
+| Error Code                 | HTTP Status | Description                          |
+| -------------------------- | ----------- | ------------------------------------ |
+| `passkey_not_supported`    | 400         | Passkey is not supported             |
+| `magic_link_expired`       | 400         | Magic Link expired                   |
+| `session_expired`          | 401         | Session expired                      |
+| `rate_limit_exceeded`      | 429         | Rate limit exceeded                  |
+| `insufficient_permissions` | 403         | Insufficient permissions (Admin API) |
 
 ---
 

@@ -7,7 +7,15 @@
 
 import type { Context } from 'hono';
 import type { Env, CIBARequestMetadata } from '@authrim/ar-lib-core';
-import { parseLoginHint, D1Adapter, type DatabaseAdapter } from '@authrim/ar-lib-core';
+import {
+  parseLoginHint,
+  D1Adapter,
+  type DatabaseAdapter,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 
 /**
  * GET /api/ciba/pending
@@ -42,12 +50,11 @@ export async function cibaPendingHandler(c: Context<{ Bindings: Env }>) {
     const userId = c.req.query('user_id');
 
     if (!loginHint && !userId) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Either login_hint or user_id is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Either login_hint or user_id is required'
       );
     }
 
@@ -78,13 +85,7 @@ export async function cibaPendingHandler(c: Context<{ Bindings: Env }>) {
     }
 
     if (!getResponse.ok) {
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to retrieve CIBA requests',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     const metadata: CIBARequestMetadata | null = await getResponse.json();
@@ -131,12 +132,6 @@ export async function cibaPendingHandler(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     console.error('CIBA pending requests API error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

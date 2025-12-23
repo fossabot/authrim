@@ -298,11 +298,12 @@ export async function deviceVerifyApiHandler(c: Context<{ Bindings: Env }>) {
     }
   } catch (error) {
     console.error('Device verification API error:', error);
+    // SECURITY: Do not expose internal error details in response
     return c.json(
       {
         success: false,
         error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
+        error_description: 'Internal server error',
       },
       500
     );

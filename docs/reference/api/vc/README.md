@@ -32,6 +32,7 @@ VCs are used for attribute verification (e.g., age verification, country residen
 Returns verifier metadata.
 
 **Response:**
+
 ```json
 {
   "verifier_identifier": "did:web:authrim.com",
@@ -54,34 +55,41 @@ Returns verifier metadata.
 Creates a VP authorization request for the wallet.
 
 **Request Headers:**
+
 ```
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "presentation_definition": {
     "id": "age-verification",
-    "input_descriptors": [{
-      "id": "age-over-18",
-      "format": {
-        "dc+sd-jwt": {
-          "alg": ["ES256"]
-        }
-      },
-      "constraints": {
-        "fields": [{
-          "path": ["$.vct"],
-          "filter": {
-            "type": "string",
-            "pattern": "age-verification"
+    "input_descriptors": [
+      {
+        "id": "age-over-18",
+        "format": {
+          "dc+sd-jwt": {
+            "alg": ["ES256"]
           }
-        }, {
-          "path": ["$.age_over_18"]
-        }]
+        },
+        "constraints": {
+          "fields": [
+            {
+              "path": ["$.vct"],
+              "filter": {
+                "type": "string",
+                "pattern": "age-verification"
+              }
+            },
+            {
+              "path": ["$.age_over_18"]
+            }
+          ]
+        }
       }
-    }]
+    ]
   },
   "client_id": "did:web:authrim.com",
   "nonce": "random-nonce",
@@ -90,6 +98,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "request_id": "req-123",
@@ -104,16 +113,19 @@ Content-Type: application/json
 Receives VP token from wallet (direct_post mode).
 
 **Request Headers:**
+
 ```
 Content-Type: application/x-www-form-urlencoded
 ```
 
 **Request Body:**
+
 ```
 vp_token=<SD-JWT-VC>&state=<request_id>&presentation_submission=<JSON>
 ```
 
 **Success Response:**
+
 ```json
 {
   "success": true,
@@ -127,6 +139,7 @@ vp_token=<SD-JWT-VC>&state=<request_id>&presentation_submission=<JSON>
 ```
 
 **Error Response:**
+
 ```json
 {
   "error": "invalid_presentation",
@@ -142,12 +155,14 @@ vp_token=<SD-JWT-VC>&state=<request_id>&presentation_submission=<JSON>
 Initiates attribute verification for an authenticated user.
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <access_token>
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "attribute_type": "age_over_18",
@@ -157,6 +172,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "request_id": "req-456",
@@ -172,16 +188,19 @@ Content-Type: application/json
 Receives VP response for authenticated attribute verification.
 
 **Request Headers:**
+
 ```
 Content-Type: application/x-www-form-urlencoded
 ```
 
 **Request Body:**
+
 ```
 vp_token=<SD-JWT-VC>&state=<request_id>
 ```
 
 **Success Response:**
+
 ```json
 {
   "success": true,
@@ -196,11 +215,13 @@ vp_token=<SD-JWT-VC>&state=<request_id>
 Get verified attributes for authenticated user.
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <access_token>
 ```
 
 **Response:**
+
 ```json
 {
   "user_id": "user-123",
@@ -219,6 +240,7 @@ Authorization: Bearer <access_token>
 Get status of a VP request.
 
 **Response:**
+
 ```json
 {
   "id": "req-123",
@@ -238,6 +260,7 @@ Get status of a VP request.
 Returns issuer metadata.
 
 **Response:**
+
 ```json
 {
   "credential_issuer": "did:web:authrim.com",
@@ -275,6 +298,7 @@ Returns issuer metadata.
 Get a credential offer.
 
 **Response:**
+
 ```json
 {
   "credential_issuer": "did:web:authrim.com",
@@ -298,12 +322,14 @@ Get a credential offer.
 Issue a credential to the wallet.
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <access_token>
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "format": "dc+sd-jwt",
@@ -316,6 +342,7 @@ Content-Type: application/json
 ```
 
 **Success Response:**
+
 ```json
 {
   "credential": "eyJ0eXAiOiJkYytzZC1qd3Qi...~disc1~disc2~",
@@ -325,6 +352,7 @@ Content-Type: application/json
 ```
 
 **Deferred Response (202):**
+
 ```json
 {
   "transaction_id": "tx-123",
@@ -340,12 +368,14 @@ Content-Type: application/json
 Retrieve a deferred credential.
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <access_token>
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "transaction_id": "tx-123"
@@ -353,6 +383,7 @@ Content-Type: application/json
 ```
 
 **Ready Response:**
+
 ```json
 {
   "credential": "eyJ0eXAiOiJkYytzZC1qd3Qi...~disc1~disc2~",
@@ -362,6 +393,7 @@ Content-Type: application/json
 ```
 
 **Pending Response (400):**
+
 ```json
 {
   "error": "issuance_pending",
@@ -377,21 +409,24 @@ Content-Type: application/json
 Returns Authrim's DID document.
 
 **Response:**
+
 ```json
 {
   "@context": ["https://www.w3.org/ns/did/v1"],
   "id": "did:web:authrim.com",
-  "verificationMethod": [{
-    "id": "did:web:authrim.com#key-1",
-    "type": "JsonWebKey2020",
-    "controller": "did:web:authrim.com",
-    "publicKeyJwk": {
-      "kty": "EC",
-      "crv": "P-256",
-      "x": "...",
-      "y": "..."
+  "verificationMethod": [
+    {
+      "id": "did:web:authrim.com#key-1",
+      "type": "JsonWebKey2020",
+      "controller": "did:web:authrim.com",
+      "publicKeyJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "...",
+        "y": "..."
+      }
     }
-  }],
+  ],
   "assertionMethod": ["did:web:authrim.com#key-1"]
 }
 ```
@@ -401,6 +436,7 @@ Returns Authrim's DID document.
 Resolve any DID (did:web, did:key).
 
 **Response:**
+
 ```json
 {
   "didDocument": {
@@ -416,31 +452,31 @@ Resolve any DID (did:web, did:key).
 
 ## Error Codes
 
-| Error | Description |
-|-------|-------------|
-| `invalid_request` | Missing or invalid request parameters |
-| `invalid_token` | Invalid or expired access token |
-| `invalid_presentation` | VP token verification failed |
-| `invalid_proof` | Proof of possession verification failed |
-| `issuer_not_trusted` | VC issuer not in trusted registry |
-| `self_issued_credential_rejected` | Cannot accept self-issued credentials |
-| `issuance_pending` | Deferred credential not ready |
-| `invalid_transaction_id` | Deferred transaction not found |
+| Error                             | Description                             |
+| --------------------------------- | --------------------------------------- |
+| `invalid_request`                 | Missing or invalid request parameters   |
+| `invalid_token`                   | Invalid or expired access token         |
+| `invalid_presentation`            | VP token verification failed            |
+| `invalid_proof`                   | Proof of possession verification failed |
+| `issuer_not_trusted`              | VC issuer not in trusted registry       |
+| `self_issued_credential_rejected` | Cannot accept self-issued credentials   |
+| `issuance_pending`                | Deferred credential not ready           |
+| `invalid_transaction_id`          | Deferred transaction not found          |
 
 ## Attribute Mapping
 
 VCs claims are normalized to verified attributes:
 
-| VC Claim | Normalized Attribute |
-|----------|---------------------|
-| `given_name` | `verified_given_name` |
-| `family_name` | `verified_family_name` |
-| `email` | `verified_email` |
-| `birthdate` | `verified_birthdate` |
-| `age_over_18` | `verified_age_over_18` |
-| `age_over_21` | `verified_age_over_21` |
-| `address.country` | `verified_country` |
-| `address.region` | `verified_region` |
+| VC Claim          | Normalized Attribute   |
+| ----------------- | ---------------------- |
+| `given_name`      | `verified_given_name`  |
+| `family_name`     | `verified_family_name` |
+| `email`           | `verified_email`       |
+| `birthdate`       | `verified_birthdate`   |
+| `age_over_18`     | `verified_age_over_18` |
+| `age_over_21`     | `verified_age_over_21` |
+| `address.country` | `verified_country`     |
+| `address.region`  | `verified_region`      |
 
 ## HAIP Compliance
 

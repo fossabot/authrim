@@ -61,6 +61,7 @@ These endpoints follow OpenID Connect and OAuth 2.0 specifications and **must no
 All custom endpoints **must** use the `/api/` prefix to clearly distinguish them from OIDC standard endpoints.
 
 #### Structure:
+
 ```
 /api/
 ├── health                          # Health check
@@ -77,6 +78,7 @@ All custom endpoints **must** use the `/api/` prefix to clearly distinguish them
 ### Rule 1: Use `/api/` Prefix for Custom Endpoints
 
 **✅ Correct:**
+
 ```
 /api/auth/passkey/login/options
 /api/admin/users
@@ -84,6 +86,7 @@ All custom endpoints **must** use the `/api/` prefix to clearly distinguish them
 ```
 
 **❌ Incorrect:**
+
 ```
 /auth/passkey/login/options         # Missing /api/ prefix
 /admin/users                        # Missing /api/ prefix
@@ -96,6 +99,7 @@ All custom endpoints **must** use the `/api/` prefix to clearly distinguish them
 Use HTTP methods (GET, POST, PUT, DELETE) to represent actions instead of verbs in the path.
 
 **✅ Correct:**
+
 ```http
 POST   /api/auth/magic-link/send      # "send" is domain-specific, acceptable
 POST   /api/sessions/verify           # "verify" is domain-specific, acceptable
@@ -103,6 +107,7 @@ DELETE /api/admin/sessions/:id        # Use DELETE method for revocation
 ```
 
 **❌ Incorrect:**
+
 ```http
 POST /api/admin/sessions/:id/revoke   # "revoke" is redundant with DELETE
 POST /api/admin/users/:id/delete      # Use DELETE method instead
@@ -110,6 +115,7 @@ GET  /api/admin/users/get/:id         # "get" is redundant with GET
 ```
 
 **Exception:** Some domain-specific verbs are acceptable when they represent a specific business action:
+
 - `/send` - Sending emails or notifications
 - `/verify` - Verification operations
 - `/issue` - Issuing tokens or credentials
@@ -122,6 +128,7 @@ GET  /api/admin/users/get/:id         # "get" is redundant with GET
 Represent resource relationships using path hierarchy.
 
 **✅ Correct:**
+
 ```
 GET    /api/admin/users/:id/sessions      # Get all sessions for a user
 DELETE /api/admin/users/:id/sessions      # Delete all sessions for a user
@@ -131,6 +138,7 @@ DELETE /api/admin/users/:id/avatar        # Delete user's avatar
 ```
 
 **❌ Incorrect:**
+
 ```
 POST /api/admin/users/:id/revoke-all-sessions  # Too verbose
 GET  /api/admin/user-avatar/:id                # Flat structure
@@ -141,6 +149,7 @@ GET  /api/admin/user-avatar/:id                # Flat structure
 ### Rule 4: Use Plural Nouns for Collections
 
 **✅ Correct:**
+
 ```
 GET  /api/admin/users           # List of users
 GET  /api/admin/clients         # List of clients
@@ -148,6 +157,7 @@ GET  /api/admin/sessions        # List of sessions
 ```
 
 **❌ Incorrect:**
+
 ```
 GET  /api/admin/user            # Should be plural
 GET  /api/admin/client          # Should be plural
@@ -158,12 +168,14 @@ GET  /api/admin/client          # Should be plural
 ### Rule 5: Use Lowercase with Hyphens
 
 **✅ Correct:**
+
 ```
 /api/auth/magic-link/send
 /api/admin/audit-logs
 ```
 
 **❌ Incorrect:**
+
 ```
 /api/auth/magicLink/send        # camelCase
 /api/auth/magic_link/send       # snake_case
@@ -176,17 +188,18 @@ GET  /api/admin/client          # Should be plural
 
 ### HTTP Methods and Their Usage
 
-| Method | Usage | Idempotent | Safe |
-|--------|-------|-----------|------|
-| **GET** | Retrieve resource(s) | ✅ | ✅ |
-| **POST** | Create resource or perform action | ❌ | ❌ |
-| **PUT** | Update resource (replace) | ✅ | ❌ |
-| **PATCH** | Update resource (partial) | ❌ | ❌ |
-| **DELETE** | Delete resource | ✅ | ❌ |
+| Method     | Usage                             | Idempotent | Safe |
+| ---------- | --------------------------------- | ---------- | ---- |
+| **GET**    | Retrieve resource(s)              | ✅         | ✅   |
+| **POST**   | Create resource or perform action | ❌         | ❌   |
+| **PUT**    | Update resource (replace)         | ✅         | ❌   |
+| **PATCH**  | Update resource (partial)         | ❌         | ❌   |
+| **DELETE** | Delete resource                   | ✅         | ❌   |
 
 ### Examples
 
 #### User Management
+
 ```http
 GET    /api/admin/users              # List all users
 POST   /api/admin/users              # Create a new user
@@ -197,6 +210,7 @@ DELETE /api/admin/users/:id          # Delete user
 ```
 
 #### Session Management
+
 ```http
 GET    /api/admin/sessions           # List all sessions
 GET    /api/admin/sessions/:id       # Get session details
@@ -204,6 +218,7 @@ DELETE /api/admin/sessions/:id       # Revoke a session
 ```
 
 #### Nested Resources
+
 ```http
 GET    /api/admin/users/:id/sessions        # Get all sessions for a user
 DELETE /api/admin/users/:id/sessions        # Revoke all sessions for a user
@@ -218,6 +233,7 @@ DELETE /api/admin/users/:id/avatar          # Delete avatar for a user
 ### Authentication APIs (`/api/auth/`)
 
 #### Passkey Authentication
+
 ```http
 POST /api/auth/passkey/register/options     # Get Passkey registration options
 POST /api/auth/passkey/register/verify      # Verify Passkey registration
@@ -226,12 +242,14 @@ POST /api/auth/passkey/login/verify         # Verify Passkey login
 ```
 
 #### Magic Link Authentication
+
 ```http
 POST /api/auth/magic-link/send              # Send magic link to email
 GET  /api/auth/magic-link/verify            # Verify magic link token
 ```
 
 #### Consent (UI Helper)
+
 ```http
 GET  /api/auth/consent                      # Display consent page data
 POST /api/auth/consent                      # Submit consent decision
@@ -255,11 +273,13 @@ POST /api/sessions/refresh                  # Refresh session expiration
 ### Admin APIs (`/api/admin/`)
 
 #### Statistics
+
 ```http
 GET /api/admin/stats                        # Get dashboard statistics
 ```
 
 #### User Management
+
 ```http
 GET    /api/admin/users                     # List users (with pagination & search)
 POST   /api/admin/users                     # Create a new user
@@ -271,6 +291,7 @@ DELETE /api/admin/users/:id/avatar          # Delete user avatar
 ```
 
 **Query Parameters for User List:**
+
 ```
 ?page=1              # Page number (default: 1)
 &limit=20            # Items per page (default: 20)
@@ -279,12 +300,14 @@ DELETE /api/admin/users/:id/avatar          # Delete user avatar
 ```
 
 #### Client Management
+
 ```http
 GET /api/admin/clients                      # List OAuth clients
 GET /api/admin/clients/:id                  # Get client details
 ```
 
 #### Session Management
+
 ```http
 GET    /api/admin/sessions                  # List all sessions
 GET    /api/admin/sessions/:id              # Get session details
@@ -297,11 +320,13 @@ DELETE /api/admin/users/:id/sessions        # Revoke all sessions for a user
 ### Resource APIs
 
 #### Avatars
+
 ```http
 GET /api/avatars/:filename                  # Serve avatar image
 ```
 
 #### Health Check
+
 ```http
 GET /api/health                             # Service health status
 ```
@@ -322,25 +347,25 @@ All API errors follow the OAuth 2.0 error response format (RFC 6749):
 
 ### Standard Error Codes
 
-| Error Code | HTTP Status | Description |
-|-----------|-------------|-------------|
-| `invalid_request` | 400 | Request is malformed or missing parameters |
-| `unauthorized_client` | 401 | Client authentication failed |
-| `access_denied` | 403 | User denied access or insufficient permissions |
-| `unsupported_response_type` | 400 | Unsupported response type |
-| `invalid_scope` | 400 | Invalid scope requested |
-| `server_error` | 500 | Internal server error |
-| `temporarily_unavailable` | 503 | Service temporarily unavailable |
+| Error Code                  | HTTP Status | Description                                    |
+| --------------------------- | ----------- | ---------------------------------------------- |
+| `invalid_request`           | 400         | Request is malformed or missing parameters     |
+| `unauthorized_client`       | 401         | Client authentication failed                   |
+| `access_denied`             | 403         | User denied access or insufficient permissions |
+| `unsupported_response_type` | 400         | Unsupported response type                      |
+| `invalid_scope`             | 400         | Invalid scope requested                        |
+| `server_error`              | 500         | Internal server error                          |
+| `temporarily_unavailable`   | 503         | Service temporarily unavailable                |
 
 ### Custom Error Codes (Authrim-specific)
 
-| Error Code | HTTP Status | Description |
-|-----------|-------------|-------------|
-| `user_not_found` | 404 | User does not exist |
-| `passkey_not_supported` | 400 | WebAuthn not supported by browser |
-| `magic_link_expired` | 400 | Magic link token has expired |
-| `session_expired` | 401 | Session has expired |
-| `rate_limit_exceeded` | 429 | Too many requests |
+| Error Code              | HTTP Status | Description                       |
+| ----------------------- | ----------- | --------------------------------- |
+| `user_not_found`        | 404         | User does not exist               |
+| `passkey_not_supported` | 400         | WebAuthn not supported by browser |
+| `magic_link_expired`    | 400         | Magic link token has expired      |
+| `session_expired`       | 401         | Session has expired               |
+| `rate_limit_exceeded`   | 429         | Too many requests                 |
 
 ---
 
@@ -360,6 +385,7 @@ If breaking changes are required, we will introduce versioning:
 ```
 
 **Principles:**
+
 - Maintain backward compatibility whenever possible
 - Deprecate old versions with a clear migration path
 - Document breaking changes in `CHANGELOG.md`
@@ -389,13 +415,13 @@ X-RateLimit-Reset: 1234567890
 
 ### Quick Reference
 
-| Category | Prefix | Examples |
-|----------|--------|----------|
-| **OIDC Standard** | None | `/authorize`, `/token`, `/userinfo` |
-| **Custom Auth** | `/api/auth/` | `/api/auth/passkey/*`, `/api/auth/magic-link/*` |
-| **Sessions** | `/api/sessions/` | `/api/sessions/issue`, `/api/sessions/verify` |
-| **Admin** | `/api/admin/` | `/api/admin/users`, `/api/admin/clients` |
-| **Resources** | `/api/` | `/api/avatars/:filename`, `/api/health` |
+| Category          | Prefix           | Examples                                        |
+| ----------------- | ---------------- | ----------------------------------------------- |
+| **OIDC Standard** | None             | `/authorize`, `/token`, `/userinfo`             |
+| **Custom Auth**   | `/api/auth/`     | `/api/auth/passkey/*`, `/api/auth/magic-link/*` |
+| **Sessions**      | `/api/sessions/` | `/api/sessions/issue`, `/api/sessions/verify`   |
+| **Admin**         | `/api/admin/`    | `/api/admin/users`, `/api/admin/clients`        |
+| **Resources**     | `/api/`          | `/api/avatars/:filename`, `/api/health`         |
 
 ### Best Practices Checklist
 

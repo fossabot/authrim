@@ -55,12 +55,14 @@ Retrieves the currently active key used for signing new JWTs.
 **Endpoint**: `GET /active`
 
 **Request**:
+
 ```bash
 curl -X GET https://your-worker.workers.dev/key-manager/active \
   -H "Authorization: Bearer YOUR_SECRET_TOKEN"
 ```
 
 **Response** (Success - 200 OK):
+
 ```json
 {
   "kid": "key-1731847200000-abc123",
@@ -78,6 +80,7 @@ curl -X GET https://your-worker.workers.dev/key-manager/active \
 ```
 
 **Response** (No Active Key - 404 Not Found):
+
 ```json
 {
   "error": "No active key found"
@@ -85,6 +88,7 @@ curl -X GET https://your-worker.workers.dev/key-manager/active \
 ```
 
 **Fields**:
+
 - `kid` (string): Unique key identifier
 - `publicJWK` (object): Public key in JWK format
 - `createdAt` (number): Unix timestamp of key creation
@@ -101,12 +105,14 @@ Retrieves all public keys in JWKS (JSON Web Key Set) format for JWT verification
 **Endpoint**: `GET /jwks`
 
 **Request**:
+
 ```bash
 curl -X GET https://your-worker.workers.dev/key-manager/jwks \
   -H "Authorization: Bearer YOUR_SECRET_TOKEN"
 ```
 
 **Response** (Success - 200 OK):
+
 ```json
 {
   "keys": [
@@ -141,12 +147,14 @@ Manually triggers a key rotation. A new key is generated, activated, and old key
 **Endpoint**: `POST /rotate`
 
 **Request**:
+
 ```bash
 curl -X POST https://your-worker.workers.dev/key-manager/rotate \
   -H "Authorization: Bearer YOUR_SECRET_TOKEN"
 ```
 
 **Response** (Success - 200 OK):
+
 ```json
 {
   "success": true,
@@ -167,6 +175,7 @@ curl -X POST https://your-worker.workers.dev/key-manager/rotate \
 ```
 
 **Rotation Process**:
+
 1. Generate new 2048-bit RSA key pair
 2. Assign unique `kid` with timestamp
 3. Store key in Durable Object storage
@@ -183,12 +192,14 @@ Checks whether key rotation should be performed based on the configured rotation
 **Endpoint**: `GET /should-rotate`
 
 **Request**:
+
 ```bash
 curl -X GET https://your-worker.workers.dev/key-manager/should-rotate \
   -H "Authorization: Bearer YOUR_SECRET_TOKEN"
 ```
 
 **Response** (Success - 200 OK):
+
 ```json
 {
   "shouldRotate": true
@@ -196,9 +207,11 @@ curl -X GET https://your-worker.workers.dev/key-manager/should-rotate \
 ```
 
 **Fields**:
+
 - `shouldRotate` (boolean): `true` if rotation is needed, `false` otherwise
 
 **Rotation Logic**:
+
 - Returns `true` if no keys have been generated yet
 - Returns `true` if time since last rotation exceeds `rotationIntervalDays`
 - Otherwise returns `false`
@@ -212,12 +225,14 @@ Retrieves the current key rotation configuration.
 **Endpoint**: `GET /config`
 
 **Request**:
+
 ```bash
 curl -X GET https://your-worker.workers.dev/key-manager/config \
   -H "Authorization: Bearer YOUR_SECRET_TOKEN"
 ```
 
 **Response** (Success - 200 OK):
+
 ```json
 {
   "rotationIntervalDays": 90,
@@ -226,6 +241,7 @@ curl -X GET https://your-worker.workers.dev/key-manager/config \
 ```
 
 **Fields**:
+
 - `rotationIntervalDays` (number): Days between automatic key rotations (default: 90)
 - `retentionPeriodDays` (number): Days to keep old keys after rotation (default: 30)
 
@@ -238,6 +254,7 @@ Updates the key rotation configuration.
 **Endpoint**: `POST /config`
 
 **Request**:
+
 ```bash
 curl -X POST https://your-worker.workers.dev/key-manager/config \
   -H "Authorization: Bearer YOUR_SECRET_TOKEN" \
@@ -249,6 +266,7 @@ curl -X POST https://your-worker.workers.dev/key-manager/config \
 ```
 
 **Request Body**:
+
 ```json
 {
   "rotationIntervalDays": 60,
@@ -257,6 +275,7 @@ curl -X POST https://your-worker.workers.dev/key-manager/config \
 ```
 
 **Response** (Success - 200 OK):
+
 ```json
 {
   "success": true
@@ -264,6 +283,7 @@ curl -X POST https://your-worker.workers.dev/key-manager/config \
 ```
 
 **Validation**:
+
 - Both fields are optional (partial updates supported)
 - `rotationIntervalDays` must be a positive number
 - `retentionPeriodDays` must be a positive number
@@ -365,7 +385,7 @@ const configResponse = await keyManagerStub.fetch('http://internal/config', {
   },
   body: JSON.stringify({
     rotationIntervalDays: 30, // Rotate every 30 days
-    retentionPeriodDays: 14,  // Keep old keys for 14 days
+    retentionPeriodDays: 14, // Keep old keys for 14 days
   }),
 });
 

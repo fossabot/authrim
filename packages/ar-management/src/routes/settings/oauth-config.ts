@@ -153,10 +153,11 @@ export async function updateOAuthConfig(c: Context) {
     });
   } catch (error) {
     console.error(`[OAuth Config API] Error updating ${name}:`, error);
+    // SECURITY: Do not expose internal error details
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to update config: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error_description: 'Failed to update config',
       },
       500
     );
@@ -203,10 +204,11 @@ export async function clearOAuthConfig(c: Context) {
     });
   } catch (error) {
     console.error(`[OAuth Config API] Error clearing ${name}:`, error);
+    // SECURITY: Do not expose internal error details
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to clear config: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error_description: 'Failed to clear config',
       },
       500
     );
@@ -239,10 +241,11 @@ export async function clearAllOAuthConfig(c: Context) {
     });
   } catch (error) {
     console.error('[OAuth Config API] Error clearing all config:', error);
+    // SECURITY: Do not expose internal error details
     return c.json(
       {
         error: 'internal_error',
-        error_description: `Failed to clear all config: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error_description: 'Failed to clear config',
       },
       500
     );

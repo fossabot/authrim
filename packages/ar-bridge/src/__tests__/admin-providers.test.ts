@@ -24,16 +24,60 @@ interface Env {
 }
 
 // Mock @authrim/ar-lib-core to avoid cloudflare:workers dependency
-vi.mock('@authrim/ar-lib-core', () => ({
-  timingSafeEqual: (a: string, b: string) => {
-    if (a.length !== b.length) return false;
-    let result = 0;
-    for (let i = 0; i < a.length; i++) {
-      result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-    }
-    return result === 0;
-  },
-}));
+vi.mock('@authrim/ar-lib-core', () => {
+  // Map AR error codes to status and RFC error
+  const errorMappings: Record<string, { status: number; rfcError: string }> = {
+    AR900001: { status: 500, rfcError: 'server_error' }, // INTERNAL_ERROR
+    AR060001: { status: 401, rfcError: 'invalid_request' }, // ADMIN_AUTH_REQUIRED
+    AR020002: { status: 404, rfcError: 'invalid_request' }, // CLIENT_NOT_FOUND
+    AR060004: { status: 404, rfcError: 'invalid_request' }, // ADMIN_RESOURCE_NOT_FOUND
+  };
+
+  return {
+    timingSafeEqual: (a: string, b: string) => {
+      if (a.length !== b.length) return false;
+      let result = 0;
+      for (let i = 0; i < a.length; i++) {
+        result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+      }
+      return result === 0;
+    },
+    AR_ERROR_CODES: {
+      INTERNAL_ERROR: 'AR900001',
+      ADMIN_AUTH_REQUIRED: 'AR060001',
+      CLIENT_NOT_FOUND: 'AR020002',
+      ADMIN_RESOURCE_NOT_FOUND: 'AR060004',
+    },
+    RFC_ERROR_CODES: {
+      INVALID_REQUEST: 'invalid_request',
+      SERVER_ERROR: 'server_error',
+    },
+    createErrorResponse: async (_c: unknown, code: string) => {
+      const mapping = errorMappings[code] || { status: 500, rfcError: 'server_error' };
+      return new Response(
+        JSON.stringify({
+          error: mapping.rfcError,
+          error_description: `Error: ${code}`,
+        }),
+        { status: mapping.status, headers: { 'Content-Type': 'application/json' } }
+      );
+    },
+    createRFCErrorResponse: async (
+      _c: unknown,
+      rfcError: string,
+      status: number,
+      detail?: string
+    ) => {
+      return new Response(
+        JSON.stringify({
+          error: rfcError,
+          error_description: detail || rfcError,
+        }),
+        { status, headers: { 'Content-Type': 'application/json' } }
+      );
+    },
+  };
+});
 
 // Mock provider-store module
 vi.mock('../services/provider-store', () => ({
@@ -104,7 +148,10 @@ describe('Admin Provider API', () => {
       const ctx = createMockContext('GET', '/external-idp/admin/providers');
       const response = await handleAdminListProviders(ctx as never);
 
-      expect(ctx.json).toHaveBeenCalledWith({ error: 'unauthorized' }, 401);
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should reject requests with invalid token', async () => {
@@ -113,7 +160,10 @@ describe('Admin Provider API', () => {
       });
       const response = await handleAdminListProviders(ctx as never);
 
-      expect(ctx.json).toHaveBeenCalledWith({ error: 'unauthorized' }, 401);
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should reject requests with non-Bearer auth', async () => {
@@ -122,7 +172,10 @@ describe('Admin Provider API', () => {
       });
       const response = await handleAdminListProviders(ctx as never);
 
-      expect(ctx.json).toHaveBeenCalledWith({ error: 'unauthorized' }, 401);
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should accept requests with valid admin token', async () => {
@@ -225,12 +278,12 @@ describe('Admin Provider API', () => {
           // Missing client_id and client_secret
         },
       });
-      await handleAdminCreateProvider(ctx as never);
+      const response = await handleAdminCreateProvider(ctx as never);
 
-      expect(ctx.json).toHaveBeenCalledWith(
-        expect.objectContaining({ error: 'invalid_request' }),
-        400
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should apply Google template defaults', async () => {
@@ -333,12 +386,12 @@ describe('Admin Provider API', () => {
           provider_quirks: { tenantType: 'invalid-tenant' },
         },
       });
-      await handleAdminCreateProvider(ctx as never);
+      const response = await handleAdminCreateProvider(ctx as never);
 
-      expect(ctx.json).toHaveBeenCalledWith(
-        expect.objectContaining({ error: 'invalid_request' }),
-        400
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should encrypt client secret before storing', async () => {
@@ -401,9 +454,12 @@ describe('Admin Provider API', () => {
         headers: { Authorization: 'Bearer test-admin-secret' },
         params: { id: 'unknown-id' },
       });
-      await handleAdminGetProvider(ctx as never);
+      const response = await handleAdminGetProvider(ctx as never);
 
-      expect(ctx.json).toHaveBeenCalledWith({ error: 'not_found' }, 404);
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(404);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
   });
 
@@ -455,12 +511,12 @@ describe('Admin Provider API', () => {
           provider_quirks: { tenantType: 'invalid-tenant-type' },
         },
       });
-      await handleAdminUpdateProvider(ctx as never);
+      const response = await handleAdminUpdateProvider(ctx as never);
 
-      expect(ctx.json).toHaveBeenCalledWith(
-        expect.objectContaining({ error: 'invalid_request' }),
-        400
-      );
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
 
     it('should accept valid GUID tenantType on update', async () => {
@@ -490,9 +546,12 @@ describe('Admin Provider API', () => {
         params: { id: 'unknown-id' },
         body: { name: 'New Name' },
       });
-      await handleAdminUpdateProvider(ctx as never);
+      const response = await handleAdminUpdateProvider(ctx as never);
 
-      expect(ctx.json).toHaveBeenCalledWith({ error: 'not_found' }, 404);
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(404);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
   });
 
@@ -517,9 +576,12 @@ describe('Admin Provider API', () => {
         headers: { Authorization: 'Bearer test-admin-secret' },
         params: { id: 'unknown-id' },
       });
-      await handleAdminDeleteProvider(ctx as never);
+      const response = await handleAdminDeleteProvider(ctx as never);
 
-      expect(ctx.json).toHaveBeenCalledWith({ error: 'not_found' }, 404);
+      // ErrorFactory returns Response directly
+      expect(response.status).toBe(404);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toBe('invalid_request');
     });
   });
 });

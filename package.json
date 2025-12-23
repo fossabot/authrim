@@ -7,7 +7,7 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "build": "turbo run build",
-    "build:api": "turbo run build --filter=!ui",
+    "build:api": "turbo run build --filter=!@authrim/ar-ui",
     "dev": "turbo run dev --parallel",
     "deploy": "./scripts/deploy-with-retry.sh",
     "deploy:with-router": "./scripts/deploy-with-retry.sh",

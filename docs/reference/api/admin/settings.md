@@ -336,21 +336,21 @@ Reset all OAuth configuration overrides (revert all to env/default).
 
 ### Available Configuration Keys
 
-| Key | Type | Default | Min | Max | Description |
-|-----|------|---------|-----|-----|-------------|
-| `TOKEN_EXPIRY` | number | 3600 | 60 | 86400 | Access token TTL in seconds |
-| `AUTH_CODE_TTL` | number | 60 | 10 | 86400 | Authorization code TTL in seconds |
-| `STATE_EXPIRY` | number | 300 | 60 | 3600 | OAuth state parameter TTL in seconds |
-| `NONCE_EXPIRY` | number | 300 | 60 | 3600 | OIDC nonce TTL in seconds |
-| `REFRESH_TOKEN_EXPIRY` | number | 7776000 | 3600 | 31536000 | Refresh token TTL in seconds (90 days default) |
-| `REFRESH_TOKEN_ROTATION_ENABLED` | boolean | true | - | - | Enable refresh token rotation |
-| `MAX_CODES_PER_USER` | number | 100 | 10 | 1000000 | Max auth codes per user (DDoS protection) |
-| `CODE_SHARDS` | number | 64 | 1 | 256 | Number of auth code DO shards |
-| `STATE_REQUIRED` | boolean | false | - | - | Require state parameter (CSRF protection) |
-| `USERINFO_REQUIRE_OPENID_SCOPE` | boolean | true | - | - | Require openid scope for UserInfo endpoint |
-| `USER_CACHE_TTL` | number | 3600 | 60 | 86400 | User cache TTL in seconds (includes PII) |
-| `CONSENT_CACHE_TTL` | number | 86400 | 60 | 604800 | Consent cache TTL in seconds |
-| `CONFIG_CACHE_TTL` | number | 180 | 10 | 3600 | In-memory config cache TTL in seconds |
+| Key                              | Type    | Default | Min  | Max      | Description                                    |
+| -------------------------------- | ------- | ------- | ---- | -------- | ---------------------------------------------- |
+| `TOKEN_EXPIRY`                   | number  | 3600    | 60   | 86400    | Access token TTL in seconds                    |
+| `AUTH_CODE_TTL`                  | number  | 60      | 10   | 86400    | Authorization code TTL in seconds              |
+| `STATE_EXPIRY`                   | number  | 300     | 60   | 3600     | OAuth state parameter TTL in seconds           |
+| `NONCE_EXPIRY`                   | number  | 300     | 60   | 3600     | OIDC nonce TTL in seconds                      |
+| `REFRESH_TOKEN_EXPIRY`           | number  | 7776000 | 3600 | 31536000 | Refresh token TTL in seconds (90 days default) |
+| `REFRESH_TOKEN_ROTATION_ENABLED` | boolean | true    | -    | -        | Enable refresh token rotation                  |
+| `MAX_CODES_PER_USER`             | number  | 100     | 10   | 1000000  | Max auth codes per user (DDoS protection)      |
+| `CODE_SHARDS`                    | number  | 64      | 1    | 256      | Number of auth code DO shards                  |
+| `STATE_REQUIRED`                 | boolean | false   | -    | -        | Require state parameter (CSRF protection)      |
+| `USERINFO_REQUIRE_OPENID_SCOPE`  | boolean | true    | -    | -        | Require openid scope for UserInfo endpoint     |
+| `USER_CACHE_TTL`                 | number  | 3600    | 60   | 86400    | User cache TTL in seconds (includes PII)       |
+| `CONSENT_CACHE_TTL`              | number  | 86400   | 60   | 604800   | Consent cache TTL in seconds                   |
+| `CONFIG_CACHE_TTL`               | number  | 180     | 10   | 3600     | In-memory config cache TTL in seconds          |
 
 ### Environment Variable Override
 
@@ -396,12 +396,12 @@ curl -X DELETE https://your-domain.com/api/admin/settings/oauth-config \
 
 **USER_CACHE_TTL** contains PII (email, name, phone, address). Consider these trade-offs:
 
-| TTL Setting | Performance | Data Freshness | PII Exposure Window |
-|-------------|-------------|----------------|---------------------|
-| 60s (1 min) | More DB load | Very fresh | Minimal |
-| 300s (5 min) | Moderate | Fresh | Short |
-| 3600s (1 hour) | Optimal | Good | Standard |
-| 86400s (24 hours) | Minimal DB load | May be stale | Extended |
+| TTL Setting       | Performance     | Data Freshness | PII Exposure Window |
+| ----------------- | --------------- | -------------- | ------------------- |
+| 60s (1 min)       | More DB load    | Very fresh     | Minimal             |
+| 300s (5 min)      | Moderate        | Fresh          | Short               |
+| 3600s (1 hour)    | Optimal         | Good           | Standard            |
+| 86400s (24 hours) | Minimal DB load | May be stale   | Extended            |
 
 **Recommendation**: For stricter PII handling (e.g., healthcare, finance), consider setting `USER_CACHE_TTL` to 300-600 seconds.
 
@@ -448,14 +448,14 @@ Region sharding enables Durable Objects (SessionStore, AuthCodeStore, ChallengeS
 
 **Environment Variables**:
 
-| Variable                     | Type   | Default | Description                       |
-| ---------------------------- | ------ | ------- | --------------------------------- |
-| `REGION_SHARD_TOTAL_SHARDS`  | number | 20      | Default total shards              |
-| `REGION_SHARD_GENERATION`    | number | 1       | Current generation                |
-| `REGION_SHARD_APAC_PERCENT`  | number | 20      | APAC region percentage            |
-| `REGION_SHARD_ENAM_PERCENT`  | number | 40      | Eastern North America percentage  |
-| `REGION_SHARD_WEUR_PERCENT`  | number | 40      | Western Europe percentage         |
-| `REGION_SHARD_GROUPS_JSON`   | string | -       | JSON-encoded groups configuration |
+| Variable                    | Type   | Default | Description                       |
+| --------------------------- | ------ | ------- | --------------------------------- |
+| `REGION_SHARD_TOTAL_SHARDS` | number | 20      | Default total shards              |
+| `REGION_SHARD_GENERATION`   | number | 1       | Current generation                |
+| `REGION_SHARD_APAC_PERCENT` | number | 20      | APAC region percentage            |
+| `REGION_SHARD_ENAM_PERCENT` | number | 40      | Eastern North America percentage  |
+| `REGION_SHARD_WEUR_PERCENT` | number | 40      | Western Europe percentage         |
+| `REGION_SHARD_GROUPS_JSON`  | string | -       | JSON-encoded groups configuration |
 
 ### GET /api/admin/settings/region-shards
 
@@ -548,15 +548,15 @@ Update region sharding configuration. If `totalShards`, `regionDistribution`, or
 
 **Valid Region Keys**:
 
-| Key    | Region                | Cloudflare Location          |
-| ------ | --------------------- | ---------------------------- |
-| `apac` | Asia Pacific          | Tokyo, Singapore, Sydney     |
-| `enam` | Eastern North America | Ashburn, Virginia            |
-| `wnam` | Western North America | Portland, Oregon             |
-| `weur` | Western Europe        | Frankfurt, London            |
-| `oc`   | Oceania               | Sydney                       |
-| `afr`  | Africa                | Johannesburg                 |
-| `me`   | Middle East           | Dubai                        |
+| Key    | Region                | Cloudflare Location      |
+| ------ | --------------------- | ------------------------ |
+| `apac` | Asia Pacific          | Tokyo, Singapore, Sydney |
+| `enam` | Eastern North America | Ashburn, Virginia        |
+| `wnam` | Western North America | Portland, Oregon         |
+| `weur` | Western Europe        | Frankfurt, London        |
+| `oc`   | Oceania               | Sydney                   |
+| `afr`  | Africa                | Johannesburg             |
+| `me`   | Middle East           | Dubai                    |
 
 **Response**:
 
@@ -775,31 +775,31 @@ All region-sharded resources use this ID format:
 g{generation}:{region}:{shard}:{type}_{uuid}
 ```
 
-| Component    | Description                | Example              |
-| ------------ | -------------------------- | -------------------- |
-| `generation` | Config version (1-999)     | `g1`, `g2`           |
-| `region`     | Cloudflare region key      | `apac`, `enam`       |
-| `shard`      | Shard index (0 to N-1)     | `0`, `31`, `63`      |
-| `type`       | 3-character DO type prefix | `ses`, `acd`, `dpp`  |
-| `uuid`       | Unique identifier          | `abc123-def456`      |
+| Component    | Description                | Example             |
+| ------------ | -------------------------- | ------------------- |
+| `generation` | Config version (1-999)     | `g1`, `g2`          |
+| `region`     | Cloudflare region key      | `apac`, `enam`      |
+| `shard`      | Shard index (0 to N-1)     | `0`, `31`, `63`     |
+| `type`       | 3-character DO type prefix | `ses`, `acd`, `dpp` |
+| `uuid`       | Unique identifier          | `abc123-def456`     |
 
 **Example**: `g1:apac:3:ses_abc123-def456`
 
 ### Type Prefix Reference
 
-| DO                   | ID Prefix | Description                      |
-| -------------------- | --------- | -------------------------------- |
-| SessionStore         | `ses`     | User sessions                    |
-| AuthCodeStore        | `acd`     | Authorization codes              |
-| RefreshTokenRotator  | `rft`     | Refresh token families           |
-| ChallengeStore       | `cha`     | WebAuthn/FIDO2 challenges        |
-| TokenRevocationStore | `rev`     | Revoked tokens                   |
-| CredentialOfferStore | `cof`     | OpenID4VCI credential offers     |
-| VPRequestStore       | `vpr`     | OpenID4VP verification requests  |
-| DPoPJTIStore         | `dpp`     | DPoP proof replay prevention     |
-| PARRequestStore      | `par`     | Pushed Authorization Requests    |
-| DeviceCodeStore      | `dev`     | Device Authorization Flow        |
-| CIBARequestStore     | `cba`     | Client-Initiated Backchannel Auth|
+| DO                   | ID Prefix | Description                       |
+| -------------------- | --------- | --------------------------------- |
+| SessionStore         | `ses`     | User sessions                     |
+| AuthCodeStore        | `acd`     | Authorization codes               |
+| RefreshTokenRotator  | `rft`     | Refresh token families            |
+| ChallengeStore       | `cha`     | WebAuthn/FIDO2 challenges         |
+| TokenRevocationStore | `rev`     | Revoked tokens                    |
+| CredentialOfferStore | `cof`     | OpenID4VCI credential offers      |
+| VPRequestStore       | `vpr`     | OpenID4VP verification requests   |
+| DPoPJTIStore         | `dpp`     | DPoP proof replay prevention      |
+| PARRequestStore      | `par`     | Pushed Authorization Requests     |
+| DeviceCodeStore      | `dev`     | Device Authorization Flow         |
+| CIBARequestStore     | `cba`     | Client-Initiated Backchannel Auth |
 
 ---
 

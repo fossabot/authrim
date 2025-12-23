@@ -4,10 +4,10 @@ Retrieve authenticated user claims with fine-grained scope control.
 
 ## Overview
 
-| Specification | Status | Endpoint |
-|---------------|--------|----------|
+| Specification                                                                               | Status         | Endpoint    |
+| ------------------------------------------------------------------------------------------- | -------------- | ----------- |
 | [OIDC Core 1.0 Section 5.3](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo) | ✅ Implemented | `/userinfo` |
-| [JWE Encryption](https://openid.net/specs/openid-connect-core-1_0.html#UserInfoResponse) | ✅ Implemented | Optional |
+| [JWE Encryption](https://openid.net/specs/openid-connect-core-1_0.html#UserInfoResponse)    | ✅ Implemented | Optional    |
 
 The UserInfo endpoint returns claims about the authenticated user. Claims returned depend on the scopes granted during authorization.
 
@@ -15,13 +15,13 @@ The UserInfo endpoint returns claims about the authenticated user. Claims return
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Scope-Based Access** | Only return claims for granted scopes |
-| **Fresh Data** | Real-time user information (vs cached ID token) |
-| **Large Claims** | No JWT size limitations |
-| **Privacy Control** | Users control what's shared per client |
-| **JWE Support** | Encrypted responses for sensitive data |
+| Benefit                | Description                                     |
+| ---------------------- | ----------------------------------------------- |
+| **Scope-Based Access** | Only return claims for granted scopes           |
+| **Fresh Data**         | Real-time user information (vs cached ID token) |
+| **Large Claims**       | No JWT size limitations                         |
+| **Privacy Control**    | Users control what's shared per client          |
+| **JWE Support**        | Encrypted responses for sensitive data          |
 
 ---
 
@@ -274,15 +274,17 @@ const clientRegistration = {
 
   // Provide encryption key
   jwks: {
-    keys: [{
-      kty: 'RSA',
-      use: 'enc',
-      kid: 'enc-key-1',
-      alg: 'RSA-OAEP',
-      n: '...',
-      e: 'AQAB'
-    }]
-  }
+    keys: [
+      {
+        kty: 'RSA',
+        use: 'enc',
+        kid: 'enc-key-1',
+        alg: 'RSA-OAEP',
+        n: '...',
+        e: 'AQAB',
+      },
+    ],
+  },
 };
 
 // Decrypt userinfo response
@@ -291,8 +293,8 @@ import * as jose from 'jose';
 async function fetchEncryptedUserInfo(accessToken: string): Promise<UserInfo> {
   const response = await fetch('https://auth.example.com/userinfo', {
     headers: {
-      'Authorization': `Bearer ${accessToken}`
-    }
+      Authorization: `Bearer ${accessToken}`,
+    },
   });
 
   const contentType = response.headers.get('content-type');
@@ -322,14 +324,14 @@ async function getPatientInfo(accessToken: string): Promise<PatientInfo> {
   await auditLog({
     event: 'PATIENT_INFO_ACCESS',
     patient_id_hash: sha256(userInfo.sub),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 
   return {
     id: userInfo.sub,
     name: userInfo.name,
     phone: userInfo.phone_number,
-    address: userInfo.address
+    address: userInfo.address,
   };
 }
 ```
@@ -338,13 +340,13 @@ async function getPatientInfo(accessToken: string): Promise<PatientInfo> {
 
 ## Scope to Claims Mapping
 
-| Scope | Claims |
-|-------|--------|
-| `openid` | `sub` |
+| Scope     | Claims                                                                                                                                                                           |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openid`  | `sub`                                                                                                                                                                            |
 | `profile` | `name`, `family_name`, `given_name`, `middle_name`, `nickname`, `preferred_username`, `profile`, `picture`, `website`, `gender`, `birthdate`, `zoneinfo`, `locale`, `updated_at` |
-| `email` | `email`, `email_verified` |
-| `address` | `address` (structured object) |
-| `phone` | `phone_number`, `phone_number_verified` |
+| `email`   | `email`, `email_verified`                                                                                                                                                        |
+| `address` | `address` (structured object)                                                                                                                                                    |
+| `phone`   | `phone_number`, `phone_number_verified`                                                                                                                                          |
 
 ---
 
@@ -395,10 +397,10 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ## Error Responses
 
-| Status | Error | Description |
-|--------|-------|-------------|
-| 401 | `invalid_token` | Token expired or invalid |
-| 403 | `insufficient_scope` | Token lacks required scope |
+| Status | Error                | Description                |
+| ------ | -------------------- | -------------------------- |
+| 401    | `invalid_token`      | Token expired or invalid   |
+| 403    | `insufficient_scope` | Token lacks required scope |
 
 ```json
 {
@@ -411,12 +413,12 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ## Security Considerations
 
-| Consideration | Implementation |
-|---------------|----------------|
-| **Token Validation** | Verify access token before returning claims |
-| **Scope Enforcement** | Only return claims for granted scopes |
-| **HTTPS Required** | All requests must use TLS |
-| **Token Binding** | Support DPoP-bound access tokens |
+| Consideration         | Implementation                              |
+| --------------------- | ------------------------------------------- |
+| **Token Validation**  | Verify access token before returning claims |
+| **Scope Enforcement** | Only return claims for granted scopes       |
+| **HTTPS Required**    | All requests must use TLS                   |
+| **Token Binding**     | Support DPoP-bound access tokens            |
 
 ---
 
@@ -424,21 +426,21 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ### Client Configuration
 
-| Field | Description |
-|-------|-------------|
-| `userinfo_signed_response_alg` | Sign userinfo response (RS256) |
-| `userinfo_encrypted_response_alg` | Encrypt userinfo (RSA-OAEP) |
-| `userinfo_encrypted_response_enc` | Content encryption (A256GCM) |
+| Field                             | Description                    |
+| --------------------------------- | ------------------------------ |
+| `userinfo_signed_response_alg`    | Sign userinfo response (RS256) |
+| `userinfo_encrypted_response_alg` | Encrypt userinfo (RSA-OAEP)    |
+| `userinfo_encrypted_response_enc` | Content encryption (A256GCM)   |
 
 ---
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| UserInfo Handler | `packages/op-userinfo/src/userinfo.ts` | Endpoint logic |
-| Claims Builder | `packages/shared/src/utils/claims.ts` | Claim generation |
-| JWE Encryption | `packages/shared/src/utils/jwe.ts` | Response encryption |
+| Component        | File                                   | Description         |
+| ---------------- | -------------------------------------- | ------------------- |
+| UserInfo Handler | `packages/op-userinfo/src/userinfo.ts` | Endpoint logic      |
+| Claims Builder   | `packages/shared/src/utils/claims.ts`  | Claim generation    |
+| JWE Encryption   | `packages/shared/src/utils/jwe.ts`     | Response encryption |
 
 ---
 

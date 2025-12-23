@@ -489,7 +489,8 @@ describe('Authorization Handler', () => {
         env
       );
 
-      expect(response.status).toBe(400);
+      // RFC 6749: invalid_client returns 401
+      expect(response.status).toBe(401);
       const body = (await response.json()) as ErrorResponse;
       expect(body.error).toBe('invalid_client');
     });

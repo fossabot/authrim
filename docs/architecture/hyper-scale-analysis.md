@@ -11,15 +11,15 @@
 
 ### Scale Comparison
 
-| Item | 10M MAU | 100M MAU | 200M MAU | Evaluation |
-|------|---------|----------|----------|------------|
-| **Concurrent Active Users** | 1M | 10M | 20M | - |
-| **Daily Logins** | 10M | 100M | 200M | - |
-| **Estimated QPS** | 10K | 100K | 200K | - |
-| **D1 Single DB** | ⚠️ Near limit | ❌ Impossible | ❌ Impossible | Requires distributed DB |
-| **SessionStore DO** | ✅ | ⚠️ Requires optimization | ❌ Requires redesign | Multi-region required |
-| **Monthly Cost** | $12,600 | $126,000 | $252,000 | Cost optimization required |
-| **Average Latency** | 50-100ms | 100-200ms | 150-300ms | Geographic distribution required |
+| Item                        | 10M MAU       | 100M MAU                 | 200M MAU             | Evaluation                       |
+| --------------------------- | ------------- | ------------------------ | -------------------- | -------------------------------- |
+| **Concurrent Active Users** | 1M            | 10M                      | 20M                  | -                                |
+| **Daily Logins**            | 10M           | 100M                     | 200M                 | -                                |
+| **Estimated QPS**           | 10K           | 100K                     | 200K                 | -                                |
+| **D1 Single DB**            | ⚠️ Near limit | ❌ Impossible            | ❌ Impossible        | Requires distributed DB          |
+| **SessionStore DO**         | ✅            | ⚠️ Requires optimization | ❌ Requires redesign | Multi-region required            |
+| **Monthly Cost**            | $12,600       | $126,000                 | $252,000             | Cost optimization required       |
+| **Average Latency**         | 50-100ms      | 100-200ms                | 150-300ms            | Geographic distribution required |
 
 ---
 
@@ -28,6 +28,7 @@
 ### 1.1 Database (D1)
 
 #### Issues
+
 🔴 **Certain Failure**:
 
 1. **Data Volume Explosion**
@@ -53,6 +54,7 @@
 #### Essential Countermeasures: Migration to Distributed Database
 
 **Option A: Cloudflare D1 + Sharding Strategy**
+
 ```typescript
 // Divide database based on user ID
 function getUserDatabaseShard(userId: string): string {
@@ -66,6 +68,7 @@ function getUserDatabaseShard(userId: string): string {
 ```
 
 **Issues**:
+
 - Cloudflare D1 currently doesn't support cross-DB query joining
 - Complex management
 - Cost: 100 databases × $5/month = $500/month (D1 only)
@@ -124,6 +127,7 @@ graph TB
 ```
 
 #### Data Migration Strategy
+
 1. **Phase 1: Add Read Replica (Keep existing D1)**
    - Create read-only replica in Neon
    - Migrate 50% of read traffic to Neon
@@ -145,6 +149,7 @@ graph TB
 #### SessionStore
 
 **Current Limitations**:
+
 - 100M MAU, 10% active rate = **10M sessions**
 - 100 shards → 1 shard = 100K sessions = **100MB**
 - DO memory limit: 128MB
@@ -153,6 +158,7 @@ graph TB
 **Essential Countermeasures**:
 
 **Option A: Increase Sharding Count**
+
 ```typescript
 // Increase to 1000 shards
 function getSessionShardId(userId: string): string {
@@ -165,12 +171,14 @@ function getSessionShardId(userId: string): string {
 ```
 
 **Cost Impact**:
+
 - 100 shards → 1000 shards
 - Active DO count: 1000
 - However, Cold Start risk increases
 - **Warm-up strategy required**
 
 **Option B: Multi-Region Deployment (Recommended)**
+
 ```typescript
 // Select shard based on user's geographic location
 function getSessionShardIdWithRegion(userId: string, region: string): string {
@@ -184,34 +192,38 @@ function getSessionShardIdWithRegion(userId: string, region: string): string {
 ```
 
 **Benefits**:
+
 - Latency improvement (process in region close to user)
 - Load distribution
 - Geographic redundancy
 
 #### Other DOs
 
-| DO | 10M MAU | 100M MAU | Countermeasure |
-|----|---------|----------|----------------|
-| **RateLimiterCounter** | 1000 shards | **10000 shards** | 10x shard count |
-| **RefreshTokenRotator** | client_id | client_id | No issue (natural distribution) |
-| **ChallengeStore** | Singleton | **100 shards** | user_id-based distribution |
-| **DPoPJTIStore** | Singleton | **client_id** | Implement sharding |
-| **Others** | Current state | Current state | No issue |
+| DO                      | 10M MAU       | 100M MAU         | Countermeasure                  |
+| ----------------------- | ------------- | ---------------- | ------------------------------- |
+| **RateLimiterCounter**  | 1000 shards   | **10000 shards** | 10x shard count                 |
+| **RefreshTokenRotator** | client_id     | client_id        | No issue (natural distribution) |
+| **ChallengeStore**      | Singleton     | **100 shards**   | user_id-based distribution      |
+| **DPoPJTIStore**        | Singleton     | **client_id**    | Implement sharding              |
+| **Others**              | Current state | Current state    | No issue                        |
 
 ---
 
 ### 1.3 R2 Storage
 
 #### Scalability
+
 ✅ **No Issues** - R2 scales infinitely
 
 #### Cost Estimation (100M MAU)
+
 - Storage: 100M users × 500KB = **50TB**
 - Cost: $0.015/GB/month × 50,000GB = **$750/month**
 - Read operations: 100M requests/month = **$36/month**
 - **Total: approximately $786/month**
 
 #### Optimization Strategy
+
 1. **Image Compression**
    - Conversion to WebP format
    - Size reduction: 500KB → 200KB
@@ -230,14 +242,17 @@ function getSessionShardIdWithRegion(userId: string, region: string): string {
 ### 1.4 KV Storage
 
 #### Scalability
+
 ✅ **Fully Capable**
 
 #### Usage Estimation (100M MAU)
+
 - **CLIENTS**: 1M clients → 2GB
 - **STATE_STORE**: 100K concurrent flows → 200MB
 - **Cache**: 10M user profiles → 10GB
 
 #### Cost Estimation (100M MAU)
+
 - Storage: 12GB × $0.50/GB = **$6/month**
 - Read: 5B/month (free tier: 10B) = **$0**
 - Write: 1B/month (free tier: 1B) = **$0**
@@ -247,25 +262,27 @@ function getSessionShardIdWithRegion(userId: string, region: string): string {
 
 ### 1.5 Total Cost Estimation (100M MAU, Monthly)
 
-| Service | Usage | Cost |
-|---------|-------|------|
-| **Cloudflare Workers** | 10B requests | $500 (Bundle plan) |
-| **Durable Objects** | 10B requests | **$125,000** 🔴 |
-| **D1 (pre-migration)** | - | Not usable |
-| **Neon / PlanetScale** | Distributed DB | **$2,000~4,000** |
-| **R2** | 50TB, Read: 100M | $786 |
-| **KV** | 12GB, Read: 5B | $6 |
-| **CDN/Image Resizing** | Additional services | $500 |
-| **Total** | - | **approximately $128,800/month** |
+| Service                | Usage               | Cost                             |
+| ---------------------- | ------------------- | -------------------------------- |
+| **Cloudflare Workers** | 10B requests        | $500 (Bundle plan)               |
+| **Durable Objects**    | 10B requests        | **$125,000** 🔴                  |
+| **D1 (pre-migration)** | -                   | Not usable                       |
+| **Neon / PlanetScale** | Distributed DB      | **$2,000~4,000**                 |
+| **R2**                 | 50TB, Read: 100M    | $786                             |
+| **KV**                 | 12GB, Read: 5B      | $6                               |
+| **CDN/Image Resizing** | Additional services | $500                             |
+| **Total**              | -                   | **approximately $128,800/month** |
 
 **Per user**: $0.00129/month
 
 #### Key to Cost Optimization: Durable Objects
+
 🔴 **DO is the largest cost factor** (97% of total)
 
 **Optimization Strategy**:
 
 1. **Strengthen Caching Layer**
+
    ```typescript
    // Check KV before SessionStore access
    async function getSession(sessionId: string) {
@@ -278,7 +295,7 @@ function getSessionShardIdWithRegion(userId: string, region: string): string {
 
      // 3. Cache in KV (TTL: 5 minutes)
      await env.KV.put(`session:${sessionId}`, JSON.stringify(session), {
-       expirationTtl: 300
+       expirationTtl: 300,
      });
 
      return session;
@@ -301,6 +318,7 @@ function getSessionShardIdWithRegion(userId: string, region: string): string {
    - DO requests: further 30% reduction
 
 **Final Optimized Cost**:
+
 - DO: $125,000 → **$50,000** (60% reduction)
 - Total cost: $128,800 → **$53,800/month**
 
@@ -311,6 +329,7 @@ function getSessionShardIdWithRegion(userId: string, region: string): string {
 ### 2.1 Scale Reality
 
 #### LINE Level in Numbers
+
 - **200M MAU**
 - **Active Rate**: 30% (LINE's track record) = **60M DAU**
 - **Peak Concurrent Connections**: 10M~20M
@@ -318,9 +337,11 @@ function getSessionShardIdWithRegion(userId: string, region: string): string {
 - **QPS**: Average 200K, Peak 500K
 
 #### Cloudflare Limitations
+
 ⚠️ Difficult to handle with Cloudflare alone
 
 **Reasons**:
+
 1. **Durable Objects Cost Explosion**
    - 200M MAU → 20B DO requests/month
    - Cost: **$250,000/month** (DO only)
@@ -403,11 +424,13 @@ graph TB
 #### Each Layer's Role
 
 **1. Cloudflare Workers (Edge Layer)**
+
 - Role: Stateless authentication & authorization logic
 - Retention: None (complete stateless)
 - Latency: <10ms
 
 **2. Redis Cluster (Cache Layer)**
+
 - Role: Sessions, user profiles, client info
 - TTL: 5 minutes~1 hour
 - Cache hit rate: 95%+
@@ -415,6 +438,7 @@ graph TB
 - Cost: AWS ElastiCache approximately $5,000/month (per region)
 
 **3. CockroachDB / Vitess (Data Layer)**
+
 - Role: Persistent data storage
 - Sharding: Automatic (user ID, geographic info)
 - Replication: Multi-region
@@ -422,6 +446,7 @@ graph TB
 - Cost: approximately $10,000~20,000/month
 
 **4. R2/S3 (Object Storage)**
+
 - Role: Avatars, files
 - Distribution: Global CDN
 - Latency: 10-50ms
@@ -430,6 +455,7 @@ graph TB
 #### Changes to Durable Objects Usage
 
 **Current DO Usage**:
+
 - SessionStore ❌ → Redis Cluster
 - AuthorizationCodeStore ❌ → Redis (TTL: 60 seconds)
 - RefreshTokenRotator ⚠️ → Partially retain (theft detection logic)
@@ -451,6 +477,7 @@ graph TB
 #### Cache Strategy
 
 **1. Session Management**
+
 ```typescript
 // Redis Cluster (per region)
 interface SessionCache {
@@ -500,6 +527,7 @@ async function getSession(sessionId: string) {
 ```
 
 **2. Rate Limiting**
+
 ```typescript
 // Redis sliding window
 async function checkRateLimit(clientIP: string, maxRequests: number, windowSeconds: number) {
@@ -526,6 +554,7 @@ async function checkRateLimit(clientIP: string, maxRequests: number, windowSecon
 ```
 
 **3. User Profile Cache**
+
 ```typescript
 // TTL: 1 hour
 async function getUserProfile(userId: string) {
@@ -536,9 +565,7 @@ async function getUserProfile(userId: string) {
   if (cached) return JSON.parse(cached);
 
   // DB
-  const user = await db.prepare(
-    "SELECT * FROM users WHERE id = ?"
-  ).bind(userId).first();
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
 
   // Cache
   await redis.setex(key, 3600, JSON.stringify(user));
@@ -550,12 +577,14 @@ async function getUserProfile(userId: string) {
 #### Redis Cluster Sizing
 
 **Per Region**:
+
 - Memory: 100GB (sessions, cache)
 - Node count: 6 nodes (3 masters + 3 replicas)
 - Throughput: 1M ops/second
 - Availability: 99.99%
 
 **Total**:
+
 - 4 regions × 6 nodes = 24 nodes
 - Total memory: 400GB
 - Cost: AWS ElastiCache
@@ -612,6 +641,7 @@ graph TB
 ```
 
 **Data Placement Strategy**:
+
 - **users**: Geographic placement (user's primary access region)
 - **sessions**: Geographic placement
 - **oauth_clients**: Global replication (all regions)
@@ -645,12 +675,14 @@ ALTER TABLE users PARTITION VALUES IN ('us-east')
 #### Cost Estimation
 
 **CockroachDB Serverless**:
+
 - Storage: 500GB × $1/GB = $500/month
 - Compute: 1M Request Units/month = $10,000/month
 - Backup: $500/month
 - **Total: approximately $11,000/month**
 
 **Alternative: Vitess + MySQL**:
+
 - Self-management required
 - Cost: approximately $8,000/month (EC2 + RDS)
 - Operational cost: 2 engineers × $10,000 = $20,000/month
@@ -662,32 +694,33 @@ ALTER TABLE users PARTITION VALUES IN ('us-east')
 
 ### 2.5 Total Cost Estimation (200M MAU, Monthly)
 
-| Category | Service | Cost |
-|----------|---------|------|
-| **Compute** | Cloudflare Workers | $1,000 |
-| | Durable Objects (10% usage) | $25,000 |
-| **Database** | CockroachDB Serverless | $11,000 |
-| **Cache** | Redis Cluster (4 regions) | $4,800 |
-| **Storage** | R2/S3 (100TB) | $1,500 |
-| **CDN** | Cloudflare Image Resizing | $1,000 |
-| **Monitoring** | Datadog / Grafana Cloud | $2,000 |
-| **Backup** | Various backups | $1,000 |
-| **Total** | - | **approximately $47,300/month** |
+| Category       | Service                     | Cost                            |
+| -------------- | --------------------------- | ------------------------------- |
+| **Compute**    | Cloudflare Workers          | $1,000                          |
+|                | Durable Objects (10% usage) | $25,000                         |
+| **Database**   | CockroachDB Serverless      | $11,000                         |
+| **Cache**      | Redis Cluster (4 regions)   | $4,800                          |
+| **Storage**    | R2/S3 (100TB)               | $1,500                          |
+| **CDN**        | Cloudflare Image Resizing   | $1,000                          |
+| **Monitoring** | Datadog / Grafana Cloud     | $2,000                          |
+| **Backup**     | Various backups             | $1,000                          |
+| **Total**      | -                           | **approximately $47,300/month** |
 
 **Per user**: $0.00024/month
 
 #### Cost Comparison
 
-| MAU | Monthly Cost | Per User Cost | Main Cost Drivers |
-|-----|--------------|---------------|-------------------|
-| 10M | $12,600 | $0.00126 | DO (99%) |
-| 100M (pre-optimization) | $128,800 | $0.00129 | DO (97%) |
-| 100M (post-optimization) | $53,800 | $0.00054 | DO (93%), DB (7%) |
-| 200M (hybrid) | $47,300 | $0.00024 | DO (53%), DB (23%), Redis (10%) |
+| MAU                      | Monthly Cost | Per User Cost | Main Cost Drivers               |
+| ------------------------ | ------------ | ------------- | ------------------------------- |
+| 10M                      | $12,600      | $0.00126      | DO (99%)                        |
+| 100M (pre-optimization)  | $128,800     | $0.00129      | DO (97%)                        |
+| 100M (post-optimization) | $53,800      | $0.00054      | DO (93%), DB (7%)               |
+| 200M (hybrid)            | $47,300      | $0.00024      | DO (53%), DB (23%), Redis (10%) |
 
 **Conclusion**: **At 200M MAU, per-user cost is reduced to 1/5**
 
 Reasons:
+
 - Significant DO reduction (90% reduction)
 - Efficient caching with Redis
 - Economies of scale
@@ -698,21 +731,23 @@ Reasons:
 
 #### Regional Latency (200M MAU, Hybrid Architecture)
 
-| Operation | Same Region | Cross Region | Old Architecture (10M MAU) |
-|-----------|-------------|--------------|----------------------------|
-| **Session Validation** | 5-10ms (Redis) | 50-100ms | 50-100ms (DO) |
-| **Login** | 20-50ms | 100-200ms | 50-100ms |
-| **Token Issuance** | 15-40ms | 80-150ms | 30-80ms |
-| **UserInfo Retrieval** | 10-30ms | 60-120ms | 20-50ms |
-| **Profile Update** | 30-80ms | 150-300ms | 50-150ms |
+| Operation              | Same Region    | Cross Region | Old Architecture (10M MAU) |
+| ---------------------- | -------------- | ------------ | -------------------------- |
+| **Session Validation** | 5-10ms (Redis) | 50-100ms     | 50-100ms (DO)              |
+| **Login**              | 20-50ms        | 100-200ms    | 50-100ms                   |
+| **Token Issuance**     | 15-40ms        | 80-150ms     | 30-80ms                    |
+| **UserInfo Retrieval** | 10-30ms        | 60-120ms     | 20-50ms                    |
+| **Profile Update**     | 30-80ms        | 150-300ms    | 50-150ms                   |
 
 **Average Latency**:
+
 - Same region: **20-50ms** ✅
 - Cross region: **100-200ms** ⚠️
 
 #### Latency Optimization Strategy
 
 1. **Geographic Routing**
+
    ```typescript
    // Cloudflare Workers
    export default {
@@ -747,6 +782,7 @@ Reasons:
 **Goal**: 50% DO cost reduction
 
 **Tasks**:
+
 1. **Build Redis Cluster** (1 month)
    - Deploy clusters in 4 regions
    - Configure security groups
@@ -764,6 +800,7 @@ Reasons:
    - PARRequestStore → Redis
 
 **Effect**:
+
 - DO requests: 50% reduction
 - Cost: $125,000 → $62,500 ($62,500 savings)
 
@@ -772,6 +809,7 @@ Reasons:
 **Goal**: Complete migration from D1
 
 **Tasks**:
+
 1. **Build CockroachDB Cluster** (1 month)
    - Deploy in 4 regions
    - Configure replication
@@ -792,6 +830,7 @@ Reasons:
    - Writes: Parallel operation (2 weeks) → CockroachDB (100%)
 
 **Effect**:
+
 - Scalability: Infinite
 - Latency: Improved (especially global)
 
@@ -800,6 +839,7 @@ Reasons:
 **Goal**: Latency optimization
 
 **Tasks**:
+
 1. **Implement Geographic Routing** (1 month)
    - Region detection in Cloudflare Workers
    - Connect to nearest Redis/DB
@@ -814,12 +854,14 @@ Reasons:
    - Cache invalidation strategy
 
 **Effect**:
+
 - Same-region latency: 20-50ms
 - Cache hit rate: 95%+
 
 #### Phase 4: Operational Automation (Ongoing)
 
 **Tasks**:
+
 1. **Build Monitoring Dashboard**
    - Real-time metrics
    - Alert configuration
@@ -842,6 +884,7 @@ Reasons:
 LINE is a global messaging platform with 200M+ MAU. Architecture inferred from public information:
 
 #### Data Stores
+
 - **HBase** (Distributed NoSQL)
   - Message history
   - User profiles
@@ -856,31 +899,35 @@ LINE is a global messaging platform with 200M+ MAU. Architecture inferred from p
   - Friend relationships
 
 #### Computing
+
 - **Own Data Centers** (Japan, Korea, Taiwan, Thailand, Indonesia)
 - **Kubernetes** (Container orchestration)
 - **gRPC** (Microservice communication)
 
 #### CDN
+
 - **Akamai / Cloudflare** (Image, video distribution)
 
 #### Estimated Cost (200M MAU)
+
 - Infrastructure: $500,000~1,000,000/month
 - Personnel (100+ engineers): $1,000,000/month
 - **Total cost: $1.5M~2M/month**
 
 ### Comparison with Authrim Hybrid Architecture
 
-| Item | LINE (Estimated) | Authrim Hybrid | Evaluation |
-|------|-----------------|----------------|------------|
-| **Infrastructure** | Own DC + Cloud | Cloudflare + Managed DB | Authrim advantage (low management cost) |
-| **Monthly Cost** | $1.5M~2M | $47,300 | Authrim wins (1/30) |
-| **Scalability** | Infinite | Infinite | Equal |
-| **Latency** | 10-30ms | 20-50ms | LINE advantage (own DC) |
-| **Availability** | 99.99% | 99.9% | LINE advantage |
-| **Development Speed** | Slow (complex) | Fast (managed) | Authrim advantage |
-| **Operational Load** | High | Low | Authrim advantage |
+| Item                  | LINE (Estimated) | Authrim Hybrid          | Evaluation                              |
+| --------------------- | ---------------- | ----------------------- | --------------------------------------- |
+| **Infrastructure**    | Own DC + Cloud   | Cloudflare + Managed DB | Authrim advantage (low management cost) |
+| **Monthly Cost**      | $1.5M~2M         | $47,300                 | Authrim wins (1/30)                     |
+| **Scalability**       | Infinite         | Infinite                | Equal                                   |
+| **Latency**           | 10-30ms          | 20-50ms                 | LINE advantage (own DC)                 |
+| **Availability**      | 99.99%           | 99.9%                   | LINE advantage                          |
+| **Development Speed** | Slow (complex)   | Fast (managed)          | Authrim advantage                       |
+| **Operational Load**  | High             | Low                     | Authrim advantage                       |
 
 **Conclusion**:
+
 - **Cost Efficiency**: Authrim overwhelmingly advantageous
 - **Performance**: LINE slightly advantageous (own DC)
 - **Development & Operations**: Authrim advantageous (managed services)
@@ -922,14 +969,18 @@ LINE is a global messaging platform with 200M+ MAU. Architecture inferred from p
 ## 5. Summary
 
 ### 100M MAU
+
 ✅ **Feasible** - However, the following are required:
+
 1. D1 → Neon/PlanetScale migration
 2. SessionStore: Expand to 1000 shards
 3. Strengthen caching (KV utilization)
 4. Cost: approximately $54,000/month (post-optimization)
 
 ### 200M MAU (LINE Level)
+
 ✅ **Feasible** - Fundamental architecture change required:
+
 1. **Hybrid Architecture**
    - Cloudflare Workers (edge)
    - Redis Cluster (cache)
@@ -950,12 +1001,12 @@ LINE is a global messaging platform with 200M+ MAU. Architecture inferred from p
 
 ### Implementation Timeline
 
-| Phase | Duration | Target MAU | Essential Tasks |
-|-------|----------|------------|-----------------|
-| Phase 1 | 0-6 months | ~10M | Current optimization |
-| Phase 2 | 6-12 months | 10M~50M | Neon migration |
-| Phase 3 | 12-18 months | 50M~100M | Redis introduction |
-| Phase 4 | 18-24 months | 100M~200M | Hybrid transformation |
+| Phase   | Duration     | Target MAU | Essential Tasks       |
+| ------- | ------------ | ---------- | --------------------- |
+| Phase 1 | 0-6 months   | ~10M       | Current optimization  |
+| Phase 2 | 6-12 months  | 10M~50M    | Neon migration        |
+| Phase 3 | 12-18 months | 50M~100M   | Redis introduction    |
+| Phase 4 | 18-24 months | 100M~200M  | Hybrid transformation |
 
 ### Conclusion
 

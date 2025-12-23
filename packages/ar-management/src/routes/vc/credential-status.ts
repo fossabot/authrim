@@ -20,6 +20,10 @@ import {
   StatusListManager,
   StatusValue,
   getTenantIdFromContext,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -32,9 +36,11 @@ export async function revokeCredentialHandler(c: Context<{ Bindings: Env }>): Pr
   const credentialId = c.req.param('id');
 
   if (!credentialId) {
-    return c.json(
-      { error: 'invalid_request', error_description: 'Credential ID is required' },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Credential ID is required'
     );
   }
 
@@ -51,28 +57,29 @@ export async function revokeCredentialHandler(c: Context<{ Bindings: Env }>): Pr
     const credential = await issuedCredentialRepo.findById(credentialId);
 
     if (!credential) {
-      return c.json({ error: 'not_found', error_description: 'Credential not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // SECURITY: Verify credential belongs to the authenticated tenant
     if (credential.tenant_id !== tenantId) {
-      return c.json({ error: 'not_found', error_description: 'Credential not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     if (credential.status === 'revoked') {
-      return c.json(
-        { error: 'invalid_request', error_description: 'Credential is already revoked' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Credential is already revoked'
       );
     }
 
     if (!credential.status_list_id || credential.status_list_index === null) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Credential does not have status list information',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Credential does not have status list information'
       );
     }
 
@@ -91,13 +98,7 @@ export async function revokeCredentialHandler(c: Context<{ Bindings: Env }>): Pr
     });
   } catch (error) {
     console.error('[admin/vc] Revoke credential error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -111,9 +112,11 @@ export async function suspendCredentialHandler(c: Context<{ Bindings: Env }>): P
   const credentialId = c.req.param('id');
 
   if (!credentialId) {
-    return c.json(
-      { error: 'invalid_request', error_description: 'Credential ID is required' },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Credential ID is required'
     );
   }
 
@@ -130,35 +133,38 @@ export async function suspendCredentialHandler(c: Context<{ Bindings: Env }>): P
     const credential = await issuedCredentialRepo.findById(credentialId);
 
     if (!credential) {
-      return c.json({ error: 'not_found', error_description: 'Credential not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // SECURITY: Verify credential belongs to the authenticated tenant
     if (credential.tenant_id !== tenantId) {
-      return c.json({ error: 'not_found', error_description: 'Credential not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     if (credential.status === 'revoked') {
-      return c.json(
-        { error: 'invalid_request', error_description: 'Cannot suspend a revoked credential' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Cannot suspend a revoked credential'
       );
     }
 
     if (credential.status === 'suspended') {
-      return c.json(
-        { error: 'invalid_request', error_description: 'Credential is already suspended' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Credential is already suspended'
       );
     }
 
     if (!credential.status_list_id || credential.status_list_index === null) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Credential does not have status list information',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Credential does not have status list information'
       );
     }
 
@@ -177,13 +183,7 @@ export async function suspendCredentialHandler(c: Context<{ Bindings: Env }>): P
     });
   } catch (error) {
     console.error('[admin/vc] Suspend credential error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -197,9 +197,11 @@ export async function activateCredentialHandler(c: Context<{ Bindings: Env }>): 
   const credentialId = c.req.param('id');
 
   if (!credentialId) {
-    return c.json(
-      { error: 'invalid_request', error_description: 'Credential ID is required' },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Credential ID is required'
     );
   }
 
@@ -216,35 +218,38 @@ export async function activateCredentialHandler(c: Context<{ Bindings: Env }>): 
     const credential = await issuedCredentialRepo.findById(credentialId);
 
     if (!credential) {
-      return c.json({ error: 'not_found', error_description: 'Credential not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // SECURITY: Verify credential belongs to the authenticated tenant
     if (credential.tenant_id !== tenantId) {
-      return c.json({ error: 'not_found', error_description: 'Credential not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     if (credential.status === 'revoked') {
-      return c.json(
-        { error: 'invalid_request', error_description: 'Cannot activate a revoked credential' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Cannot activate a revoked credential'
       );
     }
 
     if (credential.status === 'active') {
-      return c.json(
-        { error: 'invalid_request', error_description: 'Credential is already active' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Credential is already active'
       );
     }
 
     if (!credential.status_list_id || credential.status_list_index === null) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Credential does not have status list information',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Credential does not have status list information'
       );
     }
 
@@ -263,13 +268,7 @@ export async function activateCredentialHandler(c: Context<{ Bindings: Env }>): 
     });
   } catch (error) {
     console.error('[admin/vc] Activate credential error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -312,13 +311,7 @@ export async function listStatusListsHandler(c: Context<{ Bindings: Env }>): Pro
     });
   } catch (error) {
     console.error('[admin/vc] List status lists error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -331,9 +324,11 @@ export async function getStatusListHandler(c: Context<{ Bindings: Env }>): Promi
   const listId = c.req.param('id');
 
   if (!listId) {
-    return c.json(
-      { error: 'invalid_request', error_description: 'Status list ID is required' },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Status list ID is required'
     );
   }
 
@@ -348,12 +343,12 @@ export async function getStatusListHandler(c: Context<{ Bindings: Env }>): Promi
     const list = await statusListManager.getStatusList(listId);
 
     if (!list) {
-      return c.json({ error: 'not_found', error_description: 'Status list not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // SECURITY: Verify status list belongs to the authenticated tenant
     if (list.tenant_id !== tenantId) {
-      return c.json({ error: 'not_found', error_description: 'Status list not found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Calculate ETag for the list
@@ -375,13 +370,7 @@ export async function getStatusListHandler(c: Context<{ Bindings: Env }>): Promi
     });
   } catch (error) {
     console.error('[admin/vc] Get status list error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -420,12 +409,6 @@ export async function getStatusListStatsHandler(c: Context<{ Bindings: Env }>): 
     });
   } catch (error) {
     console.error('[admin/vc] Get status list stats error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

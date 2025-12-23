@@ -7,7 +7,14 @@
 
 import type { Context } from 'hono';
 import type { Env, CIBARequestMetadata } from '@authrim/ar-lib-core';
-import { D1Adapter, type DatabaseAdapter } from '@authrim/ar-lib-core';
+import {
+  D1Adapter,
+  type DatabaseAdapter,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 
 /**
  * GET /api/ciba/request/:auth_req_id
@@ -36,12 +43,11 @@ export async function cibaDetailsHandler(c: Context<{ Bindings: Env }>) {
     const authReqId = c.req.param('auth_req_id');
 
     if (!authReqId) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'auth_req_id is required',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'auth_req_id is required'
       );
     }
 
@@ -58,25 +64,13 @@ export async function cibaDetailsHandler(c: Context<{ Bindings: Env }>) {
     );
 
     if (!getResponse.ok) {
-      return c.json(
-        {
-          error: 'not_found',
-          error_description: 'CIBA request not found or expired',
-        },
-        404
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     const metadata: CIBARequestMetadata | null = await getResponse.json();
 
     if (!metadata) {
-      return c.json(
-        {
-          error: 'not_found',
-          error_description: 'CIBA request not found or expired',
-        },
-        404
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Enrich with client metadata from database
@@ -113,12 +107,6 @@ export async function cibaDetailsHandler(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     console.error('CIBA request details API error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

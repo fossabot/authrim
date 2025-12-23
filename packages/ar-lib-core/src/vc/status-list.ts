@@ -470,7 +470,8 @@ function findKeyInJWKS(keys: JWK[], kid: string | undefined, alg: string): JWK {
     if (key) {
       return key;
     }
-    throw new Error(`Key with kid '${kid}' not found in JWKS`);
+    // SECURITY: Do not expose kid value in error to prevent key enumeration
+    throw new Error('Key verification failed');
   }
 
   // Otherwise, find a key matching the algorithm

@@ -13,6 +13,7 @@ After splitting Authrim into multiple specialized Workers, an OpenID Connect spe
 We implemented a dual-mode deployment system:
 
 ### 1. Test Environment (workers.dev + Router Worker)
+
 - **Use case**: Development, testing, quick setup
 - **How it works**: Deploy a Router Worker that acts as a single entry point
 - **Issuer**: `https://authrim.subdomain.workers.dev`
@@ -22,6 +23,7 @@ We implemented a dual-mode deployment system:
 - **Cons**: Adds ~1-5ms latency per request
 
 ### 2. Production Environment (Custom Domain + Routes)
+
 - **Use case**: Production deployments
 - **How it works**: Cloudflare Routes map paths directly to workers
 - **Issuer**: Your custom domain (e.g., `https://id.yourdomain.com`)
@@ -34,6 +36,7 @@ We implemented a dual-mode deployment system:
 ### Prerequisites
 
 Before running the setup, ensure you have:
+
 1. Run `./scripts/setup-dev.sh` to generate keys and wrangler.toml files
 2. Run `./scripts/setup-kv.sh` to create KV namespaces
 3. Run `./scripts/setup-secrets.sh` to upload secrets
@@ -65,12 +68,14 @@ You'll be prompted to choose:
 After setup completes, build and deploy:
 
 **For Test Environment:**
+
 ```bash
 pnpm run build
 pnpm run deploy:with-router
 ```
 
 **For Production Environment:**
+
 ```bash
 pnpm run build
 pnpm run deploy
@@ -89,6 +94,7 @@ curl https://id.yourdomain.com/.well-known/openid-configuration | jq
 ```
 
 Verify that:
+
 - ✅ `issuer` field matches the URL you're accessing
 - ✅ All endpoint URLs start with the issuer URL
 - ✅ `jwks_uri` is accessible
@@ -146,6 +152,7 @@ Verify that:
 ### Test Environment
 
 The setup script:
+
 1. Sets issuer to `https://authrim.subdomain.workers.dev`
 2. Generates `packages/router/wrangler.toml` with Service Bindings
 3. Updates all worker wrangler.toml files:
@@ -159,6 +166,7 @@ The setup script:
 ### Production Environment
 
 The setup script:
+
 1. Sets issuer to your custom domain (e.g., `https://id.yourdomain.com`)
 2. Adds Cloudflare Routes to each worker's wrangler.toml:
    - Discovery: `id.yourdomain.com/.well-known/*`
@@ -172,6 +180,7 @@ The setup script:
 ## Switching Between Modes
 
 You can re-run `./scripts/setup-production.sh` at any time to switch modes. The script will:
+
 1. Ask you to choose a new deployment mode
 2. Reconfigure all wrangler.toml files accordingly
 3. Show updated deployment instructions
@@ -181,6 +190,7 @@ You can re-run `./scripts/setup-production.sh` at any time to switch modes. The 
 ### Issue: Routes not working on custom domain
 
 **Solution:**
+
 1. Verify your domain is managed by Cloudflare (DNS)
 2. Check that your zone name is correct in wrangler.toml
 3. After deployment, visit Cloudflare Dashboard → Workers → Your worker → Routes
@@ -189,6 +199,7 @@ You can re-run `./scripts/setup-production.sh` at any time to switch modes. The 
 ### Issue: Service Bindings not found
 
 **Solution:**
+
 1. Ensure all workers are deployed before deploying the router
 2. Deploy in this order:
    ```bash
@@ -201,19 +212,20 @@ You can re-run `./scripts/setup-production.sh` at any time to switch modes. The 
 ### Issue: Issuer mismatch errors
 
 **Solution:**
+
 1. Verify issuer in discovery document matches the URL you're accessing
 2. Clear browser cache
 3. Re-run `./scripts/setup-production.sh` to reconfigure
 
 ## Performance Comparison
 
-| Metric | Test Env (Router) | Production (Routes) |
-|--------|-------------------|---------------------|
-| Latency overhead | ~1-5ms | ~0ms (direct) |
-| Cold start | Same | Same |
-| Compliance | ✅ OIDC compliant | ✅ OIDC compliant |
-| Setup complexity | Low | Medium |
-| Cost | +1 worker invocation | 0 extra invocations |
+| Metric           | Test Env (Router)    | Production (Routes) |
+| ---------------- | -------------------- | ------------------- |
+| Latency overhead | ~1-5ms               | ~0ms (direct)       |
+| Cold start       | Same                 | Same                |
+| Compliance       | ✅ OIDC compliant    | ✅ OIDC compliant   |
+| Setup complexity | Low                  | Medium              |
+| Cost             | +1 worker invocation | 0 extra invocations |
 
 ## See Also
 

@@ -309,11 +309,13 @@ export class DeviceCodeStore {
 
       return new Response('Not found', { status: 404 });
     } catch (error) {
+      // Log full error for debugging but don't expose to client
       console.error('DeviceCodeStore error:', error);
+      // SECURITY: Do not expose internal error details in response
       return new Response(
         JSON.stringify({
           error: 'internal_error',
-          error_description: error instanceof Error ? error.message : 'Unknown error',
+          error_description: 'Internal server error',
         }),
         {
           status: 500,

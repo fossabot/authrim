@@ -4,13 +4,13 @@ This guide walks you through setting up Facebook Login with Authrim.
 
 ## Overview
 
-| Property | Value |
-|----------|-------|
-| Protocol | OAuth 2.0 |
-| API Version | v20.0 |
-| ID Token | No (uses Graph API) |
-| UserInfo Endpoint | Graph API `/me` |
-| Email Verified Claim | No |
+| Property             | Value               |
+| -------------------- | ------------------- |
+| Protocol             | OAuth 2.0           |
+| API Version          | v20.0               |
+| ID Token             | No (uses Graph API) |
+| UserInfo Endpoint    | Graph API `/me`     |
+| Email Verified Claim | No                  |
 
 ## Prerequisites
 
@@ -50,6 +50,7 @@ https://your-domain.com/auth/external/facebook/callback
 ```
 
 For local development (requires HTTPS even locally):
+
 ```
 https://localhost:8787/auth/external/facebook/callback
 ```
@@ -161,29 +162,29 @@ curl -X POST "https://your-domain.com/external-idp/admin/providers" \
 
 ### Provider Quirks
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `apiVersion` | string | `v20.0` | Graph API version |
-| `useAppSecretProof` | boolean | `true` | Use HMAC-SHA256 proof |
-| `fields` | string[] | See above | Fields to request from `/me` |
+| Property            | Type     | Default   | Description                  |
+| ------------------- | -------- | --------- | ---------------------------- |
+| `apiVersion`        | string   | `v20.0`   | Graph API version            |
+| `useAppSecretProof` | boolean  | `true`    | Use HMAC-SHA256 proof        |
+| `fields`            | string[] | See above | Fields to request from `/me` |
 
 ### Available Scopes
 
-| Scope | Description |
-|-------|-------------|
+| Scope            | Description                                 |
+| ---------------- | ------------------------------------------- |
 | `public_profile` | User's public profile (name, picture, etc.) |
-| `email` | User's primary email address |
+| `email`          | User's primary email address                |
 
 ### Claim Mappings
 
-| Authrim Claim | Facebook Field | Description |
-|---------------|----------------|-------------|
-| `sub` | `id` | Unique Facebook user ID |
-| `email` | `email` | Primary email (may be null) |
-| `name` | `name` | Full name |
-| `given_name` | `first_name` | First name |
-| `family_name` | `last_name` | Last name |
-| `picture` | `picture.data.url` | Profile picture URL |
+| Authrim Claim | Facebook Field     | Description                 |
+| ------------- | ------------------ | --------------------------- |
+| `sub`         | `id`               | Unique Facebook user ID     |
+| `email`       | `email`            | Primary email (may be null) |
+| `name`        | `name`             | Full name                   |
+| `given_name`  | `first_name`       | First name                  |
+| `family_name` | `last_name`        | Last name                   |
+| `picture`     | `picture.data.url` | Profile picture URL         |
 
 ## Important: Email Verification
 
@@ -260,6 +261,7 @@ For production apps:
 **Cause**: Redirect URI not in Valid OAuth Redirect URIs list.
 
 **Solution**:
+
 1. Go to Facebook Login → Settings
 2. Add your exact redirect URI:
    ```
@@ -271,6 +273,7 @@ For production apps:
 **Cause**: User hasn't shared email or email scope missing.
 
 **Solution**:
+
 1. Ensure `email` is in scopes
 2. Check user granted email permission
 3. Note: Some users may not have an email on Facebook
@@ -280,6 +283,7 @@ For production apps:
 **Cause**: App is in development mode.
 
 **Solution**:
+
 1. Go to Settings → Basic
 2. Toggle **App Mode** to **Live**
 3. For testing, add testers under **Roles**
@@ -289,6 +293,7 @@ For production apps:
 **Cause**: Picture URL expires or incorrect field format.
 
 **Solution**: Use `picture.type(large)` in fields:
+
 ```json
 {
   "provider_quirks": {
@@ -301,9 +306,9 @@ For production apps:
 
 Facebook has API rate limits:
 
-| Platform | Limit |
-|----------|-------|
-| Login (per app) | 200 calls/user/hour |
+| Platform            | Limit                  |
+| ------------------- | ---------------------- |
+| Login (per app)     | 200 calls/user/hour    |
 | Graph API (per app) | Varies by app category |
 
 ## Testing
@@ -317,6 +322,7 @@ Facebook has API rate limits:
 ### Debug Mode
 
 To debug tokens:
+
 - [Facebook Access Token Debugger](https://developers.facebook.com/tools/debug/accesstoken/)
 
 ## References

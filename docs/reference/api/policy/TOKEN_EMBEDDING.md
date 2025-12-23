@@ -12,9 +12,9 @@ This allows client applications to make authorization decisions without addition
 
 ### Embedding Models
 
-| Model | Description | Use Case |
-|-------|-------------|----------|
-| **Role Embedding** | Include user's roles in token | Simple role-based checks |
+| Model                    | Description                   | Use Case                    |
+| ------------------------ | ----------------------------- | --------------------------- |
+| **Role Embedding**       | Include user's roles in token | Simple role-based checks    |
 | **Permission Embedding** | Include evaluated permissions | Fine-grained access control |
 
 ---
@@ -25,28 +25,28 @@ All custom claims use the `authrim_` prefix to avoid conflicts with standard OID
 
 ### ID Token Claims
 
-| Claim | Type | Default | Description |
-|-------|------|---------|-------------|
-| `authrim_roles` | `string[]` | Yes | User's effective role names |
-| `authrim_user_type` | `string` | Yes | User type (e.g., "individual", "business") |
-| `authrim_org_id` | `string` | Yes | Primary organization ID |
-| `authrim_org_type` | `string` | Yes | Organization type |
-| `authrim_plan` | `string` | Yes | Subscription plan |
-| `authrim_scoped_roles` | `object[]` | No | Roles with scope information |
-| `authrim_org_name` | `string` | No | Organization name |
-| `authrim_orgs` | `object[]` | No | All user's organizations |
-| `authrim_relationships_summary` | `object` | No | Relationship summary |
+| Claim                           | Type       | Default | Description                                |
+| ------------------------------- | ---------- | ------- | ------------------------------------------ |
+| `authrim_roles`                 | `string[]` | Yes     | User's effective role names                |
+| `authrim_user_type`             | `string`   | Yes     | User type (e.g., "individual", "business") |
+| `authrim_org_id`                | `string`   | Yes     | Primary organization ID                    |
+| `authrim_org_type`              | `string`   | Yes     | Organization type                          |
+| `authrim_plan`                  | `string`   | Yes     | Subscription plan                          |
+| `authrim_scoped_roles`          | `object[]` | No      | Roles with scope information               |
+| `authrim_org_name`              | `string`   | No      | Organization name                          |
+| `authrim_orgs`                  | `object[]` | No      | All user's organizations                   |
+| `authrim_relationships_summary` | `object`   | No      | Relationship summary                       |
 
 ### Access Token Claims
 
-| Claim | Type | Default | Description |
-|-------|------|---------|-------------|
-| `authrim_roles` | `string[]` | Yes | User's effective role names |
-| `authrim_org_id` | `string` | Yes | Primary organization ID |
-| `authrim_org_type` | `string` | Yes | Organization type |
-| `authrim_scoped_roles` | `object[]` | No | Roles with scope information |
-| `authrim_permissions` | `string[]` | No | **Evaluated permissions** |
-| `authrim_org_context` | `object` | No | Acting organization context |
+| Claim                  | Type       | Default | Description                  |
+| ---------------------- | ---------- | ------- | ---------------------------- |
+| `authrim_roles`        | `string[]` | Yes     | User's effective role names  |
+| `authrim_org_id`       | `string`   | Yes     | Primary organization ID      |
+| `authrim_org_type`     | `string`   | Yes     | Organization type            |
+| `authrim_scoped_roles` | `object[]` | No      | Roles with scope information |
+| `authrim_permissions`  | `string[]` | No      | **Evaluated permissions**    |
+| `authrim_org_context`  | `object`   | No      | Acting organization context  |
 
 ---
 
@@ -87,6 +87,7 @@ settings:write    → { resource: "settings", action: "write" }
 ### Example
 
 **Request:**
+
 ```http
 POST /oauth/token
 Content-Type: application/x-www-form-urlencoded
@@ -97,6 +98,7 @@ grant_type=authorization_code
 ```
 
 **Access Token Payload (decoded):**
+
 ```json
 {
   "iss": "https://auth.example.com",
@@ -117,18 +119,20 @@ Note: `users:manage` was not included because the user's `editor` role doesn't h
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENABLE_POLICY_EMBEDDING` | `false` | Enable permission embedding in Access Token |
-| `RBAC_ID_TOKEN_CLAIMS` | `roles,user_type,org_id,plan,org_type` | Claims to include in ID Token |
-| `RBAC_ACCESS_TOKEN_CLAIMS` | `roles,org_id,org_type` | Claims to include in Access Token |
+| Variable                   | Default                                | Description                                 |
+| -------------------------- | -------------------------------------- | ------------------------------------------- |
+| `ENABLE_POLICY_EMBEDDING`  | `false`                                | Enable permission embedding in Access Token |
+| `RBAC_ID_TOKEN_CLAIMS`     | `roles,user_type,org_id,plan,org_type` | Claims to include in ID Token               |
+| `RBAC_ACCESS_TOKEN_CLAIMS` | `roles,org_id,org_type`                | Claims to include in Access Token           |
 
 ### Available Claim Keys
 
 **ID Token:**
+
 - `roles`, `scoped_roles`, `user_type`, `org_id`, `org_name`, `plan`, `org_type`, `orgs`, `relationships_summary`
 
 **Access Token:**
+
 - `roles`, `scoped_roles`, `org_id`, `org_type`, `permissions`, `org_context`
 
 ### Example Configuration

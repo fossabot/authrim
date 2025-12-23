@@ -5,6 +5,7 @@
 The AuthorizationCodeStore Durable Object manages one-time authorization codes with strong consistency guarantees. It provides replay attack prevention and PKCE support for OAuth 2.0 flows.
 
 **Security Features:**
+
 - One-time use guarantee (CRITICAL for OAuth 2.0 security)
 - Short TTL (60 seconds per OAuth 2.0 Security BCP)
 - Atomic consume operation (Durable Object guarantees)
@@ -13,6 +14,7 @@ The AuthorizationCodeStore Durable Object manages one-time authorization codes w
 - DDoS protection (max 5 concurrent codes per user)
 
 **OAuth 2.0 Security Best Current Practice (BCP) Compliance:**
+
 - RFC 6749: Authorization Code Grant
 - RFC 7636: Proof Key for Code Exchange (PKCE)
 - OAuth 2.0 Security BCP: Draft 16
@@ -32,6 +34,7 @@ Store a new authorization code for the OAuth 2.0 authorization code flow.
 **Endpoint:** `POST /code`
 
 **Request Body:**
+
 ```json
 {
   "code": "auth_code_abc123xyz",
@@ -60,6 +63,7 @@ Store a new authorization code for the OAuth 2.0 authorization code flow.
 | `state` | string | No | OAuth state parameter |
 
 **Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -68,6 +72,7 @@ Store a new authorization code for the OAuth 2.0 authorization code flow.
 ```
 
 **Response (400 Bad Request):**
+
 ```json
 {
   "error": "invalid_request",
@@ -76,6 +81,7 @@ Store a new authorization code for the OAuth 2.0 authorization code flow.
 ```
 
 **Response (500 Internal Server Error):**
+
 ```json
 {
   "error": "server_error",
@@ -84,6 +90,7 @@ Store a new authorization code for the OAuth 2.0 authorization code flow.
 ```
 
 **Example:**
+
 ```bash
 curl -X POST https://auth-code-store.example.workers.dev/code \
   -H "Content-Type: application/json" \
@@ -109,6 +116,7 @@ Consume an authorization code (one-time use, atomic operation).
 **Endpoint:** `POST /code/consume`
 
 **Request Body:**
+
 ```json
 {
   "code": "auth_code_abc123xyz",
@@ -125,6 +133,7 @@ Consume an authorization code (one-time use, atomic operation).
 | `codeVerifier` | string | Conditional | PKCE code verifier (required if code_challenge was used) |
 
 **Response (200 OK):**
+
 ```json
 {
   "userId": "user_123",
@@ -136,6 +145,7 @@ Consume an authorization code (one-time use, atomic operation).
 ```
 
 **Response (400 Bad Request - Code Not Found):**
+
 ```json
 {
   "error": "invalid_grant",
@@ -144,6 +154,7 @@ Consume an authorization code (one-time use, atomic operation).
 ```
 
 **Response (400 Bad Request - Replay Attack):**
+
 ```json
 {
   "error": "invalid_grant",
@@ -152,6 +163,7 @@ Consume an authorization code (one-time use, atomic operation).
 ```
 
 **Response (400 Bad Request - Client Mismatch):**
+
 ```json
 {
   "error": "invalid_grant",
@@ -160,6 +172,7 @@ Consume an authorization code (one-time use, atomic operation).
 ```
 
 **Response (400 Bad Request - PKCE Failed):**
+
 ```json
 {
   "error": "invalid_grant",
@@ -168,6 +181,7 @@ Consume an authorization code (one-time use, atomic operation).
 ```
 
 **Example (with PKCE):**
+
 ```bash
 curl -X POST https://auth-code-store.example.workers.dev/code/consume \
   -H "Content-Type: application/json" \
@@ -179,6 +193,7 @@ curl -X POST https://auth-code-store.example.workers.dev/code/consume \
 ```
 
 **Example (without PKCE):**
+
 ```bash
 curl -X POST https://auth-code-store.example.workers.dev/code/consume \
   -H "Content-Type: application/json" \
@@ -202,6 +217,7 @@ Check if an authorization code exists and is valid (for testing/debugging).
 | `code` | string | Yes | Authorization code to check |
 
 **Response (200 OK):**
+
 ```json
 {
   "exists": true
@@ -209,6 +225,7 @@ Check if an authorization code exists and is valid (for testing/debugging).
 ```
 
 **Example:**
+
 ```bash
 curl https://auth-code-store.example.workers.dev/code/auth_abc123/exists
 ```
@@ -227,6 +244,7 @@ Manually delete an authorization code (cleanup).
 | `code` | string | Yes | Authorization code to delete |
 
 **Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -235,6 +253,7 @@ Manually delete an authorization code (cleanup).
 ```
 
 **Example:**
+
 ```bash
 curl -X DELETE https://auth-code-store.example.workers.dev/code/auth_abc123
 ```
@@ -248,6 +267,7 @@ Get health status, statistics, and configuration.
 **Endpoint:** `GET /status`
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "ok",
@@ -265,6 +285,7 @@ Get health status, statistics, and configuration.
 ```
 
 **Example:**
+
 ```bash
 curl https://auth-code-store.example.workers.dev/status
 ```
@@ -276,6 +297,7 @@ curl https://auth-code-store.example.workers.dev/status
 All endpoints return standard OAuth 2.0 error responses where applicable:
 
 ### 400 Bad Request
+
 ```json
 {
   "error": "invalid_request",
@@ -291,6 +313,7 @@ All endpoints return standard OAuth 2.0 error responses where applicable:
 ```
 
 ### 500 Internal Server Error
+
 ```json
 {
   "error": "server_error",
@@ -303,6 +326,7 @@ All endpoints return standard OAuth 2.0 error responses where applicable:
 ## Data Types
 
 ### AuthorizationCode Object
+
 ```typescript
 interface AuthorizationCode {
   code: string;
@@ -343,6 +367,7 @@ T7                               → REJECT (replay attack)
 ### 2. PKCE Validation (RFC 7636)
 
 **S256 Method:**
+
 ```
 Client generates:
   verifier = random_string(43-128 chars)
@@ -360,6 +385,7 @@ Server validates:
 ```
 
 **Example PKCE values:**
+
 ```
 verifier:  dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
 challenge: E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
@@ -376,6 +402,7 @@ Maximum 5 concurrent authorization codes per user to prevent abuse.
 ### 5. Replay Attack Detection
 
 When a code is used twice, the system:
+
 1. Logs a security warning
 2. Returns `invalid_grant` error
 3. Marks the attempt as a replay attack

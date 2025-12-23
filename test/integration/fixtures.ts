@@ -6,7 +6,10 @@
  */
 
 import type { Env } from '@authrim/ar-lib-core/types/env';
-import { generateSecureRandomString, generateCodeChallenge } from '@authrim/ar-lib-core/utils/crypto';
+import {
+  generateSecureRandomString,
+  generateCodeChallenge,
+} from '@authrim/ar-lib-core/utils/crypto';
 
 /**
  * Shared key set for all tests in the suite.
@@ -188,9 +191,9 @@ export async function createMockEnv(): Promise<Env> {
     }
   }
 
-  function createDurableObjectNamespace<T extends { fetch: (input: RequestInfo, init?: RequestInit) => Promise<Response> | Response }>(
-    factory: () => T
-  ): DurableObjectNamespace {
+  function createDurableObjectNamespace<
+    T extends { fetch: (input: RequestInfo, init?: RequestInit) => Promise<Response> | Response },
+  >(factory: () => T): DurableObjectNamespace {
     const objects = new Map<string, T>();
     return {
       idFromName(name: string) {
@@ -438,7 +441,10 @@ export async function createMockEnv(): Promise<Env> {
   }
 
   class MockRefreshTokenRotator {
-    private families = new Map<string, { token: string; userId: string; clientId: string; scope: string; expiresAt: number }>();
+    private families = new Map<
+      string,
+      { token: string; userId: string; clientId: string; scope: string; expiresAt: number }
+    >();
 
     async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
       const request = input instanceof Request ? input : new Request(input, init);
@@ -571,11 +577,17 @@ export async function createMockEnv(): Promise<Env> {
         const record = this.challenges.get(body.id);
 
         if (!record || record.expiresAt <= Date.now()) {
-          return jsonResponse({ error: 'not_found', error_description: 'Challenge not found or expired' }, 404);
+          return jsonResponse(
+            { error: 'not_found', error_description: 'Challenge not found or expired' },
+            404
+          );
         }
 
         if (record.consumed) {
-          return jsonResponse({ error: 'already_consumed', error_description: 'Challenge already consumed' }, 400);
+          return jsonResponse(
+            { error: 'already_consumed', error_description: 'Challenge already consumed' },
+            400
+          );
         }
 
         record.consumed = true;
@@ -868,7 +880,10 @@ export async function createMockEnv(): Promise<Env> {
    * Stores revoked token JTIs with TTL
    */
   class MockTokenRevocationStore {
-    private revokedTokens = new Map<string, { revokedAt: number; reason?: string; expiresAt: number }>();
+    private revokedTokens = new Map<
+      string,
+      { revokedAt: number; reason?: string; expiresAt: number }
+    >();
 
     async fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
       const request = input instanceof Request ? input : new Request(input, init);

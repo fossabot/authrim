@@ -29,6 +29,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@authrim/ar-lib-core';
 import { versionCheckMiddleware } from '@authrim/ar-lib-core/middleware/version-check';
+import { createErrorResponse, AR_ERROR_CODES } from '@authrim/ar-lib-core';
 
 // Import handlers (to be implemented)
 import { handleIdPMetadata } from './idp/metadata';
@@ -182,25 +183,13 @@ app.post('/api/admin/saml-providers/:id/import-metadata', handleImportMetadata);
 
 // 404 handler
 app.notFound((c) => {
-  return c.json(
-    {
-      error: 'not_found',
-      message: 'The requested SAML endpoint was not found',
-    },
-    404
-  );
+  return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
 });
 
 // Error handler
 app.onError((err, c) => {
   console.error('SAML Worker Error:', err);
-  return c.json(
-    {
-      error: 'internal_server_error',
-      message: 'An unexpected error occurred in the SAML worker',
-    },
-    500
-  );
+  return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
 });
 
 export default app;

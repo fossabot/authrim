@@ -398,12 +398,18 @@ export async function introspectToken(
       audience: issuerUrl, // For MVP, access token audience is the issuer
     });
   } catch (error) {
+    // Log full error for debugging but don't expose to client
+    console.error(
+      'Token introspection error:',
+      error instanceof Error ? error.name : 'Unknown error'
+    );
     const wwwAuth = isDPoP ? 'DPoP error="invalid_token"' : 'Bearer error="invalid_token"';
+    // SECURITY: Do not expose internal error details in response
     return {
       valid: false,
       error: {
         error: 'invalid_token',
-        error_description: error instanceof Error ? error.message : 'Invalid or expired token',
+        error_description: 'Invalid or expired token',
         wwwAuthenticate: wwwAuth,
         statusCode: 401,
       },

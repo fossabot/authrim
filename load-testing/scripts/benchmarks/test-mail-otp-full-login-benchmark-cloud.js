@@ -667,8 +667,11 @@ export default function (data) {
       if (step4Response.status >= 500) serverErrors.add(1);
       if (step4Response.status === 429) rateLimitErrors.add(1);
       if (exec.vu.iterationInInstance < 3) {
-        const location = step4Response.headers['Location'] || step4Response.headers['location'] || '';
-        console.error(`❌ Authorize code failed: status=${step4Response.status}, location=${location}`);
+        const location =
+          step4Response.headers['Location'] || step4Response.headers['location'] || '';
+        console.error(
+          `❌ Authorize code failed: status=${step4Response.status}, location=${location}`
+        );
       }
     }
   }
@@ -703,7 +706,9 @@ export default function (data) {
       if (step5Response.status >= 500) serverErrors.add(1);
       if (step5Response.status === 429) rateLimitErrors.add(1);
       if (exec.vu.iterationInInstance < 3) {
-        console.error(`❌ Token failed: status=${step5Response.status}, body=${step5Response.body}`);
+        console.error(
+          `❌ Token failed: status=${step5Response.status}, body=${step5Response.body}`
+        );
       }
     } else {
       try {

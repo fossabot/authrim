@@ -16,6 +16,8 @@ import {
   type DatabaseAdapter,
   getSessionStoreBySessionId,
   isShardedSessionId,
+  createRFCErrorResponse,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import * as jose from 'jose';
 import { getProviderByIdOrSlug } from '../services/provider-store';
@@ -64,18 +66,17 @@ export async function handleBackchannelLogout(c: Context<{ Bindings: Env }>): Pr
     const provider = await getProviderByIdOrSlug(c.env, providerIdOrSlug, tenantId);
     if (!provider) {
       console.error(`Backchannel logout: Provider not found: ${providerIdOrSlug}`);
-      return c.json({ error: 'invalid_request', error_description: 'Unknown provider' }, 400);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Unknown provider');
     }
 
     // 2. Parse form body to get logout_token
     const contentType = c.req.header('Content-Type');
     if (!contentType?.includes('application/x-www-form-urlencoded')) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Content-Type must be application/x-www-form-urlencoded',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Content-Type must be application/x-www-form-urlencoded'
       );
     }
 
@@ -83,9 +84,11 @@ export async function handleBackchannelLogout(c: Context<{ Bindings: Env }>): Pr
     const logoutToken = formData['logout_token'];
 
     if (!logoutToken || typeof logoutToken !== 'string') {
-      return c.json(
-        { error: 'invalid_request', error_description: 'logout_token is required' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'logout_token is required'
       );
     }
 
@@ -128,12 +131,14 @@ export async function handleBackchannelLogout(c: Context<{ Bindings: Env }>): Pr
       ];
       const isSafeError = safeErrors.some((msg) => error.message === msg);
       const description = isSafeError ? error.message : 'Invalid logout token';
-      return c.json({ error: 'invalid_request', error_description: description }, 400);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, description);
     }
 
-    return c.json(
-      { error: 'invalid_request', error_description: 'Failed to process logout token' },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Failed to process logout token'
     );
   }
 }

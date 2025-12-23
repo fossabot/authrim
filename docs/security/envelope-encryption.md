@@ -45,7 +45,7 @@ Currently, JWT signing keys are stored in Durable Objects as follows:
 interface StoredKey {
   kid: string;
   publicJWK: JWK;
-  privatePEM: string;  // ⚠️ Plaintext private key
+  privatePEM: string; // ⚠️ Plaintext private key
   createdAt: number;
   isActive: boolean;
 }
@@ -62,13 +62,13 @@ interface StoredKey {
 
 We evaluated distributed key generation (DKG) and threshold signatures but found them unsuitable for our use case:
 
-| Concern | Threshold Signatures | Envelope Encryption |
-|---------|---------------------|---------------------|
-| Performance | 15-300ms per signature | ~1ms (first access only) |
-| Complexity | High (DKG ceremony, signature aggregation) | Low (standard crypto primitives) |
-| Operational Overhead | High (managing multiple DOs, failure recovery) | Low (standard key management) |
-| Protection Against Infrastructure Compromise | Limited (all shares in same infrastructure) | Same limitation |
-| Cost | 5-6x higher (multiple DOs, network calls) | Minimal |
+| Concern                                      | Threshold Signatures                           | Envelope Encryption              |
+| -------------------------------------------- | ---------------------------------------------- | -------------------------------- |
+| Performance                                  | 15-300ms per signature                         | ~1ms (first access only)         |
+| Complexity                                   | High (DKG ceremony, signature aggregation)     | Low (standard crypto primitives) |
+| Operational Overhead                         | High (managing multiple DOs, failure recovery) | Low (standard key management)    |
+| Protection Against Infrastructure Compromise | Limited (all shares in same infrastructure)    | Same limitation                  |
+| Cost                                         | 5-6x higher (multiple DOs, network calls)      | Minimal                          |
 
 **Verdict**: For a single-organization deployment on Cloudflare infrastructure, envelope encryption provides better cost-benefit ratio.
 
@@ -115,12 +115,12 @@ graph TB
 
 ### Component Responsibilities
 
-| Component | Responsibility | Security Boundary |
-|-----------|---------------|-------------------|
-| **Durable Object Storage** | Stores encrypted private keys (EncSK), public keys, metadata | Cloudflare DO storage |
-| **Worker Environment Variable** | Stores master encryption key (K_master) | Cloudflare Secrets |
-| **In-Memory Cache** | Holds decrypted CryptoKey objects (non-extractable) | Worker runtime memory |
-| **KeyManager DO** | Orchestrates encryption/decryption, key lifecycle management | Durable Object instance |
+| Component                       | Responsibility                                               | Security Boundary       |
+| ------------------------------- | ------------------------------------------------------------ | ----------------------- |
+| **Durable Object Storage**      | Stores encrypted private keys (EncSK), public keys, metadata | Cloudflare DO storage   |
+| **Worker Environment Variable** | Stores master encryption key (K_master)                      | Cloudflare Secrets      |
+| **In-Memory Cache**             | Holds decrypted CryptoKey objects (non-extractable)          | Worker runtime memory   |
+| **KeyManager DO**               | Orchestrates encryption/decryption, key lifecycle management | Durable Object instance |
 
 ---
 
@@ -159,30 +159,33 @@ flowchart LR
 ### Mathematical Notation
 
 **Key Derivation**:
+
 ```
 K_derived = PBKDF2(K_master, salt, iterations=100000, hash=SHA-256, keylen=256)
 ```
 
 **Encryption**:
+
 ```
 EncSK = AES-256-GCM_Encrypt(K_derived, SK_plaintext, iv, aad)
 ```
 
 **Decryption**:
+
 ```
 SK_plaintext = AES-256-GCM_Decrypt(K_derived, EncSK, iv, aad)
 ```
 
 ### Parameters
 
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| **Encryption Algorithm** | AES-256-GCM | NIST-approved AEAD, hardware acceleration available |
-| **Key Derivation** | PBKDF2-HMAC-SHA256 | Wide support, prevents weak password attacks |
-| **PBKDF2 Iterations** | 100,000 | OWASP recommended minimum for 2024 |
-| **Salt Length** | 16 bytes (128 bits) | NIST SP 800-132 recommendation |
-| **IV Length** | 12 bytes (96 bits) | NIST SP 800-38D recommendation for GCM |
-| **Key Length** | 32 bytes (256 bits) | Maximum AES security level |
+| Parameter                | Value               | Rationale                                           |
+| ------------------------ | ------------------- | --------------------------------------------------- |
+| **Encryption Algorithm** | AES-256-GCM         | NIST-approved AEAD, hardware acceleration available |
+| **Key Derivation**       | PBKDF2-HMAC-SHA256  | Wide support, prevents weak password attacks        |
+| **PBKDF2 Iterations**    | 100,000             | OWASP recommended minimum for 2024                  |
+| **Salt Length**          | 16 bytes (128 bits) | NIST SP 800-132 recommendation                      |
+| **IV Length**            | 12 bytes (96 bits)  | NIST SP 800-38D recommendation for GCM              |
+| **Key Length**           | 32 bytes (256 bits) | Maximum AES security level                          |
 
 ### Data Format
 
@@ -250,6 +253,7 @@ graph TD
 #### ✅ Protected Scenarios
 
 **1. Durable Object Storage Breach Only**
+
 ```
 Attacker obtains: EncSK, IV, Salt
 Missing: K_master
@@ -257,6 +261,7 @@ Result: Cannot decrypt → Private key remains safe
 ```
 
 **2. Environment Variable Exposure Only**
+
 ```
 Attacker obtains: K_master
 Missing: EncSK, IV, Salt
@@ -264,6 +269,7 @@ Result: No ciphertext to decrypt → Private key remains safe
 ```
 
 **3. Accidental Git Commit / Config Leak**
+
 ```
 Scenario: Developer commits EncSK to version control
 Attacker obtains: EncSK (from public repo)
@@ -272,6 +278,7 @@ Result: Private key remains safe
 ```
 
 **4. Backup/Export Leak**
+
 ```
 Scenario: DO storage backup is exposed
 Attacker obtains: All EncSK values, public keys
@@ -282,6 +289,7 @@ Result: All private keys remain safe
 #### ❌ Not Protected Against
 
 **5. Full Worker Environment Compromise**
+
 ```
 Scenario: Attacker achieves arbitrary code execution in Worker
 Attacker obtains:
@@ -292,6 +300,7 @@ Result: Complete compromise
 ```
 
 **Note**: This is an acceptable risk. If an attacker can execute arbitrary code in the Worker environment, they can intercept any cryptographic operation regardless of key storage method. Defense-in-depth focuses on preventing this level of access through:
+
 - Access control (KEY_MANAGER_SECRET authentication)
 - Audit logging
 - Anomaly detection
@@ -300,6 +309,7 @@ Result: Complete compromise
 #### ⚠️ Partial Protection
 
 **6. Memory Dump Attack**
+
 ```
 Scenario: Attacker dumps Worker memory
 Mitigation: Use non-extractable CryptoKey objects
@@ -366,10 +376,10 @@ Create `packages/shared/src/utils/envelope-encryption.ts`:
  * Encrypted data structure
  */
 export interface EncryptedData {
-  ciphertext: string;      // Base64-encoded
-  iv: string;              // Base64-encoded (12 bytes)
-  salt: string;            // Base64-encoded (16 bytes)
-  aad?: string;            // Base64-encoded (optional)
+  ciphertext: string; // Base64-encoded
+  iv: string; // Base64-encoded (12 bytes)
+  salt: string; // Base64-encoded (16 bytes)
+  aad?: string; // Base64-encoded (optional)
   algorithm: 'AES-256-GCM';
   kdfIterations: number;
   version: number;
@@ -385,10 +395,7 @@ export class EnvelopeEncryption {
   /**
    * Derive encryption key from master password using PBKDF2
    */
-  private async deriveKey(
-    masterPassword: string,
-    salt: Uint8Array
-  ): Promise<CryptoKey> {
+  private async deriveKey(masterPassword: string, salt: Uint8Array): Promise<CryptoKey> {
     // Import master password as key material
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
@@ -435,9 +442,7 @@ export class EnvelopeEncryption {
 
     // Prepare plaintext and AAD
     const plaintextBytes = new TextEncoder().encode(plaintext);
-    const aadBytes = additionalData
-      ? new TextEncoder().encode(additionalData)
-      : undefined;
+    const aadBytes = additionalData ? new TextEncoder().encode(additionalData) : undefined;
 
     // Encrypt with AES-GCM
     const ciphertext = await crypto.subtle.encrypt(
@@ -470,24 +475,17 @@ export class EnvelopeEncryption {
    * @returns Decrypted plaintext
    * @throws Error if decryption fails (wrong key, tampered data, etc.)
    */
-  async decrypt(
-    encryptedData: EncryptedData,
-    masterPassword: string
-  ): Promise<string> {
+  async decrypt(encryptedData: EncryptedData, masterPassword: string): Promise<string> {
     // Validate version
     if (encryptedData.version !== this.VERSION) {
-      throw new Error(
-        `Unsupported encryption version: ${encryptedData.version}`
-      );
+      throw new Error(`Unsupported encryption version: ${encryptedData.version}`);
     }
 
     // Decode Base64 parameters
     const ciphertext = this.base64ToArrayBuffer(encryptedData.ciphertext);
     const iv = this.base64ToUint8Array(encryptedData.iv);
     const salt = this.base64ToUint8Array(encryptedData.salt);
-    const aad = encryptedData.aad
-      ? new TextEncoder().encode(atob(encryptedData.aad))
-      : undefined;
+    const aad = encryptedData.aad ? new TextEncoder().encode(atob(encryptedData.aad)) : undefined;
 
     // Derive decryption key
     const key = await this.deriveKey(masterPassword, salt);
@@ -506,9 +504,7 @@ export class EnvelopeEncryption {
 
       return new TextDecoder().decode(plaintext);
     } catch (error) {
-      throw new Error(
-        'Decryption failed: Invalid key or tampered ciphertext'
-      );
+      throw new Error('Decryption failed: Invalid key or tampered ciphertext');
     }
   }
 
@@ -606,9 +602,7 @@ export class KeyManager {
     // Get master encryption key from environment
     const masterKey = this.env.KEY_ENCRYPTION_MASTER_KEY;
     if (!masterKey) {
-      throw new Error(
-        'KEY_ENCRYPTION_MASTER_KEY not configured in environment variables'
-      );
+      throw new Error('KEY_ENCRYPTION_MASTER_KEY not configured in environment variables');
     }
 
     // Decrypt private key
@@ -778,18 +772,13 @@ interface ModernStoredKey {
   isActive: boolean;
 }
 
-async function migrateKeys(
-  env: Env,
-  doNamespace: DurableObjectNamespace
-): Promise<void> {
+async function migrateKeys(env: Env, doNamespace: DurableObjectNamespace): Promise<void> {
   console.log('🔐 Starting key migration to envelope encryption...\n');
 
   // Get master encryption key
   const masterKey = env.KEY_ENCRYPTION_MASTER_KEY;
   if (!masterKey) {
-    throw new Error(
-      'KEY_ENCRYPTION_MASTER_KEY must be set before migration'
-    );
+    throw new Error('KEY_ENCRYPTION_MASTER_KEY must be set before migration');
   }
 
   // Get KeyManager DO
@@ -905,6 +894,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 **Requirements**:
+
 - Minimum 256 bits of entropy
 - Cryptographically secure random generation
 - URL-safe Base64 encoding (no special characters)
@@ -912,6 +902,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 #### Storing the Master Key
 
 **Production**:
+
 ```bash
 # Add to Cloudflare Workers Secrets (encrypted at rest)
 echo "<your_master_key>" | wrangler secret put KEY_ENCRYPTION_MASTER_KEY
@@ -921,12 +912,14 @@ wrangler secret list
 ```
 
 **Development**:
+
 ```bash
 # Add to .dev.vars (gitignored!)
 echo "KEY_ENCRYPTION_MASTER_KEY=<your_master_key>" >> .dev.vars
 ```
 
 **⚠️ Never**:
+
 - Commit master key to version control
 - Include in `wrangler.toml` (use `[secrets]` or `wrangler secret`)
 - Log or display in plaintext
@@ -935,6 +928,7 @@ echo "KEY_ENCRYPTION_MASTER_KEY=<your_master_key>" >> .dev.vars
 #### Backing Up the Master Key
 
 1. **Export and Encrypt**:
+
 ```bash
 # Export from Wrangler (if possible) or use your secure storage
 echo "<master_key>" > master-key.txt
@@ -946,12 +940,14 @@ gpg --symmetric --cipher-algo AES256 master-key.txt
 ```
 
 2. **Store in Multiple Secure Locations**:
+
 - Password manager (1Password, Bitwarden, etc.)
 - Encrypted USB drive (offline)
 - Printed copy in physical safe
 - Hardware Security Module (HSM) for enterprise
 
 3. **Secure Deletion**:
+
 ```bash
 # Securely delete plaintext file
 shred -u master-key.txt
@@ -983,6 +979,7 @@ pnpm run deploy
 #### Key Metrics to Track
 
 1. **Decryption Failures**:
+
 ```typescript
 // Add metrics in KeyManager
 if (decryptionFailed) {
@@ -996,11 +993,13 @@ if (decryptionFailed) {
 ```
 
 2. **Unusual Access Patterns**:
+
 - High volume of key decryption requests
 - Decryption attempts with invalid master key
 - Access from unexpected geographic locations
 
 3. **Cache Hit Rate**:
+
 ```typescript
 const cacheHitRate = cacheHits / totalRequests;
 // Should be >95% in normal operation
@@ -1070,13 +1069,13 @@ sequenceDiagram
 
 ### Benchmark Results
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| **First key access** (cache miss) | 2-4ms | PBKDF2 + AES-GCM decrypt + import |
-| **Subsequent access** (cache hit) | <0.1ms | Memory access only |
-| **JWT signing** | 1-2ms | Unchanged (uses CryptoKey) |
-| **Total (cold start)** | 3-6ms | Acceptable for most use cases |
-| **Total (warm)** | 1-2ms | Same as before |
+| Operation                         | Latency | Notes                             |
+| --------------------------------- | ------- | --------------------------------- |
+| **First key access** (cache miss) | 2-4ms   | PBKDF2 + AES-GCM decrypt + import |
+| **Subsequent access** (cache hit) | <0.1ms  | Memory access only                |
+| **JWT signing**                   | 1-2ms   | Unchanged (uses CryptoKey)        |
+| **Total (cold start)**            | 3-6ms   | Acceptable for most use cases     |
+| **Total (warm)**                  | 1-2ms   | Same as before                    |
 
 ### Optimization Strategies
 
@@ -1104,6 +1103,7 @@ await crypto.subtle.importKey(
 ```
 
 **Benefits**:
+
 - Prevents accidental key export
 - Browser security model enforced
 - Keys remain in secure memory
@@ -1129,11 +1129,11 @@ const iterations = 100000; // OWASP 2024 minimum
 
 ### Memory Usage
 
-| Component | Memory per Key | Notes |
-|-----------|---------------|-------|
-| EncryptedData (storage) | ~3-4 KB | Base64-encoded ciphertext + metadata |
-| CryptoKey (cache) | ~2 KB | Native browser object |
-| Total for 10 active keys | ~50-60 KB | Negligible in Workers (128MB limit) |
+| Component                | Memory per Key | Notes                                |
+| ------------------------ | -------------- | ------------------------------------ |
+| EncryptedData (storage)  | ~3-4 KB        | Base64-encoded ciphertext + metadata |
+| CryptoKey (cache)        | ~2 KB          | Native browser object                |
+| Total for 10 active keys | ~50-60 KB      | Negligible in Workers (128MB limit)  |
 
 ### Scaling Considerations
 

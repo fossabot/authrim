@@ -8,11 +8,11 @@ Authrim implements Hybrid Flow, which combines the benefits of Authorization Cod
 
 ### Specification
 
-| Attribute | Value |
-|-----------|-------|
-| **Spec** | [OIDC Core 3.3](https://openid.net/specs/openid-connect-core-1_0.html#HybridFlowAuth) |
-| **Status** | ✅ Implemented |
-| **Response Types** | `code id_token`, `code token`, `code id_token token` |
+| Attribute          | Value                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| **Spec**           | [OIDC Core 3.3](https://openid.net/specs/openid-connect-core-1_0.html#HybridFlowAuth) |
+| **Status**         | ✅ Implemented                                                                        |
+| **Response Types** | `code id_token`, `code token`, `code id_token token`                                  |
 
 ---
 
@@ -46,6 +46,7 @@ Authrim implements Hybrid Flow, which combines the benefits of Authorization Cod
 **Challenge**: Traditional code flow requires waiting for backend exchange before showing user info. Implicit flow can't get refresh tokens. Need both immediate display and long-term access.
 
 **Hybrid Flow Solution**:
+
 ```javascript
 // Request: response_type=code id_token
 // Frontend immediately gets ID token with user info
@@ -59,7 +60,7 @@ document.getElementById('email').textContent = idToken.email;
 // Meanwhile, send code to backend
 fetch('/api/exchange-code', {
   method: 'POST',
-  body: JSON.stringify({ code: params.code })
+  body: JSON.stringify({ code: params.code }),
 });
 
 // Backend exchanges code for access + refresh tokens
@@ -77,6 +78,7 @@ fetch('/api/exchange-code', {
 **Challenge**: WebSocket connection needs to be established quickly. Waiting for full token exchange adds latency. But access token is needed for the WebSocket auth.
 
 **Hybrid Flow Solution**:
+
 ```typescript
 // Request: response_type=code id_token token
 // Get all tokens immediately in fragment
@@ -92,7 +94,7 @@ const ws = new WebSocket(`wss://collab.example.com/ws?token=${params.access_toke
 // Send code to backend for refresh token (for reconnection)
 await fetch('/api/store-code', {
   method: 'POST',
-  body: JSON.stringify({ code: params.code })
+  body: JSON.stringify({ code: params.code }),
 });
 ```
 
@@ -107,6 +109,7 @@ await fetch('/api/store-code', {
 **Challenge**: Passing tokens between WebView and native code is complex. Need tokens available in both contexts simultaneously.
 
 **Hybrid Flow Solution**:
+
 ```swift
 // iOS native code sets up WebView for hybrid flow
 let authURL = URL(string: """
@@ -171,11 +174,11 @@ sequenceDiagram
 
 ### Response Types
 
-| response_type | Returns | c_hash | at_hash |
-|---------------|---------|--------|---------|
-| `code id_token` | Code + ID Token | ✅ | - |
-| `code token` | Code + Access Token | - | - |
-| `code id_token token` | All three | ✅ | ✅ |
+| response_type         | Returns             | c_hash | at_hash |
+| --------------------- | ------------------- | ------ | ------- |
+| `code id_token`       | Code + ID Token     | ✅     | -       |
+| `code token`          | Code + Access Token | -      | -       |
+| `code id_token token` | All three           | ✅     | ✅      |
 
 ---
 
@@ -195,14 +198,14 @@ GET /authorize?
 
 **Required Parameters**:
 
-| Parameter | Description |
-|-----------|-------------|
+| Parameter       | Description                                                  |
+| --------------- | ------------------------------------------------------------ |
 | `response_type` | One of: `code id_token`, `code token`, `code id_token token` |
-| `client_id` | Client identifier |
-| `redirect_uri` | Callback URI |
-| `scope` | Must include `openid` |
-| `nonce` | **Required** for flows returning id_token |
-| `state` | Recommended for CSRF protection |
+| `client_id`     | Client identifier                                            |
+| `redirect_uri`  | Callback URI                                                 |
+| `scope`         | Must include `openid`                                        |
+| `nonce`         | **Required** for flows returning id_token                    |
+| `state`         | Recommended for CSRF protection                              |
 
 ### Response (Fragment)
 
@@ -233,7 +236,7 @@ function initiateHybridFlow() {
     redirect_uri: REDIRECT_URI,
     scope: 'openid profile email',
     state,
-    nonce
+    nonce,
   });
 
   window.location.href = `https://your-tenant.authrim.com/authorize?${params}`;
@@ -298,12 +301,14 @@ if (idToken.nonce !== savedNonce) {
 ### Hash Claim Validation
 
 **c_hash**: Binds ID token to authorization code
+
 ```javascript
 const expectedCHash = base64url(sha256(code).slice(0, 16));
 assert(idToken.c_hash === expectedCHash);
 ```
 
 **at_hash**: Binds ID token to access token
+
 ```javascript
 const expectedAtHash = base64url(sha256(accessToken).slice(0, 16));
 assert(idToken.at_hash === expectedAtHash);
@@ -334,13 +339,13 @@ assert(idToken.at_hash === expectedAtHash);
 
 ### Test Scenarios
 
-| Scenario | Expected Result |
-|----------|-----------------|
-| code id_token request | Fragment with code + id_token (with c_hash) |
-| code token request | Fragment with code + access_token |
-| code id_token token request | All three tokens (with c_hash + at_hash) |
-| Missing nonce | 400 error |
-| Invalid nonce validation | Client-side rejection |
+| Scenario                    | Expected Result                             |
+| --------------------------- | ------------------------------------------- |
+| code id_token request       | Fragment with code + id_token (with c_hash) |
+| code token request          | Fragment with code + access_token           |
+| code id_token token request | All three tokens (with c_hash + at_hash)    |
+| Missing nonce               | 400 error                                   |
+| Invalid nonce validation    | Client-side rejection                       |
 
 ### Running Tests
 

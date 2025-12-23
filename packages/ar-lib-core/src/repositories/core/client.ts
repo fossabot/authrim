@@ -107,6 +107,18 @@ export interface OAuthClient {
   // UserInfo response signing
   userinfo_signed_response_alg: string | null;
 
+  // ==========================================================================
+  // OIDC Logout Support (Back-Channel & Front-Channel Logout)
+  // ==========================================================================
+  /** Backchannel logout URI - receives logout token via POST */
+  backchannel_logout_uri: string | null;
+  /** Whether sid claim is required in backchannel logout token */
+  backchannel_logout_session_required: boolean;
+  /** Frontchannel logout URI - called via iframe during logout */
+  frontchannel_logout_uri: string | null;
+  /** Whether sid is required in frontchannel logout */
+  frontchannel_logout_session_required: boolean;
+
   // Timestamps
   created_at: number;
   updated_at: number;
@@ -151,6 +163,11 @@ export interface CreateClientInput {
   backchannel_authentication_request_signing_alg?: string | null;
   backchannel_user_code_parameter?: boolean;
   userinfo_signed_response_alg?: string | null;
+  // OIDC Logout
+  backchannel_logout_uri?: string | null;
+  backchannel_logout_session_required?: boolean;
+  frontchannel_logout_uri?: string | null;
+  frontchannel_logout_session_required?: boolean;
 }
 
 /**
@@ -190,6 +207,11 @@ export interface UpdateClientInput {
   backchannel_authentication_request_signing_alg?: string | null;
   backchannel_user_code_parameter?: boolean;
   userinfo_signed_response_alg?: string | null;
+  // OIDC Logout
+  backchannel_logout_uri?: string | null;
+  backchannel_logout_session_required?: boolean;
+  frontchannel_logout_uri?: string | null;
+  frontchannel_logout_session_required?: boolean;
 }
 
 /**
@@ -271,6 +293,11 @@ export class ClientRepository {
         input.backchannel_authentication_request_signing_alg ?? null,
       backchannel_user_code_parameter: input.backchannel_user_code_parameter ?? false,
       userinfo_signed_response_alg: input.userinfo_signed_response_alg ?? null,
+      // OIDC Logout
+      backchannel_logout_uri: input.backchannel_logout_uri ?? null,
+      backchannel_logout_session_required: input.backchannel_logout_session_required ?? false,
+      frontchannel_logout_uri: input.frontchannel_logout_uri ?? null,
+      frontchannel_logout_session_required: input.frontchannel_logout_session_required ?? false,
       created_at: now,
       updated_at: now,
     };
@@ -289,8 +316,10 @@ export class ClientRepository {
         backchannel_token_delivery_mode, backchannel_client_notification_endpoint,
         backchannel_authentication_request_signing_alg, backchannel_user_code_parameter,
         userinfo_signed_response_alg,
+        backchannel_logout_uri, backchannel_logout_session_required,
+        frontchannel_logout_uri, frontchannel_logout_session_required,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         client.client_id,
         client.client_secret,
@@ -327,6 +356,10 @@ export class ClientRepository {
         client.backchannel_authentication_request_signing_alg,
         client.backchannel_user_code_parameter ? 1 : 0,
         client.userinfo_signed_response_alg,
+        client.backchannel_logout_uri,
+        client.backchannel_logout_session_required ? 1 : 0,
+        client.frontchannel_logout_uri,
+        client.frontchannel_logout_session_required ? 1 : 0,
         client.created_at,
         client.updated_at,
       ]
@@ -501,6 +534,23 @@ export class ClientRepository {
     if (input.userinfo_signed_response_alg !== undefined) {
       updates.push('userinfo_signed_response_alg = ?');
       params.push(input.userinfo_signed_response_alg);
+    }
+    // OIDC Logout
+    if (input.backchannel_logout_uri !== undefined) {
+      updates.push('backchannel_logout_uri = ?');
+      params.push(input.backchannel_logout_uri);
+    }
+    if (input.backchannel_logout_session_required !== undefined) {
+      updates.push('backchannel_logout_session_required = ?');
+      params.push(input.backchannel_logout_session_required ? 1 : 0);
+    }
+    if (input.frontchannel_logout_uri !== undefined) {
+      updates.push('frontchannel_logout_uri = ?');
+      params.push(input.frontchannel_logout_uri);
+    }
+    if (input.frontchannel_logout_session_required !== undefined) {
+      updates.push('frontchannel_logout_session_required = ?');
+      params.push(input.frontchannel_logout_session_required ? 1 : 0);
     }
 
     params.push(clientId);
@@ -699,6 +749,9 @@ export class ClientRepository {
       token_exchange_allowed: Boolean(row.token_exchange_allowed),
       client_credentials_allowed: Boolean(row.client_credentials_allowed),
       backchannel_user_code_parameter: Boolean(row.backchannel_user_code_parameter),
+      // OIDC Logout
+      backchannel_logout_session_required: Boolean(row.backchannel_logout_session_required),
+      frontchannel_logout_session_required: Boolean(row.frontchannel_logout_session_required),
     };
   }
 }

@@ -11,6 +11,10 @@ import {
   createAuthContextFromHono,
   getTenantIdFromContext,
   validateClientAssertion,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import { importJWK, decodeProtectedHeader, type CryptoKey, type JWK } from 'jose';
 import { getIntrospectionValidationSettings } from './routes/settings/introspection-validation';
@@ -107,12 +111,11 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
   // Verify Content-Type is application/x-www-form-urlencoded
   const contentType = c.req.header('Content-Type');
   if (!contentType || !contentType.includes('application/x-www-form-urlencoded')) {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: 'Content-Type must be application/x-www-form-urlencoded',
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Content-Type must be application/x-www-form-urlencoded'
     );
   }
 
@@ -124,12 +127,11 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
       Object.entries(body).map(([key, value]) => [key, typeof value === 'string' ? value : ''])
     );
   } catch {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: 'Failed to parse request body',
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Failed to parse request body'
     );
   }
 
@@ -154,13 +156,7 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
       const colonIndex = credentials.indexOf(':');
 
       if (colonIndex === -1) {
-        return c.json(
-          {
-            error: 'invalid_client',
-            error_description: 'Invalid Authorization header format: missing colon separator',
-          },
-          401
-        );
+        return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
       }
 
       // RFC 7617 Section 2: The user-id and password are URL-decoded after Base64 decoding
@@ -174,37 +170,24 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
         client_secret = basicClientSecret;
       }
     } catch {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid Authorization header format',
-        },
-        401
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
     }
   }
 
   // Validate token parameter
   if (!token) {
-    return c.json(
-      {
-        error: 'invalid_request',
-        error_description: 'token parameter is required',
-      },
-      400
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'token parameter is required'
     );
   }
 
   // Validate client_id (client authentication required for introspection)
   const clientIdValidation = validateClientId(client_id);
   if (!clientIdValidation.valid) {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: clientIdValidation.error,
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
   }
 
   // RFC 7662 Section 2.1: The authorization server first validates the client credentials
@@ -214,13 +197,7 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
   const clientRecord = await authCtx.repositories.client.findByClientId(client_id);
 
   if (!clientRecord) {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: 'Client not found',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
   }
 
   // Cast to ClientMetadata for type safety
@@ -244,14 +221,7 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
     );
 
     if (!assertionValidation.valid) {
-      return c.json(
-        {
-          error: assertionValidation.error || 'invalid_client',
-          error_description:
-            assertionValidation.error_description || 'Client assertion validation failed',
-        },
-        401
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
     }
     // Authentication successful via private_key_jwt
   }
@@ -259,25 +229,13 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
   else if (client_secret) {
     // Verify client_secret using timing-safe comparison to prevent timing attacks
     if (!timingSafeEqual(clientMetadata.client_secret ?? '', client_secret)) {
-      return c.json(
-        {
-          error: 'invalid_client',
-          error_description: 'Invalid client credentials',
-        },
-        401
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
     }
     // Authentication successful via client_secret
   }
   // No valid authentication method provided
   else {
-    return c.json(
-      {
-        error: 'invalid_client',
-        error_description: 'Client authentication required',
-      },
-      401
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
   }
 
   // Parse token to extract claims (without verification yet)
@@ -398,13 +356,7 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
   if (!publicKey) {
     const publicJwkJson = c.env.PUBLIC_JWK_JSON;
     if (!publicJwkJson) {
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Server configuration error',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
     try {
@@ -412,13 +364,7 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
       publicKey = (await importJWK(jwk, 'RS256')) as CryptoKey;
     } catch (err) {
       console.error('Failed to import public key:', err);
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Failed to load verification key',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
   }
 
@@ -434,13 +380,7 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
     const expectedIssuer = c.env.ISSUER_URL;
     if (!expectedIssuer) {
       console.error('ISSUER_URL not configured');
-      return c.json(
-        {
-          error: 'server_error',
-          error_description: 'Server configuration error',
-        },
-        500
-      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
     await verifyToken(token, publicKey, expectedIssuer, { audience: expectedAud });
   } catch (error) {

@@ -11,6 +11,10 @@ import {
   type SDJWTVCCreateOptions,
   D1Adapter,
   IssuedCredentialRepository,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 import { validateVCIAccessToken } from '../services/token-validation';
 import { generateSecureNonce } from '../../utils/crypto';
@@ -30,30 +34,39 @@ export async function deferredCredentialRoute(c: Context<{ Bindings: Env }>): Pr
     // Verify access token
     const authHeader = c.req.header('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ error: 'invalid_token', error_description: 'Missing access token' }, 401);
+      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_TOKEN, 401, 'Missing access token');
     }
 
     const accessToken = authHeader.substring(7);
     const tokenResult = await validateVCIAccessToken(c.env, accessToken);
 
     if (!tokenResult.valid) {
-      return c.json(
-        { error: 'invalid_token', error_description: tokenResult.error || 'Invalid access token' },
-        401
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_TOKEN,
+        401,
+        tokenResult.error || 'Invalid access token'
       );
     }
 
     // Ensure userId is present
     if (!tokenResult.userId) {
-      return c.json({ error: 'invalid_token', error_description: 'Token missing user claim' }, 401);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_TOKEN,
+        401,
+        'Token missing user claim'
+      );
     }
 
     const body = await c.req.json<DeferredCredentialRequest>();
 
     if (!body.transaction_id) {
-      return c.json(
-        { error: 'invalid_request', error_description: 'transaction_id is required' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'transaction_id is required'
       );
     }
 
@@ -67,9 +80,11 @@ export async function deferredCredentialRoute(c: Context<{ Bindings: Env }>): Pr
     );
 
     if (!result) {
-      return c.json(
-        { error: 'invalid_transaction_id', error_description: 'Deferred credential not found' },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_TRANSACTION_ID,
+        400,
+        'Deferred credential not found'
       );
     }
 
@@ -82,13 +97,11 @@ export async function deferredCredentialRoute(c: Context<{ Bindings: Env }>): Pr
       Object.keys(claims).length > 0;
 
     if (!isReady) {
-      return c.json(
-        {
-          error: 'issuance_pending',
-          error_description: 'Credential issuance is still pending',
-          interval: 5, // Retry after 5 seconds
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.ISSUANCE_PENDING,
+        400,
+        'Credential issuance is still pending'
       );
     }
 
@@ -135,13 +148,7 @@ export async function deferredCredentialRoute(c: Context<{ Bindings: Env }>): Pr
     });
   } catch (error) {
     console.error('[deferredCredential] Error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: error instanceof Error ? error.message : 'Unknown error',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 

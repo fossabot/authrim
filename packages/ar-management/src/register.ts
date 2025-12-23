@@ -24,6 +24,8 @@ import {
   getTenantIdFromContext,
   D1Adapter,
   type DatabaseAdapter,
+  createErrorResponse,
+  AR_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -77,11 +79,12 @@ async function validateSectorIdentifierContent(
     // Verify all redirect_uris are included in the sector_identifier_uri content
     for (const uri of redirectUris) {
       if (!content.includes(uri)) {
+        // SECURITY: Do not expose which redirect_uri failed to prevent enumeration
         return {
           valid: false,
           error: {
             error: 'invalid_client_metadata',
-            error_description: `redirect_uri '${uri}' not found in sector_identifier_uri content`,
+            error_description: 'One or more redirect_uris are not valid for sector_identifier_uri',
           },
         };
       }
@@ -744,12 +747,6 @@ export async function registerHandler(c: Context<{ Bindings: Env }>): Promise<Re
     });
   } catch (error) {
     console.error('Registration error:', error);
-    return c.json(
-      {
-        error: 'server_error',
-        error_description: 'An unexpected error occurred during registration',
-      },
-      500
-    );
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

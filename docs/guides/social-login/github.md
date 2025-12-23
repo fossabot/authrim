@@ -4,12 +4,12 @@ This guide walks you through setting up GitHub Sign-In with Authrim.
 
 ## Overview
 
-| Property | Value |
-|----------|-------|
-| Protocol | OAuth 2.0 |
-| ID Token | No (uses UserInfo) |
-| UserInfo Endpoint | Yes |
-| Enterprise | Supports GitHub Enterprise Server |
+| Property          | Value                             |
+| ----------------- | --------------------------------- |
+| Protocol          | OAuth 2.0                         |
+| ID Token          | No (uses UserInfo)                |
+| UserInfo Endpoint | Yes                               |
+| Enterprise        | Supports GitHub Enterprise Server |
 
 ## Prerequisites
 
@@ -36,6 +36,7 @@ https://your-domain.com/auth/external/github/callback
 ```
 
 For local development:
+
 ```
 http://localhost:8787/auth/external/github/callback
 ```
@@ -124,30 +125,30 @@ curl -X POST "https://your-domain.com/external-idp/admin/providers" \
 
 ### Provider Quirks
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `fetchPrimaryEmail` | boolean | `true` | Fetch email from /user/emails endpoint |
-| `allowUnverifiedEmail` | boolean | `false` | Accept unverified emails |
-| `enterpriseHost` | string | - | GitHub Enterprise Server hostname |
+| Property               | Type    | Default | Description                            |
+| ---------------------- | ------- | ------- | -------------------------------------- |
+| `fetchPrimaryEmail`    | boolean | `true`  | Fetch email from /user/emails endpoint |
+| `allowUnverifiedEmail` | boolean | `false` | Accept unverified emails               |
+| `enterpriseHost`       | string  | -       | GitHub Enterprise Server hostname      |
 
 ### Available Scopes
 
-| Scope | Description |
-|-------|-------------|
-| `read:user` | Read user profile data |
+| Scope        | Description                                   |
+| ------------ | --------------------------------------------- |
+| `read:user`  | Read user profile data                        |
 | `user:email` | Read user email addresses (including private) |
-| `read:org` | Read organization membership |
+| `read:org`   | Read organization membership                  |
 
 ### Claim Mappings
 
-| Authrim Claim | GitHub Claim | Description |
-|---------------|--------------|-------------|
-| `sub` | `id` | Unique GitHub user ID (numeric) |
-| `email` | `email` | Primary email (may require fetchPrimaryEmail) |
-| `name` | `name` | Display name |
-| `preferred_username` | `login` | GitHub username |
-| `picture` | `avatar_url` | Avatar URL |
-| `profile` | `html_url` | GitHub profile URL |
+| Authrim Claim        | GitHub Claim | Description                                   |
+| -------------------- | ------------ | --------------------------------------------- |
+| `sub`                | `id`         | Unique GitHub user ID (numeric)               |
+| `email`              | `email`      | Primary email (may require fetchPrimaryEmail) |
+| `name`               | `name`       | Display name                                  |
+| `preferred_username` | `login`      | GitHub username                               |
+| `picture`            | `avatar_url` | Avatar URL                                    |
+| `profile`            | `html_url`   | GitHub profile URL                            |
 
 ## GitHub Enterprise Server
 
@@ -172,6 +173,7 @@ curl -X POST "https://your-domain.com/external-idp/admin/providers" \
 ```
 
 This automatically configures:
+
 - Authorization: `https://github.yourcompany.com/login/oauth/authorize`
 - Token: `https://github.yourcompany.com/login/oauth/access_token`
 - UserInfo: `https://github.yourcompany.com/api/v3/user`
@@ -188,6 +190,7 @@ GitHub has unique email handling:
 ### Fetching Primary Email
 
 When `fetchPrimaryEmail: true`, Authrim:
+
 1. Calls `/user/emails` endpoint
 2. Finds the primary, verified email
 3. Falls back to primary unverified if `allowUnverifiedEmail: true`
@@ -220,8 +223,10 @@ When `fetchPrimaryEmail: true`, Authrim:
 **Cause**: GitHub email is set to private.
 
 **Solution**:
+
 1. Add `user:email` scope
 2. Enable `fetchPrimaryEmail` in quirks:
+
 ```json
 {
   "scopes": "read:user user:email",
@@ -236,6 +241,7 @@ When `fetchPrimaryEmail: true`, Authrim:
 **Cause**: Authorization code already used or expired.
 
 **Solution**:
+
 - Restart the login flow
 - Check for redirect loop issues
 - Verify callback URL is correct
@@ -245,6 +251,7 @@ When `fetchPrimaryEmail: true`, Authrim:
 **Cause**: Callback URL doesn't match OAuth App configuration.
 
 **Solution**:
+
 1. Go to GitHub → Settings → Developer settings → OAuth Apps
 2. Edit your app
 3. Ensure callback URL exactly matches:
@@ -257,6 +264,7 @@ When `fetchPrimaryEmail: true`, Authrim:
 **Cause**: GitHub API rate limits (60 requests/hour unauthenticated, 5000/hour authenticated).
 
 **Solution**:
+
 - Authrim uses authenticated requests with the access token
 - Monitor rate limit headers in responses
 - Contact GitHub support for higher limits if needed
@@ -281,15 +289,16 @@ GitHub doesn't natively restrict OAuth to organization members, but you can:
 
 ### Token Characteristics
 
-| Property | Value |
-|----------|-------|
-| Token Type | Bearer |
-| Expiration | Never (unless revoked) |
-| Refresh Token | Not provided |
+| Property      | Value                  |
+| ------------- | ---------------------- |
+| Token Type    | Bearer                 |
+| Expiration    | Never (unless revoked) |
+| Refresh Token | Not provided           |
 
 ### Revocation
 
 Users can revoke access at:
+
 - [GitHub Applications Settings](https://github.com/settings/applications)
 
 GitHub doesn't provide a programmatic revocation endpoint via OAuth.

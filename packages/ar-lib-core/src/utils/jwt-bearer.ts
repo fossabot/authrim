@@ -124,30 +124,33 @@ export async function validateJWTBearerAssertion(
     // Step 3: Check if issuer is trusted
     const trustedIssuer = trustedIssuers.get(claims.iss);
     if (!trustedIssuer) {
+      // SECURITY: Do not expose issuer value in error to prevent enumeration
       return {
         valid: false,
         error: 'invalid_grant',
-        error_description: `Issuer '${claims.iss}' is not trusted`,
+        error_description: 'JWT issuer is not trusted',
       };
     }
 
     // Step 4: Verify audience matches OP
     const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
     if (!audiences.includes(expectedAudience)) {
+      // SECURITY: Do not expose expected audience URL in error
       return {
         valid: false,
         error: 'invalid_grant',
-        error_description: `Audience does not match. Expected '${expectedAudience}'`,
+        error_description: 'JWT audience does not match expected value',
       };
     }
 
     // Step 5: Verify subject is allowed (if restrictions exist)
     if (trustedIssuer.allowed_subjects && trustedIssuer.allowed_subjects.length > 0) {
       if (!trustedIssuer.allowed_subjects.includes(claims.sub)) {
+        // SECURITY: Do not expose subject or issuer values in error
         return {
           valid: false,
           error: 'invalid_grant',
-          error_description: `Subject '${claims.sub}' is not allowed for issuer '${claims.iss}'`,
+          error_description: 'JWT subject is not allowed',
         };
       }
     }
@@ -228,15 +231,12 @@ export async function validateJWTBearerAssertion(
     };
   } catch (error) {
     // PII Protection: Don't log full error object (may contain assertion claims in stack)
-    console.error(
-      'JWT Bearer assertion validation error:',
-      error instanceof Error ? error.name : 'Unknown error'
-    );
+    console.error('JWT Bearer assertion validation error:', error);
     return {
       valid: false,
       error: 'invalid_grant',
-      error_description:
-        error instanceof Error ? error.message : 'Failed to validate JWT assertion',
+      // SECURITY: Do not expose internal JWT validation error details
+      error_description: 'Failed to validate JWT assertion',
     };
   }
 }

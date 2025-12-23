@@ -4,11 +4,11 @@ Comprehensive logout mechanisms including RP-Initiated, Front-Channel, and Back-
 
 ## Overview
 
-| Specification | Status | Mechanism |
-|---------------|--------|-----------|
-| [RP-Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html) | ✅ Implemented | Browser redirect |
-| [Front-Channel Logout 1.0](https://openid.net/specs/openid-connect-frontchannel-1_0.html) | ✅ Implemented | Iframe-based |
-| [Back-Channel Logout 1.0](https://openid.net/specs/openid-connect-backchannel-1_0.html) | ✅ Implemented | Server-to-server |
+| Specification                                                                             | Status         | Mechanism        |
+| ----------------------------------------------------------------------------------------- | -------------- | ---------------- |
+| [RP-Initiated Logout 1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html)   | ✅ Implemented | Browser redirect |
+| [Front-Channel Logout 1.0](https://openid.net/specs/openid-connect-frontchannel-1_0.html) | ✅ Implemented | Iframe-based     |
+| [Back-Channel Logout 1.0](https://openid.net/specs/openid-connect-backchannel-1_0.html)   | ✅ Implemented | Server-to-server |
 
 Authrim supports multiple logout mechanisms to ensure user sessions are properly terminated across all applications in a single sign-on environment.
 
@@ -16,23 +16,23 @@ Authrim supports multiple logout mechanisms to ensure user sessions are properly
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Single Logout** | Log out from all applications at once |
-| **Security** | Prevent session hijacking after logout |
-| **Compliance** | Meet GDPR/HIPAA session termination requirements |
-| **Flexibility** | Choose mechanism based on architecture |
-| **Reliability** | Back-channel works even with blocked iframes |
+| Benefit           | Description                                      |
+| ----------------- | ------------------------------------------------ |
+| **Single Logout** | Log out from all applications at once            |
+| **Security**      | Prevent session hijacking after logout           |
+| **Compliance**    | Meet GDPR/HIPAA session termination requirements |
+| **Flexibility**   | Choose mechanism based on architecture           |
+| **Reliability**   | Back-channel works even with blocked iframes     |
 
 ---
 
 ## Logout Mechanisms Comparison
 
-| Mechanism | How It Works | Pros | Cons |
-|-----------|--------------|------|------|
-| **RP-Initiated** | Browser redirect to IdP | Simple, reliable | User must be present |
-| **Front-Channel** | Iframes to each RP | No backend required | May be blocked by browsers |
-| **Back-Channel** | Server-to-server POST | Reliable, works offline | Requires backend endpoint |
+| Mechanism         | How It Works            | Pros                    | Cons                       |
+| ----------------- | ----------------------- | ----------------------- | -------------------------- |
+| **RP-Initiated**  | Browser redirect to IdP | Simple, reliable        | User must be present       |
+| **Front-Channel** | Iframes to each RP      | No backend required     | May be blocked by browsers |
+| **Back-Channel**  | Server-to-server POST   | Reliable, works offline | Requires backend endpoint  |
 
 ---
 
@@ -85,7 +85,7 @@ const clientRegistration = {
 
   // Enable back-channel logout
   backchannel_logout_uri: 'https://hr.corp.example.com/backchannel-logout',
-  backchannel_logout_session_required: true
+  backchannel_logout_session_required: true,
 };
 
 // HR Portal: Initiate logout
@@ -112,7 +112,7 @@ app.post('/backchannel-logout', express.text({ type: 'application/jwt' }), async
     // Validate logout token
     const payload = await validateLogoutToken(logoutToken, {
       issuer: 'https://auth.corp.example.com',
-      audience: 'hr-portal'
+      audience: 'hr-portal',
     });
 
     // Token must have either sub or sid (or both)
@@ -131,11 +131,10 @@ app.post('/backchannel-logout', express.text({ type: 'application/jwt' }), async
 
     console.log('Back-channel logout processed', {
       sub: payload.sub,
-      sid: payload.sid
+      sid: payload.sid,
     });
 
     res.status(200).send();
-
   } catch (error) {
     console.error('Back-channel logout failed', error);
     res.status(400).send('Invalid logout token');
@@ -143,15 +142,18 @@ app.post('/backchannel-logout', express.text({ type: 'application/jwt' }), async
 });
 
 // Validate logout token (JWT)
-async function validateLogoutToken(token: string, options: {
-  issuer: string;
-  audience: string;
-}): Promise<LogoutTokenPayload> {
+async function validateLogoutToken(
+  token: string,
+  options: {
+    issuer: string;
+    audience: string;
+  }
+): Promise<LogoutTokenPayload> {
   const jwks = await fetchJWKS(options.issuer);
 
   const { payload } = await jose.jwtVerify(token, jwks, {
     issuer: options.issuer,
-    audience: options.audience
+    audience: options.audience,
   });
 
   // Validate required claims
@@ -292,7 +294,7 @@ const clientRegistration = {
 
   // Enable front-channel logout
   frontchannel_logout_uri: 'https://app1.platform.example.com/logout',
-  frontchannel_logout_session_required: true
+  frontchannel_logout_session_required: true,
 };
 
 // Micro-Frontend: Handle front-channel logout (GET request in iframe)
@@ -342,8 +344,8 @@ function generateFrontChannelLogoutPage(
   postLogoutRedirectUri: string
 ): string {
   const iframes = clients
-    .filter(c => c.frontchannel_logout_uri)
-    .map(c => {
+    .filter((c) => c.frontchannel_logout_uri)
+    .map((c) => {
       const logoutUrl = new URL(c.frontchannel_logout_uri!);
       logoutUrl.searchParams.set('iss', 'https://auth.platform.example.com');
       if (c.frontchannel_logout_session_required) {
@@ -388,12 +390,12 @@ GET /logout?
   client_id=my-app
 ```
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `id_token_hint` | Recommended | ID token for user identification |
-| `post_logout_redirect_uri` | Optional | Where to redirect after logout |
-| `state` | Optional | State for CSRF protection |
-| `client_id` | Conditional | Required if `id_token_hint` not provided |
+| Parameter                  | Required    | Description                              |
+| -------------------------- | ----------- | ---------------------------------------- |
+| `id_token_hint`            | Recommended | ID token for user identification         |
+| `post_logout_redirect_uri` | Optional    | Where to redirect after logout           |
+| `state`                    | Optional    | State for CSRF protection                |
+| `client_id`                | Conditional | Required if `id_token_hint` not provided |
 
 ### Back-Channel Logout Request (from IdP to RP)
 
@@ -424,12 +426,12 @@ logout_token=eyJhbGciOiJSUzI1NiIs...
 
 ## Security Considerations
 
-| Consideration | Implementation |
-|---------------|----------------|
-| **Token Validation** | Verify logout token signature |
-| **Replay Prevention** | Track `jti` to prevent replay |
-| **HTTPS Required** | All logout endpoints must use TLS |
-| **Timeout Handling** | Don't block on slow RPs |
+| Consideration         | Implementation                    |
+| --------------------- | --------------------------------- |
+| **Token Validation**  | Verify logout token signature     |
+| **Replay Prevention** | Track `jti` to prevent replay     |
+| **HTTPS Required**    | All logout endpoints must use TLS |
+| **Timeout Handling**  | Don't block on slow RPs           |
 
 ---
 
@@ -437,23 +439,23 @@ logout_token=eyJhbGciOiJSUzI1NiIs...
 
 ### Client Configuration
 
-| Field | Description |
-|-------|-------------|
-| `post_logout_redirect_uris` | Allowed post-logout URLs |
-| `frontchannel_logout_uri` | Front-channel logout URL |
-| `frontchannel_logout_session_required` | Include `sid` in iframe |
-| `backchannel_logout_uri` | Back-channel logout URL |
-| `backchannel_logout_session_required` | Include `sid` in token |
+| Field                                  | Description              |
+| -------------------------------------- | ------------------------ |
+| `post_logout_redirect_uris`            | Allowed post-logout URLs |
+| `frontchannel_logout_uri`              | Front-channel logout URL |
+| `frontchannel_logout_session_required` | Include `sid` in iframe  |
+| `backchannel_logout_uri`               | Back-channel logout URL  |
+| `backchannel_logout_session_required`  | Include `sid` in token   |
 
 ---
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| RP-Initiated | `packages/op-auth/src/logout.ts` | Logout endpoint |
+| Component    | File                                         | Description        |
+| ------------ | -------------------------------------------- | ------------------ |
+| RP-Initiated | `packages/op-auth/src/logout.ts`             | Logout endpoint    |
 | Back-Channel | `packages/op-auth/src/backchannel-logout.ts` | Logout propagation |
-| Logout Token | `packages/shared/src/utils/logout-token.ts` | Token generation |
+| Logout Token | `packages/shared/src/utils/logout-token.ts`  | Token generation   |
 
 ---
 

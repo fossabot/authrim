@@ -24,21 +24,21 @@ This document defines wireframes for all 13 pages of the Authrim OIDC OP.
 
 ### Page List
 
-| # | Page Name | Path | Category | Priority |
-|---|---------|------|---------|--------|
-| 1 | Login | `/login` | End-User | 🔴 Required |
-| 2 | Account Registration | `/register` | End-User | 🔴 Required |
-| 3 | Magic Link Sent | `/magic-link-sent` | End-User | 🔴 Required |
-| 4 | Magic Link Verification | `/verify-magic-link` | End-User | 🔴 Required |
-| 5 | OAuth Consent Screen | `/consent` | End-User | 🔴 Required |
-| 6 | Error Page | `/error` | End-User | 🟡 Important |
-| 7 | Admin Dashboard | `/admin` | Admin | 🔴 Required |
-| 8 | User Management | `/admin/users` | Admin | 🔴 Required |
-| 9 | User Detail/Edit | `/admin/users/:id` | Admin | 🔴 Required |
-| 10 | Client Management | `/admin/clients` | Admin | 🔴 Required |
-| 11 | Client Detail/Edit | `/admin/clients/:id` | Admin | 🟡 Important |
-| 12 | Settings | `/admin/settings` | Admin | 🟡 Important |
-| 13 | Audit Log | `/admin/audit-log` | Admin | 🟢 Recommended |
+| #   | Page Name               | Path                 | Category | Priority       |
+| --- | ----------------------- | -------------------- | -------- | -------------- |
+| 1   | Login                   | `/login`             | End-User | 🔴 Required    |
+| 2   | Account Registration    | `/register`          | End-User | 🔴 Required    |
+| 3   | Magic Link Sent         | `/magic-link-sent`   | End-User | 🔴 Required    |
+| 4   | Magic Link Verification | `/verify-magic-link` | End-User | 🔴 Required    |
+| 5   | OAuth Consent Screen    | `/consent`           | End-User | 🔴 Required    |
+| 6   | Error Page              | `/error`             | End-User | 🟡 Important   |
+| 7   | Admin Dashboard         | `/admin`             | Admin    | 🔴 Required    |
+| 8   | User Management         | `/admin/users`       | Admin    | 🔴 Required    |
+| 9   | User Detail/Edit        | `/admin/users/:id`   | Admin    | 🔴 Required    |
+| 10  | Client Management       | `/admin/clients`     | Admin    | 🔴 Required    |
+| 11  | Client Detail/Edit      | `/admin/clients/:id` | Admin    | 🟡 Important   |
+| 12  | Settings                | `/admin/settings`    | Admin    | 🟡 Important   |
+| 13  | Audit Log               | `/admin/audit-log`   | Admin    | 🟢 Recommended |
 
 ### Design Principles
 
@@ -155,7 +155,6 @@ graph TD
 ```html
 <main class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
   <div class="w-full max-w-md">
-
     <!-- Logo -->
     <div class="text-center mb-8">
       <img src="/logo.svg" alt="Authrim" class="h-12 mx-auto" />
@@ -163,23 +162,22 @@ graph TD
 
     <!-- Card -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 sm:p-8">
-
       <!-- Header -->
       <div class="text-center mb-6">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
           Sign in to your account
         </h1>
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-          Continue to access your apps
-        </p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Continue to access your apps</p>
       </div>
 
       <!-- Form -->
       <form class="space-y-4">
-
         <!-- Email Input -->
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+          <label
+            for="email"
+            class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1"
+          >
             Email address
           </label>
           <input
@@ -208,7 +206,6 @@ graph TD
           <svg class="w-5 h-5"><!-- mail icon --></svg>
           Send Magic Link
         </button>
-
       </form>
 
       <!-- Footer Link -->
@@ -218,14 +215,10 @@ graph TD
           Create account
         </a>
       </div>
-
     </div>
 
     <!-- Turnstile -->
-    <div class="mt-4 text-center text-xs text-gray-500">
-      Protected by Cloudflare Turnstile
-    </div>
-
+    <div class="mt-4 text-center text-xs text-gray-500">Protected by Cloudflare Turnstile</div>
   </div>
 </main>
 ```
@@ -313,27 +306,25 @@ graph TD
 ```html
 <main class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
   <div class="w-full max-w-md">
-
     <div class="text-center mb-8">
       <img src="/logo.svg" alt="Authrim" class="h-12 mx-auto" />
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 sm:p-8">
-
       <div class="text-center mb-6">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
           Create your account
         </h1>
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-          Join thousands of users
-        </p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Join thousands of users</p>
       </div>
 
       <form class="space-y-4">
-
         <!-- Email -->
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+          <label
+            for="email"
+            class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1"
+          >
             Email address
           </label>
           <input
@@ -384,7 +375,6 @@ graph TD
           <svg class="w-5 h-5"><!-- mail icon --></svg>
           Sign up with Magic Link
         </button>
-
       </form>
 
       <div class="mt-6 text-center text-sm">
@@ -393,9 +383,7 @@ graph TD
           Sign in
         </a>
       </div>
-
     </div>
-
   </div>
 </main>
 ```
@@ -446,62 +434,53 @@ graph TD
 ```html
 <main class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
   <div class="w-full max-w-md text-center">
-
     <div class="mb-8">
       <img src="/logo.svg" alt="Authrim" class="h-12 mx-auto" />
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-
       <!-- Icon -->
       <div class="mb-6">
-        <div class="w-16 h-16 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center mx-auto">
+        <div
+          class="w-16 h-16 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center mx-auto"
+        >
           <svg class="w-8 h-8 text-primary-600"><!-- mail icon --></svg>
         </div>
       </div>
 
       <!-- Content -->
-      <h1 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-        Check your email
-      </h1>
+      <h1 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Check your email</h1>
 
       <div class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
         <p>
-          We sent a magic link to:<br/>
+          We sent a magic link to:<br />
           <span class="font-medium text-gray-900 dark:text-white">{email}</span>
         </p>
-        <p>
-          Click the link in the email to sign in to your account.
-        </p>
-        <p class="text-xs text-gray-500">
-          The link expires in 15 minutes.
-        </p>
+        <p>Click the link in the email to sign in to your account.</p>
+        <p class="text-xs text-gray-500">The link expires in 15 minutes.</p>
       </div>
 
       <!-- Resend -->
       <div class="mt-8 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">
-          Didn't receive the email?
-        </p>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Didn't receive the email?</p>
         {#if canResend}
-          <button class="text-primary-600 hover:text-primary-700 font-medium text-sm">
-            Resend email
-          </button>
+        <button class="text-primary-600 hover:text-primary-700 font-medium text-sm">
+          Resend email
+        </button>
         {:else}
-          <span class="text-gray-400 text-sm">
-            Resend in {countdown}s...
-          </span>
+        <span class="text-gray-400 text-sm"> Resend in {countdown}s... </span>
         {/if}
       </div>
 
       <!-- Back Link -->
-      <a href="/login" class="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mt-6">
+      <a
+        href="/login"
+        class="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mt-6"
+      >
         <svg class="w-4 h-4"><!-- arrow-left icon --></svg>
         Back to login
       </a>
-
     </div>
-
   </div>
 </main>
 ```
@@ -568,49 +547,44 @@ graph TD
 ```html
 <main class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
   <div class="w-full max-w-md text-center">
-
     <div class="mb-8">
       <img src="/logo.svg" alt="Authrim" class="h-12 mx-auto" />
     </div>
 
     {#if loading}
-      <!-- Loading State -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-        <div class="mb-6">
-          <svg class="w-12 h-12 text-primary-500 animate-spin mx-auto">
-            <!-- spinner icon -->
-          </svg>
-        </div>
-        <h1 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-          Verifying...
-        </h1>
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-          Please wait while we verify your magic link.
-        </p>
+    <!-- Loading State -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+      <div class="mb-6">
+        <svg class="w-12 h-12 text-primary-500 animate-spin mx-auto">
+          <!-- spinner icon -->
+        </svg>
       </div>
+      <h1 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Verifying...</h1>
+      <p class="text-sm text-gray-600 dark:text-gray-400">
+        Please wait while we verify your magic link.
+      </p>
+    </div>
     {:else if error}
-      <!-- Error State -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-        <div class="mb-6">
-          <div class="w-16 h-16 bg-error-100 dark:bg-error-900/20 rounded-full flex items-center justify-center mx-auto">
-            <svg class="w-8 h-8 text-error-600"><!-- x icon --></svg>
-          </div>
+    <!-- Error State -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+      <div class="mb-6">
+        <div
+          class="w-16 h-16 bg-error-100 dark:bg-error-900/20 rounded-full flex items-center justify-center mx-auto"
+        >
+          <svg class="w-8 h-8 text-error-600"><!-- x icon --></svg>
         </div>
-        <h1 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-          Invalid or Expired Link
-        </h1>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          This magic link is invalid or has expired. Magic links are valid for 15 minutes after being sent.
-        </p>
-        <a href="/login" class="btn-primary w-full mb-4">
-          Request a new magic link
-        </a>
-        <a href="/login" class="text-sm text-gray-600 hover:text-gray-900">
-          ← Back to login
-        </a>
       </div>
+      <h1 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+        Invalid or Expired Link
+      </h1>
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+        This magic link is invalid or has expired. Magic links are valid for 15 minutes after being
+        sent.
+      </p>
+      <a href="/login" class="btn-primary w-full mb-4"> Request a new magic link </a>
+      <a href="/login" class="text-sm text-gray-600 hover:text-gray-900"> ← Back to login </a>
+    </div>
     {/if}
-
   </div>
 </main>
 ```
@@ -671,17 +645,15 @@ graph TD
 ```html
 <main class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 py-8">
   <div class="w-full max-w-md">
-
     <div class="text-center mb-8">
       <img src="/logo.svg" alt="Authrim" class="h-12 mx-auto" />
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-
       <!-- Client Info -->
       <div class="text-center mb-6">
         {#if client.logo_uri}
-          <img src={client.logo_uri} alt={client.client_name} class="h-16 mx-auto mb-4 rounded" />
+        <img src="{client.logo_uri}" alt="{client.client_name}" class="h-16 mx-auto mb-4 rounded" />
         {/if}
         <h1 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
           {client.client_name} wants to access your Authrim account
@@ -695,10 +667,10 @@ graph TD
         </p>
         <ul class="space-y-2">
           {#each scopes as scope}
-            <li class="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <svg class="w-5 h-5 text-success-500 flex-shrink-0"><!-- check icon --></svg>
-              <span>{scope.description}</span>
-            </li>
+          <li class="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <svg class="w-5 h-5 text-success-500 flex-shrink-0"><!-- check icon --></svg>
+            <span>{scope.description}</span>
+          </li>
           {/each}
         </ul>
       </div>
@@ -710,43 +682,38 @@ graph TD
         <p class="text-xs text-gray-500 mb-2">Signed in as:</p>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center">
+            <div
+              class="w-8 h-8 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center"
+            >
               <span class="text-sm font-medium text-primary-600">{user.name[0]}</span>
             </div>
             <span class="text-sm font-medium text-gray-900 dark:text-white">{user.email}</span>
           </div>
-          <button class="text-xs text-primary-600 hover:text-primary-700">
-            Not you?
-          </button>
+          <button class="text-xs text-primary-600 hover:text-primary-700">Not you?</button>
         </div>
       </div>
 
       <!-- Actions -->
       <div class="space-y-3">
-        <button class="w-full btn-primary">
-          Allow Access
-        </button>
-        <button class="w-full btn-secondary">
-          Cancel
-        </button>
+        <button class="w-full btn-primary">Allow Access</button>
+        <button class="w-full btn-secondary">Cancel</button>
       </div>
 
       <!-- Footer -->
       {#if client.tos_uri || client.policy_uri}
-        <p class="text-xs text-center text-gray-500 mt-4">
-          By allowing, you agree to {client.client_name}'s
-          {#if client.tos_uri}
-            <a href={client.tos_uri} target="_blank" class="text-primary-600 hover:underline">Terms</a>
-          {/if}
-          {#if client.tos_uri && client.policy_uri} & {/if}
-          {#if client.policy_uri}
-            <a href={client.policy_uri} target="_blank" class="text-primary-600 hover:underline">Privacy Policy</a>
-          {/if}
-        </p>
+      <p class="text-xs text-center text-gray-500 mt-4">
+        By allowing, you agree to {client.client_name}'s {#if client.tos_uri}
+        <a href="{client.tos_uri}" target="_blank" class="text-primary-600 hover:underline"
+          >Terms</a
+        >
+        {/if} {#if client.tos_uri && client.policy_uri} & {/if} {#if client.policy_uri}
+        <a href="{client.policy_uri}" target="_blank" class="text-primary-600 hover:underline"
+          >Privacy Policy</a
+        >
+        {/if}
+      </p>
       {/if}
-
     </div>
-
   </div>
 </main>
 ```
@@ -798,16 +765,16 @@ graph TD
 ```html
 <main class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
   <div class="w-full max-w-md text-center">
-
     <div class="mb-8">
       <img src="/logo.svg" alt="Authrim" class="h-12 mx-auto" />
     </div>
 
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
-
       <!-- Icon -->
       <div class="mb-6">
-        <div class="w-16 h-16 bg-warning-100 dark:bg-warning-900/20 rounded-full flex items-center justify-center mx-auto">
+        <div
+          class="w-16 h-16 bg-warning-100 dark:bg-warning-900/20 rounded-full flex items-center justify-center mx-auto"
+        >
           <svg class="w-8 h-8 text-warning-600"><!-- alert-triangle icon --></svg>
         </div>
       </div>
@@ -821,22 +788,20 @@ graph TD
         {error_description || 'An unexpected error occurred. Please try again.'}
       </p>
 
-      <div class="inline-block px-3 py-1 bg-gray-100 dark:bg-gray-900/50 rounded text-xs text-gray-500 font-mono mb-6">
+      <div
+        class="inline-block px-3 py-1 bg-gray-100 dark:bg-gray-900/50 rounded text-xs text-gray-500 font-mono mb-6"
+      >
         Error: {error || 'unknown_error'}
       </div>
 
       <!-- Actions -->
-      <a href="/login" class="btn-primary w-full mb-4">
-        Back to login
-      </a>
+      <a href="/login" class="btn-primary w-full mb-4"> Back to login </a>
 
       <!-- Support Link -->
       <a href="mailto:support@example.com" class="text-sm text-primary-600 hover:text-primary-700">
         Need help? Contact support
       </a>
-
     </div>
-
   </div>
 </main>
 ```
@@ -890,17 +855,16 @@ graph TD
 
 ```html
 <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-
   <!-- Top Bar -->
-  <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+  <header
+    class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10"
+  >
     <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-4">
         <button class="lg:hidden">
           <svg class="w-6 h-6"><!-- menu icon --></svg>
         </button>
-        <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
-          Authrim Admin
-        </h1>
+        <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Authrim Admin</h1>
       </div>
       <div class="flex items-center gap-3">
         <button class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
@@ -910,8 +874,12 @@ graph TD
           <svg class="w-5 h-5"><!-- bell icon --></svg>
           <span class="absolute top-1 right-1 w-2 h-2 bg-error-500 rounded-full"></span>
         </button>
-        <button class="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-          <div class="w-8 h-8 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center">
+        <button
+          class="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+        >
+          <div
+            class="w-8 h-8 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center"
+          >
             <span class="text-sm font-medium text-primary-600">A</span>
           </div>
           <span class="text-sm font-medium hidden sm:block">Admin</span>
@@ -922,27 +890,43 @@ graph TD
   </header>
 
   <div class="flex">
-
     <!-- Sidebar -->
-    <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden lg:block">
+    <aside
+      class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 hidden lg:block"
+    >
       <nav class="p-4 space-y-1">
-        <a href="/admin" class="flex items-center gap-3 px-3 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-600 rounded-lg">
+        <a
+          href="/admin"
+          class="flex items-center gap-3 px-3 py-2 bg-primary-50 dark:bg-primary-900/20 text-primary-600 rounded-lg"
+        >
           <svg class="w-5 h-5"><!-- dashboard icon --></svg>
           <span class="font-medium">Dashboard</span>
         </a>
-        <a href="/admin/users" class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+        <a
+          href="/admin/users"
+          class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+        >
           <svg class="w-5 h-5"><!-- users icon --></svg>
           <span>Users</span>
         </a>
-        <a href="/admin/clients" class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+        <a
+          href="/admin/clients"
+          class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+        >
           <svg class="w-5 h-5"><!-- key icon --></svg>
           <span>Clients</span>
         </a>
-        <a href="/admin/settings" class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+        <a
+          href="/admin/settings"
+          class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+        >
           <svg class="w-5 h-5"><!-- settings icon --></svg>
           <span>Settings</span>
         </a>
-        <a href="/admin/audit-log" class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+        <a
+          href="/admin/audit-log"
+          class="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+        >
           <svg class="w-5 h-5"><!-- file-text icon --></svg>
           <span>Audit Log</span>
         </a>
@@ -951,15 +935,13 @@ graph TD
 
     <!-- Main Content -->
     <main class="flex-1 p-6">
-
-      <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-        Dashboard
-      </h2>
+      <h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Dashboard</h2>
 
       <!-- Stats Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+        <div
+          class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700"
+        >
           <div class="flex items-center justify-between mb-2">
             <p class="text-sm text-gray-600 dark:text-gray-400">Total Users</p>
             <svg class="w-5 h-5 text-primary-500"><!-- users icon --></svg>
@@ -968,7 +950,9 @@ graph TD
           <p class="text-xs text-success-600 mt-1">+12% from last month</p>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+        <div
+          class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700"
+        >
           <div class="flex items-center justify-between mb-2">
             <p class="text-sm text-gray-600 dark:text-gray-400">Active Sessions</p>
             <svg class="w-5 h-5 text-success-500"><!-- activity icon --></svg>
@@ -976,7 +960,9 @@ graph TD
           <p class="text-3xl font-bold text-gray-900 dark:text-white">156</p>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+        <div
+          class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700"
+        >
           <div class="flex items-center justify-between mb-2">
             <p class="text-sm text-gray-600 dark:text-gray-400">Logins Today</p>
             <svg class="w-5 h-5 text-info-500"><!-- log-in icon --></svg>
@@ -984,7 +970,9 @@ graph TD
           <p class="text-3xl font-bold text-gray-900 dark:text-white">892</p>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+        <div
+          class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700"
+        >
           <div class="flex items-center justify-between mb-2">
             <p class="text-sm text-gray-600 dark:text-gray-400">OAuth Clients</p>
             <svg class="w-5 h-5 text-warning-500"><!-- key icon --></svg>
@@ -992,14 +980,13 @@ graph TD
           <p class="text-3xl font-bold text-gray-900 dark:text-white">45</p>
           <p class="text-xs text-success-600 mt-1">+3 this week</p>
         </div>
-
       </div>
 
       <!-- Recent Activity -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Recent Activity
-        </h3>
+      <div
+        class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8"
+      >
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
         <div class="space-y-3">
           <div class="flex items-center gap-3 text-sm">
             <div class="w-2 h-2 bg-success-500 rounded-full"></div>
@@ -1025,20 +1012,15 @@ graph TD
       </div>
 
       <!-- Chart -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          User Growth
-        </h3>
+      <div
+        class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6"
+      >
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">User Growth</h3>
         <!-- Chart component (use Chart.js or similar) -->
-        <div class="h-64 flex items-center justify-center text-gray-400">
-          [Chart: Line graph]
-        </div>
+        <div class="h-64 flex items-center justify-center text-gray-400">[Chart: Line graph]</div>
       </div>
-
     </main>
-
   </div>
-
 </div>
 ```
 
@@ -1080,12 +1062,9 @@ graph TD
 
 ```html
 <main class="flex-1 p-6">
-
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
-    <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">
-      Users
-    </h2>
+    <h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Users</h2>
     <button class="btn-primary flex items-center gap-2">
       <svg class="w-5 h-5"><!-- plus icon --></svg>
       New User
@@ -1108,7 +1087,9 @@ graph TD
   </div>
 
   <!-- Table -->
-  <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+  <div
+    class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+  >
     <table class="w-full">
       <thead class="bg-gray-50 dark:bg-gray-900/50">
         <tr>
@@ -1121,29 +1102,25 @@ graph TD
       </thead>
       <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
         {#each users as user}
-          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-            <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-              {user.email}
-            </td>
-            <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-              {user.name || '-'}
-            </td>
-            <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-              {formatDate(user.created_at)}
-            </td>
-            <td class="px-6 py-4">
-              {#if user.email_verified}
-                <span class="badge-success">Active</span>
-              {:else}
-                <span class="badge-warning">Pending</span>
-              {/if}
-            </td>
-            <td class="px-6 py-4 text-right">
-              <button class="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                Edit
-              </button>
-            </td>
-          </tr>
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{user.email}</td>
+          <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{user.name || '-'}</td>
+          <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+            {formatDate(user.created_at)}
+          </td>
+          <td class="px-6 py-4">
+            {#if user.email_verified}
+            <span class="badge-success">Active</span>
+            {:else}
+            <span class="badge-warning">Pending</span>
+            {/if}
+          </td>
+          <td class="px-6 py-4 text-right">
+            <button class="text-primary-600 hover:text-primary-700 text-sm font-medium">
+              Edit
+            </button>
+          </td>
+        </tr>
         {/each}
       </tbody>
     </table>
@@ -1151,17 +1128,10 @@ graph TD
 
   <!-- Pagination -->
   <div class="flex items-center justify-between mt-6">
-    <button class="btn-secondary" disabled={page === 1}>
-      ← Previous
-    </button>
-    <span class="text-sm text-gray-600 dark:text-gray-400">
-      Page {page} of {totalPages}
-    </span>
-    <button class="btn-secondary" disabled={page === totalPages}>
-      Next →
-    </button>
+    <button class="btn-secondary" disabled="{page" ="" ="" ="1}">← Previous</button>
+    <span class="text-sm text-gray-600 dark:text-gray-400"> Page {page} of {totalPages} </span>
+    <button class="btn-secondary" disabled="{page" ="" ="" ="totalPages}">Next →</button>
   </div>
-
 </main>
 ```
 
@@ -1233,11 +1203,11 @@ The remaining pages (User Detail, Client Management, Settings, Audit Log) follow
 
 ### Breakpoints
 
-| Device | Width | Layout |
-|---------|-----|-----------|
-| Mobile | < 640px | 1 column, stacked |
-| Tablet | 640-1024px | 2 columns, partially collapsed sidebar |
-| Desktop | > 1024px | Full featured, sidebar visible |
+| Device  | Width      | Layout                                 |
+| ------- | ---------- | -------------------------------------- |
+| Mobile  | < 640px    | 1 column, stacked                      |
+| Tablet  | 640-1024px | 2 columns, partially collapsed sidebar |
+| Desktop | > 1024px   | Full featured, sidebar visible         |
 
 ### Mobile Optimization
 
@@ -1291,4 +1261,5 @@ The remaining pages (User Detail, Client Management, Settings, Audit Log) follow
 ---
 
 **Change History**:
+
 - 2025-11-13: Initial version (Phase 5 Design)

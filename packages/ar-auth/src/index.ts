@@ -10,6 +10,10 @@ import {
   parseAllowedOrigins,
   versionCheckMiddleware,
   requestContextMiddleware,
+  createRFCErrorResponse,
+  createErrorResponse,
+  RFC_ERROR_CODES,
+  AR_ERROR_CODES,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -170,12 +174,11 @@ app.post('/par', parHandler);
 
 // PAR endpoint should reject non-POST methods
 app.get('/par', (c) => {
-  return c.json(
-    {
-      error: 'invalid_request',
-      error_description: 'PAR endpoint only accepts POST requests',
-    },
-    405
+  return createRFCErrorResponse(
+    c,
+    RFC_ERROR_CODES.INVALID_REQUEST,
+    405,
+    'PAR endpoint only accepts POST requests'
   );
 });
 
@@ -405,13 +408,18 @@ app.get('/logout-error', (c) => {
 
 // 404 handler
 app.notFound((c) => {
-  return c.json({ error: 'not_found', message: 'The requested resource was not found' }, 404);
+  return createRFCErrorResponse(
+    c,
+    RFC_ERROR_CODES.INVALID_REQUEST,
+    404,
+    'The requested resource was not found'
+  );
 });
 
 // Error handler
 app.onError((err, c) => {
   console.error('Error:', err);
-  return c.json({ error: 'internal_server_error', message: 'An unexpected error occurred' }, 500);
+  return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
 });
 
 // Export for Cloudflare Workers

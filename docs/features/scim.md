@@ -4,10 +4,10 @@ Automate user lifecycle management with the industry-standard SCIM protocol for 
 
 ## Overview
 
-| Specification | Status | Use Case |
-|---------------|--------|----------|
+| Specification                                                               | Status         | Use Case               |
+| --------------------------------------------------------------------------- | -------------- | ---------------------- |
 | [RFC 7643: SCIM Core Schema](https://datatracker.ietf.org/doc/html/rfc7643) | ✅ Implemented | User/Group data models |
-| [RFC 7644: SCIM Protocol](https://datatracker.ietf.org/doc/html/rfc7644) | ✅ Implemented | REST API operations |
+| [RFC 7644: SCIM Protocol](https://datatracker.ietf.org/doc/html/rfc7644)    | ✅ Implemented | REST API operations    |
 
 SCIM (System for Cross-domain Identity Management) provides a standardized REST API for managing user identities across systems. With SCIM, you can:
 
@@ -20,13 +20,13 @@ SCIM (System for Cross-domain Identity Management) provides a standardized REST 
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Zero Manual Provisioning** | Users provisioned instantly from HR/IdP systems |
-| **Real-time Sync** | Attribute changes propagate within seconds |
-| **Compliance Ready** | Automated deprovisioning meets SOC 2/SOX requirements |
-| **Multi-IdP Support** | Works with Okta, Azure AD, OneLogin, Google Workspace |
-| **Reduced IT Burden** | Eliminates manual account creation tickets |
+| Benefit                      | Description                                           |
+| ---------------------------- | ----------------------------------------------------- |
+| **Zero Manual Provisioning** | Users provisioned instantly from HR/IdP systems       |
+| **Real-time Sync**           | Attribute changes propagate within seconds            |
+| **Compliance Ready**         | Automated deprovisioning meets SOC 2/SOX requirements |
+| **Multi-IdP Support**        | Works with Okta, Azure AD, OneLogin, Google Workspace |
+| **Reduced IT Burden**        | Eliminates manual account creation tickets            |
 
 ### Supported Features
 
@@ -149,7 +149,7 @@ export async function handleCreateUser(c: Context): Promise<Response> {
     external_id: scimUser.externalId,
     enterprise: scimUser['urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'],
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   await c.env.USER_STORE.put(user.id, JSON.stringify(user));
@@ -159,11 +159,11 @@ export async function handleCreateUser(c: Context): Promise<Response> {
     type: 'user.provisioned',
     user_id: user.id,
     source: 'scim',
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
 
   return c.json(mapToSCIMUser(user), 201, {
-    'Location': `${c.env.BASE_URL}/scim/v2/Users/${user.id}`
+    Location: `${c.env.BASE_URL}/scim/v2/Users/${user.id}`,
   });
 }
 ```
@@ -217,11 +217,14 @@ scimRouter.all('/scim/v2/:tenantId/*', async (c) => {
   // Validate SCIM token is authorized for this tenant
   const tokenInfo = await validateSCIMToken(c.env, token);
   if (!tokenInfo || tokenInfo.tenant_id !== tenantId) {
-    return c.json({
-      schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
-      status: '403',
-      detail: 'Token not authorized for this tenant'
-    }, 403);
+    return c.json(
+      {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:Error'],
+        status: '403',
+        detail: 'Token not authorized for this tenant',
+      },
+      403
+    );
   }
 
   // Inject tenant context
@@ -268,11 +271,7 @@ scimRouter.all('/scim/v2/:tenantId/*', async (c) => {
 3. **Tenant-Isolated User Storage**:
 
 ```typescript
-async function createUserInTenant(
-  env: Env,
-  tenantId: string,
-  scimUser: SCIMUser
-): Promise<User> {
+async function createUserInTenant(env: Env, tenantId: string, scimUser: SCIMUser): Promise<User> {
   // Tenant-specific user ID to prevent cross-tenant collisions
   const userId = `${tenantId}:${crypto.randomUUID()}`;
 
@@ -289,10 +288,7 @@ async function createUserInTenant(
   await env.USER_STORE.put(key, JSON.stringify(user));
 
   // Also index by userName for lookups
-  await env.USER_INDEX.put(
-    `tenant:${tenantId}:userName:${scimUser.userName}`,
-    userId
-  );
+  await env.USER_INDEX.put(`tenant:${tenantId}:userName:${scimUser.userName}`, userId);
 
   return user;
 }
@@ -335,10 +331,7 @@ sequenceDiagram
 
 ```typescript
 // Deactivation handler with session termination
-async function handleUserDeactivation(
-  c: Context,
-  userId: string
-): Promise<void> {
+async function handleUserDeactivation(c: Context, userId: string): Promise<void> {
   const startTime = Date.now();
 
   // 1. Update user status
@@ -350,7 +343,7 @@ async function handleUserDeactivation(
 
   // 2. Terminate ALL active sessions immediately
   const sessions = await c.env.SESSION_STORE.list({
-    prefix: `user:${userId}:session:`
+    prefix: `user:${userId}:session:`,
   });
 
   const terminatedSessions: string[] = [];
@@ -361,7 +354,7 @@ async function handleUserDeactivation(
 
   // 3. Revoke all active tokens
   const tokens = await c.env.TOKEN_STORE.list({
-    prefix: `user:${userId}:token:`
+    prefix: `user:${userId}:token:`,
   });
 
   for (const token of tokens.keys) {
@@ -383,8 +376,8 @@ async function handleUserDeactivation(
       compliance: {
         regulation: 'SOC2',
         requirement: 'CC6.1',
-        status: 'compliant'
-      }
+        status: 'compliant',
+      },
     })
   );
 
@@ -393,7 +386,7 @@ async function handleUserDeactivation(
     type: 'user.deactivated',
     user_id: userId,
     immediate_effect: true,
-    sessions_killed: terminatedSessions.length
+    sessions_killed: terminatedSessions.length,
   });
 }
 
@@ -426,7 +419,7 @@ async function generateOffboardingReport(
   endDate: string
 ): Promise<ComplianceReport> {
   const events = await env.AUDIT_LOG.list({
-    prefix: 'offboarding:'
+    prefix: 'offboarding:',
   });
 
   const offboardings = [];
@@ -438,7 +431,7 @@ async function generateOffboardingReport(
         termination_time: data.timestamp,
         access_revoked_within_ms: data.duration_ms,
         sessions_terminated: data.sessions_terminated,
-        compliant: data.duration_ms < 60000 // Under 1 minute
+        compliant: data.duration_ms < 60000, // Under 1 minute
       });
     }
   }
@@ -447,9 +440,9 @@ async function generateOffboardingReport(
     report_type: 'offboarding_compliance',
     period: { start: startDate, end: endDate },
     total_offboardings: offboardings.length,
-    compliant_count: offboardings.filter(o => o.compliant).length,
-    average_revocation_time_ms: average(offboardings.map(o => o.access_revoked_within_ms)),
-    details: offboardings
+    compliant_count: offboardings.filter((o) => o.compliant).length,
+    average_revocation_time_ms: average(offboardings.map((o) => o.access_revoked_within_ms)),
+    details: offboardings,
   };
 }
 ```
@@ -493,20 +486,20 @@ https://YOUR_DOMAIN/scim/v2
 
 ### Endpoints Summary
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/scim/v2/Users` | GET | List users with filtering |
-| `/scim/v2/Users` | POST | Create new user |
-| `/scim/v2/Users/{id}` | GET | Get user by ID |
-| `/scim/v2/Users/{id}` | PUT | Replace user |
-| `/scim/v2/Users/{id}` | PATCH | Partial update |
-| `/scim/v2/Users/{id}` | DELETE | Delete user |
-| `/scim/v2/Groups` | GET | List groups |
-| `/scim/v2/Groups` | POST | Create group |
-| `/scim/v2/Groups/{id}` | GET | Get group by ID |
-| `/scim/v2/Groups/{id}` | PUT | Replace group |
-| `/scim/v2/Groups/{id}` | PATCH | Update members |
-| `/scim/v2/Groups/{id}` | DELETE | Delete group |
+| Endpoint               | Method | Description               |
+| ---------------------- | ------ | ------------------------- |
+| `/scim/v2/Users`       | GET    | List users with filtering |
+| `/scim/v2/Users`       | POST   | Create new user           |
+| `/scim/v2/Users/{id}`  | GET    | Get user by ID            |
+| `/scim/v2/Users/{id}`  | PUT    | Replace user              |
+| `/scim/v2/Users/{id}`  | PATCH  | Partial update            |
+| `/scim/v2/Users/{id}`  | DELETE | Delete user               |
+| `/scim/v2/Groups`      | GET    | List groups               |
+| `/scim/v2/Groups`      | POST   | Create group              |
+| `/scim/v2/Groups/{id}` | GET    | Get group by ID           |
+| `/scim/v2/Groups/{id}` | PUT    | Replace group             |
+| `/scim/v2/Groups/{id}` | PATCH  | Update members            |
+| `/scim/v2/Groups/{id}` | DELETE | Delete group              |
 
 ### User Schema
 
@@ -576,26 +569,26 @@ SCIM supports complex filtering using a standardized query syntax.
 
 ### Filter Operators
 
-| Operator | Description | Example |
-|----------|-------------|---------|
-| `eq` | Equal | `userName eq "john@example.com"` |
-| `ne` | Not equal | `active ne false` |
-| `co` | Contains | `userName co "john"` |
-| `sw` | Starts with | `userName sw "john"` |
-| `ew` | Ends with | `userName ew "example.com"` |
-| `pr` | Present | `phoneNumber pr` |
-| `gt` | Greater than | `meta.created gt "2024-01-01"` |
-| `ge` | Greater or equal | `meta.created ge "2024-01-01"` |
-| `lt` | Less than | `meta.created lt "2024-12-31"` |
-| `le` | Less or equal | `meta.created le "2024-12-31"` |
+| Operator | Description      | Example                          |
+| -------- | ---------------- | -------------------------------- |
+| `eq`     | Equal            | `userName eq "john@example.com"` |
+| `ne`     | Not equal        | `active ne false`                |
+| `co`     | Contains         | `userName co "john"`             |
+| `sw`     | Starts with      | `userName sw "john"`             |
+| `ew`     | Ends with        | `userName ew "example.com"`      |
+| `pr`     | Present          | `phoneNumber pr`                 |
+| `gt`     | Greater than     | `meta.created gt "2024-01-01"`   |
+| `ge`     | Greater or equal | `meta.created ge "2024-01-01"`   |
+| `lt`     | Less than        | `meta.created lt "2024-12-31"`   |
+| `le`     | Less or equal    | `meta.created le "2024-12-31"`   |
 
 ### Logical Operators
 
-| Operator | Example |
-|----------|---------|
-| `and` | `userName eq "john" and active eq true` |
-| `or` | `userName eq "john" or userName eq "jane"` |
-| `not` | `not (active eq false)` |
+| Operator | Example                                    |
+| -------- | ------------------------------------------ |
+| `and`    | `userName eq "john" and active eq true`    |
+| `or`     | `userName eq "john" or userName eq "jane"` |
+| `not`    | `not (active eq false)`                    |
 
 ### Examples
 
@@ -660,35 +653,35 @@ If-Match: W/"1704153600000"
 
 ### Okta
 
-| Setting | Value |
-|---------|-------|
-| SCIM Base URL | `https://YOUR_DOMAIN/scim/v2` |
-| Authentication | HTTP Header |
-| Authorization | Bearer `YOUR_TOKEN` |
-| Unique identifier | `userName` |
+| Setting           | Value                         |
+| ----------------- | ----------------------------- |
+| SCIM Base URL     | `https://YOUR_DOMAIN/scim/v2` |
+| Authentication    | HTTP Header                   |
+| Authorization     | Bearer `YOUR_TOKEN`           |
+| Unique identifier | `userName`                    |
 
 ### Azure AD (Entra ID)
 
-| Setting | Value |
-|---------|-------|
-| Provisioning Mode | Automatic |
-| Tenant URL | `https://YOUR_DOMAIN/scim/v2` |
-| Secret Token | `YOUR_TOKEN` |
+| Setting           | Value                         |
+| ----------------- | ----------------------------- |
+| Provisioning Mode | Automatic                     |
+| Tenant URL        | `https://YOUR_DOMAIN/scim/v2` |
+| Secret Token      | `YOUR_TOKEN`                  |
 
 ### OneLogin
 
-| Setting | Value |
-|---------|-------|
-| SCIM Base URL | `https://YOUR_DOMAIN/scim/v2` |
-| SCIM Bearer Token | `YOUR_TOKEN` |
-| API Connection | SCIM 2.0 |
+| Setting           | Value                         |
+| ----------------- | ----------------------------- |
+| SCIM Base URL     | `https://YOUR_DOMAIN/scim/v2` |
+| SCIM Bearer Token | `YOUR_TOKEN`                  |
+| API Connection    | SCIM 2.0                      |
 
 ### Google Workspace
 
-| Setting | Value |
-|---------|-------|
+| Setting          | Value                               |
+| ---------------- | ----------------------------------- |
 | Provisioning URL | `https://YOUR_DOMAIN/scim/v2/Users` |
-| Authorization | Bearer Token |
+| Authorization    | Bearer Token                        |
 
 ---
 
@@ -707,14 +700,14 @@ If-Match: W/"1704153600000"
 
 ### Error Types
 
-| scimType | HTTP Status | Description |
-|----------|-------------|-------------|
-| `invalidFilter` | 400 | Invalid filter syntax |
-| `invalidValue` | 400 | Invalid attribute value |
-| `uniqueness` | 409 | Resource already exists |
-| `mutability` | 400 | Modifying read-only attribute |
-| `noTarget` | 404 | Resource not found |
-| `invalidVers` | 412 | ETag mismatch |
+| scimType        | HTTP Status | Description                   |
+| --------------- | ----------- | ----------------------------- |
+| `invalidFilter` | 400         | Invalid filter syntax         |
+| `invalidValue`  | 400         | Invalid attribute value       |
+| `uniqueness`    | 409         | Resource already exists       |
+| `mutability`    | 400         | Modifying read-only attribute |
+| `noTarget`      | 404         | Resource not found            |
+| `invalidVers`   | 412         | ETag mismatch                 |
 
 ---
 
@@ -722,11 +715,11 @@ If-Match: W/"1704153600000"
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SCIM_MAX_PAGE_SIZE` | Maximum items per page | `1000` |
-| `SCIM_TOKEN_TTL_DAYS` | Default token validity | `365` |
-| `SCIM_RATE_LIMIT` | Requests per minute | `100` |
+| Variable              | Description            | Default |
+| --------------------- | ---------------------- | ------- |
+| `SCIM_MAX_PAGE_SIZE`  | Maximum items per page | `1000`  |
+| `SCIM_TOKEN_TTL_DAYS` | Default token validity | `365`   |
+| `SCIM_RATE_LIMIT`     | Requests per minute    | `100`   |
 
 ### Rate Limits
 
@@ -738,13 +731,13 @@ If-Match: W/"1704153600000"
 
 ## Security Considerations
 
-| Consideration | Recommendation |
-|---------------|----------------|
-| **Token Rotation** | Rotate tokens every 90 days |
+| Consideration       | Recommendation                    |
+| ------------------- | --------------------------------- |
+| **Token Rotation**  | Rotate tokens every 90 days       |
 | **Separate Tokens** | Use unique tokens per integration |
-| **Audit Logging** | Monitor all SCIM operations |
-| **HTTPS Only** | Never use HTTP for SCIM |
-| **Minimal Scopes** | Grant only needed permissions |
+| **Audit Logging**   | Monitor all SCIM operations       |
+| **HTTPS Only**      | Never use HTTP for SCIM           |
+| **Minimal Scopes**  | Grant only needed permissions     |
 
 ---
 
@@ -771,13 +764,13 @@ If-Match: W/"1704153600000"
 
 ## Implementation Files
 
-| Component | File | Description |
-|-----------|------|-------------|
-| SCIM Router | `packages/op-scim/src/index.ts` | SCIM endpoint routing |
-| User Handlers | `packages/op-scim/src/handlers/users.ts` | User CRUD operations |
-| Group Handlers | `packages/op-scim/src/handlers/groups.ts` | Group CRUD operations |
-| Filter Parser | `packages/op-scim/src/utils/filter.ts` | SCIM filter parsing |
-| Schema Validation | `packages/op-scim/src/schemas/` | Request validation |
+| Component         | File                                      | Description           |
+| ----------------- | ----------------------------------------- | --------------------- |
+| SCIM Router       | `packages/op-scim/src/index.ts`           | SCIM endpoint routing |
+| User Handlers     | `packages/op-scim/src/handlers/users.ts`  | User CRUD operations  |
+| Group Handlers    | `packages/op-scim/src/handlers/groups.ts` | Group CRUD operations |
+| Filter Parser     | `packages/op-scim/src/utils/filter.ts`    | SCIM filter parsing   |
+| Schema Validation | `packages/op-scim/src/schemas/`           | Request validation    |
 
 ---
 

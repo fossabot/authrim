@@ -7,7 +7,14 @@
 
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
-import { getSessionStoreBySessionId, isShardedSessionId } from '@authrim/ar-lib-core';
+import {
+  getSessionStoreBySessionId,
+  isShardedSessionId,
+  createErrorResponse,
+  createRFCErrorResponse,
+  AR_ERROR_CODES,
+  RFC_ERROR_CODES,
+} from '@authrim/ar-lib-core';
 import {
   getLinkedIdentityById,
   listLinkedIdentities,
@@ -27,7 +34,7 @@ import type { LinkedIdentityListResponse } from '../types';
 export async function handleListLinkedIdentities(c: Context<{ Bindings: Env }>): Promise<Response> {
   const session = await verifySession(c);
   if (!session) {
-    return c.json({ error: 'unauthorized' }, 401);
+    return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
   }
 
   try {
@@ -55,7 +62,7 @@ export async function handleListLinkedIdentities(c: Context<{ Bindings: Env }>):
     return c.json(response);
   } catch (error) {
     console.error('Failed to list linked identities:', error);
-    return c.json({ error: 'internal_error' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -70,7 +77,7 @@ export async function handleListLinkedIdentities(c: Context<{ Bindings: Env }>):
 export async function handleLinkIdentity(c: Context<{ Bindings: Env }>): Promise<Response> {
   const session = await verifySession(c);
   if (!session) {
-    return c.json({ error: 'unauthorized' }, 401);
+    return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
   }
 
   try {
@@ -80,13 +87,18 @@ export async function handleLinkIdentity(c: Context<{ Bindings: Env }>): Promise
     }>();
 
     if (!body.provider_id) {
-      return c.json({ error: 'invalid_request', message: 'provider_id is required' }, 400);
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'provider_id is required'
+      );
     }
 
     // Check if provider exists
     const provider = await getProvider(c.env, body.provider_id);
     if (!provider || !provider.enabled) {
-      return c.json({ error: 'unknown_provider' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Check if already linked to this provider
@@ -96,12 +108,11 @@ export async function handleLinkIdentity(c: Context<{ Bindings: Env }>): Promise
       body.provider_id
     );
     if (existing) {
-      return c.json(
-        {
-          error: 'already_linked',
-          message: 'Account is already linked to this provider',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Account is already linked to this provider'
       );
     }
 
@@ -115,7 +126,7 @@ export async function handleLinkIdentity(c: Context<{ Bindings: Env }>): Promise
     return c.json({ authorization_url: startUrl.toString() });
   } catch (error) {
     console.error('Failed to start linking:', error);
-    return c.json({ error: 'internal_error' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 
@@ -126,7 +137,7 @@ export async function handleLinkIdentity(c: Context<{ Bindings: Env }>): Promise
 export async function handleUnlinkIdentity(c: Context<{ Bindings: Env }>): Promise<Response> {
   const session = await verifySession(c);
   if (!session) {
-    return c.json({ error: 'unauthorized' }, 401);
+    return createErrorResponse(c, AR_ERROR_CODES.ADMIN_AUTH_REQUIRED);
   }
 
   const linkedIdentityId = c.req.param('id');
@@ -135,7 +146,7 @@ export async function handleUnlinkIdentity(c: Context<{ Bindings: Env }>): Promi
     // Verify ownership
     const identity = await getLinkedIdentityById(c.env, linkedIdentityId);
     if (!identity || identity.userId !== session.userId) {
-      return c.json({ error: 'not_found' }, 404);
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
     // Check if this is the only authentication method
@@ -143,12 +154,11 @@ export async function handleUnlinkIdentity(c: Context<{ Bindings: Env }>): Promi
     const hasPasskey = await hasPasskeyCredential(c.env, session.userId);
 
     if (linkedCount === 1 && !hasPasskey) {
-      return c.json(
-        {
-          error: 'cannot_unlink',
-          message: 'Cannot remove last authentication method',
-        },
-        400
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        'Cannot remove last authentication method'
       );
     }
 
@@ -176,7 +186,7 @@ export async function handleUnlinkIdentity(c: Context<{ Bindings: Env }>): Promi
     });
   } catch (error) {
     console.error('Failed to unlink identity:', error);
-    return c.json({ error: 'internal_error' }, 500);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }
 

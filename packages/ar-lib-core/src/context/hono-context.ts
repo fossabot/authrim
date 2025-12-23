@@ -33,6 +33,7 @@ import {
   SessionRepository,
   PasskeyRepository,
   RoleRepository,
+  SessionClientRepository,
 } from '../repositories/core';
 import {
   UserPIIRepository,
@@ -70,6 +71,7 @@ export function createAuthContextFromHono(
       session: new SessionRepository(coreAdapter),
       passkey: new PasskeyRepository(coreAdapter),
       role: new RoleRepository(coreAdapter),
+      sessionClient: new SessionClientRepository(coreAdapter),
     },
     coreAdapter,
     cache: new MapRequestScopedCache(),
@@ -113,6 +115,7 @@ export function createPIIContextFromHono(
       session: new SessionRepository(coreAdapter),
       passkey: new PasskeyRepository(coreAdapter),
       role: new RoleRepository(coreAdapter),
+      sessionClient: new SessionClientRepository(coreAdapter),
     },
     coreAdapter,
     cache: new MapRequestScopedCache(),

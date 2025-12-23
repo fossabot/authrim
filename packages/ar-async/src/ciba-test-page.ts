@@ -324,8 +324,10 @@ export async function cibaTestPageHandler(c: Context<{ Bindings: Env }>) {
           \`;
         }
       } catch (error) {
+        console.error('CIBA initiation error:', error);
         responseDiv.className = 'response error show';
-        responseDiv.innerHTML = \`<strong>❌ Error:</strong> \${error.message}\`;
+        // SECURITY: Do not expose internal error details
+        responseDiv.innerHTML = '<strong>❌ Error:</strong> Request failed. Please try again.';
       } finally {
         submitBtn.disabled = false;
         submitBtn.innerHTML = 'Initiate CIBA Request';
@@ -413,9 +415,11 @@ export async function cibaTestPageHandler(c: Context<{ Bindings: Env }>) {
             pollBtn.disabled = false;
           }
         } catch (error) {
+          console.error('CIBA polling error:', error);
           clearInterval(pollInterval);
           pollResponse.className = 'response error show';
-          pollResponse.innerHTML = \`<strong>❌ Error:</strong> \${error.message}\`;
+          // SECURITY: Do not expose internal error details
+          pollResponse.innerHTML = '<strong>❌ Error:</strong> Polling failed. Please try again.';
           pollBtn.innerHTML = 'Error Occurred';
           pollBtn.disabled = false;
         }

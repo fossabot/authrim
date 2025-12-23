@@ -281,7 +281,7 @@ describe('Consent Handlers', () => {
       });
 
       const mockDB = createMockDB({
-        firstResult: null, // Client not found
+        firstResult: null,
       });
 
       const c = createMockContext({
@@ -292,12 +292,13 @@ describe('Consent Handlers', () => {
 
       await consentGetHandler(c);
 
+      // Security: Generic message to prevent client_id enumeration
       expect(c.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'invalid_client',
-          error_description: 'Client not found',
+          error_description: 'Client authentication failed',
         }),
-        400
+        401
       );
     });
 

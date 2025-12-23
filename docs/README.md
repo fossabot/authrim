@@ -11,11 +11,11 @@ Complete documentation for the Authrim OpenID Connect Provider project.
 
 Essential guides for development and deployment.
 
-| Document | Description |
-|:---------|:------------|
+| Document                              | Description                                |
+| :------------------------------------ | :----------------------------------------- |
 | [Development Guide](./DEVELOPMENT.md) | Development environment setup and workflow |
-| [Deployment Guide](./DEPLOYMENT.md) | Deploying to Cloudflare Workers |
-| [Testing Guide](./TESTING.md) | Testing strategy and test execution |
+| [Deployment Guide](./DEPLOYMENT.md)   | Deploying to Cloudflare Workers            |
+| [Testing Guide](./TESTING.md)         | Testing strategy and test execution        |
 
 ---
 
@@ -23,15 +23,15 @@ Essential guides for development and deployment.
 
 Documents for planning, scheduling, and tracking project progress.
 
-| Document | Description |
-|:---------|:------------|
-| [Vision](./VISION.md) | Long-term vision and strategic goals |
-| [Roadmap](./ROADMAP.md) | Product roadmap (Phase 9: VC/DID Integration) |
-| [Project Schedule](./project-management/SCHEDULE.md) | Timeline with major milestones |
-| [Task Breakdown](./project-management/TASKS.md) | Task checklist by phase |
-| [API Inventory](./project-management/API_INVENTORY.md) | Complete API endpoint status |
-| [Kickoff Checklist](./project-management/KICKOFF.md) | Week 1 immediate action items |
-| [GitHub Workflow](./project-management/GITHUB_WORKFLOW.md) | Issue tracking and project board setup |
+| Document                                                   | Description                                   |
+| :--------------------------------------------------------- | :-------------------------------------------- |
+| [Vision](./VISION.md)                                      | Long-term vision and strategic goals          |
+| [Roadmap](./ROADMAP.md)                                    | Product roadmap (Phase 9: VC/DID Integration) |
+| [Project Schedule](./project-management/SCHEDULE.md)       | Timeline with major milestones                |
+| [Task Breakdown](./project-management/TASKS.md)            | Task checklist by phase                       |
+| [API Inventory](./project-management/API_INVENTORY.md)     | Complete API endpoint status                  |
+| [Kickoff Checklist](./project-management/KICKOFF.md)       | Week 1 immediate action items                 |
+| [GitHub Workflow](./project-management/GITHUB_WORKFLOW.md) | Issue tracking and project board setup        |
 
 ---
 
@@ -40,38 +40,42 @@ Documents for planning, scheduling, and tracking project progress.
 Technical specifications and system design documentation.
 
 ### Core Architecture
-| Document | Description |
-|:---------|:------------|
-| [Architecture Overview](./architecture/overview.md) | High-level system architecture (14 packages, 16 DOs) |
-| [Workers Architecture](./architecture/workers.md) | Cloudflare Workers monorepo structure |
-| [Durable Objects](./architecture/durable-objects.md) | 16 DOs for strong consistency |
-| [Protocol Flow](./architecture/protocol-flow.md) | 11 OAuth/OIDC protocol flows |
-| [Storage Strategy](./architecture/storage-strategy.md) | Hybrid multi-tier storage (DO + D1 + KV + R2) |
+
+| Document                                               | Description                                          |
+| :----------------------------------------------------- | :--------------------------------------------------- |
+| [Architecture Overview](./architecture/overview.md)    | High-level system architecture (14 packages, 16 DOs) |
+| [Workers Architecture](./architecture/workers.md)      | Cloudflare Workers monorepo structure                |
+| [Durable Objects](./architecture/durable-objects.md)   | 16 DOs for strong consistency                        |
+| [Protocol Flow](./architecture/protocol-flow.md)       | 11 OAuth/OIDC protocol flows                         |
+| [Storage Strategy](./architecture/storage-strategy.md) | Hybrid multi-tier storage (DO + D1 + KV + R2)        |
 
 ### Security & Authentication
-| Document | Description |
-|:---------|:------------|
-| [Security Architecture](./architecture/security.md) | Defense-in-depth security, FAPI 2.0 compliance |
-| [Authentication Flows](./architecture/authentication-flows.md) | Passkey, Password+OTP, Magic Link, Federation |
-| [Key Management](./architecture/key-management.md) | Cryptographic key lifecycle and rotation |
-| [Error Handling](./architecture/error-handling.md) | OAuth 2.0 error responses and logging |
+
+| Document                                                       | Description                                    |
+| :------------------------------------------------------------- | :--------------------------------------------- |
+| [Security Architecture](./architecture/security.md)            | Defense-in-depth security, FAPI 2.0 compliance |
+| [Authentication Flows](./architecture/authentication-flows.md) | Passkey, Password+OTP, Magic Link, Federation  |
+| [Key Management](./architecture/key-management.md)             | Cryptographic key lifecycle and rotation       |
+| [Error Handling](./architecture/error-handling.md)             | OAuth 2.0 error responses and logging          |
 
 ### Configuration & Deployment
-| Document | Description |
-|:---------|:------------|
-| [Configuration](./architecture/configuration.md) | Hybrid config (KV + Env + Defaults) |
-| [Multi-Tenancy](./architecture/multi-tenancy.md) | Tenant isolation architecture |
-| [Architecture Patterns](./architecture/patterns.md) | Deployment architecture patterns (A/B/C/D) |
-| [Router Setup](./architecture/router-setup.md) | Router Worker configuration guide |
-| [Database Schema](./architecture/database-schema.md) | D1 database schema documentation |
-| [Technical Specs](./architecture/technical-specs.md) | Detailed endpoint specifications |
+
+| Document                                             | Description                                |
+| :--------------------------------------------------- | :----------------------------------------- |
+| [Configuration](./architecture/configuration.md)     | Hybrid config (KV + Env + Defaults)        |
+| [Multi-Tenancy](./architecture/multi-tenancy.md)     | Tenant isolation architecture              |
+| [Architecture Patterns](./architecture/patterns.md)  | Deployment architecture patterns (A/B/C/D) |
+| [Router Setup](./architecture/router-setup.md)       | Router Worker configuration guide          |
+| [Database Schema](./architecture/database-schema.md) | D1 database schema documentation           |
+| [Technical Specs](./architecture/technical-specs.md) | Detailed endpoint specifications           |
 
 ### Consistency & Storage
-| Document | Description |
-|:---------|:------------|
-| [Storage Consistency Design](./architecture/storage-consistency-design.md) | Consistency guarantees and design |
+
+| Document                                                                       | Description                             |
+| :----------------------------------------------------------------------------- | :-------------------------------------- |
+| [Storage Consistency Design](./architecture/storage-consistency-design.md)     | Consistency guarantees and design       |
 | [Storage Implementation](./architecture/storage-consistency-implementation.md) | Implementation record of storage design |
-| [DO Sharding](./architecture/durable-objects-sharding.md) | Durable Objects sharding strategies |
+| [DO Sharding](./architecture/durable-objects-sharding.md)                      | Durable Objects sharding strategies     |
 
 ---
 
@@ -80,59 +84,67 @@ Technical specifications and system design documentation.
 Documentation for OIDC features and extensions.
 
 ### Core OIDC Features
-| Document | Description |
-|:---------|:------------|
-| [OIDC Core](./features/oidc-core.md) | OpenID Connect Core 1.0 implementation |
-| [Discovery](./features/discovery.md) | Provider metadata and JWKS endpoints |
-| [UserInfo](./features/userinfo.md) | User claims and profile information |
-| [PKCE](./features/pkce.md) | Proof Key for Code Exchange (RFC 7636) |
-| [Hybrid Flow](./features/hybrid-flow.md) | OAuth 2.0 Hybrid Flow implementation |
-| [Token Management](./features/token-management.md) | Token lifecycle and rotation |
+
+| Document                                           | Description                            |
+| :------------------------------------------------- | :------------------------------------- |
+| [OIDC Core](./features/oidc-core.md)               | OpenID Connect Core 1.0 implementation |
+| [Discovery](./features/discovery.md)               | Provider metadata and JWKS endpoints   |
+| [UserInfo](./features/userinfo.md)                 | User claims and profile information    |
+| [PKCE](./features/pkce.md)                         | Proof Key for Code Exchange (RFC 7636) |
+| [Hybrid Flow](./features/hybrid-flow.md)           | OAuth 2.0 Hybrid Flow implementation   |
+| [Token Management](./features/token-management.md) | Token lifecycle and rotation           |
 
 ### Session & Logout
-| Document | Description |
-|:---------|:------------|
-| [Session Management](./features/session-management.md) | Session tracking and ITP compatibility |
-| [Logout](./features/logout.md) | All logout mechanisms (RP-Initiated, Front/Back-Channel) |
+
+| Document                                               | Description                                              |
+| :----------------------------------------------------- | :------------------------------------------------------- |
+| [Session Management](./features/session-management.md) | Session tracking and ITP compatibility                   |
+| [Logout](./features/logout.md)                         | All logout mechanisms (RP-Initiated, Front/Back-Channel) |
 
 ### Authentication Methods
-| Document | Description |
-|:---------|:------------|
+
+| Document                                                     | Description                         |
+| :----------------------------------------------------------- | :---------------------------------- |
 | [Client Authentication](./features/client-authentication.md) | All 5 client authentication methods |
-| [Passkey/WebAuthn](./features/passkey-webauthn.md) | FIDO2 passwordless authentication |
+| [Passkey/WebAuthn](./features/passkey-webauthn.md)           | FIDO2 passwordless authentication   |
 
 ### Advanced Security Features
-| Document | Description |
-|:---------|:------------|
-| [PAR](./features/par.md) | Pushed Authorization Requests (RFC 9126) |
-| [DPoP](./features/dpop.md) | Demonstrating Proof of Possession (RFC 9449) |
-| [JAR/JARM](./features/jar-jarm.md) | JWT Secured Authorization Request/Response Mode |
-| [Token Exchange](./features/token-exchange.md) | OAuth 2.0 Token Exchange (RFC 8693) |
+
+| Document                                       | Description                                     |
+| :--------------------------------------------- | :---------------------------------------------- |
+| [PAR](./features/par.md)                       | Pushed Authorization Requests (RFC 9126)        |
+| [DPoP](./features/dpop.md)                     | Demonstrating Proof of Possession (RFC 9449)    |
+| [JAR/JARM](./features/jar-jarm.md)             | JWT Secured Authorization Request/Response Mode |
+| [Token Exchange](./features/token-exchange.md) | OAuth 2.0 Token Exchange (RFC 8693)             |
 
 ### Async Grant Flows
-| Document | Description |
-|:---------|:------------|
+
+| Document                                 | Description                                     |
+| :--------------------------------------- | :---------------------------------------------- |
 | [Device Flow](./features/device-flow.md) | OAuth 2.0 Device Authorization Grant (RFC 8628) |
-| [CIBA](./features/ciba.md) | Client Initiated Backchannel Authentication |
+| [CIBA](./features/ciba.md)               | Client Initiated Backchannel Authentication     |
 
 ### Additional Features
-| Document | Description |
-|:---------|:------------|
-| [Dynamic Client Registration](./features/dynamic-client-registration.md) | OpenID Connect DCR |
-| [Form Post Response Mode](./features/form-post-response-mode.md) | OAuth 2.0 Form Post Response Mode |
+
+| Document                                                                   | Description                            |
+| :------------------------------------------------------------------------- | :------------------------------------- |
+| [Dynamic Client Registration](./features/dynamic-client-registration.md)   | OpenID Connect DCR                     |
+| [Form Post Response Mode](./features/form-post-response-mode.md)           | OAuth 2.0 Form Post Response Mode      |
 | [Pairwise Subject Identifiers](./features/pairwise-subject-identifiers.md) | Privacy-preserving subject identifiers |
 
 ### Enterprise Features
-| Document | Description |
-|:---------|:------------|
-| [SCIM](./features/scim.md) | System for Cross-domain Identity Management |
-| [SCIM Implementation](./features/scim-implementation.md) | SCIM implementation summary |
+
+| Document                                                 | Description                                 |
+| :------------------------------------------------------- | :------------------------------------------ |
+| [SCIM](./features/scim.md)                               | System for Cross-domain Identity Management |
+| [SCIM Implementation](./features/scim-implementation.md) | SCIM implementation summary                 |
 
 ### Relying Party Support
-| Document | Description |
-|:---------|:------------|
-| [RP Quick Reference](./features/rp-quick-reference.md) | Quick reference for Relying Parties |
-| [RP Support Analysis](./features/rp-support-analysis.md) | Detailed RP compatibility analysis |
+
+| Document                                                 | Description                         |
+| :------------------------------------------------------- | :---------------------------------- |
+| [RP Quick Reference](./features/rp-quick-reference.md)   | Quick reference for Relying Parties |
+| [RP Support Analysis](./features/rp-support-analysis.md) | Detailed RP compatibility analysis  |
 
 ---
 
@@ -140,37 +152,40 @@ Documentation for OIDC features and extensions.
 
 API endpoint documentation and conventions.
 
-| Document | Description |
-|:---------|:------------|
-| [API Overview](./api/README.md) | API documentation index |
-| [API List](./api/list.md) | Complete API endpoint inventory |
+| Document                                          | Description                     |
+| :------------------------------------------------ | :------------------------------ |
+| [API Overview](./api/README.md)                   | API documentation index         |
+| [API List](./api/list.md)                         | Complete API endpoint inventory |
 | [Naming Conventions](./api/naming-conventions.md) | API design and naming standards |
 
 ### Admin API
-| Document | Description |
-|:---------|:------------|
-| [Users API](./api/admin/users.md) | User management endpoints |
-| [Clients API](./api/admin/clients.md) | OAuth client management |
-| [Sessions API](./api/admin/sessions.md) | Session management endpoints |
-| [Statistics API](./api/admin/statistics.md) | Analytics and statistics |
-| [Avatars API](./api/admin/avatars.md) | User avatar management |
+
+| Document                                    | Description                  |
+| :------------------------------------------ | :--------------------------- |
+| [Users API](./api/admin/users.md)           | User management endpoints    |
+| [Clients API](./api/admin/clients.md)       | OAuth client management      |
+| [Sessions API](./api/admin/sessions.md)     | Session management endpoints |
+| [Statistics API](./api/admin/statistics.md) | Analytics and statistics     |
+| [Avatars API](./api/admin/avatars.md)       | User avatar management       |
 
 ### Auth API
-| Document | Description |
-|:---------|:------------|
-| [Passkey API](./api/auth/passkey.md) | WebAuthn/Passkey authentication |
-| [Magic Link API](./api/auth/magic-link.md) | Passwordless email authentication |
-| [Consent API](./api/auth/consent.md) | User consent handling |
-| [Logout API](./api/auth/logout.md) | Session logout endpoints |
-| [Session Management](./api/auth/session-management.md) | Active session management |
+
+| Document                                               | Description                       |
+| :----------------------------------------------------- | :-------------------------------- |
+| [Passkey API](./api/auth/passkey.md)                   | WebAuthn/Passkey authentication   |
+| [Magic Link API](./api/auth/magic-link.md)             | Passwordless email authentication |
+| [Consent API](./api/auth/consent.md)                   | User consent handling             |
+| [Logout API](./api/auth/logout.md)                     | Session logout endpoints          |
+| [Session Management](./api/auth/session-management.md) | Active session management         |
 
 ### Durable Objects API
-| Document | Description |
-|:---------|:------------|
-| [SessionStore](./api/durable-objects/SessionStore.md) | User session Durable Object |
-| [AuthorizationCodeStore](./api/durable-objects/AuthorizationCodeStore.md) | Auth code storage |
-| [RefreshTokenRotator](./api/durable-objects/RefreshTokenRotator.md) | Token rotation logic |
-| [KeyManager](./api/durable-objects/KeyManager.md) | Cryptographic key management |
+
+| Document                                                                  | Description                  |
+| :------------------------------------------------------------------------ | :--------------------------- |
+| [SessionStore](./api/durable-objects/SessionStore.md)                     | User session Durable Object  |
+| [AuthorizationCodeStore](./api/durable-objects/AuthorizationCodeStore.md) | Auth code storage            |
+| [RefreshTokenRotator](./api/durable-objects/RefreshTokenRotator.md)       | Token rotation logic         |
+| [KeyManager](./api/durable-objects/KeyManager.md)                         | Cryptographic key management |
 
 ---
 
@@ -178,9 +193,9 @@ API endpoint documentation and conventions.
 
 Security documentation and reviews.
 
-| Document | Description |
-|:---------|:------------|
-| [Envelope Encryption](./security/envelope-encryption.md) | Private key protection using two-factor storage |
+| Document                                                        | Description                                      |
+| :-------------------------------------------------------------- | :----------------------------------------------- |
+| [Envelope Encryption](./security/envelope-encryption.md)        | Private key protection using two-factor storage  |
 | [Device/Hybrid Flow Review](./security/device-hybrid-review.md) | Security analysis of Device Flow and Hybrid Flow |
 
 ---
@@ -189,10 +204,10 @@ Security documentation and reviews.
 
 Operational guides and performance documentation.
 
-| Document | Description |
-|:---------|:------------|
-| [Secret Management](./operations/secret-management.md) | Key generation, storage, and rotation |
-| [Performance](./operations/performance.md) | Performance optimization and benchmarks |
+| Document                                               | Description                             |
+| :----------------------------------------------------- | :-------------------------------------- |
+| [Secret Management](./operations/secret-management.md) | Key generation, storage, and rotation   |
+| [Performance](./operations/performance.md)             | Performance optimization and benchmarks |
 
 ---
 
@@ -200,10 +215,10 @@ Operational guides and performance documentation.
 
 UI/UX design documentation.
 
-| Document | Description |
-|:---------|:------------|
+| Document                                   | Description                         |
+| :----------------------------------------- | :---------------------------------- |
 | [Design System](./design/design-system.md) | Component library and design tokens |
-| [Wireframes](./design/wireframes.md) | UI wireframes and mockups |
+| [Wireframes](./design/wireframes.md)       | UI wireframes and mockups           |
 | [Accessibility](./design/accessibility.md) | WCAG compliance and a11y guidelines |
 
 ---
@@ -212,13 +227,14 @@ UI/UX design documentation.
 
 OpenID Connect conformance testing documentation.
 
-| Document | Description |
-|:---------|:------------|
-| [Conformance Overview](./conformance/README.md) | Conformance testing strategy |
-| [OpenID Certification](./conformance/OPENID-CERTIFICATION.md) | Certification roadmap |
-| [FAPI 2.0 Status](./conformance/FAPI-2.0-STATUS.md) | FAPI 2.0 compliance status |
+| Document                                                      | Description                  |
+| :------------------------------------------------------------ | :--------------------------- |
+| [Conformance Overview](./conformance/README.md)               | Conformance testing strategy |
+| [OpenID Certification](./conformance/OPENID-CERTIFICATION.md) | Certification roadmap        |
+| [FAPI 2.0 Status](./conformance/FAPI-2.0-STATUS.md)           | FAPI 2.0 compliance status   |
 
 ### Test Profiles
+
 - [OIDC Basic OP](./conformance/OIDC%20Basic%20OP/)
 - [OIDC Config OP](./conformance/OIDC%20Config%20OP/)
 - [OIDC Dynamic OP](./conformance/OIDC%20Dynamic%20OP/)
@@ -233,35 +249,39 @@ OpenID Connect conformance testing documentation.
 
 Historical and completed documents.
 
-| Document | Description |
-|:---------|:------------|
-| [Phase 1 Review](./archive/phase1-review-report.md) | Phase 1 completion review |
-| [Phase 2 Code Review](./archive/PHASE2_CODE_REVIEW.md) | Phase 2 code review |
-| [Phase 2 Prerequisites](./archive/phase2-prerequisites-checklist.md) | Phase 2 prerequisites checklist |
-| [Phase 5 Certification Original](./archive/phase5-certification-original.md) | Original certification plan |
-| [CIBA TODO](./archive/ciba-todo.md) | CIBA implementation status (archived) |
-| [CIBA Implementation](./archive/ciba-implementation-complete.md) | CIBA completion summary (archived) |
-| [Recent Fixes 2025-11-20](./archive/recent-fixes-2025-11-20.md) | Recent bug fixes summary |
+| Document                                                                     | Description                           |
+| :--------------------------------------------------------------------------- | :------------------------------------ |
+| [Phase 1 Review](./archive/phase1-review-report.md)                          | Phase 1 completion review             |
+| [Phase 2 Code Review](./archive/PHASE2_CODE_REVIEW.md)                       | Phase 2 code review                   |
+| [Phase 2 Prerequisites](./archive/phase2-prerequisites-checklist.md)         | Phase 2 prerequisites checklist       |
+| [Phase 5 Certification Original](./archive/phase5-certification-original.md) | Original certification plan           |
+| [CIBA TODO](./archive/ciba-todo.md)                                          | CIBA implementation status (archived) |
+| [CIBA Implementation](./archive/ciba-implementation-complete.md)             | CIBA completion summary (archived)    |
+| [Recent Fixes 2025-11-20](./archive/recent-fixes-2025-11-20.md)              | Recent bug fixes summary              |
 
 ---
 
 ## 📚 External Resources
 
 ### OpenID Connect Specifications
+
 - [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html)
 - [OpenID Connect Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
 - [Dynamic Client Registration 1.0](https://openid.net/specs/openid-connect-registration-1_0.html)
 
 ### OAuth 2.0 Specifications
+
 - [RFC 6749 - OAuth 2.0 Framework](https://datatracker.ietf.org/doc/html/rfc6749)
 - [RFC 6750 - Bearer Token Usage](https://datatracker.ietf.org/doc/html/rfc6750)
 - [RFC 9126 - Pushed Authorization Requests](https://datatracker.ietf.org/doc/html/rfc9126)
 
 ### JWT/JWK Specifications
+
 - [RFC 7519 - JSON Web Token (JWT)](https://datatracker.ietf.org/doc/html/rfc7519)
 - [RFC 7517 - JSON Web Key (JWK)](https://datatracker.ietf.org/doc/html/rfc7517)
 
 ### Technology Stack
+
 - [Cloudflare Workers](https://developers.cloudflare.com/workers/)
 - [Hono Framework](https://hono.dev/)
 - [JOSE Library](https://github.com/panva/jose)
