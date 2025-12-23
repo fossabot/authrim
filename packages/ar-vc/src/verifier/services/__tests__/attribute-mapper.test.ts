@@ -317,7 +317,8 @@ describe('storeUserVerifiedAttributes', () => {
 
     expect(result.success).toBe(false);
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain('Database error');
+    // Security: Internal error details are not exposed, only generic message
+    expect(result.errors[0]).toContain('Failed to store attribute');
   });
 });
 

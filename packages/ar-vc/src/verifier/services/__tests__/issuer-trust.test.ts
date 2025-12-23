@@ -125,7 +125,8 @@ describe('checkIssuerTrust', () => {
     const result = await checkIssuerTrust(repo, 'did:web:issuer.com', 'tenant-1');
 
     expect(result.trusted).toBe(false);
-    expect(result.reason).toContain('Database error');
+    // Security: Internal error details are not exposed, only generic message
+    expect(result.reason).toContain('Failed to verify issuer trust');
   });
 });
 
