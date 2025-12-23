@@ -178,8 +178,8 @@ describe('Check API Authentication Middleware', () => {
       const result = await authenticateCheckApiRequest('Bearer chk_invalid_key_here', ctx);
 
       expect(result.authenticated).toBe(false);
-      // Implementation maps internal errors to generic 'unauthorized' for security
-      expect(result.error).toBe('unauthorized');
+      // Implementation returns 'invalid_token' for security (no information leakage)
+      expect(result.error).toBe('invalid_token');
     });
 
     it('should reject inactive API key', async () => {
@@ -190,8 +190,8 @@ describe('Check API Authentication Middleware', () => {
       const result = await authenticateCheckApiRequest(`Bearer ${TEST_API_KEY}`, ctx);
 
       expect(result.authenticated).toBe(false);
-      // Implementation maps internal errors to generic 'unauthorized' for security
-      expect(result.error).toBe('unauthorized');
+      // Implementation returns 'invalid_token' for security (no information leakage)
+      expect(result.error).toBe('invalid_token');
     });
 
     it('should reject expired API key', async () => {
@@ -205,8 +205,8 @@ describe('Check API Authentication Middleware', () => {
       const result = await authenticateCheckApiRequest(`Bearer ${TEST_API_KEY}`, ctx);
 
       expect(result.authenticated).toBe(false);
-      // Implementation maps internal errors to generic 'unauthorized' for security
-      expect(result.error).toBe('unauthorized');
+      // Implementation returns 'invalid_token' for security (no information leakage)
+      expect(result.error).toBe('invalid_token');
     });
 
     it('should accept API key with future expiration', async () => {
@@ -269,8 +269,8 @@ describe('Check API Authentication Middleware', () => {
       const result = await authenticateCheckApiRequest(undefined, ctx);
 
       expect(result.authenticated).toBe(false);
-      // Implementation maps missing authorization to generic 'unauthorized'
-      expect(result.error).toBe('unauthorized');
+      // Implementation returns 'invalid_token' for security (no information leakage)
+      expect(result.error).toBe('invalid_token');
     });
 
     it('should reject invalid Authorization header format', async () => {
@@ -369,8 +369,8 @@ describe('Check API Authentication Middleware', () => {
       const result = await authenticateCheckApiRequest(`Bearer ${TEST_API_KEY}`, ctx);
 
       expect(result.authenticated).toBe(false);
-      // Implementation maps internal errors to generic 'unauthorized' for security
-      expect(result.error).toBe('unauthorized');
+      // Implementation returns 'invalid_token' for security (no information leakage)
+      expect(result.error).toBe('invalid_token');
     });
 
     it('should reject cached but inactive API key', async () => {
@@ -402,8 +402,8 @@ describe('Check API Authentication Middleware', () => {
       const result = await authenticateCheckApiRequest(`Bearer ${TEST_API_KEY}`, ctx);
 
       expect(result.authenticated).toBe(false);
-      // Implementation maps internal errors to generic 'unauthorized' for security
-      expect(result.error).toBe('unauthorized');
+      // Implementation returns 'invalid_token' for security (no information leakage)
+      expect(result.error).toBe('invalid_token');
     });
 
     it('should fall back to DB when cache is unavailable', async () => {
@@ -482,8 +482,8 @@ describe('Check API Authentication Middleware', () => {
       const result = await authenticateCheckApiRequest(`Bearer ${jwt}`, ctx);
 
       expect(result.authenticated).toBe(false);
-      // Implementation maps internal errors to generic 'unauthorized' for security
-      expect(result.error).toBe('unauthorized');
+      // Implementation returns 'invalid_token' for security (no information leakage)
+      expect(result.error).toBe('invalid_token');
     });
 
     it('should accept JWT with future expiration', async () => {
