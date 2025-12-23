@@ -37,10 +37,10 @@ export class VPRequestStore {
     } catch (error) {
       console.error('[VPRequestStore] Error:', error);
       // SECURITY: Do not expose internal error details in response
-      return new Response(
-        JSON.stringify({ error: 'Internal server error' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Internal server error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
   }
 

@@ -18,8 +18,8 @@
 
 import type { Context } from 'hono';
 import type { Env, ClientMetadata } from '@authrim/ar-lib-core';
-import { OIDCError } from '@authrim/ar-lib-core';
-import { ERROR_CODES, HTTP_STATUS } from '@authrim/ar-lib-core';
+import { RFCError } from '@authrim/ar-lib-core';
+import { HTTP_STATUS } from '@authrim/ar-lib-core';
 import {
   validateClientId,
   validateRedirectUri,
@@ -70,16 +70,16 @@ function validatePARParams(formData: Record<string, unknown>): PARRequestParams 
 
   // Validate required parameters
   if (!client_id || typeof client_id !== 'string') {
-    throw new OIDCError(ERROR_CODES.INVALID_REQUEST, 'client_id is required');
+    throw new RFCError('invalid_request', 400, 'client_id is required');
   }
   if (!response_type || typeof response_type !== 'string') {
-    throw new OIDCError(ERROR_CODES.INVALID_REQUEST, 'response_type is required');
+    throw new RFCError('invalid_request', 400, 'response_type is required');
   }
   if (!redirect_uri || typeof redirect_uri !== 'string') {
-    throw new OIDCError(ERROR_CODES.INVALID_REQUEST, 'redirect_uri is required');
+    throw new RFCError('invalid_request', 400, 'redirect_uri is required');
   }
   if (!scope || typeof scope !== 'string') {
-    throw new OIDCError(ERROR_CODES.INVALID_REQUEST, 'scope is required');
+    throw new RFCError('invalid_request', 400, 'scope is required');
   }
 
   return {
@@ -115,18 +115,19 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
   try {
     // RFC 9126: PAR endpoint MUST only accept POST requests
     if (c.req.method !== 'POST') {
-      throw new OIDCError(
-        ERROR_CODES.INVALID_REQUEST,
-        'PAR endpoint only accepts POST requests',
-        HTTP_STATUS.METHOD_NOT_ALLOWED
+      throw new RFCError(
+        'invalid_request',
+        HTTP_STATUS.METHOD_NOT_ALLOWED,
+        'PAR endpoint only accepts POST requests'
       );
     }
 
     // Parse request body (application/x-www-form-urlencoded)
     const contentType = c.req.header('content-type');
     if (!contentType?.includes('application/x-www-form-urlencoded')) {
-      throw new OIDCError(
-        ERROR_CODES.INVALID_REQUEST,
+      throw new RFCError(
+        'invalid_request',
+        400,
         'Content-Type must be application/x-www-form-urlencoded'
       );
     }
@@ -144,16 +145,13 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
     // Validate client_id
     const clientValidation = validateClientId(params.client_id);
     if (!clientValidation.valid) {
-      throw new OIDCError(
-        ERROR_CODES.INVALID_CLIENT,
-        clientValidation.error || 'Invalid client_id'
-      );
+      throw new RFCError('invalid_client', 401, clientValidation.error || 'Invalid client_id');
     }
 
     // Verify client exists (uses Read-Through Cache: CLIENTS_CACHE → D1)
     const clientData = await getClient(c.env, params.client_id);
     if (!clientData) {
-      throw new OIDCError(ERROR_CODES.INVALID_CLIENT, 'Client authentication failed');
+      throw new RFCError('invalid_client', 401, 'Client authentication failed');
     }
 
     // Cast to ClientMetadata for type safety
@@ -246,7 +244,7 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
 
       // FAPI 2.0: Require PKCE with S256
       if (!params.code_challenge || params.code_challenge_method !== 'S256') {
-        throw new OIDCError(ERROR_CODES.INVALID_REQUEST, 'FAPI 2.0 requires PKCE with S256 method');
+        throw new RFCError('invalid_request', 400, 'FAPI 2.0 requires PKCE with S256 method');
       }
     }
 
@@ -518,8 +516,9 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
     // Validate redirect_uri against registered URIs
     const redirectValidation = validateRedirectUri(params.redirect_uri);
     if (!redirectValidation.valid) {
-      throw new OIDCError(
-        ERROR_CODES.INVALID_REQUEST,
+      throw new RFCError(
+        'invalid_request',
+        400,
         redirectValidation.error || 'Invalid redirect_uri'
       );
     }
@@ -527,23 +526,21 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
     // RFC 6749 Section 3.1.2.3: Use URL normalization for secure comparison
     // to prevent Open Redirect attacks via URL manipulation
     if (!isRedirectUriRegistered(params.redirect_uri, clientData.redirect_uris as string[])) {
-      throw new OIDCError(
-        ERROR_CODES.INVALID_REQUEST,
-        'redirect_uri not registered for this client'
-      );
+      throw new RFCError('invalid_request', 400, 'redirect_uri not registered for this client');
     }
 
     // Validate scope
     const scopeValidation = validateScope(params.scope);
     if (!scopeValidation.valid) {
-      throw new OIDCError(ERROR_CODES.INVALID_SCOPE, scopeValidation.error || 'Invalid scope');
+      throw new RFCError('invalid_scope', 400, scopeValidation.error || 'Invalid scope');
     }
 
     // Validate response_type
     const supportedResponseTypes = ['code', 'code id_token', 'code token', 'code id_token token'];
     if (!supportedResponseTypes.includes(params.response_type)) {
-      throw new OIDCError(
-        ERROR_CODES.UNSUPPORTED_RESPONSE_TYPE,
+      throw new RFCError(
+        'unsupported_response_type',
+        400,
         `Unsupported response_type. Supported types: ${supportedResponseTypes.join(', ')}`
       );
     }
@@ -551,15 +548,17 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
     // PKCE validation
     if (params.code_challenge) {
       if (!params.code_challenge_method) {
-        throw new OIDCError(
-          ERROR_CODES.INVALID_REQUEST,
+        throw new RFCError(
+          'invalid_request',
+          400,
           'code_challenge_method is required when code_challenge is present'
         );
       }
       // RFC 7636: code_challenge MUST be 43-128 characters
       if (params.code_challenge.length < 43 || params.code_challenge.length > 128) {
-        throw new OIDCError(
-          ERROR_CODES.INVALID_REQUEST,
+        throw new RFCError(
+          'invalid_request',
+          400,
           'code_challenge must be between 43 and 128 characters'
         );
       }
@@ -685,21 +684,30 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
       201
     );
   } catch (error: unknown) {
-    console.error('PAR error:', error);
+    // SECURITY: Log only error type in production, not description
+    const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
 
-    if (error instanceof OIDCError) {
+    if (error instanceof RFCError) {
+      if (isProduction) {
+        console.error('PAR error:', { error: error.rfcError, status: error.status });
+      } else {
+        console.error('PAR error:', error);
+      }
       return c.json(
         {
-          error: error.error,
-          error_description: error.error_description,
+          error: error.rfcError,
+          error_description: error.detail,
         },
-        error.statusCode as 200 | 201 | 400 | 401 | 404 | 405 | 500
+        error.status as 200 | 201 | 400 | 401 | 404 | 405 | 500
       );
     }
 
+    // Unexpected error - log for debugging
+    console.error('PAR unexpected error:', isProduction ? '[redacted]' : error);
+
     return c.json(
       {
-        error: ERROR_CODES.SERVER_ERROR,
+        error: 'server_error',
         error_description: 'An unexpected error occurred',
       },
       HTTP_STATUS.INTERNAL_SERVER_ERROR as 200 | 201 | 400 | 401 | 404 | 405 | 500

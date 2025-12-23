@@ -195,7 +195,7 @@ export async function getTokenExchangeConfig(c: Context<{ Bindings: Env }>) {
     console.error('[Token Exchange Settings API] Error getting settings:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get Token Exchange settings',
       },
       500
@@ -380,7 +380,7 @@ export async function updateTokenExchangeConfig(c: Context<{ Bindings: Env }>) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update settings',
       },
       500
@@ -433,7 +433,7 @@ export async function clearTokenExchangeConfig(c: Context<{ Bindings: Env }>) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to clear settings',
       },
       500

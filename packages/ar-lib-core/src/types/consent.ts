@@ -192,6 +192,12 @@ export interface ConsentChallengeMetadata {
   acting_as?: string;
   /** Relationship type for acting-as */
   acting_as_relationship_type?: RelationshipType;
+
+  // Custom Redirect URIs (Authrim Extension)
+  /** Redirect on technical errors */
+  error_uri?: string;
+  /** Redirect on user cancellation (e.g., consent denial) */
+  cancel_uri?: string;
 }
 
 // =============================================================================

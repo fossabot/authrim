@@ -133,7 +133,7 @@ export async function getJITProvisioningConfig(c: Context) {
     console.error('[JIT Provisioning API] Get error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get JIT Provisioning configuration',
       },
       500
@@ -205,7 +205,7 @@ export async function updateJITProvisioningConfig(c: Context) {
     console.error('[JIT Provisioning API] Update error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update JIT Provisioning configuration',
       },
       500
@@ -239,7 +239,7 @@ export async function resetJITProvisioningConfig(c: Context) {
     console.error('[JIT Provisioning API] Reset error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to reset JIT Provisioning configuration',
       },
       500

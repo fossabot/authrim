@@ -208,7 +208,7 @@ export function adminAuthMiddleware() {
     // Authentication failed
     return c.json(
       {
-        error: 'unauthorized',
+        error: 'invalid_token',
         error_description: 'Admin authentication required. Use Bearer token or valid session.',
       },
       401

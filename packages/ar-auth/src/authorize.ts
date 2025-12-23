@@ -28,6 +28,14 @@ import {
   getTenantIdFromContext,
   getPARRequestStoreByUri,
   parsePARRequestUri,
+  // UI Configuration
+  getUIConfig,
+  buildUIUrl,
+  shouldUseBuiltinForms,
+  createConfigurationError,
+  // Custom Redirect URIs (Authrim Extension)
+  validateCustomRedirectParams,
+  parseClientAllowedOrigins,
 } from '@authrim/ar-lib-core';
 import type { CachedUser, CachedConsent } from '@authrim/ar-lib-core';
 import type { Session, PARRequestData } from '@authrim/ar-lib-core';
@@ -54,6 +62,79 @@ import { SignJWT, importJWK, importPKCS8, compactDecrypt, type CryptoKey } from 
 let cachedSigningKey: { privateKey: CryptoKey; kid: string } | null = null;
 let cachedKeyTimestamp = 0;
 const KEY_CACHE_TTL = 60000; // 60 seconds
+
+// ===== UI Redirect Result Type =====
+/**
+ * Result of determining UI redirect target
+ */
+type UIRedirectResult =
+  | { type: 'redirect'; url: string }
+  | { type: 'builtin'; fallbackPath: string }
+  | { type: 'error'; response: Response };
+
+/**
+ * Determine UI redirect target based on conformance mode and configuration.
+ *
+ * Priority:
+ * 1. Conformance mode enabled → use builtin forms
+ * 2. UI configured → redirect to external UI
+ * 3. Neither → return configuration error
+ *
+ * @param env - Environment bindings
+ * @param path - UI path key (e.g., 'login', 'consent', 'error')
+ * @param queryParams - Query parameters to append to URL
+ * @param tenantHint - Optional tenant hint for branding (UX only, untrusted)
+ * @returns UIRedirectResult indicating where to redirect
+ */
+async function getUIRedirectTarget(
+  env: Env,
+  path:
+    | 'login'
+    | 'consent'
+    | 'reauth'
+    | 'error'
+    | 'device'
+    | 'deviceAuthorize'
+    | 'logoutComplete'
+    | 'loggedOut'
+    | 'register',
+  queryParams?: Record<string, string>,
+  tenantHint?: string
+): Promise<UIRedirectResult> {
+  // Check conformance mode first
+  if (await shouldUseBuiltinForms(env)) {
+    // Builtin forms - determine fallback path
+    const fallbackPaths: Record<string, string> = {
+      login: '/flow/login',
+      consent: '/auth/consent',
+      reauth: '/flow/confirm',
+      error: '/error',
+      device: '/device',
+      deviceAuthorize: '/device/authorize',
+      logoutComplete: '/logout-complete',
+      loggedOut: '/logged-out',
+      register: '/register',
+    };
+    return { type: 'builtin', fallbackPath: fallbackPaths[path] || '/error' };
+  }
+
+  // Check UI configuration
+  const uiConfig = await getUIConfig(env);
+  if (!uiConfig?.baseUrl) {
+    // No UI configured and conformance mode disabled
+    return {
+      type: 'error',
+      response: new Response(JSON.stringify(createConfigurationError()), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    };
+  }
+
+  // Build UI URL with optional query params and tenant hint
+  const url = buildUIUrl(uiConfig, path, queryParams, tenantHint);
+  return { type: 'redirect', url };
+}
 
 /**
  * Authorization Endpoint Handler
@@ -92,6 +173,9 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   let org_id: string | undefined; // Target organization ID
   let acting_as: string | undefined; // Acting on behalf of user ID
   let _consent_confirmed: string | undefined; // Internal: consent was confirmed
+  // Custom Redirect URIs (Authrim Extension)
+  let error_uri: string | undefined; // Redirect on error
+  let cancel_uri: string | undefined; // Redirect on user cancel
 
   if (c.req.method === 'POST') {
     // Parse POST body (application/x-www-form-urlencoded)
@@ -126,6 +210,9 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       acting_as = typeof body.acting_as === 'string' ? body.acting_as : undefined;
       _consent_confirmed =
         typeof body._consent_confirmed === 'string' ? body._consent_confirmed : undefined;
+      // Custom Redirect URIs (Authrim Extension)
+      error_uri = typeof body.error_uri === 'string' ? body.error_uri : undefined;
+      cancel_uri = typeof body.cancel_uri === 'string' ? body.cancel_uri : undefined;
     } catch {
       return c.json(
         {
@@ -163,6 +250,9 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
     org_id = c.req.query('org_id');
     acting_as = c.req.query('acting_as');
     _consent_confirmed = c.req.query('_consent_confirmed');
+    // Custom Redirect URIs (Authrim Extension)
+    error_uri = c.req.query('error_uri') ?? undefined;
+    cancel_uri = c.req.query('cancel_uri') ?? undefined;
   }
 
   // RFC 9126: If request_uri is present, fetch parameters from PAR storage
@@ -865,14 +955,16 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   // - unsupported_response_type: response_type value is not supported
   if (!response_type) {
     // response_type is missing - use invalid_request per RFC 6749
-    const uiUrl = c.env.UI_URL;
-    if (uiUrl) {
-      const errorParams = new URLSearchParams({
-        error: 'invalid_request',
-        error_description: 'response_type is required',
-      });
-      return c.redirect(`${uiUrl}/error?${errorParams.toString()}`, 302);
+    const uiTarget = await getUIRedirectTarget(c.env, 'error', {
+      error: 'invalid_request',
+      error_description: 'response_type is required',
+    });
+    if (uiTarget.type === 'redirect') {
+      return c.redirect(uiTarget.url, 302);
+    } else if (uiTarget.type === 'error') {
+      return uiTarget.response;
     }
+    // Builtin forms - return JSON error (no UI error page in conformance mode for this case)
     return c.json(
       {
         error: 'invalid_request',
@@ -885,14 +977,16 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   const responseTypeValidation = validateResponseType(response_type);
   if (!responseTypeValidation.valid) {
     // response_type is present but unsupported - use unsupported_response_type
-    const uiUrl = c.env.UI_URL;
-    if (uiUrl) {
-      const errorParams = new URLSearchParams({
-        error: 'unsupported_response_type',
-        error_description: responseTypeValidation.error || 'Unsupported response_type',
-      });
-      return c.redirect(`${uiUrl}/error?${errorParams.toString()}`, 302);
+    const uiTarget = await getUIRedirectTarget(c.env, 'error', {
+      error: 'unsupported_response_type',
+      error_description: responseTypeValidation.error || 'Unsupported response_type',
+    });
+    if (uiTarget.type === 'redirect') {
+      return c.redirect(uiTarget.url, 302);
+    } else if (uiTarget.type === 'error') {
+      return uiTarget.response;
     }
+    // Builtin forms - return JSON error
     return c.json(
       {
         error: 'unsupported_response_type',
@@ -1300,6 +1394,66 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   // Type narrowing: redirect_uri is guaranteed to be a string at this point
   const validRedirectUri: string = redirect_uri as string;
 
+  // ==========================================================================
+  // Custom Redirect URIs Validation (Authrim Extension)
+  // ==========================================================================
+  // Parse allowed_redirect_origins from client metadata
+  const allowedRedirectOrigins = parseClientAllowedOrigins(
+    (clientMetadata.allowed_redirect_origins as string | null) ?? null
+  );
+
+  // Validate error_uri and cancel_uri if provided
+  let validatedErrorUri: string | undefined;
+  let validatedCancelUri: string | undefined;
+
+  if (error_uri || cancel_uri) {
+    const customRedirectValidation = validateCustomRedirectParams(
+      { error_uri, cancel_uri },
+      validRedirectUri,
+      allowedRedirectOrigins
+    );
+
+    if (!customRedirectValidation.valid) {
+      // Return HTML error page (cannot redirect to invalid URI)
+      const errorMessages = Object.entries(customRedirectValidation.errors)
+        .map(([key, msg]) => `${key}: ${msg}`)
+        .join(', ');
+      return c.html(
+        `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invalid Custom Redirect URI</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); max-width: 500px; width: 100%; }
+    h1 { margin: 0 0 1rem 0; font-size: 1.5rem; color: #d32f2f; }
+    p { margin: 0 0 1rem 0; color: #666; line-height: 1.5; }
+    .error-code { background: #f5f5f5; padding: 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.875rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Invalid Custom Redirect URI</h1>
+    <p>The custom redirect URI provided is not allowed for this client.</p>
+    <div class="error-code">
+      <strong>Error:</strong> invalid_request<br>
+      <strong>Description:</strong> ${errorMessages}
+    </div>
+    <p>Please ensure custom redirect URIs are same-origin with redirect_uri or pre-registered in allowed_redirect_origins.</p>
+  </div>
+</body>
+</html>`,
+        400
+      );
+    }
+
+    validatedErrorUri = customRedirectValidation.validatedUris?.error_uri;
+    validatedCancelUri = customRedirectValidation.validatedUris?.cancel_uri;
+  }
+
+  // Helper to send error - uses error_uri if provided
   const sendError = (
     error: string,
     description?: string,
@@ -1309,6 +1463,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       responseMode: response_mode,
       responseType: response_type,
       clientId: validClientId,
+      errorUri: validatedErrorUri,
     });
 
   // Validate scope
@@ -1699,18 +1854,29 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         login_hint,
         sessionUserId,
         authTime, // Preserve original auth_time
+        // Custom Redirect URIs (Authrim Extension)
+        error_uri: validatedErrorUri,
+        cancel_uri: validatedCancelUri,
       },
     });
 
-    // Redirect to UI re-authentication screen (if UI_URL is configured)
-    // Otherwise, redirect to local /flow/confirm GET endpoint which will show the UI
-    const uiUrl = c.env.UI_URL;
-    if (uiUrl) {
-      return c.redirect(`${uiUrl}/reauth?challenge_id=${encodeURIComponent(challengeId)}`, 302);
-    } else {
-      // Fallback: redirect to local confirm endpoint with GET
-      return c.redirect(`/flow/confirm?challenge_id=${encodeURIComponent(challengeId)}`, 302);
+    // Redirect to UI re-authentication screen
+    // Conformance mode: use builtin forms
+    // UI configured: redirect to external UI
+    // Neither: return configuration error
+    const reauthTarget = await getUIRedirectTarget(c.env, 'reauth', {
+      challenge_id: challengeId,
+    });
+    if (reauthTarget.type === 'redirect') {
+      return c.redirect(reauthTarget.url, 302);
+    } else if (reauthTarget.type === 'error') {
+      return reauthTarget.response;
     }
+    // Builtin forms: redirect to local confirm endpoint
+    return c.redirect(
+      `${reauthTarget.fallbackPath}?challenge_id=${encodeURIComponent(challengeId)}`,
+      302
+    );
   }
 
   // If no session exists and prompt is not 'none', redirect to login screen
@@ -1750,18 +1916,29 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         policy_uri: clientMetadata?.policy_uri,
         tos_uri: clientMetadata?.tos_uri,
         client_uri: clientMetadata?.client_uri,
+        // Custom Redirect URIs (Authrim Extension)
+        error_uri: validatedErrorUri,
+        cancel_uri: validatedCancelUri,
       },
     });
 
-    // Redirect to UI login screen (if UI_URL is configured)
-    // Otherwise, redirect to local /flow/login GET endpoint which will show the UI
-    const uiUrl = c.env.UI_URL;
-    if (uiUrl) {
-      return c.redirect(`${uiUrl}/login?challenge_id=${encodeURIComponent(challengeId)}`, 302);
-    } else {
-      // Fallback: redirect to local login endpoint with GET
-      return c.redirect(`/flow/login?challenge_id=${encodeURIComponent(challengeId)}`, 302);
+    // Redirect to UI login screen
+    // Conformance mode: use builtin forms
+    // UI configured: redirect to external UI
+    // Neither: return configuration error
+    const loginTarget = await getUIRedirectTarget(c.env, 'login', {
+      challenge_id: challengeId,
+    });
+    if (loginTarget.type === 'redirect') {
+      return c.redirect(loginTarget.url, 302);
+    } else if (loginTarget.type === 'error') {
+      return loginTarget.response;
     }
+    // Builtin forms: redirect to local login endpoint
+    return c.redirect(
+      `${loginTarget.fallbackPath}?challenge_id=${encodeURIComponent(challengeId)}`,
+      302
+    );
   }
 
   // Determine user identifier (sub)
@@ -1891,20 +2068,29 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
             // Phase 2-B RBAC extensions
             org_id,
             acting_as,
+            // Custom Redirect URIs (Authrim Extension)
+            error_uri: validatedErrorUri,
+            cancel_uri: validatedCancelUri,
           },
         });
 
-        // Redirect to UI consent screen (if UI_URL is configured)
-        const uiUrl = c.env.UI_URL;
-        if (uiUrl) {
-          return c.redirect(
-            `${uiUrl}/consent?challenge_id=${encodeURIComponent(challengeId)}`,
-            302
-          );
-        } else {
-          // Fallback: redirect to local consent endpoint
-          return c.redirect(`/auth/consent?challenge_id=${encodeURIComponent(challengeId)}`, 302);
+        // Redirect to UI consent screen
+        // Conformance mode: use builtin forms
+        // UI configured: redirect to external UI
+        // Neither: return configuration error
+        const consentTarget = await getUIRedirectTarget(c.env, 'consent', {
+          challenge_id: challengeId,
+        });
+        if (consentTarget.type === 'redirect') {
+          return c.redirect(consentTarget.url, 302);
+        } else if (consentTarget.type === 'error') {
+          return consentTarget.response;
         }
+        // Builtin forms: redirect to local consent endpoint
+        return c.redirect(
+          `${consentTarget.fallbackPath}?challenge_id=${encodeURIComponent(challengeId)}`,
+          302
+        );
       }
     } // End of Third-Party Client consent check
   }
@@ -2455,11 +2641,23 @@ async function getSigningKeyFromKeyManager(
 /**
  * Helper function to redirect with OAuth error parameters
  * https://tools.ietf.org/html/rfc6749#section-4.1.2.1
+ *
+ * Supports custom redirect URIs (Authrim Extension):
+ * - errorUri: Redirect to this URI on technical errors
+ * - cancelUri: Redirect to this URI on user cancellation
+ * - isUserCancellation: Explicit flag for user-initiated cancellation
+ *
+ * IMPORTANT: error_uri/cancel_uri are NOT token delivery endpoints.
+ * Tokens are ALWAYS returned to redirect_uri only.
  */
 interface ErrorRedirectOptions {
   responseMode?: string;
   responseType?: string | null;
   clientId?: string;
+  // Custom Redirect URIs (Authrim Extension)
+  errorUri?: string;
+  cancelUri?: string;
+  isUserCancellation?: boolean;
 }
 
 async function redirectWithError(
@@ -2470,10 +2668,22 @@ async function redirectWithError(
   state?: string,
   options?: ErrorRedirectOptions
 ): Promise<Response> {
+  // Determine target URI based on error type and custom URIs
+  // - User cancellation → use cancelUri if available
+  // - Technical errors → use errorUri if available
+  // - Fallback → always use redirect_uri
+  let targetUri = redirectUri;
+  if (options?.isUserCancellation && options?.cancelUri) {
+    targetUri = options.cancelUri;
+  } else if (options?.errorUri) {
+    targetUri = options.errorUri;
+  }
+
   const params: Record<string, string> = { error };
   if (errorDescription) {
     params.error_description = errorDescription;
   }
+  // state is ALWAYS included (same rules as redirect_uri)
   if (state) {
     params.state = state;
   }
@@ -2500,13 +2710,7 @@ async function redirectWithError(
 
   if (isJARM) {
     if (options?.clientId) {
-      return await createJARMResponse(
-        c,
-        redirectUri,
-        params,
-        baseMode || 'query',
-        options.clientId
-      );
+      return await createJARMResponse(c, targetUri, params, baseMode || 'query', options.clientId);
     }
     console.warn(
       'JARM error response requested but client_id unavailable; falling back to base mode'
@@ -2515,12 +2719,12 @@ async function redirectWithError(
 
   switch (baseMode) {
     case 'form_post':
-      return createFormPostResponse(c, redirectUri, params);
+      return createFormPostResponse(c, targetUri, params);
     case 'fragment':
-      return createFragmentResponse(c, redirectUri, params);
+      return createFragmentResponse(c, targetUri, params);
     case 'query':
     default:
-      return createQueryResponse(c, redirectUri, params);
+      return createQueryResponse(c, targetUri, params);
   }
 }
 

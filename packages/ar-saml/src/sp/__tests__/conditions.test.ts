@@ -142,7 +142,7 @@ describe('Conditions Validation - SAML 2.0 Core Section 2.5', () => {
     // Mock environment
     mockEnv = {
       ISSUER_URL: 'https://auth.example.com',
-      UI_BASE_URL: 'https://ui.example.com',
+      UI_URL: 'https://ui.example.com',
       DB: {
         prepare: vi.fn().mockImplementation(() => ({
           bind: vi.fn().mockReturnThis(),
@@ -195,6 +195,7 @@ describe('Conditions Validation - SAML 2.0 Core Section 2.5', () => {
         formData: async () => formData,
       },
       json: (data: unknown, status: number) => new Response(JSON.stringify(data), { status }),
+      get: vi.fn().mockReturnValue('default'), // Mock Hono's c.get() for tenantId
     };
 
     return handleSPACS(context as unknown as Parameters<typeof handleSPACS>[0]);

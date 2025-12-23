@@ -17,6 +17,7 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  requireSystemAdmin,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -168,6 +169,11 @@ import {
   updateFapiSecurityConfig,
   clearFapiSecurityConfig,
 } from './routes/settings/fapi-security';
+import {
+  getIpSecurityConfig,
+  updateIpSecurityConfig,
+  clearIpSecurityConfig,
+} from './routes/settings/ip-security';
 import {
   getUIConfigHandler,
   updateUIConfigHandler,
@@ -534,6 +540,14 @@ app.delete('/api/admin/settings/introspection-cache', clearIntrospectionCacheCon
 app.get('/api/admin/settings/fapi-security', getFapiSecurityConfig);
 app.put('/api/admin/settings/fapi-security', updateFapiSecurityConfig);
 app.delete('/api/admin/settings/fapi-security', clearFapiSecurityConfig);
+
+// Admin IP Security Configuration endpoints
+// Control cloud provider selection for IP extraction (rate limiting, security)
+// Security: Requires system_admin role to prevent privilege escalation
+// org_admin should not be able to change tenant-wide IP security settings
+app.get('/api/admin/settings/ip-security', requireSystemAdmin(), getIpSecurityConfig);
+app.put('/api/admin/settings/ip-security', requireSystemAdmin(), updateIpSecurityConfig);
+app.delete('/api/admin/settings/ip-security', requireSystemAdmin(), clearIpSecurityConfig);
 
 // Admin UI Configuration endpoints
 // UI_URL and path settings for login, consent, and other screens

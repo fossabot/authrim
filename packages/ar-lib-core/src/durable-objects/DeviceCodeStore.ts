@@ -314,7 +314,7 @@ export class DeviceCodeStore {
       // SECURITY: Do not expose internal error details in response
       return new Response(
         JSON.stringify({
-          error: 'internal_error',
+          error: 'server_error',
           error_description: 'Internal server error',
         }),
         {

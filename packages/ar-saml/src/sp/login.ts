@@ -8,7 +8,13 @@
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
 import type { SAMLIdPConfig } from '@authrim/ar-lib-core';
-import { createErrorResponse, AR_ERROR_CODES } from '@authrim/ar-lib-core';
+import {
+  createErrorResponse,
+  AR_ERROR_CODES,
+  getUIConfig,
+  getTenantIdFromContext,
+  buildIssuerUrl,
+} from '@authrim/ar-lib-core';
 import * as pako from 'pako';
 import { SAML_NAMESPACES, BINDING_URIS, NAMEID_FORMATS } from '../common/constants';
 import {
@@ -36,7 +42,14 @@ export async function handleSPLogin(c: Context<{ Bindings: Env }>): Promise<Resp
   try {
     // Get IdP ID from query parameter
     const idpId = c.req.query('idp');
-    const returnUrl = c.req.query('return_url') || `${env.UI_BASE_URL}/`;
+
+    // Determine return URL with UI config fallback
+    let returnUrl = c.req.query('return_url');
+    if (!returnUrl) {
+      const uiConfig = await getUIConfig(env);
+      const tenantId = getTenantIdFromContext(c);
+      returnUrl = uiConfig?.baseUrl ? `${uiConfig.baseUrl}/` : `${buildIssuerUrl(env, tenantId)}/`;
+    }
 
     if (!idpId) {
       // Return list of available IdPs if no IdP specified

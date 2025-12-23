@@ -33,7 +33,12 @@ const KV_KEY_ERROR_ID_MODE = 'error_id_mode';
 // Defaults
 const DEFAULT_LOCALE: ErrorLocale = 'en';
 const DEFAULT_RESPONSE_FORMAT: ErrorResponseFormat = 'oauth';
-const DEFAULT_ERROR_ID_MODE: ErrorIdMode = '5xx';
+// SECURITY: Production uses 'security_only' to track only security-relevant errors
+// Development uses '5xx' to track all server errors for debugging
+const DEFAULT_ERROR_ID_MODE: ErrorIdMode =
+  typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
+    ? 'security_only'
+    : '5xx';
 
 /**
  * Authrim Error class for throwing errors with AR codes

@@ -27,10 +27,15 @@
  *     "policyRedirects": [ ... ]
  *   }
  * }
+ *
+ * Security:
+ * - baseUrl requires HTTPS (except localhost)
+ * - baseUrl must be same-origin as ISSUER_URL or in ALLOWED_ORIGINS
+ * - All configuration changes are audit logged
  */
 
 import type { Context } from 'hono';
-import type { Env } from '@authrim/ar-lib-core';
+import type { Env, AdminAuthContext } from '@authrim/ar-lib-core';
 import {
   getUIConfig,
   getUIConfigSource,
@@ -41,7 +46,19 @@ import {
   type UIPathConfig,
   type UIRoutingConfig,
   type PolicyRedirectRule,
+  validateUIBaseUrl,
+  parseAllowedOriginsEnv,
+  logUIConfigChange,
+  logUIConfigValidationFailure,
 } from '@authrim/ar-lib-core';
+
+/**
+ * Get admin auth context from request
+ */
+function getAdminAuth(c: Context<{ Bindings: Env }>): AdminAuthContext | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (c as any).get('adminAuth') as AdminAuthContext | null;
+}
 
 type SettingSource = 'kv' | 'env' | 'none';
 
@@ -70,25 +87,68 @@ export async function getUIConfigHandler(c: Context<{ Bindings: Env }>) {
 /**
  * PUT /api/admin/settings/ui-config
  * Update UI configuration
+ *
+ * Security validations:
+ * - baseUrl: HTTPS required (except localhost)
+ * - baseUrl: Must be same-origin as ISSUER_URL or in ALLOWED_ORIGINS
+ * - All changes are audit logged
  */
 export async function updateUIConfigHandler(c: Context<{ Bindings: Env }>) {
+  const adminAuth = getAdminAuth(c);
+  const adminId = adminAuth?.userId ?? adminAuth?.authMethod;
+
   const body = await c.req.json<{
-    baseUrl?: string;
+    baseUrl?: string | null;
     paths?: Partial<UIPathConfig>;
   }>();
 
-  // Validate baseUrl if provided
-  if (body.baseUrl !== undefined && body.baseUrl !== null) {
-    try {
-      new URL(body.baseUrl);
-    } catch {
-      return c.json(
-        {
-          error: 'invalid_request',
-          error_description: 'Invalid baseUrl: must be a valid URL',
-        },
-        400
-      );
+  // Get existing settings for audit logging
+  let systemSettings: SystemSettings = {};
+  let existingBaseUrl: string | null = null;
+  try {
+    const existingJson = await c.env.SETTINGS?.get('system_settings');
+    if (existingJson) {
+      systemSettings = JSON.parse(existingJson);
+      existingBaseUrl = systemSettings.ui?.baseUrl ?? null;
+    }
+  } catch {
+    // Start fresh
+  }
+
+  // Validate baseUrl if provided (allow null to clear)
+  if (body.baseUrl !== undefined) {
+    if (body.baseUrl !== null && body.baseUrl !== '') {
+      // Security validation: HTTPS + Domain whitelist
+      const allowedOrigins = parseAllowedOriginsEnv(c.env.ALLOWED_ORIGINS);
+      const validation = validateUIBaseUrl(body.baseUrl, c.env.ISSUER_URL, allowedOrigins);
+
+      if (!validation.valid) {
+        // Log the rejection for security audit
+        logUIConfigValidationFailure(adminId, body.baseUrl, validation.error || 'Unknown error');
+
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: `Invalid baseUrl: ${validation.error}`,
+          },
+          400
+        );
+      }
+
+      // Log the successful change
+      logUIConfigChange('update', adminId, {
+        field: 'baseUrl',
+        oldValue: existingBaseUrl,
+        newValue: body.baseUrl,
+        validationResult: validation,
+      });
+    } else {
+      // baseUrl is being cleared (null or empty string)
+      logUIConfigChange('update', adminId, {
+        field: 'baseUrl',
+        oldValue: existingBaseUrl,
+        newValue: null,
+      });
     }
   }
 
@@ -105,25 +165,28 @@ export async function updateUIConfigHandler(c: Context<{ Bindings: Env }>) {
         );
       }
     }
-  }
 
-  // Get existing settings
-  let systemSettings: SystemSettings = {};
-  try {
-    const existingJson = await c.env.SETTINGS?.get('system_settings');
-    if (existingJson) {
-      systemSettings = JSON.parse(existingJson);
-    }
-  } catch {
-    // Start fresh
+    // Log path changes
+    logUIConfigChange('update', adminId, {
+      field: 'paths',
+      oldValue: JSON.stringify(systemSettings.ui?.paths ?? {}),
+      newValue: JSON.stringify(body.paths),
+    });
   }
 
   // Merge UI settings
+  // Handle baseUrl: empty string or null means clear it (use undefined to omit)
+  const newBaseUrl = body.baseUrl === '' || body.baseUrl === null ? undefined : body.baseUrl;
   systemSettings.ui = {
     ...systemSettings.ui,
-    ...body,
-    paths: { ...systemSettings.ui?.paths, ...body.paths },
+    ...(newBaseUrl !== undefined ? { baseUrl: newBaseUrl } : {}),
+    paths: { ...systemSettings.ui?.paths, ...body.paths } as UIPathConfig,
   };
+
+  // If baseUrl is being cleared, remove it from the config
+  if (body.baseUrl === '' || body.baseUrl === null) {
+    delete (systemSettings.ui as Partial<UIConfig> & { baseUrl?: string }).baseUrl;
+  }
 
   // Save to KV
   await c.env.SETTINGS?.put('system_settings', JSON.stringify(systemSettings));
@@ -137,18 +200,32 @@ export async function updateUIConfigHandler(c: Context<{ Bindings: Env }>) {
 /**
  * DELETE /api/admin/settings/ui-config
  * Clear UI configuration override (fall back to env)
+ *
+ * All changes are audit logged
  */
 export async function deleteUIConfigHandler(c: Context<{ Bindings: Env }>) {
+  const adminAuth = getAdminAuth(c);
+  const adminId = adminAuth?.userId ?? adminAuth?.authMethod;
+
   // Get existing settings
   let systemSettings: SystemSettings = {};
+  let existingConfig: Partial<UIConfig> | undefined;
   try {
     const existingJson = await c.env.SETTINGS?.get('system_settings');
     if (existingJson) {
       systemSettings = JSON.parse(existingJson);
+      existingConfig = systemSettings.ui;
     }
   } catch {
     // Ignore
   }
+
+  // Log the deletion
+  logUIConfigChange('delete', adminId, {
+    field: 'ui',
+    oldValue: JSON.stringify(existingConfig ?? {}),
+    newValue: null,
+  });
 
   // Remove UI settings
   delete systemSettings.ui;
@@ -177,8 +254,13 @@ export async function getUIRoutingHandler(c: Context<{ Bindings: Env }>) {
 /**
  * PUT /api/admin/settings/ui-routing
  * Update UI routing configuration
+ *
+ * All changes are audit logged
  */
 export async function updateUIRoutingHandler(c: Context<{ Bindings: Env }>) {
+  const adminAuth = getAdminAuth(c);
+  const adminId = adminAuth?.userId ?? adminAuth?.authMethod;
+
   const body = await c.req.json<{
     rolePathOverrides?: Record<string, Partial<UIPathConfig>>;
     policyRedirects?: PolicyRedirectRule[];
@@ -236,14 +318,23 @@ export async function updateUIRoutingHandler(c: Context<{ Bindings: Env }>) {
 
   // Get existing settings
   let systemSettings: SystemSettings = {};
+  let existingRouting: UIRoutingConfig | undefined;
   try {
     const existingJson = await c.env.SETTINGS?.get('system_settings');
     if (existingJson) {
       systemSettings = JSON.parse(existingJson);
+      existingRouting = systemSettings.routing;
     }
   } catch {
     // Start fresh
   }
+
+  // Log the change
+  logUIConfigChange('update', adminId, {
+    field: 'routing',
+    oldValue: JSON.stringify(existingRouting ?? {}),
+    newValue: JSON.stringify(body),
+  });
 
   // Merge routing settings
   systemSettings.routing = {
@@ -263,18 +354,32 @@ export async function updateUIRoutingHandler(c: Context<{ Bindings: Env }>) {
 /**
  * DELETE /api/admin/settings/ui-routing
  * Clear UI routing configuration
+ *
+ * All changes are audit logged
  */
 export async function deleteUIRoutingHandler(c: Context<{ Bindings: Env }>) {
+  const adminAuth = getAdminAuth(c);
+  const adminId = adminAuth?.userId ?? adminAuth?.authMethod;
+
   // Get existing settings
   let systemSettings: SystemSettings = {};
+  let existingRouting: UIRoutingConfig | undefined;
   try {
     const existingJson = await c.env.SETTINGS?.get('system_settings');
     if (existingJson) {
       systemSettings = JSON.parse(existingJson);
+      existingRouting = systemSettings.routing;
     }
   } catch {
     // Ignore
   }
+
+  // Log the deletion
+  logUIConfigChange('delete', adminId, {
+    field: 'routing',
+    oldValue: JSON.stringify(existingRouting ?? {}),
+    newValue: null,
+  });
 
   // Remove routing settings
   delete systemSettings.routing;

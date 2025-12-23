@@ -220,7 +220,7 @@ export async function createCheckApiKey(c: Context) {
     console.error('[Check API Keys] Create error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to create API key',
       },
       500
@@ -332,7 +332,7 @@ export async function listCheckApiKeys(c: Context) {
     console.error('[Check API Keys] List error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to list API keys',
       },
       500
@@ -414,7 +414,7 @@ export async function getCheckApiKey(c: Context) {
     console.error('[Check API Keys] Get error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get API key',
       },
       500
@@ -469,7 +469,7 @@ export async function deleteCheckApiKey(c: Context) {
     console.error('[Check API Keys] Delete error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to delete API key',
       },
       500
@@ -584,7 +584,7 @@ export async function rotateCheckApiKey(c: Context) {
     console.error('[Check API Keys] Rotate error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to rotate API key',
       },
       500

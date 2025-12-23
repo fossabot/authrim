@@ -69,8 +69,8 @@ function fallbackToEnvKey(c: Context<{ Bindings: Env }>) {
     console.error('Error parsing public JWK from env:', error);
     return c.json(
       {
-        error: 'internal_server_error',
-        message: 'Failed to generate JWKS',
+        error: 'server_error',
+        error_description: 'Failed to generate JWKS',
       },
       500
     );

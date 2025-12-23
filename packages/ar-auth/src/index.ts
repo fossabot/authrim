@@ -14,6 +14,11 @@ import {
   createErrorResponse,
   RFC_ERROR_CODES,
   AR_ERROR_CODES,
+  // UI Configuration
+  getUIConfig,
+  buildUIUrl,
+  shouldUseBuiltinForms,
+  createConfigurationError,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -227,17 +232,14 @@ app.get('/logout', frontChannelLogoutHandler);
 app.post('/logout/backchannel', backChannelLogoutHandler);
 
 // Logged out page - displayed after successful logout when no valid post_logout_redirect_uri
-// If UI_URL is configured, redirect to UI's logged-out page
-// Otherwise, show built-in HTML (for conformance testing)
-app.get('/logged-out', (c) => {
-  // Check if UI_URL is configured - if so, redirect to UI
-  const uiUrl = c.env.UI_URL;
-  if (uiUrl) {
-    return c.redirect(`${uiUrl}/logged-out`, 302);
-  }
-
-  // Fallback: show built-in HTML (for conformance testing without UI)
-  const html = `<!DOCTYPE html>
+// Conformance mode: show built-in HTML
+// UI configured: redirect to external UI's logged-out page
+// Neither: return configuration error
+app.get('/logged-out', async (c) => {
+  // Check conformance mode and UI configuration
+  if (await shouldUseBuiltinForms(c.env)) {
+    // Conformance mode: show built-in HTML
+    const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -291,14 +293,28 @@ app.get('/logged-out', (c) => {
   </div>
 </body>
 </html>`;
-  return c.html(html);
+    return c.html(html);
+  }
+
+  // Check UI configuration
+  const uiConfig = await getUIConfig(c.env);
+  if (uiConfig?.baseUrl) {
+    const url = buildUIUrl(uiConfig, 'loggedOut');
+    return c.redirect(url, 302);
+  }
+
+  // No UI configured and conformance mode disabled
+  return c.json(createConfigurationError(), 500);
 });
 
 // Logout error page - displayed when logout validation fails
 // Per OIDC RP-Initiated Logout spec, OP SHOULD display an error page when:
 // - post_logout_redirect_uri is not registered
 // - id_token_hint is invalid or missing (when required)
-app.get('/logout-error', (c) => {
+// Conformance mode: show built-in HTML
+// UI configured: redirect to external UI's logout-error page
+// Neither: return configuration error
+app.get('/logout-error', async (c) => {
   const error = c.req.query('error') || 'unknown_error';
 
   // Error messages for different validation failures
@@ -332,14 +348,10 @@ app.get('/logout-error', (c) => {
 
   const errorInfo = errorMessages[error] || errorMessages['unknown_error'];
 
-  // Check if UI_URL is configured - if so, redirect to UI
-  const uiUrl = c.env.UI_URL;
-  if (uiUrl) {
-    return c.redirect(`${uiUrl}/logout-error?error=${encodeURIComponent(error)}`, 302);
-  }
-
-  // Fallback: show built-in HTML (for conformance testing without UI)
-  const html = `<!DOCTYPE html>
+  // Check conformance mode
+  if (await shouldUseBuiltinForms(c.env)) {
+    // Conformance mode: show built-in HTML
+    const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -403,7 +415,18 @@ app.get('/logout-error', (c) => {
   </div>
 </body>
 </html>`;
-  return c.html(html);
+    return c.html(html);
+  }
+
+  // Check UI configuration
+  const uiConfig = await getUIConfig(c.env);
+  if (uiConfig?.baseUrl) {
+    const url = buildUIUrl(uiConfig, 'error', { error });
+    return c.redirect(url, 302);
+  }
+
+  // No UI configured and conformance mode disabled
+  return c.json(createConfigurationError(), 500);
 });
 
 // 404 handler

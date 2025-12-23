@@ -102,7 +102,7 @@ describe('Device Flow Expiration - RFC 8628 Section 3.2', () => {
 
     mockEnv = {
       ISSUER_URL: 'https://auth.example.com',
-      UI_BASE_URL: 'https://ui.example.com',
+      UI_URL: 'https://ui.example.com',
       DEVICE_CODE_STORE: {
         idFromName: vi.fn().mockReturnValue('mock-device-store-id'),
         get: vi.fn().mockReturnValue(mockDeviceCodeStore),

@@ -15,6 +15,12 @@ import {
   type DatabaseAdapter,
   createErrorResponse,
   AR_ERROR_CODES,
+  getUIConfig,
+  buildUIUrl,
+  shouldUseBuiltinForms,
+  createConfigurationError,
+  getTenantIdFromContext,
+  buildIssuerUrl,
 } from '@authrim/ar-lib-core';
 import { generateSAMLId, nowAsDateTime, offsetDateTime } from '../common/xml-utils';
 import { NAMEID_FORMATS, AUTHN_CONTEXT, DEFAULTS, STATUS_CODES } from '../common/constants';
@@ -50,12 +56,29 @@ export async function handleIdPInitiated(c: Context<{ Bindings: Env }>): Promise
 
     if (!userId) {
       // Redirect to login with return URL
-      const loginUrl = new URL(`${env.UI_BASE_URL}/login`);
-      loginUrl.searchParams.set(
-        'return_to',
-        `${env.ISSUER_URL}/saml/idp/init?sp=${encodeURIComponent(spEntityId)}`
+      const tenantId = getTenantIdFromContext(c);
+      const returnTo = `${buildIssuerUrl(env, tenantId)}/saml/idp/init?sp=${encodeURIComponent(spEntityId)}`;
+
+      // Conformance mode: use built-in login path
+      if (await shouldUseBuiltinForms(env)) {
+        const loginUrl = new URL('/flow/login', buildIssuerUrl(env, tenantId));
+        loginUrl.searchParams.set('return_to', returnTo);
+        return c.redirect(loginUrl.toString());
+      }
+
+      // Normal mode: use UI config
+      const uiConfig = await getUIConfig(env);
+      if (!uiConfig?.baseUrl) {
+        return c.json(createConfigurationError(), 500);
+      }
+
+      const loginUrl = buildUIUrl(
+        uiConfig,
+        'login',
+        { return_to: returnTo },
+        tenantId !== 'default' ? tenantId : undefined
       );
-      return c.redirect(loginUrl.toString());
+      return c.redirect(loginUrl);
     }
 
     // Get user information

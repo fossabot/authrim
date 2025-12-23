@@ -1,45 +1,145 @@
 /**
  * Issuer URL Builder
  *
- * Single-tenant mode: returns ISSUER_URL from environment as-is
- * Future MT: builds dynamic issuer URL from subdomain + BASE_DOMAIN
+ * Supports both single-tenant and multi-tenant modes:
+ * - Single-tenant: returns ISSUER_URL from environment as-is
+ * - Multi-tenant: builds dynamic issuer URL from subdomain + BASE_DOMAIN
  *
- * This abstraction allows easy migration to multi-tenant mode
- * by simply modifying this function.
+ * Multi-tenant issuer format: iss = https://{tenant}.{BASE_DOMAIN}
+ * Example: https://acme.authrim.com
+ *
+ * Security: Issuer determination is based on Host header (trusted),
+ * NOT tenant_hint (untrusted UX hint).
  */
 
 import type { Env } from '../types/env';
 import { DEFAULT_TENANT_ID } from './tenant-context';
 
 /**
+ * Result of Host validation
+ */
+export interface HostValidationResult {
+  valid: boolean;
+  tenantId: string | null;
+  error?: 'invalid_format' | 'missing_host' | 'tenant_not_found';
+  statusCode?: 400 | 404;
+}
+
+/**
  * Build the OIDC issuer URL for a tenant.
  *
- * In single-tenant mode, this simply returns the configured ISSUER_URL.
- * In future multi-tenant mode, this will construct the issuer URL
- * from the tenant subdomain and base domain.
+ * In single-tenant mode (BASE_DOMAIN not set), returns ISSUER_URL.
+ * In multi-tenant mode (BASE_DOMAIN set), constructs issuer from subdomain.
  *
  * @param env - Cloudflare Workers environment bindings
- * @param _tenantSubdomain - Tenant subdomain (unused in single-tenant mode)
+ * @param tenantSubdomain - Tenant subdomain (required in multi-tenant mode)
  * @returns The issuer URL string
  *
  * @example
- * // Single-tenant (current)
+ * // Single-tenant
  * buildIssuerUrl(env) // => 'https://auth.example.com'
  *
- * // Future multi-tenant
- * buildIssuerUrl(env, 'acme') // => 'https://acme.authrim.app'
+ * // Multi-tenant
+ * buildIssuerUrl(env, 'acme') // => 'https://acme.authrim.com'
  */
-export function buildIssuerUrl(env: Env, _tenantSubdomain: string = DEFAULT_TENANT_ID): string {
+export function buildIssuerUrl(env: Env, tenantSubdomain: string = DEFAULT_TENANT_ID): string {
+  // Multi-tenant mode: construct from subdomain + BASE_DOMAIN
+  if (env.BASE_DOMAIN && env.TENANT_ISOLATION_ENABLED === 'true') {
+    return `https://${tenantSubdomain}.${env.BASE_DOMAIN}`;
+  }
+
   // Single-tenant mode: use configured ISSUER_URL
   return env.ISSUER_URL;
+}
 
-  // Future MT mode (commented out for reference):
-  // if (!env.BASE_DOMAIN) {
-  //   throw new Error('BASE_DOMAIN environment variable is required for multi-tenant mode');
-  // }
-  // const baseDomain = env.BASE_DOMAIN; // e.g., 'authrim.app'
-  // const protocol = 'https';
-  // return `${protocol}://${tenantSubdomain}.${baseDomain}`;
+/**
+ * Check if multi-tenant mode is enabled
+ *
+ * @param env - Environment bindings
+ * @returns true if multi-tenant mode is enabled
+ */
+export function isMultiTenantEnabled(env: Partial<Env>): boolean {
+  return !!env.BASE_DOMAIN && env.TENANT_ISOLATION_ENABLED === 'true';
+}
+
+/**
+ * Validate Host header and extract tenant ID
+ *
+ * Error codes:
+ * - 400 Bad Request: missing_host, invalid_format
+ * - 404 Not Found: tenant_not_found (tenant existence hidden for security)
+ *
+ * @param host - Host header value
+ * @param env - Environment bindings
+ * @returns Validation result with tenant ID or error
+ */
+export function validateHostHeader(
+  host: string | undefined,
+  env: Partial<Env>
+): HostValidationResult {
+  // Single-tenant mode: always valid with default tenant
+  if (!isMultiTenantEnabled(env)) {
+    return {
+      valid: true,
+      tenantId: env.DEFAULT_TENANT_ID || DEFAULT_TENANT_ID,
+    };
+  }
+
+  // Multi-tenant mode requires Host header
+  if (!host) {
+    return {
+      valid: false,
+      tenantId: null,
+      error: 'missing_host',
+      statusCode: 400,
+    };
+  }
+
+  // Validate Host format (basic check)
+  if (!isValidHostFormat(host)) {
+    return {
+      valid: false,
+      tenantId: null,
+      error: 'invalid_format',
+      statusCode: 400,
+    };
+  }
+
+  // Extract tenant subdomain
+  const tenantId = extractSubdomain(host, env.BASE_DOMAIN!);
+
+  if (!tenantId) {
+    // No subdomain found - could be apex domain access
+    return {
+      valid: false,
+      tenantId: null,
+      error: 'tenant_not_found',
+      statusCode: 404,
+    };
+  }
+
+  // Tenant ID extracted successfully
+  // Note: Actual tenant existence check should be done in middleware
+  return {
+    valid: true,
+    tenantId,
+  };
+}
+
+/**
+ * Validate Host header format
+ *
+ * @param host - Host header value
+ * @returns true if format is valid
+ */
+function isValidHostFormat(host: string): boolean {
+  // Remove port if present
+  const hostWithoutPort = host.split(':')[0];
+
+  // Basic validation: alphanumeric, hyphens, dots
+  // Must not start or end with hyphen/dot
+  const validPattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
+  return validPattern.test(hostWithoutPort);
 }
 
 /**
@@ -58,13 +158,15 @@ export function extractSubdomain(hostname: string, baseDomain: string): string |
   // Remove port if present
   const host = hostname.split(':')[0];
 
-  // Check if hostname ends with base domain
-  if (!host.endsWith(baseDomain)) {
+  // Check if hostname ends with ".baseDomain" to prevent partial matches
+  // e.g., "acme.notauthrim.com" should NOT match "authrim.com"
+  const fullSuffix = '.' + baseDomain;
+  if (!host.endsWith(fullSuffix)) {
     return null;
   }
 
-  // Extract subdomain
-  const subdomain = host.slice(0, -(baseDomain.length + 1)); // +1 for the dot
+  // Extract subdomain (exclude the dot separator)
+  const subdomain = host.slice(0, -fullSuffix.length);
 
   // Return null if no subdomain or if it's empty
   if (!subdomain || subdomain === '') {

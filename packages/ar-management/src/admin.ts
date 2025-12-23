@@ -23,6 +23,7 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  validateAllowedOrigins,
 } from '@authrim/ar-lib-core';
 import type { UserCore, UserPII } from '@authrim/ar-lib-core';
 
@@ -1403,6 +1404,8 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       is_trusted?: boolean;
       skip_consent?: boolean;
       allow_claims_without_scope?: boolean;
+      // Custom Redirect URIs (Authrim Extension)
+      allowed_redirect_origins?: string[];
     }>();
 
     // Validate required fields
@@ -1445,6 +1448,31 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       }
     }
 
+    // Validate allowed_redirect_origins if provided (Custom Redirect URIs - Authrim Extension)
+    let validatedAllowedOrigins: string[] | undefined;
+    if (body.allowed_redirect_origins !== undefined) {
+      if (!Array.isArray(body.allowed_redirect_origins)) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'allowed_redirect_origins must be an array of origin strings',
+          },
+          400
+        );
+      }
+      const originsValidation = validateAllowedOrigins(body.allowed_redirect_origins);
+      if (!originsValidation.valid) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: `Invalid allowed_redirect_origins: ${originsValidation.errors.join(', ')}`,
+          },
+          400
+        );
+      }
+      validatedAllowedOrigins = originsValidation.normalizedOrigins;
+    }
+
     const tenantId = getTenantIdFromContext(c);
     const authCtx = createAuthContextFromHono(c, tenantId);
 
@@ -1478,6 +1506,8 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       is_trusted: body.is_trusted || false,
       skip_consent: body.skip_consent || false,
       allow_claims_without_scope: body.allow_claims_without_scope || false,
+      // Custom Redirect URIs (Authrim Extension)
+      allowed_redirect_origins: validatedAllowedOrigins,
     });
 
     // Return the created client (including client_secret only on creation)
@@ -1668,7 +1698,37 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       is_trusted,
       skip_consent,
       allow_claims_without_scope,
+      allowed_redirect_origins,
     } = body;
+
+    // Validate allowed_redirect_origins if provided (Custom Redirect URIs - Authrim Extension)
+    let validatedAllowedOrigins: string[] | undefined;
+    if (allowed_redirect_origins !== undefined) {
+      if (allowed_redirect_origins === null) {
+        // Allow null to clear the field
+        validatedAllowedOrigins = [];
+      } else if (!Array.isArray(allowed_redirect_origins)) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'allowed_redirect_origins must be an array of origin strings',
+          },
+          400
+        );
+      } else {
+        const originsValidation = validateAllowedOrigins(allowed_redirect_origins);
+        if (!originsValidation.valid) {
+          return c.json(
+            {
+              error: 'invalid_request',
+              error_description: `Invalid allowed_redirect_origins: ${originsValidation.errors.join(', ')}`,
+            },
+            400
+          );
+        }
+        validatedAllowedOrigins = originsValidation.normalizedOrigins;
+      }
+    }
 
     // Check if there are any actual updates
     const hasUpdates = [
@@ -1683,6 +1743,7 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       is_trusted,
       skip_consent,
       allow_claims_without_scope,
+      allowed_redirect_origins,
     ].some((v) => v !== undefined);
 
     if (!hasUpdates) {
@@ -1705,6 +1766,7 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       is_trusted,
       skip_consent,
       allow_claims_without_scope,
+      allowed_redirect_origins: validatedAllowedOrigins,
     });
 
     // Invalidate CLIENTS_CACHE (explicit invalidation after D1 update)
@@ -3446,7 +3508,7 @@ export async function adminTestEmailCodeHandler(c: Context<{ Bindings: Env }>) {
       if (!createUser) {
         return c.json(
           {
-            error: 'user_not_found',
+            error: 'invalid_request',
             error_description: 'User does not exist and create_user is false',
           },
           404

@@ -201,7 +201,7 @@ describe('SAML Integration', () => {
     // Mock environment
     mockEnv = {
       ISSUER_URL: 'https://auth.example.com',
-      UI_BASE_URL: 'https://ui.example.com',
+      UI_URL: 'https://ui.example.com',
       DB: {
         prepare: vi.fn().mockImplementation((sql: string) => ({
           bind: vi.fn().mockReturnThis(),

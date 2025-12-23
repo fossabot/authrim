@@ -90,7 +90,7 @@ export async function getPolicyFlags(c: Context) {
     console.error('[Policy Flags API] Error getting flags:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get policy flags',
       },
       500
@@ -203,7 +203,7 @@ export async function updatePolicyFlag(c: Context) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update flag',
       },
       500
@@ -253,7 +253,7 @@ export async function clearPolicyFlag(c: Context) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to clear flag',
       },
       500

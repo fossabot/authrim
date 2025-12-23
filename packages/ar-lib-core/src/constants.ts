@@ -67,7 +67,9 @@ export const STANDARD_CLAIMS = {
  * https://openid.net/specs/openid-connect-core-1_0.html#AuthError
  */
 export const ERROR_CODES = {
-  // OAuth 2.0 Errors (RFC 6749)
+  // =========================================================================
+  // OAuth 2.0 Core Errors (RFC 6749)
+  // =========================================================================
   INVALID_REQUEST: 'invalid_request',
   INVALID_CLIENT: 'invalid_client',
   INVALID_GRANT: 'invalid_grant',
@@ -79,7 +81,15 @@ export const ERROR_CODES = {
   SERVER_ERROR: 'server_error',
   TEMPORARILY_UNAVAILABLE: 'temporarily_unavailable',
 
-  // OIDC Specific Errors
+  // =========================================================================
+  // Bearer Token Errors (RFC 6750)
+  // =========================================================================
+  INVALID_TOKEN: 'invalid_token',
+  INSUFFICIENT_SCOPE: 'insufficient_scope',
+
+  // =========================================================================
+  // OIDC Core 1.0 Errors
+  // =========================================================================
   INTERACTION_REQUIRED: 'interaction_required',
   LOGIN_REQUIRED: 'login_required',
   ACCOUNT_SELECTION_REQUIRED: 'account_selection_required',
@@ -90,9 +100,57 @@ export const ERROR_CODES = {
   REQUEST_URI_NOT_SUPPORTED: 'request_uri_not_supported',
   REGISTRATION_NOT_SUPPORTED: 'registration_not_supported',
 
-  // Token Endpoint Errors
-  INVALID_TOKEN: 'invalid_token',
-  INSUFFICIENT_SCOPE: 'insufficient_scope',
+  // =========================================================================
+  // Device Authorization Grant Errors (RFC 8628)
+  // =========================================================================
+  /** User has not yet completed authorization (polling should continue) */
+  AUTHORIZATION_PENDING: 'authorization_pending',
+  /** Polling too frequently - client should increase interval */
+  SLOW_DOWN: 'slow_down',
+  /** Device code has expired */
+  EXPIRED_TOKEN: 'expired_token',
+
+  // =========================================================================
+  // DPoP Errors (RFC 9449)
+  // =========================================================================
+  /** DPoP proof is invalid or malformed */
+  INVALID_DPOP_PROOF: 'invalid_dpop_proof',
+  /** Server requires DPoP nonce - client should retry with provided nonce */
+  USE_DPOP_NONCE: 'use_dpop_nonce',
+
+  // =========================================================================
+  // Dynamic Client Registration Errors (RFC 7591)
+  // =========================================================================
+  /** Client metadata is invalid or malformed */
+  INVALID_CLIENT_METADATA: 'invalid_client_metadata',
+  /** Redirect URI is invalid or not allowed */
+  INVALID_REDIRECT_URI: 'invalid_redirect_uri',
+  /** Software statement is invalid */
+  INVALID_SOFTWARE_STATEMENT: 'invalid_software_statement',
+  /** Software statement is not approved */
+  UNAPPROVED_SOFTWARE_STATEMENT: 'unapproved_software_statement',
+
+  // =========================================================================
+  // CIBA Errors (OpenID Connect Client Initiated Backchannel Authentication)
+  // =========================================================================
+  /** Binding message is invalid or exceeds allowed length */
+  INVALID_BINDING_MESSAGE: 'invalid_binding_message',
+
+  // =========================================================================
+  // Token Exchange Errors (RFC 8693)
+  // =========================================================================
+  /** Token exchange target is invalid */
+  INVALID_TARGET: 'invalid_target',
+
+  // =========================================================================
+  // OpenID4VCI Errors (OpenID for Verifiable Credential Issuance)
+  // =========================================================================
+  /** Credential format is not supported */
+  UNSUPPORTED_CREDENTIAL_FORMAT: 'unsupported_credential_format',
+  /** Proof (key proof or similar) is invalid */
+  INVALID_PROOF: 'invalid_proof',
+  /** Credential issuance is pending (deferred issuance) */
+  ISSUANCE_PENDING: 'issuance_pending',
 } as const;
 
 /**
@@ -114,11 +172,32 @@ export const PKCE = {
  * OAuth 2.0 Grant Types
  */
 export const GRANT_TYPES = {
+  // OAuth 2.0 Core (RFC 6749)
   AUTHORIZATION_CODE: 'authorization_code',
   REFRESH_TOKEN: 'refresh_token',
   CLIENT_CREDENTIALS: 'client_credentials',
+  /** @deprecated Password grant is not recommended for new applications */
   PASSWORD: 'password',
+  /** @deprecated Implicit flow is not recommended - use authorization_code with PKCE */
   IMPLICIT: 'implicit',
+
+  // Device Authorization Grant (RFC 8628)
+  DEVICE_CODE: 'urn:ietf:params:oauth:grant-type:device_code',
+
+  // CIBA (OpenID Connect Client Initiated Backchannel Authentication)
+  CIBA: 'urn:openid:params:grant-type:ciba',
+
+  // Token Exchange (RFC 8693)
+  TOKEN_EXCHANGE: 'urn:ietf:params:oauth:grant-type:token-exchange',
+
+  // JWT Bearer Assertion (RFC 7523)
+  JWT_BEARER: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+
+  // SAML 2.0 Bearer Assertion (RFC 7522)
+  SAML2_BEARER: 'urn:ietf:params:oauth:grant-type:saml2-bearer',
+
+  // OpenID4VCI Pre-Authorized Code
+  PRE_AUTHORIZED_CODE: 'urn:ietf:params:oauth:grant-type:pre-authorized_code',
 } as const;
 
 /**
@@ -287,6 +366,7 @@ export const WELL_KNOWN = {
  * Standard Endpoints
  */
 export const ENDPOINTS = {
+  // OAuth 2.0 / OIDC Core
   AUTHORIZE: '/authorize',
   TOKEN: '/token',
   USERINFO: '/userinfo',
@@ -294,4 +374,18 @@ export const ENDPOINTS = {
   INTROSPECTION: '/introspect',
   REGISTRATION: '/register',
   END_SESSION: '/endsession',
+
+  // PAR (RFC 9126)
+  PAR: '/par',
+
+  // Device Authorization Grant (RFC 8628)
+  DEVICE_AUTHORIZATION: '/device_authorization',
+
+  // CIBA (OpenID Connect Client Initiated Backchannel Authentication)
+  BACKCHANNEL_AUTHENTICATION: '/bc-authorize',
+
+  // OpenID4VCI
+  CREDENTIAL: '/credential',
+  DEFERRED_CREDENTIAL: '/deferred_credential',
+  CREDENTIAL_OFFER: '/credential_offer',
 } as const;

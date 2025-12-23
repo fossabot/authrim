@@ -229,7 +229,7 @@ describe('AuthorizationCodeStore', () => {
       const body = (await response2.json()) as any;
       expect(body.error).toBe('invalid_grant');
       // Security: Generic message to prevent information leakage about code state
-      expect(body.error_description).toContain('invalid, expired, or revoked');
+      expect(body.error_description).toContain('Authorization code');
     });
 
     it('should fail on non-existent code', async () => {
@@ -278,7 +278,8 @@ describe('AuthorizationCodeStore', () => {
 
       const body = (await response.json()) as any;
       expect(body.error).toBe('invalid_grant');
-      expect(body.error_description).toContain('mismatch');
+      // Security: Generic message to prevent client enumeration
+      expect(body.error_description).toContain('Authorization code');
     });
   });
 
@@ -382,7 +383,8 @@ describe('AuthorizationCodeStore', () => {
       expect(response.status).toBe(400);
 
       const body = (await response.json()) as any;
-      expect(body.error_description).toContain('code_verifier required');
+      // Security: Generic message to prevent PKCE state enumeration
+      expect(body.error_description).toContain('PKCE verification failed');
     });
   });
 

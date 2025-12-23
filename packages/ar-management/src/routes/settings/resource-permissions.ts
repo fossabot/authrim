@@ -205,7 +205,7 @@ export async function createResourcePermission(c: Context) {
     console.error('[Resource Permissions API] Create error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to create permission',
       },
       500
@@ -273,7 +273,7 @@ export async function listResourcePermissions(c: Context) {
     console.error('[Resource Permissions API] List error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to list permissions',
       },
       500
@@ -349,7 +349,7 @@ export async function deleteResourcePermission(c: Context) {
     console.error('[Resource Permissions API] Delete error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to delete permission',
       },
       500
@@ -386,7 +386,7 @@ export async function getPermissionsBySubject(c: Context) {
     console.error('[Resource Permissions API] Get by subject error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get permissions for subject',
       },
       500
@@ -423,7 +423,7 @@ export async function getPermissionsByResource(c: Context) {
     console.error('[Resource Permissions API] Get by resource error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get permissions for resource',
       },
       500
@@ -465,7 +465,7 @@ export async function checkResourcePermission(c: Context) {
     console.error('[Resource Permissions API] Check error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to check permission',
       },
       500

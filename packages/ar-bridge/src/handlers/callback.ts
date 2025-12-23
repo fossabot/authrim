@@ -12,6 +12,10 @@ import {
   D1Adapter,
   type DatabaseAdapter,
   getSessionStoreForNewSession,
+  getUIConfig,
+  buildIssuerUrl,
+  shouldUseBuiltinForms,
+  getTenantIdFromContext,
 } from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
@@ -313,17 +317,33 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
 
 /**
  * Redirect with error parameters
+ * Uses UI config if available, falls back to issuer URL
  */
-function redirectWithError(
+async function redirectWithError(
   c: Context<{ Bindings: Env }>,
   error: string,
   description?: string
-): Response {
-  const baseUrl = c.env.UI_BASE_URL || c.env.ISSUER_URL;
-  const redirectUrl = new URL('/login', baseUrl);
+): Promise<Response> {
+  const tenantId = getTenantIdFromContext(c);
+  const uiConfig = await getUIConfig(c.env);
+
+  let baseUrl: string;
+  if (uiConfig?.baseUrl) {
+    baseUrl = uiConfig.baseUrl;
+  } else {
+    // Fallback to issuer URL
+    baseUrl = buildIssuerUrl(c.env, tenantId);
+  }
+
+  const loginPath = uiConfig?.paths?.login || '/login';
+  const redirectUrl = new URL(loginPath, baseUrl);
   redirectUrl.searchParams.set('error', error);
   if (description) {
     redirectUrl.searchParams.set('error_description', description);
+  }
+  // Add tenant_hint for UI branding (UX only)
+  if (tenantId && tenantId !== 'default') {
+    redirectUrl.searchParams.set('tenant_hint', tenantId);
   }
 
   return c.redirect(redirectUrl.toString());

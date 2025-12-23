@@ -69,11 +69,20 @@ export class OIDCError extends Error {
  * Handle OIDC error and return JSON response
  */
 export function handleOIDCError(_c: Context, error: OIDCError): Response {
-  // Log error for debugging (PII-safe: only error code and type, no stack trace)
-  console.error(`OIDC Error [${error.statusCode}]:`, {
-    error: error.error,
-    description: error.error_description,
-  });
+  // Log error for debugging (PII-safe: only error code, no description in production)
+  // SECURITY: error_description may contain user input or sensitive details
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    console.error(`OIDC Error [${error.statusCode}]:`, {
+      error: error.error,
+      // description is intentionally omitted in production for PII protection
+    });
+  } else {
+    console.error(`OIDC Error [${error.statusCode}]:`, {
+      error: error.error,
+      description: error.error_description,
+    });
+  }
 
   // Use Response constructor directly to avoid type issues with c.json()
   return new Response(JSON.stringify(error.toJSON()), {
@@ -89,11 +98,19 @@ export function handleOIDCError(_c: Context, error: OIDCError): Response {
  * Includes no-cache headers as per OAuth 2.0 spec
  */
 export function handleTokenError(_c: Context, error: OIDCError): Response {
-  // Log error for debugging (PII-safe: only error code and type, no stack trace)
-  console.error(`OIDC Error [${error.statusCode}]:`, {
-    error: error.error,
-    description: error.error_description,
-  });
+  // Log error for debugging (PII-safe: only error code, no description in production)
+  // SECURITY: error_description may contain user input or sensitive details
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    console.error(`OIDC Error [${error.statusCode}]:`, {
+      error: error.error,
+    });
+  } else {
+    console.error(`OIDC Error [${error.statusCode}]:`, {
+      error: error.error,
+      description: error.error_description,
+    });
+  }
 
   return new Response(JSON.stringify(error.toJSON()), {
     status: error.statusCode,
@@ -110,18 +127,30 @@ export function handleTokenError(_c: Context, error: OIDCError): Response {
  * Includes WWW-Authenticate header as per OAuth 2.0 Bearer Token spec
  */
 export function handleUserInfoError(_c: Context, error: OIDCError): Response {
-  // Log error for debugging (PII-safe: only error code and type, no stack trace)
-  console.error(`OIDC Error [${error.statusCode}]:`, {
-    error: error.error,
-    description: error.error_description,
-  });
+  // Log error for debugging (PII-safe: only error code, no description in production)
+  // SECURITY: error_description may contain user input or sensitive details
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    console.error(`OIDC Error [${error.statusCode}]:`, {
+      error: error.error,
+    });
+  } else {
+    console.error(`OIDC Error [${error.statusCode}]:`, {
+      error: error.error,
+      description: error.error_description,
+    });
+  }
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  if (error.statusCode === HTTP_STATUS.UNAUTHORIZED) {
-    headers['WWW-Authenticate'] = `Bearer error="${error.error}"`;
+  // RFC 6750 Section 3.1: Include error_description for better diagnostics
+  if (error.statusCode === HTTP_STATUS.UNAUTHORIZED && error.error_description) {
+    // Escape double quotes in error_description for header safety
+    const escapedDescription = error.error_description.replace(/"/g, '\\"');
+    headers['WWW-Authenticate'] =
+      `Bearer error="${error.error}", error_description="${escapedDescription}"`;
   }
 
   return new Response(JSON.stringify(error.toJSON()), {
@@ -161,10 +190,26 @@ export function redirectWithError(
 
 /**
  * Pre-defined error factory functions for common errors
+ *
+ * Organized by RFC/specification:
+ * - OAuth 2.0 Core (RFC 6749)
+ * - Bearer Token (RFC 6750)
+ * - OIDC Core 1.0
+ * - Device Authorization Grant (RFC 8628)
+ * - DPoP (RFC 9449)
+ * - Dynamic Client Registration (RFC 7591)
+ * - CIBA (OpenID Connect Client Initiated Backchannel Authentication)
+ * - Token Exchange (RFC 8693)
+ * - OpenID4VCI (OpenID for Verifiable Credential Issuance)
  */
 export const ErrorFactory = {
+  // =========================================================================
+  // OAuth 2.0 Core Errors (RFC 6749)
+  // =========================================================================
+
   /**
    * Invalid request error
+   * The request is missing a required parameter or is otherwise malformed.
    */
   invalidRequest: (description?: string): OIDCError =>
     new OIDCError(
@@ -175,6 +220,7 @@ export const ErrorFactory = {
 
   /**
    * Invalid client error
+   * Client authentication failed.
    */
   invalidClient: (description?: string): OIDCError =>
     new OIDCError(
@@ -185,6 +231,7 @@ export const ErrorFactory = {
 
   /**
    * Invalid grant error
+   * The provided authorization grant is invalid, expired, or revoked.
    */
   invalidGrant: (description?: string): OIDCError =>
     new OIDCError(
@@ -195,6 +242,7 @@ export const ErrorFactory = {
 
   /**
    * Unauthorized client error
+   * The client is not authorized to use this authorization grant type.
    */
   unauthorizedClient: (description?: string): OIDCError =>
     new OIDCError(
@@ -205,6 +253,7 @@ export const ErrorFactory = {
 
   /**
    * Unsupported grant type error
+   * The authorization grant type is not supported.
    */
   unsupportedGrantType: (description?: string): OIDCError =>
     new OIDCError(
@@ -215,6 +264,7 @@ export const ErrorFactory = {
 
   /**
    * Invalid scope error
+   * The requested scope is invalid, unknown, or malformed.
    */
   invalidScope: (description?: string): OIDCError =>
     new OIDCError(
@@ -224,27 +274,8 @@ export const ErrorFactory = {
     ),
 
   /**
-   * Invalid token error
-   */
-  invalidToken: (description?: string): OIDCError =>
-    new OIDCError(
-      ERROR_CODES.INVALID_TOKEN,
-      description || 'The access token is invalid, expired, or revoked',
-      HTTP_STATUS.UNAUTHORIZED
-    ),
-
-  /**
-   * Server error
-   */
-  serverError: (description?: string): OIDCError =>
-    new OIDCError(
-      ERROR_CODES.SERVER_ERROR,
-      description || 'The authorization server encountered an unexpected error',
-      HTTP_STATUS.INTERNAL_SERVER_ERROR
-    ),
-
-  /**
    * Access denied error
+   * The resource owner or authorization server denied the request.
    */
   accessDenied: (description?: string): OIDCError =>
     new OIDCError(
@@ -255,6 +286,7 @@ export const ErrorFactory = {
 
   /**
    * Unsupported response type error
+   * The authorization server does not support this response type.
    */
   unsupportedResponseType: (description?: string): OIDCError =>
     new OIDCError(
@@ -264,7 +296,60 @@ export const ErrorFactory = {
     ),
 
   /**
-   * Interaction required error (OIDC specific)
+   * Server error
+   * The authorization server encountered an unexpected error.
+   */
+  serverError: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.SERVER_ERROR,
+      description || 'The authorization server encountered an unexpected error',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    ),
+
+  /**
+   * Temporarily unavailable error
+   * The server is temporarily overloaded or under maintenance.
+   */
+  temporarilyUnavailable: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      description || 'The server is temporarily unavailable due to overload or maintenance',
+      HTTP_STATUS.SERVICE_UNAVAILABLE
+    ),
+
+  // =========================================================================
+  // Bearer Token Errors (RFC 6750)
+  // =========================================================================
+
+  /**
+   * Invalid token error
+   * The access token is invalid, expired, or revoked.
+   */
+  invalidToken: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INVALID_TOKEN,
+      description || 'The access token is invalid, expired, or revoked',
+      HTTP_STATUS.UNAUTHORIZED
+    ),
+
+  /**
+   * Insufficient scope error
+   * The token does not have the required scope for this resource.
+   */
+  insufficientScope: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INSUFFICIENT_SCOPE,
+      description || 'The token does not have the required scope for this resource',
+      HTTP_STATUS.FORBIDDEN
+    ),
+
+  // =========================================================================
+  // OIDC Core 1.0 Errors
+  // =========================================================================
+
+  /**
+   * Interaction required error
+   * The authorization server requires end-user interaction.
    */
   interactionRequired: (description?: string): OIDCError =>
     new OIDCError(
@@ -274,13 +359,214 @@ export const ErrorFactory = {
     ),
 
   /**
-   * Login required error (OIDC specific)
+   * Login required error
+   * The authorization server requires end-user authentication.
    */
   loginRequired: (description?: string): OIDCError =>
     new OIDCError(
       ERROR_CODES.LOGIN_REQUIRED,
       description || 'The authorization server requires end-user authentication',
       HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Account selection required error
+   * The end-user must select an account.
+   */
+  accountSelectionRequired: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.ACCOUNT_SELECTION_REQUIRED,
+      description || 'The end-user must select an account',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Consent required error
+   * The authorization server requires end-user consent.
+   */
+  consentRequired: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.CONSENT_REQUIRED,
+      description || 'The authorization server requires end-user consent',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Invalid request URI error
+   * The request_uri parameter is invalid.
+   */
+  invalidRequestUri: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INVALID_REQUEST_URI,
+      description || 'The request_uri parameter is invalid',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Invalid request object error
+   * The request parameter contains an invalid Request Object.
+   */
+  invalidRequestObject: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INVALID_REQUEST_OBJECT,
+      description || 'The request parameter contains an invalid Request Object',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  // =========================================================================
+  // Device Authorization Grant Errors (RFC 8628)
+  // =========================================================================
+
+  /**
+   * Authorization pending error
+   * The user has not yet completed authorization (polling should continue).
+   */
+  authorizationPending: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.AUTHORIZATION_PENDING,
+      description || 'The authorization request is still pending',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Slow down error
+   * The client is polling too frequently (should increase interval).
+   */
+  slowDown: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.SLOW_DOWN,
+      description || 'Polling too frequently, please slow down',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Expired token error
+   * The device code has expired.
+   */
+  expiredToken: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.EXPIRED_TOKEN,
+      description || 'The device code has expired',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  // =========================================================================
+  // DPoP Errors (RFC 9449)
+  // =========================================================================
+
+  /**
+   * Invalid DPoP proof error
+   * The DPoP proof is invalid or malformed.
+   */
+  invalidDpopProof: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INVALID_DPOP_PROOF,
+      description || 'The DPoP proof is invalid or malformed',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Use DPoP nonce error
+   * The server requires a DPoP nonce (client should retry with provided nonce).
+   */
+  useDpopNonce: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.USE_DPOP_NONCE,
+      description || 'A DPoP nonce is required, please retry with the provided nonce',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  // =========================================================================
+  // Dynamic Client Registration Errors (RFC 7591)
+  // =========================================================================
+
+  /**
+   * Invalid client metadata error
+   * The client metadata is invalid or malformed.
+   */
+  invalidClientMetadata: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INVALID_CLIENT_METADATA,
+      description || 'The client metadata is invalid or malformed',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Invalid redirect URI error
+   * The redirect URI is invalid or not allowed.
+   */
+  invalidRedirectUri: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INVALID_REDIRECT_URI,
+      description || 'The redirect URI is invalid or not allowed',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  // =========================================================================
+  // CIBA Errors (OpenID Connect Client Initiated Backchannel Authentication)
+  // =========================================================================
+
+  /**
+   * Invalid binding message error
+   * The binding message is invalid or exceeds allowed length.
+   */
+  invalidBindingMessage: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INVALID_BINDING_MESSAGE,
+      description || 'The binding message is invalid or exceeds allowed length',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  // =========================================================================
+  // Token Exchange Errors (RFC 8693)
+  // =========================================================================
+
+  /**
+   * Invalid target error
+   * The token exchange target is invalid.
+   */
+  invalidTarget: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INVALID_TARGET,
+      description || 'The token exchange target is invalid',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  // =========================================================================
+  // OpenID4VCI Errors (OpenID for Verifiable Credential Issuance)
+  // =========================================================================
+
+  /**
+   * Unsupported credential format error
+   * The credential format is not supported.
+   */
+  unsupportedCredentialFormat: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.UNSUPPORTED_CREDENTIAL_FORMAT,
+      description || 'The credential format is not supported',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Invalid proof error
+   * The proof (key proof or similar) is invalid.
+   */
+  invalidProof: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.INVALID_PROOF,
+      description || 'The proof is invalid',
+      HTTP_STATUS.BAD_REQUEST
+    ),
+
+  /**
+   * Issuance pending error
+   * The credential issuance is pending (deferred issuance).
+   */
+  issuancePending: (description?: string): OIDCError =>
+    new OIDCError(
+      ERROR_CODES.ISSUANCE_PENDING,
+      description || 'The credential issuance is pending',
+      HTTP_STATUS.OK // Note: 200 for deferred issuance per spec
     ),
 };
 

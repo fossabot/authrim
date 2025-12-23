@@ -34,7 +34,7 @@ describe('Device Flow Security', () => {
     // Mock environment
     mockEnv = {
       ISSUER_URL: 'https://auth.example.com',
-      UI_BASE_URL: 'https://ui.example.com',
+      UI_URL: 'https://ui.example.com',
       DB: {
         prepare: vi.fn().mockReturnValue({
           bind: vi.fn().mockReturnThis(),

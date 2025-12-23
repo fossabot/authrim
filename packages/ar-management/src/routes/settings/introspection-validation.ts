@@ -148,7 +148,7 @@ export async function getIntrospectionValidationConfig(c: Context<{ Bindings: En
     console.error('[Introspection Validation Settings API] Error getting settings:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get Introspection Validation settings',
       },
       500
@@ -271,7 +271,7 @@ export async function updateIntrospectionValidationConfig(c: Context<{ Bindings:
     // SECURITY: Do not expose internal error details in response
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update settings',
       },
       500
@@ -323,7 +323,7 @@ export async function clearIntrospectionValidationConfig(c: Context<{ Bindings: 
     console.error('[Introspection Validation Settings API] Error clearing settings:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         // SECURITY: Do not expose internal error details
         error_description: 'Failed to clear settings',
       },

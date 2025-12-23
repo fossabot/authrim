@@ -26,6 +26,8 @@ import {
   type DatabaseAdapter,
   createErrorResponse,
   AR_ERROR_CODES,
+  // Custom Redirect URIs (Authrim Extension)
+  validateAllowedOrigins,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -448,6 +450,39 @@ function validateRegistrationRequest(
     }
   }
 
+  // ==========================================================================
+  // Custom Redirect URIs (Authrim Extension)
+  // x_allowed_redirect_origins: Array of origins for error_uri/cancel_uri
+  // ==========================================================================
+  const allowedOrigins = (data as Record<string, unknown>).x_allowed_redirect_origins;
+  if (allowedOrigins !== undefined) {
+    if (!Array.isArray(allowedOrigins)) {
+      return {
+        valid: false,
+        error: {
+          error: 'invalid_client_metadata',
+          error_description: 'x_allowed_redirect_origins must be an array of origin strings',
+        },
+      };
+    }
+
+    // Validate origins using the utility function
+    const originsValidation = validateAllowedOrigins(allowedOrigins);
+    if (!originsValidation.valid) {
+      return {
+        valid: false,
+        error: {
+          error: 'invalid_client_metadata',
+          error_description: `Invalid x_allowed_redirect_origins: ${originsValidation.errors.join(', ')}`,
+        },
+      };
+    }
+
+    // Store normalized origins in data
+    (data as Record<string, unknown>).allowed_redirect_origins =
+      originsValidation.normalizedOrigins;
+  }
+
   return {
     valid: true,
     data: data as ClientRegistrationRequest,
@@ -497,8 +532,9 @@ async function storeClient(env: Env, clientId: string, metadata: ClientMetadata)
       jwks, jwks_uri,
       userinfo_signed_response_alg,
       post_logout_redirect_uris,
+      allowed_redirect_origins,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     [
       clientId,
@@ -525,6 +561,7 @@ async function storeClient(env: Env, clientId: string, metadata: ClientMetadata)
       metadata.post_logout_redirect_uris
         ? JSON.stringify(metadata.post_logout_redirect_uris)
         : null,
+      metadata.allowed_redirect_origins ? JSON.stringify(metadata.allowed_redirect_origins) : null,
       metadata.created_at || now,
       metadata.updated_at || now,
     ]

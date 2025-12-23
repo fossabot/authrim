@@ -62,7 +62,10 @@ describe('serializeToOAuth', () => {
 
   it('should add WWW-Authenticate header for 401 responses', () => {
     const response = serializeToOAuth(baseDescriptor);
-    expect(response.headers.get('WWW-Authenticate')).toBe('Bearer error="login_required"');
+    // RFC 6750 Section 3.1: Include error and error_description
+    expect(response.headers.get('WWW-Authenticate')).toBe(
+      'Bearer error="login_required", error_description="Your session has expired. Please login again."'
+    );
   });
 
   it('should add Retry-After header when provided', () => {

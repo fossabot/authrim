@@ -78,7 +78,6 @@ export interface Env {
   EMAIL_FROM?: string;
   DEFAULT_REDIRECT_URL?: string;
   UI_URL?: string;
-  UI_BASE_URL?: string;
   TRUSTED_JWT_ISSUERS?: string;
   TRUSTED_DOMAINS?: string;
   CODE_VERSION_UUID?: string;

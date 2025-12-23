@@ -53,13 +53,16 @@ export async function handleWarmup(c: Context<{ Bindings: Env }>): Promise<Respo
   // 1. Admin authentication check
   const authHeader = c.req.header('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ error: 'unauthorized', message: 'Missing Authorization header' }, 401);
+    return c.json(
+      { error: 'invalid_client', error_description: 'Missing Authorization header' },
+      401
+    );
   }
 
   const token = authHeader.slice(7);
   // Use timing-safe comparison to prevent timing attacks
   if (!c.env.ADMIN_API_SECRET || !timingSafeEqual(token, c.env.ADMIN_API_SECRET)) {
-    return c.json({ error: 'unauthorized', message: 'Invalid admin secret' }, 401);
+    return c.json({ error: 'invalid_client', error_description: 'Invalid admin secret' }, 401);
   }
 
   // 2. Parse query parameters

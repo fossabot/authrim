@@ -16,6 +16,10 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  // UI Configuration
+  getUIConfig,
+  buildIssuerUrl,
+  getTenantIdFromContext,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -105,11 +109,29 @@ export async function deviceAuthorizationHandler(c: Context<{ Bindings: Env }>) 
     }
 
     // Build verification URIs
-    // Use UI_BASE_URL if available (for SvelteKit UI), otherwise fall back to ISSUER_URL
-    const uiBaseUrl = c.env.UI_BASE_URL || c.env.ISSUER_URL;
-    const baseUri = `${uiBaseUrl}/device`;
-    const verificationUri = baseUri;
-    const verificationUriComplete = getVerificationUriComplete(baseUri, userCode);
+    // Use UI config if available (for external UI), otherwise fall back to ISSUER_URL
+    // tenant_hint is added to verification_uri_complete for UX branding (untrusted, security is via Host header)
+    const tenantId = getTenantIdFromContext(c);
+    const uiConfig = await getUIConfig(c.env);
+    let verificationBaseUrl: string;
+
+    if (uiConfig?.baseUrl) {
+      // External UI configured - use UI base URL with device path
+      const devicePath = uiConfig.paths?.device || '/device';
+      verificationBaseUrl = `${uiConfig.baseUrl}${devicePath}`;
+    } else {
+      // No external UI - use issuer URL (conformance mode or default)
+      const issuer = buildIssuerUrl(c.env, tenantId);
+      verificationBaseUrl = `${issuer}/device`;
+    }
+
+    const verificationUri = verificationBaseUrl;
+    // Add tenant_hint to verification_uri_complete for UI branding (UX only, untrusted)
+    const verificationUriComplete = getVerificationUriComplete(
+      verificationBaseUrl,
+      userCode,
+      tenantId
+    );
 
     // Return device authorization response
     return c.json(

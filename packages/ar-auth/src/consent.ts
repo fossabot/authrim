@@ -511,11 +511,17 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
     const userId = consumedChallengeData.userId;
 
     // If denied, redirect with error
+    // User cancellation uses cancel_uri (Authrim Extension) if available
     if (!approved) {
       const redirectUri = metadata.redirect_uri as string;
-      const redirectUrl = new URL(redirectUri);
+      const cancelUri = metadata.cancel_uri as string | undefined;
+
+      // Use cancel_uri for user-initiated denial, fallback to redirect_uri
+      const targetUri = cancelUri || redirectUri;
+      const redirectUrl = new URL(targetUri);
       redirectUrl.searchParams.set('error', 'access_denied');
       redirectUrl.searchParams.set('error_description', 'User denied the consent request');
+      // state is always included (same rules as redirect_uri)
       if (metadata.state) {
         redirectUrl.searchParams.set('state', metadata.state as string);
       }
@@ -578,6 +584,10 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
     if (acting_as_user_id || metadata.acting_as) {
       params.set('acting_as', acting_as_user_id || (metadata.acting_as as string));
     }
+
+    // Custom Redirect URIs (Authrim Extension)
+    if (metadata.error_uri) params.set('error_uri', metadata.error_uri as string);
+    if (metadata.cancel_uri) params.set('cancel_uri', metadata.cancel_uri as string);
 
     // Add flag to indicate consent is confirmed
     params.set('_consent_confirmed', 'true');

@@ -263,7 +263,8 @@ describe('sendLogoutToken', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe('Network error');
+    // SECURITY: Generic message to avoid exposing network error details
+    expect(result.error).toBe('Request failed');
   });
 });
 

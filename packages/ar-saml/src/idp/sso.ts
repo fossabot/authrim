@@ -19,6 +19,11 @@ import {
   isShardedSessionId,
   D1Adapter,
   type DatabaseAdapter,
+  getUIConfig,
+  buildIssuerUrl,
+  shouldUseBuiltinForms,
+  createConfigurationError,
+  getTenantIdFromContext,
 } from '@authrim/ar-lib-core';
 import * as pako from 'pako';
 import {
@@ -85,11 +90,33 @@ export async function handleIdPSSO(c: Context<{ Bindings: Env }>): Promise<Respo
       await storeAuthnRequest(env, authnRequest, relayState);
 
       // Redirect to login page with return URL
-      const loginUrl = new URL(`${env.UI_BASE_URL}/login`);
-      loginUrl.searchParams.set('saml_request_id', authnRequest.id);
-      loginUrl.searchParams.set('return_to', 'saml_sso');
+      // Conformance mode: use builtin forms
+      // UI configured: redirect to external UI
+      // Neither: return configuration error
+      const tenantId = getTenantIdFromContext(c);
+      const uiConfig = await getUIConfig(env);
 
-      return c.redirect(loginUrl.toString());
+      if (await shouldUseBuiltinForms(env)) {
+        // Conformance mode: redirect to builtin login
+        const loginUrl = new URL('/flow/login', buildIssuerUrl(env, tenantId));
+        loginUrl.searchParams.set('saml_request_id', authnRequest.id);
+        loginUrl.searchParams.set('return_to', 'saml_sso');
+        return c.redirect(loginUrl.toString());
+      }
+
+      if (uiConfig?.baseUrl) {
+        const loginPath = uiConfig.paths?.login || '/login';
+        const loginUrl = new URL(loginPath, uiConfig.baseUrl);
+        loginUrl.searchParams.set('saml_request_id', authnRequest.id);
+        loginUrl.searchParams.set('return_to', 'saml_sso');
+        if (tenantId && tenantId !== 'default') {
+          loginUrl.searchParams.set('tenant_hint', tenantId);
+        }
+        return c.redirect(loginUrl.toString());
+      }
+
+      // No UI configured and conformance mode disabled
+      return c.json(createConfigurationError(), 500);
     }
 
     // Get user information

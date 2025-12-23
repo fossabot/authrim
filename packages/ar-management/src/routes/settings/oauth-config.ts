@@ -43,7 +43,7 @@ export async function getOAuthConfig(c: Context) {
     console.error('[OAuth Config API] Error getting config:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get OAuth configuration',
       },
       500
@@ -156,7 +156,7 @@ export async function updateOAuthConfig(c: Context) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update config',
       },
       500
@@ -207,7 +207,7 @@ export async function clearOAuthConfig(c: Context) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to clear config',
       },
       500
@@ -244,7 +244,7 @@ export async function clearAllOAuthConfig(c: Context) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to clear config',
       },
       500

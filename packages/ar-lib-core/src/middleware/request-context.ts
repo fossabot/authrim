@@ -3,8 +3,12 @@
  *
  * This middleware establishes request-scoped context including:
  * - Request ID for correlation across logs
- * - Tenant ID for future multi-tenant support
+ * - Tenant ID (resolved from Host header in multi-tenant mode)
  * - Structured logger instance
+ *
+ * Multi-tenant mode is enabled when:
+ * - BASE_DOMAIN is set
+ * - TENANT_ISOLATION_ENABLED = 'true'
  *
  * Should be added early in the middleware chain so all subsequent
  * handlers have access to the context.
@@ -12,7 +16,8 @@
 
 import type { Context, Next } from 'hono';
 import type { Env } from '../types/env';
-import { DEFAULT_TENANT_ID } from '../utils/tenant-context';
+import { DEFAULT_TENANT_ID, resolveTenantFromRequest } from '../utils/tenant-context';
+import { isMultiTenantEnabled } from '../utils/issuer';
 import { createLogger, type Logger } from '../utils/logger';
 
 /**
@@ -47,16 +52,63 @@ export interface RequestContext {
  * const logger = c.get('logger');
  * logger.info('Processing request', { action: 'process' });
  */
-export function requestContextMiddleware() {
+/**
+ * Options for request context middleware
+ */
+export interface RequestContextMiddlewareOptions {
+  /**
+   * Whether to return error response on tenant resolution failure.
+   * If true (default), returns 400/404 JSON error response.
+   * If false, continues with default tenant (useful for health checks).
+   */
+  requireTenant?: boolean;
+}
+
+export function requestContextMiddleware(options: RequestContextMiddlewareOptions = {}) {
+  const { requireTenant = true } = options;
+
   return async (c: Context<{ Bindings: Env }>, next: Next) => {
     const requestId = crypto.randomUUID();
     const startTime = Date.now();
 
-    // Single-tenant mode: always use default tenant
-    // Future MT: Extract from subdomain
-    // const host = c.req.header('Host') || '';
-    // const tenantId = extractSubdomain(host, env.BASE_DOMAIN) || DEFAULT_TENANT_ID;
-    const tenantId = DEFAULT_TENANT_ID;
+    // Resolve tenant from Host header
+    // Single-tenant mode: always returns default tenant
+    // Multi-tenant mode: extracts from subdomain
+    const tenantResult = resolveTenantFromRequest(c.req.raw, c.env);
+    let tenantId = tenantResult.tenantId;
+
+    // Handle tenant resolution failure in multi-tenant mode
+    if (!tenantResult.success && isMultiTenantEnabled(c.env) && requireTenant) {
+      // Create logger for error logging
+      const errorLogger = createLogger({ requestId, tenantId: 'unknown' });
+      errorLogger.warn('Tenant resolution failed', {
+        error: tenantResult.error,
+        host: c.req.header('Host'),
+        path: c.req.path,
+      });
+
+      // Return appropriate error response
+      const statusCode = tenantResult.statusCode || 400;
+      const errorMessage =
+        tenantResult.error === 'tenant_not_found'
+          ? 'Tenant not found'
+          : tenantResult.error === 'missing_host'
+            ? 'Host header is required'
+            : 'Invalid Host header format';
+
+      return c.json(
+        {
+          error: tenantResult.error === 'tenant_not_found' ? 'not_found' : 'invalid_request',
+          error_description: errorMessage,
+        },
+        statusCode
+      );
+    }
+
+    // Fallback to default tenant if resolution failed but not required
+    if (!tenantResult.success) {
+      tenantId = c.env.DEFAULT_TENANT_ID || DEFAULT_TENANT_ID;
+    }
 
     // Create logger with request context
     const logger = createLogger({
@@ -77,6 +129,7 @@ export function requestContextMiddleware() {
     logger.debug('Request started', {
       method: c.req.method,
       path: c.req.path,
+      host: c.req.header('Host'),
       userAgent: c.req.header('User-Agent'),
     });
 

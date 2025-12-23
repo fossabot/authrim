@@ -312,7 +312,8 @@ describe('RefreshTokenRotator V2', () => {
 
       const replayBody = (await replayResponse.json()) as any;
       expect(replayBody.error).toBe('invalid_grant');
-      expect(replayBody.error_description).toContain('theft');
+      // Security: Generic message to prevent token state enumeration
+      expect(replayBody.error_description).toContain('Refresh token');
     });
 
     it('should revoke family after theft detection', async () => {
@@ -373,7 +374,8 @@ describe('RefreshTokenRotator V2', () => {
       expect(legitResponse.status).toBe(400);
 
       const legitBody = (await legitResponse.json()) as any;
-      expect(legitBody.error_description).toContain('not found');
+      // Security: Generic message
+      expect(legitBody.error_description).toContain('Refresh token');
     });
   });
 
@@ -412,7 +414,8 @@ describe('RefreshTokenRotator V2', () => {
 
       const body = (await response.json()) as any;
       // Family is keyed by userId, so wrong userId means family not found
-      expect(body.error_description).toContain('not found');
+      // Security: Generic message
+      expect(body.error_description).toContain('Refresh token');
     });
 
     it('should reject rotation with wrong clientId', async () => {
@@ -447,7 +450,8 @@ describe('RefreshTokenRotator V2', () => {
       expect(response.status).toBe(400);
 
       const body = (await response.json()) as any;
-      expect(body.error_description).toContain('mismatch');
+      // Security: Generic message to prevent client enumeration
+      expect(body.error_description).toContain('Refresh token');
     });
   });
 
@@ -485,7 +489,8 @@ describe('RefreshTokenRotator V2', () => {
       expect(response.status).toBe(400);
 
       const body = (await response.json()) as any;
-      expect(body.error_description).toContain('scope');
+      // Security: Generic message
+      expect(body.error_description).toContain('Refresh token');
     });
 
     it('should allow subset of original scope', async () => {
@@ -543,7 +548,8 @@ describe('RefreshTokenRotator V2', () => {
       expect(response.status).toBe(400);
 
       const body = (await response.json()) as any;
-      expect(body.error_description).toContain('not found');
+      // Security: Generic message
+      expect(body.error_description).toContain('Refresh token');
     });
   });
 

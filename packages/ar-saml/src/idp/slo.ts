@@ -22,6 +22,12 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  getUIConfig,
+  buildUIUrl,
+  shouldUseBuiltinForms,
+  createConfigurationError,
+  getTenantIdFromContext,
+  buildIssuerUrl,
 } from '@authrim/ar-lib-core';
 import {
   parseLogoutRequestPost,
@@ -186,15 +192,15 @@ async function processLogoutResponse(
   // TODO: If we're propagating logout to multiple SPs, continue to next SP here
 
   // Redirect to logout complete page
-  const logoutCompleteUrl = new URL(`${env.UI_BASE_URL}/logout-complete`);
-  if (relayState) {
-    logoutCompleteUrl.searchParams.set('relay_state', relayState);
+  const logoutCompleteRedirect = await buildLogoutCompleteUrl(c, env, relayState);
+  if (logoutCompleteRedirect.type === 'error') {
+    return logoutCompleteRedirect.response;
   }
 
   return new Response(null, {
     status: 302,
     headers: {
-      Location: logoutCompleteUrl.toString(),
+      Location: logoutCompleteRedirect.url,
       'Set-Cookie': 'authrim_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
     },
   });
@@ -339,13 +345,13 @@ async function sendLogoutResponse(
 
   // If no destination, redirect to logout complete page
   if (!destination) {
-    const logoutCompleteUrl = new URL(`${env.UI_BASE_URL}/logout-complete`);
-    if (relayState) {
-      logoutCompleteUrl.searchParams.set('relay_state', relayState);
+    const logoutCompleteRedirect = await buildLogoutCompleteUrl(c, env, relayState);
+    if (logoutCompleteRedirect.type === 'error') {
+      return logoutCompleteRedirect.response;
     }
 
     const headers: Record<string, string> = {
-      Location: logoutCompleteUrl.toString(),
+      Location: logoutCompleteRedirect.url,
     };
     if (cookieHeader) {
       headers['Set-Cookie'] = cookieHeader;
@@ -451,6 +457,50 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+/**
+ * Build logout complete URL based on UI config
+ * Supports conformance mode (built-in redirect) and external UI
+ */
+type LogoutCompleteResult =
+  | { type: 'redirect'; url: string }
+  | { type: 'error'; response: Response };
+
+async function buildLogoutCompleteUrl(
+  c: Context<{ Bindings: Env }>,
+  env: Env,
+  relayState?: string | null
+): Promise<LogoutCompleteResult> {
+  const tenantId = getTenantIdFromContext(c);
+
+  // Conformance mode: use built-in path
+  if (await shouldUseBuiltinForms(env)) {
+    const issuerUrl = buildIssuerUrl(env, tenantId);
+    const url = new URL('/logout-complete', issuerUrl);
+    if (relayState) {
+      url.searchParams.set('relay_state', relayState);
+    }
+    return { type: 'redirect', url: url.toString() };
+  }
+
+  // Normal mode: use UI config
+  const uiConfig = await getUIConfig(env);
+  if (!uiConfig?.baseUrl) {
+    return { type: 'error', response: c.json(createConfigurationError(), 500) };
+  }
+
+  const queryParams: Record<string, string> = {};
+  if (relayState) {
+    queryParams.relay_state = relayState;
+  }
+  const url = buildUIUrl(
+    uiConfig,
+    'logoutComplete',
+    queryParams,
+    tenantId !== 'default' ? tenantId : undefined
+  );
+  return { type: 'redirect', url };
 }
 
 /**

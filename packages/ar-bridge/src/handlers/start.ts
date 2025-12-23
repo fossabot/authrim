@@ -10,7 +10,13 @@
 
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
-import { getSessionStoreBySessionId, isShardedSessionId } from '@authrim/ar-lib-core';
+import {
+  getSessionStoreBySessionId,
+  isShardedSessionId,
+  getUIConfig,
+  buildIssuerUrl,
+  getTenantIdFromContext,
+} from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
 import { generatePKCE, generateState, generateNonce } from '../utils/pkce';
@@ -88,7 +94,8 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     }
 
     // Validate and sanitize redirect_uri to prevent Open Redirect attacks
-    const redirectUri = validateRedirectUri(requestedRedirectUri, c.env);
+    const tenantIdResolved = getTenantIdFromContext(c);
+    const redirectUri = await validateRedirectUri(requestedRedirectUri, c.env, tenantIdResolved);
 
     // 1. Get provider configuration (by slug or ID)
     const provider = await getProviderByIdOrSlug(c.env, providerIdOrName, tenantId);
@@ -113,7 +120,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       if (!session) {
         return c.json(
           {
-            error: 'unauthorized',
+            error: 'invalid_token',
             error_description: 'Session required for linking',
           },
           401
@@ -182,7 +189,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     console.error('External start error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to start external login',
       },
       500
@@ -356,17 +363,23 @@ async function decryptClientSecret(env: Env, encrypted: string): Promise<string>
  * Validate redirect_uri to prevent Open Redirect attacks
  *
  * Only allows redirects to:
- * 1. Same origin as UI_BASE_URL
- * 2. Same origin as ISSUER_URL
- * 3. Relative paths (converted to absolute using UI_BASE_URL)
+ * 1. Same origin as UI URL (from configuration)
+ * 2. Same origin as Issuer URL
+ * 3. Relative paths (converted to absolute using UI URL)
  *
- * Falls back to UI_BASE_URL if redirect_uri is invalid or not provided
+ * Falls back to UI URL or Issuer URL if redirect_uri is invalid or not provided
  */
-function validateRedirectUri(
+async function validateRedirectUri(
   requestedUri: string | undefined,
-  env: { UI_BASE_URL?: string; ISSUER_URL: string }
-): string {
-  const baseUrl = env.UI_BASE_URL || env.ISSUER_URL;
+  env: Env,
+  tenantId: string
+): Promise<string> {
+  // Get UI config and build base URL
+  const uiConfig = await getUIConfig(env);
+  const issuerUrl = buildIssuerUrl(env, tenantId);
+
+  // Determine base URL: UI config > issuer URL
+  const baseUrl = uiConfig?.baseUrl || issuerUrl;
   const defaultRedirect = `${baseUrl}/`;
 
   if (!requestedUri) {
@@ -382,7 +395,7 @@ function validateRedirectUri(
     // Parse the requested URI
     const requestedUrl = new URL(requestedUri);
     const baseUrlParsed = new URL(baseUrl);
-    const issuerUrlParsed = new URL(env.ISSUER_URL);
+    const issuerUrlParsed = new URL(issuerUrl);
 
     // Extract allowed origins
     const allowedOrigins = new Set([baseUrlParsed.origin, issuerUrlParsed.origin]);

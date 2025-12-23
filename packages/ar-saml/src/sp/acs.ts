@@ -16,6 +16,9 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  getUIConfig,
+  getTenantIdFromContext,
+  buildIssuerUrl,
 } from '@authrim/ar-lib-core';
 import {
   parseXml,
@@ -152,7 +155,12 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
     const sessionId = await createSession(env, userId);
 
     // Determine redirect URL
-    const returnUrl = relayState || `${env.UI_BASE_URL}/`;
+    let returnUrl = relayState;
+    if (!returnUrl) {
+      const uiConfig = await getUIConfig(env);
+      const tenantId = getTenantIdFromContext(c);
+      returnUrl = uiConfig?.baseUrl ? `${uiConfig.baseUrl}/` : `${buildIssuerUrl(env, tenantId)}/`;
+    }
 
     // Set session cookie and redirect
     return new Response(null, {

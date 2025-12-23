@@ -10,9 +10,15 @@
  * Security Note:
  * UI_URL is admin-configured static value (not user input)
  * No open redirect vector - URL is set via env/KV by administrator
+ *
+ * Security Validation (Defense in Depth):
+ * - Admin API validates baseUrl when setting via KV (strict, blocks invalid)
+ * - Environment variable UI_URL is trusted but warned if suspicious
+ * - See: ui-url-validator.ts for validation logic
  */
 
 import type { Env } from '../types/env';
+import { validateUIBaseUrl, parseAllowedOriginsEnv } from './ui-url-validator';
 
 /**
  * UI path configuration for various screens
@@ -166,17 +172,23 @@ export const UI_PATH_METADATA: Record<
   },
 };
 
+// Flag to track if UI_URL warning has been logged (avoid spam)
+let uiUrlWarningLogged = false;
+
 /**
  * Get UI configuration
  * Priority: KV (system_settings.ui) > env.UI_URL > null
+ *
+ * Security: KV values are validated when set via Admin API.
+ * Environment variable UI_URL is trusted but warned if suspicious (defense in depth).
  *
  * @param env Environment bindings
  * @returns UI configuration or null if not configured
  */
 export async function getUIConfig(
-  env: Partial<Pick<Env, 'SETTINGS' | 'UI_URL'>>
+  env: Partial<Pick<Env, 'SETTINGS' | 'UI_URL' | 'ISSUER_URL' | 'ALLOWED_ORIGINS'>>
 ): Promise<UIConfig | null> {
-  // 1. Try KV first
+  // 1. Try KV first (already validated when set via Admin API)
   if (env.SETTINGS) {
     try {
       const settings = await env.SETTINGS.get('system_settings');
@@ -194,8 +206,22 @@ export async function getUIConfig(
     }
   }
 
-  // 2. Try environment variable
+  // 2. Try environment variable (trusted but validate for defense in depth)
   if (env.UI_URL) {
+    // Defense in depth: warn if UI_URL doesn't pass validation
+    // This helps catch misconfigurations during development/staging
+    if (!uiUrlWarningLogged) {
+      const allowedOrigins = parseAllowedOriginsEnv(env.ALLOWED_ORIGINS);
+      const validation = validateUIBaseUrl(env.UI_URL, env.ISSUER_URL, allowedOrigins);
+      if (!validation.valid) {
+        console.warn(
+          `[UI Config] WARNING: UI_URL environment variable may be misconfigured: ${validation.error}. ` +
+            `URL: ${env.UI_URL}. This is a warning only - the value will still be used.`
+        );
+        uiUrlWarningLogged = true;
+      }
+    }
+
     return {
       baseUrl: normalizeUrl(env.UI_URL),
       paths: DEFAULT_UI_PATHS,

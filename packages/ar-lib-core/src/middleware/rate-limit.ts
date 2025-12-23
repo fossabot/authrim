@@ -5,7 +5,7 @@
  * Uses Cloudflare KV for distributed rate limit tracking.
  *
  * Configuration Priority:
- * 1. In-memory cache (10s TTL)
+ * 1. In-memory cache (default 5min TTL, configurable via SETTINGS_CACHE_TTL_SECONDS)
  * 2. KV (AUTHRIM_CONFIG namespace) - Dynamic override without deployment
  * 3. Environment variables (RATE_LIMIT_PROFILE)
  * 4. Default profiles (RateLimitProfiles)
@@ -36,31 +36,276 @@ interface RateLimitRecord {
   resetAt: number; // Unix timestamp when the window resets
 }
 
+// ============================================================
+// Cloud Provider IP Extraction
+// ============================================================
+
 /**
- * Get client IP address from request
- * Uses Cloudflare-specific headers when available
+ * Supported cloud providers for trusted IP extraction
+ *
+ * Each provider has different mechanisms for providing the real client IP:
+ * - cloudflare: Uses CF-Connecting-IP header (most secure, single IP)
+ * - aws: Uses X-Forwarded-For, ALB adds client IP at the end
+ * - azure: Uses X-Forwarded-For, App Gateway adds client IP at the end
+ * - gcp: Uses X-Forwarded-For, adds client IP + LB IP (2nd from end is client)
+ * - none: No trusted proxy, uses X-Forwarded-For first IP (WARNING: spoofable!)
  */
-function getClientIP(c: Context): string {
-  // Cloudflare provides the client IP in CF-Connecting-IP header
-  const cfIP = c.req.header('CF-Connecting-IP');
-  if (cfIP) {
-    return cfIP;
+export type CloudProvider = 'cloudflare' | 'aws' | 'azure' | 'gcp' | 'none';
+
+/**
+ * KV key for cloud provider setting
+ */
+const CLOUD_PROVIDER_KV_KEY = 'security_cloud_provider';
+
+/**
+ * Default cloud provider (Cloudflare - most secure)
+ */
+const DEFAULT_CLOUD_PROVIDER: CloudProvider = 'cloudflare';
+
+/**
+ * Cached cloud provider setting
+ */
+interface CachedCloudProviderSetting {
+  provider: CloudProvider;
+  cachedAt: number;
+}
+let cloudProviderCache: CachedCloudProviderSetting | null = null;
+
+/**
+ * Default cache TTL in milliseconds (5 minutes)
+ * Can be overridden via SETTINGS_CACHE_TTL_SECONDS environment variable
+ *
+ * Design note: Admin API clears cache immediately on settings change,
+ * so this TTL only affects direct KV edits (emergency operations).
+ * Longer TTL = fewer KV reads = lower cost and latency.
+ */
+const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Get cache TTL from environment variable or use default
+ * @param env - Environment bindings
+ * @returns Cache TTL in milliseconds
+ */
+function getCacheTTLMs(env: Env): number {
+  if (env.SETTINGS_CACHE_TTL_SECONDS) {
+    const seconds = parseInt(env.SETTINGS_CACHE_TTL_SECONDS, 10);
+    if (!isNaN(seconds) && seconds > 0) {
+      return seconds * 1000;
+    }
+  }
+  return DEFAULT_CACHE_TTL_MS;
+}
+
+/**
+ * Get the KV key for cloud provider setting
+ * Exported for use in Admin API
+ */
+export function getCloudProviderKVKey(): string {
+  return CLOUD_PROVIDER_KV_KEY;
+}
+
+/**
+ * Get the default cloud provider
+ * Exported for use in Admin API
+ */
+export function getDefaultCloudProvider(): CloudProvider {
+  return DEFAULT_CLOUD_PROVIDER;
+}
+
+/**
+ * Valid cloud provider values
+ */
+export const VALID_CLOUD_PROVIDERS: CloudProvider[] = ['cloudflare', 'aws', 'azure', 'gcp', 'none'];
+
+/**
+ * Get the configured cloud provider
+ * @param env - Environment with KV bindings
+ * @returns Cloud provider setting
+ */
+async function getCloudProvider(env: Env): Promise<CloudProvider> {
+  const now = Date.now();
+  const cacheTTL = getCacheTTLMs(env);
+
+  // Check cache first
+  if (cloudProviderCache && now - cloudProviderCache.cachedAt < cacheTTL) {
+    return cloudProviderCache.provider;
   }
 
-  // Fallback to X-Forwarded-For header
-  const xForwardedFor = c.req.header('X-Forwarded-For');
-  if (xForwardedFor) {
-    // X-Forwarded-For can contain multiple IPs, take the first one
-    return xForwardedFor.split(',')[0]?.trim() || 'unknown';
+  // Default: cloudflare (most secure)
+  let provider: CloudProvider = DEFAULT_CLOUD_PROVIDER;
+
+  // Check KV for setting
+  if (env.AUTHRIM_CONFIG) {
+    try {
+      const kvValue = await env.AUTHRIM_CONFIG.get(CLOUD_PROVIDER_KV_KEY);
+      if (kvValue && VALID_CLOUD_PROVIDERS.includes(kvValue as CloudProvider)) {
+        provider = kvValue as CloudProvider;
+      }
+    } catch {
+      // KV read error - use default
+    }
   }
 
-  // Last resort: use X-Real-IP
+  // Update cache
+  cloudProviderCache = { provider, cachedAt: now };
+
+  return provider;
+}
+
+/**
+ * Clear the cloud provider cache
+ * Useful for testing or immediate setting changes
+ */
+export function clearCloudProviderCache(): void {
+  cloudProviderCache = null;
+}
+
+// Legacy export for backward compatibility
+export function clearTrustCfIpCache(): void {
+  clearCloudProviderCache();
+}
+
+// Legacy export for backward compatibility
+export function getTrustCfIpHeaderKVKey(): string {
+  return CLOUD_PROVIDER_KV_KEY;
+}
+
+/**
+ * Get fallback IP from X-Forwarded-For or X-Real-IP
+ * WARNING: These can be spoofed! Only used as fallback when primary method fails.
+ *
+ * @param c - Hono context
+ * @returns IP address or 'unknown'
+ */
+function getFallbackIP(c: Context): string {
+  const xff = c.req.header('X-Forwarded-For');
+  if (xff) {
+    return xff.split(',')[0]?.trim() || 'unknown';
+  }
   const xRealIP = c.req.header('X-Real-IP');
   if (xRealIP) {
     return xRealIP;
   }
-
   return 'unknown';
+}
+
+/**
+ * Get client IP address from request based on cloud provider
+ *
+ * IP Extraction Methods by Provider:
+ *
+ * **Cloudflare** (Default, Most Secure):
+ * - Uses CF-Connecting-IP header which cannot be spoofed
+ * - Falls back to X-Forwarded-For if CF header is missing (with warning)
+ *
+ * **AWS ALB**:
+ * - Uses X-Forwarded-For, takes the LAST IP (ALB appends client IP)
+ * - Ref: https://docs.aws.amazon.com/elasticloadbalancing/
+ *
+ * **Azure Application Gateway**:
+ * - Uses X-Forwarded-For, takes the LAST IP (Gateway appends client IP)
+ * - Ref: https://learn.microsoft.com/azure/application-gateway/
+ *
+ * **GCP Load Balancer**:
+ * - Uses X-Forwarded-For, takes the 2nd from LAST IP
+ * - GCP appends [client_ip, lb_ip] to the header
+ * - Ref: https://cloud.google.com/load-balancing/docs/https/
+ *
+ * **None** (No Cloud/Direct):
+ * - Uses X-Forwarded-For first IP or X-Real-IP
+ * - WARNING: Can be spoofed! Recommend using WAF
+ *
+ * Security Note: When primary IP extraction fails, the system falls back to
+ * X-Forwarded-For first IP which can be spoofed. This is preferable to returning
+ * 'unknown' because 'unknown' causes all requests to share a single rate limit
+ * bucket, which is a larger security issue.
+ *
+ * @param c - Hono context
+ * @param provider - Cloud provider
+ */
+function getClientIP(c: Context, provider: CloudProvider): string {
+  switch (provider) {
+    case 'cloudflare': {
+      // Cloudflare provides the client IP in CF-Connecting-IP header
+      // This header cannot be spoofed when traffic goes through Cloudflare
+      const cfIP = c.req.header('CF-Connecting-IP');
+      if (cfIP) {
+        return cfIP;
+      }
+      // Also check True-Client-IP (Cloudflare Enterprise feature)
+      const trueClientIP = c.req.header('True-Client-IP');
+      if (trueClientIP) {
+        return trueClientIP;
+      }
+      // Not behind Cloudflare - fallback to X-Forwarded-For
+      // Security: Log warning because this may indicate misconfiguration or bypass attempt
+      const fallbackIP = getFallbackIP(c);
+      if (fallbackIP !== 'unknown') {
+        console.warn(
+          '[Rate Limit] CF-Connecting-IP header missing, falling back to X-Forwarded-For. ' +
+            'This may indicate the request is not going through Cloudflare. IP: ' +
+            fallbackIP.substring(0, 10) +
+            '...'
+        );
+      }
+      return fallbackIP;
+    }
+
+    case 'aws': {
+      // AWS ALB appends client IP to the END of X-Forwarded-For
+      // Format: "original_xff, client_ip" or just "client_ip"
+      const xff = c.req.header('X-Forwarded-For');
+      if (xff) {
+        const ips = xff.split(',').map((ip) => ip.trim());
+        // Take the last IP (added by ALB)
+        const ip = ips[ips.length - 1];
+        if (ip) return ip;
+      }
+      // No X-Forwarded-For - may be direct connection, use fallback
+      return getFallbackIP(c);
+    }
+
+    case 'azure': {
+      // Azure Application Gateway appends client IP to the END of X-Forwarded-For
+      // Similar to AWS ALB behavior
+      const xff = c.req.header('X-Forwarded-For');
+      if (xff) {
+        const ips = xff.split(',').map((ip) => ip.trim());
+        // Take the last IP (added by App Gateway)
+        const ip = ips[ips.length - 1];
+        if (ip) return ip;
+      }
+      // No X-Forwarded-For - may be direct connection, use fallback
+      return getFallbackIP(c);
+    }
+
+    case 'gcp': {
+      // GCP Load Balancer appends TWO IPs: [client_ip, lb_ip]
+      // So we need the 2nd from last IP
+      const xff = c.req.header('X-Forwarded-For');
+      if (xff) {
+        const ips = xff.split(',').map((ip) => ip.trim());
+        if (ips.length >= 2) {
+          // Take the 2nd from last IP (client IP before LB IP)
+          const ip = ips[ips.length - 2];
+          if (ip) return ip;
+        } else if (ips.length === 1 && ips[0]) {
+          // Only one IP - use it (direct connection to LB)
+          return ips[0];
+        }
+      }
+      // No X-Forwarded-For - may be direct connection, use fallback
+      return getFallbackIP(c);
+    }
+
+    case 'none':
+    default: {
+      // No trusted proxy - use first IP from X-Forwarded-For
+      // WARNING: This can be spoofed by clients!
+      // Users should configure WAF for additional protection
+      return getFallbackIP(c);
+    }
+  }
 }
 
 /**
@@ -168,7 +413,9 @@ export function rateLimitMiddleware(config: RateLimitConfig) {
       }
     }
 
-    const clientIP = getClientIP(c);
+    // Get cloud provider setting for IP extraction
+    const cloudProvider = await getCloudProvider(c.env);
+    const clientIP = getClientIP(c, cloudProvider);
 
     // Skip rate limiting for whitelisted IPs
     if (config.skipIPs && config.skipIPs.includes(clientIP)) {
@@ -201,8 +448,18 @@ export function rateLimitMiddleware(config: RateLimitConfig) {
       return await next();
     } catch (error) {
       console.error('Rate limiting error:', error);
-      // On error, allow request to proceed (fail open)
-      return await next();
+      // Security: Fail-close - deny request on error to prevent bypass attacks
+      // RFC 6749 5.2: Use 'temporarily_unavailable' for 503 responses
+      // RFC 6749: All error responses MUST include Cache-Control: no-store
+      c.header('Cache-Control', 'no-store');
+      c.header('Pragma', 'no-cache');
+      return c.json(
+        {
+          error: 'temporarily_unavailable',
+          error_description: 'The service is temporarily unavailable. Please try again later.',
+        },
+        503
+      );
     }
   };
 }
@@ -255,14 +512,13 @@ export const RateLimitProfiles = {
 
 /**
  * Cached rate limit config to avoid repeated KV lookups.
- * Cache duration: 10 seconds (same as shard count cache)
+ * Cache duration controlled by SETTINGS_CACHE_TTL_SECONDS env var (default: 5 minutes)
  */
 interface CachedRateLimitConfig {
   config: RateLimitConfig;
   cachedAt: number;
 }
 const rateLimitConfigCache = new Map<string, CachedRateLimitConfig>();
-const RATE_LIMIT_CACHE_TTL_MS = 10000; // 10 seconds
 
 /**
  * KV keys for rate limit configuration
@@ -311,7 +567,8 @@ async function getRateLimitConfigFromKV(
 
   // Check cache first
   const cached = rateLimitConfigCache.get(cacheKey);
-  if (cached && now - cached.cachedAt < RATE_LIMIT_CACHE_TTL_MS) {
+  const cacheTTL = getCacheTTLMs(env);
+  if (cached && now - cached.cachedAt < cacheTTL) {
     return cached.config;
   }
 
@@ -390,7 +647,7 @@ const PROFILE_OVERRIDE_KV_KEY = 'rate_limit_profile_override';
  * Get rate limit profile with KV override support (async version)
  *
  * Priority:
- * 1. Cache (10s TTL)
+ * 1. Cache (default 5min TTL, configurable via SETTINGS_CACHE_TTL_SECONDS)
  * 2. KV profile override (rate_limit_profile_override) - switches ALL endpoints to specified profile
  * 3. KV per-profile settings (rate_limit_{profile}_max_requests, rate_limit_{profile}_window_seconds)
  * 4. Environment variable (RATE_LIMIT_PROFILE for profile selection)

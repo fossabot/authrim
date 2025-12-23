@@ -403,16 +403,34 @@ Data separation architecture for GDPR/CCPA compliance:
 
 ### Key Features
 
-| Feature              | Description                               | Status     |
-| -------------------- | ----------------------------------------- | ---------- |
-| @authrim/sdk-core    | Headless OIDC/PKCE client                 | 🔜 Planned |
-| @authrim/sdk-web     | Web Components (Lit/Stencil)              | 🔜 Planned |
-| @authrim/sdk-react   | React hooks and components                | 🔜 Planned |
-| CDN Bundle           | `authrim-sdk.min.js` for `<script>` usage | 🔜 Planned |
-| OpenAPI Spec         | Complete API specification                | 🔜 Planned |
-| API Portal           | Interactive documentation                 | 🔜 Planned |
-| Login Flow Designer  | Visual login page configuration           | 🔜 Planned |
-| Policy Admin Console | Role Editor, Policy Editor, ReBAC Graph   | 🔜 Planned |
+| Feature               | Description                               | Status     |
+| --------------------- | ----------------------------------------- | ---------- |
+| @authrim/sdk-core     | Headless OIDC/PKCE client                 | 🔜 Planned |
+| @authrim/sdk-web      | Web Components (Lit/Stencil)              | 🔜 Planned |
+| @authrim/sdk-react    | React hooks and components                | 🔜 Planned |
+| CDN Bundle            | `authrim-sdk.min.js` for `<script>` usage | 🔜 Planned |
+| OpenAPI Spec          | Complete API specification                | 🔜 Planned |
+| API Portal            | Interactive documentation                 | 🔜 Planned |
+| Login Flow Designer   | Visual login page configuration           | 🔜 Planned |
+| Policy Admin Console  | Role Editor, Policy Editor, ReBAC Graph   | 🔜 Planned |
+| **Error Code Guide**  | SDK error handling documentation          | 🔜 Planned |
+
+### 10.1 SDK Error Handling Documentation 📌 REQUIRED
+
+> **重要**: SDK公開前に必ず実施すること
+
+エラーコード関連の実装が完了（2024-12-23）。以下のドキュメントをSDKに含める必要あり:
+
+| ドキュメント | 内容 | 参照 |
+|-------------|------|------|
+| Error Code Reference | RFC標準エラーコード一覧 | `private/docs/error-codes-inventory.md` Section 1 |
+| Error Handling Guide | エラーハンドリングのベストプラクティス | `private/docs/error-codes-inventory.md` Section 9 |
+| Security Considerations | セキュリティレベル（public/masked/internal）の説明 | `private/docs/error-codes-inventory.md` Section 8 |
+
+**実装済みの変更**:
+- ErrorFactory: 28関数に拡張（RFC 6749/6750/8628/9449/7591/8693対応）
+- error_description: RFC準拠の英語メッセージに統一
+- エラーコード統合: `internal_server_error`→`server_error`, `unauthorized`→`invalid_token` 等
 
 ---
 

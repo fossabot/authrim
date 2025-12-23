@@ -203,7 +203,7 @@ export async function rotateDomainHashKey(c: Context) {
     console.error('[Domain Hash Keys API] Rotate error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to rotate domain hash key',
       },
       500
@@ -267,7 +267,7 @@ export async function completeDomainHashKeyRotation(c: Context) {
     console.error('[Domain Hash Keys API] Complete error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to complete key rotation',
       },
       500
@@ -331,7 +331,7 @@ export async function getDomainHashKeyStatus(c: Context) {
     console.error('[Domain Hash Keys API] Status error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get key rotation status',
       },
       500
@@ -428,7 +428,7 @@ export async function deleteDomainHashKeyVersion(c: Context) {
     console.error('[Domain Hash Keys API] Delete error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to delete key version',
       },
       500

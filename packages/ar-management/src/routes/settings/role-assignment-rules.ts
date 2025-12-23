@@ -193,7 +193,7 @@ export async function createRoleAssignmentRule(c: Context) {
     console.error('[Role Assignment Rules API] Create error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to create rule',
       },
       500
@@ -250,7 +250,7 @@ export async function listRoleAssignmentRules(c: Context) {
     console.error('[Role Assignment Rules API] List error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to list rules',
       },
       500
@@ -289,7 +289,7 @@ export async function getRoleAssignmentRule(c: Context) {
     console.error('[Role Assignment Rules API] Get error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get rule',
       },
       500
@@ -411,7 +411,7 @@ export async function updateRoleAssignmentRule(c: Context) {
     console.error('[Role Assignment Rules API] Update error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update rule',
       },
       500
@@ -459,7 +459,7 @@ export async function deleteRoleAssignmentRule(c: Context) {
     console.error('[Role Assignment Rules API] Delete error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to delete rule',
       },
       500
@@ -534,7 +534,7 @@ export async function testRoleAssignmentRule(c: Context) {
     console.error('[Role Assignment Rules API] Test error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to test rule',
       },
       500
@@ -597,7 +597,7 @@ export async function evaluateRoleAssignmentRules(c: Context) {
     console.error('[Role Assignment Rules API] Evaluate error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to evaluate rules',
       },
       500

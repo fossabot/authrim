@@ -146,7 +146,7 @@ export async function getLogoutConfig(c: Context<{ Bindings: Env }>) {
     console.error('[Logout Config API] Error getting config:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get logout configuration',
       },
       500
@@ -246,7 +246,7 @@ export async function updateLogoutConfig(c: Context<{ Bindings: Env }>) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update config',
       },
       500
@@ -283,7 +283,7 @@ export async function resetLogoutConfig(c: Context<{ Bindings: Env }>) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to reset config',
       },
       500

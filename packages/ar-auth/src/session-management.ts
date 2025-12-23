@@ -38,7 +38,7 @@ export async function issueSessionTokenHandler(c: Context<{ Bindings: Env }>) {
     if (!sessionId) {
       return c.json(
         {
-          error: 'unauthorized',
+          error: 'invalid_token',
           error_description: 'No active session found',
         },
         401
@@ -49,7 +49,7 @@ export async function issueSessionTokenHandler(c: Context<{ Bindings: Env }>) {
     if (!isShardedSessionId(sessionId)) {
       return c.json(
         {
-          error: 'session_not_found',
+          error: 'invalid_grant',
           error_description: 'Session has expired or is invalid',
         },
         401
@@ -62,7 +62,7 @@ export async function issueSessionTokenHandler(c: Context<{ Bindings: Env }>) {
     if (!session) {
       return c.json(
         {
-          error: 'session_not_found',
+          error: 'invalid_grant',
           error_description: 'Session has expired or is invalid',
         },
         401
@@ -378,7 +378,7 @@ export async function refreshSessionHandler(c: Context<{ Bindings: Env }>) {
     if (!isShardedSessionId(sessionId)) {
       return c.json(
         {
-          error: 'session_not_found',
+          error: 'invalid_grant',
           error_description: 'Session has expired or is invalid',
         },
         401
@@ -394,7 +394,7 @@ export async function refreshSessionHandler(c: Context<{ Bindings: Env }>) {
     if (!session) {
       return c.json(
         {
-          error: 'session_not_found',
+          error: 'invalid_grant',
           error_description: 'Session not found or has expired',
         },
         404

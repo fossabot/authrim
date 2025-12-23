@@ -124,11 +124,20 @@ export function isDeviceFlowPollingTooFast(
  *
  * @param baseUri - Base verification URI
  * @param userCode - User code to embed
+ * @param tenantHint - Optional tenant hint for UI branding (UX only, untrusted)
  * @returns Complete verification URI
  */
-export function getVerificationUriComplete(baseUri: string, userCode: string): string {
+export function getVerificationUriComplete(
+  baseUri: string,
+  userCode: string,
+  tenantHint?: string
+): string {
   const url = new URL(baseUri);
   url.searchParams.set('user_code', userCode);
+  // Add tenant_hint for UI branding (UX only, security is determined by Host header)
+  if (tenantHint && tenantHint !== 'default') {
+    url.searchParams.set('tenant_hint', tenantHint);
+  }
   return url.toString();
 }
 

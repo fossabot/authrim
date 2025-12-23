@@ -366,6 +366,17 @@ export interface ClientMetadata extends ClientRegistrationResponse {
   default_scope?: string;
   /** Default audience when audience parameter is omitted */
   default_audience?: string;
+
+  // ==========================================================================
+  // Custom Redirect URIs (Authrim Extension)
+  // ==========================================================================
+  /**
+   * Allowed origins for custom redirect URIs (error_uri, cancel_uri).
+   * Array of origin strings (e.g., ["https://app.example.com"]).
+   * Same-origin with redirect_uri is always allowed without registration.
+   * Note: This is an Authrim extension, not OIDC standard.
+   */
+  allowed_redirect_origins?: string[];
 }
 
 /**

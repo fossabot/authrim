@@ -137,7 +137,7 @@ export async function createOrgDomainMapping(c: Context) {
     console.error('[Org Domain Mappings API] Create error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to create domain mapping',
       },
       500
@@ -176,7 +176,7 @@ export async function listOrgDomainMappings(c: Context) {
     console.error('[Org Domain Mappings API] List error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to list domain mappings',
       },
       500
@@ -210,7 +210,7 @@ export async function getOrgDomainMapping(c: Context) {
     console.error('[Org Domain Mappings API] Get error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get domain mapping',
       },
       500
@@ -253,7 +253,7 @@ export async function updateOrgDomainMapping(c: Context) {
     console.error('[Org Domain Mappings API] Update error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update domain mapping',
       },
       500
@@ -287,7 +287,7 @@ export async function deleteOrgDomainMapping(c: Context) {
     console.error('[Org Domain Mappings API] Delete error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to delete domain mapping',
       },
       500
@@ -339,7 +339,7 @@ export async function listOrgDomainMappingsByOrg(c: Context) {
     console.error('[Org Domain Mappings API] List by org error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to list domain mappings',
       },
       500
@@ -382,7 +382,7 @@ export async function verifyDomainOwnership(c: Context) {
     console.error('[Org Domain Mappings API] Verify error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to verify domain',
       },
       500

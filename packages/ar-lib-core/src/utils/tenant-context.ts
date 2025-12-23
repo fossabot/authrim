@@ -1,14 +1,20 @@
 /**
  * Tenant Context Utilities
  *
- * Single-tenant mode: always returns 'default'
- * Future MT: resolve from subdomain/header
+ * Supports both single-tenant and multi-tenant modes:
+ * - Single-tenant: always returns DEFAULT_TENANT_ID ('default')
+ * - Multi-tenant: resolves tenant from Host header subdomain
  *
- * This module provides the foundation for future multi-tenant support
- * while keeping the system single-tenant for now.
+ * Multi-tenant mode is enabled when:
+ * - BASE_DOMAIN is set
+ * - TENANT_ISOLATION_ENABLED = 'true'
+ *
+ * Security: Tenant ID is determined by Host header (trusted),
+ * NOT tenant_hint (untrusted UX hint).
  */
 
 import type { Env } from '../types/env';
+import { isMultiTenantEnabled, validateHostHeader, extractSubdomain } from './issuer';
 
 /**
  * Default tenant ID used in single-tenant mode.
@@ -20,12 +26,120 @@ export const DEFAULT_TENANT_ID = 'default';
  * Get the current tenant ID.
  * In single-tenant mode, this always returns 'default'.
  *
- * Future MT: This will extract tenant from request context.
+ * @deprecated Use getTenantIdFromHost() or resolveTenantFromRequest() instead
  */
 export function getTenantId(): string {
-  // For now, always return default
-  // Future: extract from request context
   return DEFAULT_TENANT_ID;
+}
+
+/**
+ * Tenant resolution result
+ */
+export interface TenantResolutionResult {
+  success: boolean;
+  tenantId: string;
+  error?: 'missing_host' | 'invalid_format' | 'tenant_not_found';
+  statusCode?: 400 | 404;
+}
+
+/**
+ * Resolve tenant ID from Host header.
+ *
+ * In single-tenant mode, returns DEFAULT_TENANT_ID.
+ * In multi-tenant mode, extracts tenant from Host subdomain.
+ *
+ * @param host - Host header value
+ * @param env - Environment bindings
+ * @returns Tenant resolution result
+ *
+ * @example
+ * // Single-tenant
+ * getTenantIdFromHost('auth.example.com', env)
+ * // => { success: true, tenantId: 'default' }
+ *
+ * // Multi-tenant
+ * getTenantIdFromHost('acme.authrim.com', env)
+ * // => { success: true, tenantId: 'acme' }
+ *
+ * // Error cases
+ * getTenantIdFromHost(undefined, env) // MT mode
+ * // => { success: false, tenantId: 'default', error: 'missing_host', statusCode: 400 }
+ */
+export function getTenantIdFromHost(
+  host: string | undefined,
+  env: Partial<Env>
+): TenantResolutionResult {
+  const validation = validateHostHeader(host, env);
+
+  if (validation.valid && validation.tenantId) {
+    return {
+      success: true,
+      tenantId: validation.tenantId,
+    };
+  }
+
+  // Return error details for multi-tenant mode
+  return {
+    success: false,
+    tenantId: env.DEFAULT_TENANT_ID || DEFAULT_TENANT_ID, // Fallback for error handling
+    error: validation.error,
+    statusCode: validation.statusCode,
+  };
+}
+
+/**
+ * Resolve tenant from HTTP Request.
+ *
+ * Extracts Host header and resolves tenant ID.
+ * This is the primary function for middleware/handlers.
+ *
+ * @param request - HTTP Request object
+ * @param env - Environment bindings
+ * @returns Tenant resolution result
+ *
+ * @example
+ * const result = resolveTenantFromRequest(request, env);
+ * if (!result.success) {
+ *   return new Response('Tenant not found', { status: result.statusCode });
+ * }
+ * const tenantId = result.tenantId;
+ */
+export function resolveTenantFromRequest(
+  request: Request,
+  env: Partial<Env>
+): TenantResolutionResult {
+  const host = request.headers.get('Host') ?? undefined;
+  return getTenantIdFromHost(host, env);
+}
+
+/**
+ * Get tenant ID or throw error.
+ *
+ * Convenience function that throws on resolution failure.
+ * Use when you need the tenant ID and want to handle errors upstream.
+ *
+ * @param host - Host header value
+ * @param env - Environment bindings
+ * @returns Tenant ID string
+ * @throws Error with appropriate message on failure
+ */
+export function getTenantIdOrThrow(host: string | undefined, env: Partial<Env>): string {
+  const result = getTenantIdFromHost(host, env);
+
+  if (result.success) {
+    return result.tenantId;
+  }
+
+  switch (result.error) {
+    case 'missing_host':
+      throw new Error('Host header is required');
+    case 'invalid_format':
+      throw new Error('Invalid Host header format');
+    case 'tenant_not_found':
+      throw new Error('Tenant not found');
+    default:
+      throw new Error('Failed to resolve tenant');
+  }
 }
 
 /**
@@ -33,13 +147,19 @@ export function getTenantId(): string {
  *
  * @param resourceType - Type of resource (e.g., 'session', 'auth-code')
  * @param resourceId - Unique identifier for the resource
+ * @param tenantId - Optional tenant ID (defaults to DEFAULT_TENANT_ID)
  * @returns Tenant-prefixed key string
  *
  * @example
  * buildDOKey('session', 'abc123') // => 'tenant:default:session:abc123'
+ * buildDOKey('session', 'abc123', 'acme') // => 'tenant:acme:session:abc123'
  */
-export function buildDOKey(resourceType: string, resourceId: string): string {
-  return `tenant:${DEFAULT_TENANT_ID}:${resourceType}:${resourceId}`;
+export function buildDOKey(
+  resourceType: string,
+  resourceId: string,
+  tenantId: string = DEFAULT_TENANT_ID
+): string {
+  return `tenant:${tenantId}:${resourceType}:${resourceId}`;
 }
 
 /**
@@ -47,13 +167,19 @@ export function buildDOKey(resourceType: string, resourceId: string): string {
  *
  * @param prefix - Key prefix (e.g., 'client', 'state')
  * @param key - Unique key value
+ * @param tenantId - Optional tenant ID (defaults to DEFAULT_TENANT_ID)
  * @returns Tenant-prefixed key string
  *
  * @example
  * buildKVKey('client', 'my-client-id') // => 'tenant:default:client:my-client-id'
+ * buildKVKey('client', 'my-client-id', 'acme') // => 'tenant:acme:client:my-client-id'
  */
-export function buildKVKey(prefix: string, key: string): string {
-  return `tenant:${DEFAULT_TENANT_ID}:${prefix}:${key}`;
+export function buildKVKey(
+  prefix: string,
+  key: string,
+  tenantId: string = DEFAULT_TENANT_ID
+): string {
+  return `tenant:${tenantId}:${prefix}:${key}`;
 }
 
 /**
@@ -61,14 +187,19 @@ export function buildKVKey(prefix: string, key: string): string {
  * Used when creating DO instance IDs via idFromName().
  *
  * @param resourceType - Type of DO resource (e.g., 'session', 'key-manager')
+ * @param tenantId - Optional tenant ID (defaults to DEFAULT_TENANT_ID)
  * @returns Tenant-prefixed instance name
  *
  * @example
  * buildDOInstanceName('session') // => 'tenant:default:session'
- * env.SESSION_STORE.idFromName(buildDOInstanceName('session'))
+ * buildDOInstanceName('session', 'acme') // => 'tenant:acme:session'
+ * env.SESSION_STORE.idFromName(buildDOInstanceName('session', tenantId))
  */
-export function buildDOInstanceName(resourceType: string): string {
-  return `tenant:${DEFAULT_TENANT_ID}:${resourceType}`;
+export function buildDOInstanceName(
+  resourceType: string,
+  tenantId: string = DEFAULT_TENANT_ID
+): string {
+  return `tenant:${tenantId}:${resourceType}`;
 }
 
 /**
@@ -185,10 +316,14 @@ export function parseShardedAuthCode(
  * Build a sharded Durable Object instance name for auth codes.
  *
  * @param shardIndex - Shard index
+ * @param tenantId - Optional tenant ID (defaults to DEFAULT_TENANT_ID)
  * @returns DO instance name for the shard
  */
-export function buildAuthCodeShardInstanceName(shardIndex: number): string {
-  return `tenant:${DEFAULT_TENANT_ID}:auth-code:shard-${shardIndex}`;
+export function buildAuthCodeShardInstanceName(
+  shardIndex: number,
+  tenantId: string = DEFAULT_TENANT_ID
+): string {
+  return `tenant:${tenantId}:auth-code:shard-${shardIndex}`;
 }
 
 /**
@@ -363,8 +498,22 @@ export async function getSessionShardCount(env: Env): Promise<number> {
  * Build a sharded Durable Object instance name for sessions.
  *
  * @param shardIndex - Shard index
+ * @param tenantId - Optional tenant ID (defaults to DEFAULT_TENANT_ID)
  * @returns DO instance name for the shard
  */
-export function buildSessionShardInstanceName(shardIndex: number): string {
-  return `tenant:${DEFAULT_TENANT_ID}:session:shard-${shardIndex}`;
+export function buildSessionShardInstanceName(
+  shardIndex: number,
+  tenantId: string = DEFAULT_TENANT_ID
+): string {
+  return `tenant:${tenantId}:session:shard-${shardIndex}`;
 }
+
+// Re-export issuer utilities for convenience
+// These are commonly used together with tenant context
+export {
+  buildIssuerUrl,
+  isMultiTenantEnabled,
+  validateHostHeader,
+  extractSubdomain,
+  type HostValidationResult,
+} from './issuer';

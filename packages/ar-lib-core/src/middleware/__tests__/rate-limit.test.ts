@@ -762,7 +762,7 @@ describe('Rate Limiting Middleware', () => {
   });
 
   describe('Error Handling', () => {
-    it('should fail open on KV errors (allow request)', async () => {
+    it('should fail close on KV errors (deny request with 503)', async () => {
       // Create a KV that throws errors
       const errorKV = {
         get: async () => {
@@ -788,7 +788,8 @@ describe('Rate Limiting Middleware', () => {
 
       app.get('/test', (c) => c.json({ success: true }));
 
-      // Should succeed despite KV errors (fail open)
+      // Security: Should deny request on KV errors (fail-close)
+      // This prevents rate limit bypass attacks via intentional errors
       const res = await app.request(
         '/test',
         {
@@ -800,7 +801,14 @@ describe('Rate Limiting Middleware', () => {
         mockEnv
       );
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
+      const json = (await res.json()) as { error: string; error_description: string };
+      // RFC 6749 5.2: 503 responses should use 'temporarily_unavailable' error code
+      expect(json.error).toBe('temporarily_unavailable');
+      expect(json.error_description).toContain('temporarily unavailable');
+      // RFC 6749: Cache-Control header should be set
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      expect(res.headers.get('Pragma')).toBe('no-cache');
     });
   });
 });

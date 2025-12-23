@@ -119,6 +119,17 @@ export interface OAuthClient {
   /** Whether sid is required in frontchannel logout */
   frontchannel_logout_session_required: boolean;
 
+  // ==========================================================================
+  // Custom Redirect URIs (Authrim Extension)
+  // ==========================================================================
+  /**
+   * Allowed origins for custom redirect URIs (error_uri, cancel_uri).
+   * JSON array of origin strings (e.g., '["https://app.example.com"]').
+   * Same-origin with redirect_uri is always allowed without registration.
+   * Note: This is an Authrim extension, not OIDC standard.
+   */
+  allowed_redirect_origins: string | null;
+
   // Timestamps
   created_at: number;
   updated_at: number;
@@ -168,6 +179,8 @@ export interface CreateClientInput {
   backchannel_logout_session_required?: boolean;
   frontchannel_logout_uri?: string | null;
   frontchannel_logout_session_required?: boolean;
+  // Custom Redirect URIs (Authrim Extension)
+  allowed_redirect_origins?: string[] | null;
 }
 
 /**
@@ -212,6 +225,8 @@ export interface UpdateClientInput {
   backchannel_logout_session_required?: boolean;
   frontchannel_logout_uri?: string | null;
   frontchannel_logout_session_required?: boolean;
+  // Custom Redirect URIs (Authrim Extension)
+  allowed_redirect_origins?: string[] | null;
 }
 
 /**
@@ -298,6 +313,10 @@ export class ClientRepository {
       backchannel_logout_session_required: input.backchannel_logout_session_required ?? false,
       frontchannel_logout_uri: input.frontchannel_logout_uri ?? null,
       frontchannel_logout_session_required: input.frontchannel_logout_session_required ?? false,
+      // Custom Redirect URIs (Authrim Extension)
+      allowed_redirect_origins: input.allowed_redirect_origins
+        ? JSON.stringify(input.allowed_redirect_origins)
+        : null,
       created_at: now,
       updated_at: now,
     };
@@ -318,8 +337,9 @@ export class ClientRepository {
         userinfo_signed_response_alg,
         backchannel_logout_uri, backchannel_logout_session_required,
         frontchannel_logout_uri, frontchannel_logout_session_required,
+        allowed_redirect_origins,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         client.client_id,
         client.client_secret,
@@ -360,6 +380,7 @@ export class ClientRepository {
         client.backchannel_logout_session_required ? 1 : 0,
         client.frontchannel_logout_uri,
         client.frontchannel_logout_session_required ? 1 : 0,
+        client.allowed_redirect_origins,
         client.created_at,
         client.updated_at,
       ]
@@ -551,6 +572,13 @@ export class ClientRepository {
     if (input.frontchannel_logout_session_required !== undefined) {
       updates.push('frontchannel_logout_session_required = ?');
       params.push(input.frontchannel_logout_session_required ? 1 : 0);
+    }
+    // Custom Redirect URIs (Authrim Extension)
+    if (input.allowed_redirect_origins !== undefined) {
+      updates.push('allowed_redirect_origins = ?');
+      params.push(
+        input.allowed_redirect_origins ? JSON.stringify(input.allowed_redirect_origins) : null
+      );
     }
 
     params.push(clientId);

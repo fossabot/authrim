@@ -81,7 +81,7 @@ export function requireRole(roleName: string) {
     if (!authContext) {
       return c.json(
         {
-          error: 'unauthorized',
+          error: 'invalid_token',
           error_description: 'Authentication required. Please authenticate first.',
         },
         401
@@ -117,7 +117,7 @@ export function requireAnyRole(roleNames: string[]) {
     if (!authContext) {
       return c.json(
         {
-          error: 'unauthorized',
+          error: 'invalid_token',
           error_description: 'Authentication required. Please authenticate first.',
         },
         401
@@ -155,7 +155,7 @@ export function requireAllRoles(roleNames: string[]) {
     if (!authContext) {
       return c.json(
         {
-          error: 'unauthorized',
+          error: 'invalid_token',
           error_description: 'Authentication required. Please authenticate first.',
         },
         401

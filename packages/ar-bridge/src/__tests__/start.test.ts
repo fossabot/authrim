@@ -83,9 +83,9 @@ async function checkRateLimit(
  */
 function validateRedirectUri(
   requestedUri: string | undefined,
-  env: { UI_BASE_URL?: string; ISSUER_URL: string }
+  env: { UI_URL?: string; ISSUER_URL: string }
 ): string {
-  const baseUrl = env.UI_BASE_URL || env.ISSUER_URL;
+  const baseUrl = env.UI_URL || env.ISSUER_URL;
   const defaultRedirect = `${baseUrl}/`;
 
   if (!requestedUri) {
@@ -264,12 +264,12 @@ describe('Rate Limiting', () => {
 
 describe('Open Redirect Prevention', () => {
   const mockEnv = {
-    UI_BASE_URL: 'https://auth.example.com',
+    UI_URL: 'https://auth.example.com',
     ISSUER_URL: 'https://api.example.com',
   };
 
   describe('allowed redirects', () => {
-    it('should allow redirect to UI_BASE_URL', () => {
+    it('should allow redirect to UI_URL', () => {
       const result = validateRedirectUri('https://auth.example.com/dashboard', mockEnv);
       expect(result).toBe('https://auth.example.com/dashboard');
     });
@@ -284,7 +284,7 @@ describe('Open Redirect Prevention', () => {
       expect(result).toBe('https://auth.example.com/dashboard');
     });
 
-    it('should convert relative path to absolute using UI_BASE_URL', () => {
+    it('should convert relative path to absolute using UI_URL', () => {
       const result = validateRedirectUri('/login?redirect=/profile', mockEnv);
       expect(result).toBe('https://auth.example.com/login?redirect=/profile');
     });
@@ -351,7 +351,7 @@ describe('Open Redirect Prevention', () => {
       expect(result).toBe('https://auth.example.com/app#/dashboard');
     });
 
-    it('should use ISSUER_URL as default when UI_BASE_URL not set', () => {
+    it('should use ISSUER_URL as default when UI_URL not set', () => {
       const envWithoutUi = {
         ISSUER_URL: 'https://api.example.com',
       };

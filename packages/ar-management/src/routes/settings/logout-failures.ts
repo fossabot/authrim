@@ -68,7 +68,7 @@ export async function listLogoutFailures(c: Context<{ Bindings: Env }>) {
     console.error('[Logout Failures API] Error listing failures:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to list logout failures',
       },
       500
@@ -126,7 +126,7 @@ export async function getLogoutFailure(c: Context<{ Bindings: Env }>) {
     console.error(`[Logout Failures API] Error getting failure for ${clientId}:`, error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get logout failure',
       },
       500
@@ -175,7 +175,7 @@ export async function clearLogoutFailure(c: Context<{ Bindings: Env }>) {
     console.error(`[Logout Failures API] Error clearing failure for ${clientId}:`, error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to clear logout failure',
       },
       500
@@ -219,7 +219,7 @@ export async function clearAllLogoutFailures(c: Context<{ Bindings: Env }>) {
     console.error('[Logout Failures API] Error clearing all failures:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to clear all logout failures',
       },
       500

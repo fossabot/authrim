@@ -115,7 +115,8 @@ describe('adminAuthMiddleware', () => {
       expect(response.status).toBe(401);
 
       const data = (await response.json()) as Record<string, unknown>;
-      expect(data.error).toBe('unauthorized');
+      // RFC 6750: invalid_token is the standard error code for Bearer token failures
+      expect(data.error).toBe('invalid_token');
     });
 
     it('should reject when no secrets are configured', async () => {
@@ -423,7 +424,8 @@ describe('adminAuthMiddleware', () => {
       expect(response.status).toBe(401);
 
       const data = (await response.json()) as Record<string, unknown>;
-      expect(data.error).toBe('unauthorized');
+      // RFC 6750: invalid_token is the standard error code for Bearer token failures
+      expect(data.error).toBe('invalid_token');
       expect(data.error_description).toContain('Admin authentication required');
     });
   });

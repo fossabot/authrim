@@ -95,7 +95,7 @@ app.notFound((c) => {
 // Error handler
 app.onError((err, c) => {
   console.error('Error:', err);
-  return c.json({ error: 'internal_server_error', message: 'An unexpected error occurred' }, 500);
+  return c.json({ error: 'server_error', error_description: 'An unexpected error occurred' }, 500);
 });
 
 // Export for Cloudflare Workers

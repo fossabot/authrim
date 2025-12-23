@@ -219,7 +219,7 @@ export async function createTokenClaimRule(c: Context) {
     console.error('[Token Claim Rules API] Create error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to create rule',
       },
       500
@@ -282,7 +282,7 @@ export async function listTokenClaimRules(c: Context) {
     console.error('[Token Claim Rules API] List error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to list rules',
       },
       500
@@ -321,7 +321,7 @@ export async function getTokenClaimRule(c: Context) {
     console.error('[Token Claim Rules API] Get error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get rule',
       },
       500
@@ -454,7 +454,7 @@ export async function updateTokenClaimRule(c: Context) {
     console.error('[Token Claim Rules API] Update error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update rule',
       },
       500
@@ -503,7 +503,7 @@ export async function deleteTokenClaimRule(c: Context) {
     console.error('[Token Claim Rules API] Delete error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to delete rule',
       },
       500
@@ -575,7 +575,7 @@ export async function testTokenClaimRuleHandler(c: Context) {
     console.error('[Token Claim Rules API] Test error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to test rule',
       },
       500
@@ -634,7 +634,7 @@ export async function evaluateTokenClaimRules(c: Context) {
     console.error('[Token Claim Rules API] Evaluate error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to evaluate rules',
       },
       500

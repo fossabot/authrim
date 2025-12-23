@@ -259,7 +259,8 @@ describe('PARRequestStore', () => {
 
       const body = (await secondResponse.json()) as any;
       expect(body.error).toBe('invalid_request_uri');
-      expect(body.error_description).toContain('already consumed');
+      // Security: Generic message
+      expect(body.error_description).toContain('PAR request');
     });
 
     it('should reject consumption with wrong client_id', async () => {
@@ -288,7 +289,8 @@ describe('PARRequestStore', () => {
 
       expect(response.status).toBe(400);
       const body = (await response.json()) as any;
-      expect(body.error_description).toContain('client_id mismatch');
+      // Security: Generic message to prevent client enumeration
+      expect(body.error_description).toContain('PAR request');
     });
 
     it('should reject consumption of non-existent request_uri', async () => {
@@ -305,7 +307,8 @@ describe('PARRequestStore', () => {
 
       expect(response.status).toBe(400);
       const body = (await response.json()) as any;
-      expect(body.error_description).toContain('not found');
+      // Security: Generic message
+      expect(body.error_description).toContain('PAR request');
     });
 
     it('should reject consumption without requestUri', async () => {

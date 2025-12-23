@@ -152,6 +152,7 @@ export interface Env {
   USER_CACHE_TTL?: string; // User cache TTL in seconds (default: 3600 = 1 hour)
   CONSENT_CACHE_TTL?: string; // Consent cache TTL in seconds (default: 86400 = 24 hours)
   CONFIG_CACHE_TTL?: string; // Config in-memory cache TTL in seconds (default: 180 = 3 minutes)
+  SETTINGS_CACHE_TTL_SECONDS?: string; // Settings/config in-memory cache TTL (default: 300 = 5 minutes)
 
   // RBAC Consent Screen Configuration (Phase 2-B)
   // Feature flags to control consent screen RBAC features
@@ -269,7 +270,4 @@ export interface Env {
 
   // Check API KV Cache
   CHECK_CACHE_KV?: KVNamespace; // Cache for permission check results
-
-  // Default tenant ID for multi-tenant deployments
-  DEFAULT_TENANT_ID?: string; // Default: "default"
 }

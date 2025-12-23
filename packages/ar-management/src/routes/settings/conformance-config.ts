@@ -131,6 +131,7 @@ export async function deleteConformanceConfigHandler(c: Context<{ Bindings: Env 
 
   return c.json({
     success: true,
-    message: 'Conformance configuration cleared. Will fall back to environment variable or default.',
+    message:
+      'Conformance configuration cleared. Will fall back to environment variable or default.',
   });
 }

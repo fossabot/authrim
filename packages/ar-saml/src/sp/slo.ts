@@ -22,6 +22,12 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  getUIConfig,
+  buildUIUrl,
+  shouldUseBuiltinForms,
+  createConfigurationError,
+  getTenantIdFromContext,
+  buildIssuerUrl,
 } from '@authrim/ar-lib-core';
 import {
   parseLogoutRequestPost,
@@ -221,7 +227,14 @@ async function processLogoutResponse(
   }
 
   // Clear session cookie and redirect to logout complete
-  const returnUrl = relayState || `${env.UI_BASE_URL}/logout-complete`;
+  let returnUrl = relayState;
+  if (!returnUrl) {
+    const logoutCompleteRedirect = await buildLogoutCompleteUrlForSP(c, env);
+    if (logoutCompleteRedirect.type === 'error') {
+      return logoutCompleteRedirect.response;
+    }
+    returnUrl = logoutCompleteRedirect.url;
+  }
 
   return new Response(null, {
     status: 302,
@@ -512,6 +525,41 @@ export async function initiateSPLogout(
 </html>`;
 
   return { html };
+}
+
+/**
+ * Build logout complete URL based on UI config (for SP)
+ * Supports conformance mode (built-in redirect) and external UI
+ */
+type LogoutCompleteResultSP =
+  | { type: 'redirect'; url: string }
+  | { type: 'error'; response: Response };
+
+async function buildLogoutCompleteUrlForSP(
+  c: Context<{ Bindings: Env }>,
+  env: Env
+): Promise<LogoutCompleteResultSP> {
+  const tenantId = getTenantIdFromContext(c);
+
+  // Conformance mode: use built-in path
+  if (await shouldUseBuiltinForms(env)) {
+    const issuerUrl = buildIssuerUrl(env, tenantId);
+    return { type: 'redirect', url: `${issuerUrl}/logout-complete` };
+  }
+
+  // Normal mode: use UI config
+  const uiConfig = await getUIConfig(env);
+  if (!uiConfig?.baseUrl) {
+    return { type: 'error', response: c.json(createConfigurationError(), 500) };
+  }
+
+  const url = buildUIUrl(
+    uiConfig,
+    'logoutComplete',
+    {},
+    tenantId !== 'default' ? tenantId : undefined
+  );
+  return { type: 'redirect', url };
 }
 
 /**

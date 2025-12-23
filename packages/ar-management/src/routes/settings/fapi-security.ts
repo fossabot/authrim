@@ -201,7 +201,7 @@ export async function getFapiSecurityConfig(c: Context<{ Bindings: Env }>) {
     console.error('[FAPI Security Settings API] Error getting settings:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get FAPI/Security settings',
       },
       500
@@ -375,7 +375,7 @@ export async function updateFapiSecurityConfig(c: Context<{ Bindings: Env }>) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update settings',
       },
       500
@@ -433,7 +433,7 @@ export async function clearFapiSecurityConfig(c: Context<{ Bindings: Env }>) {
     // SECURITY: Do not expose internal error details
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to clear settings',
       },
       500

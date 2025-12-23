@@ -98,7 +98,7 @@ export async function getTokenEmbeddingSettings(c: Context) {
     console.error('[Token Embedding Settings API] Get error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get token embedding settings',
       },
       500
@@ -239,7 +239,7 @@ export async function updateTokenEmbeddingSettings(c: Context) {
     console.error('[Token Embedding Settings API] Update error:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to update token embedding settings',
       },
       500

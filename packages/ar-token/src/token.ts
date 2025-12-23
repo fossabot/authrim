@@ -101,8 +101,14 @@ function oauthError(
   c.header('Pragma', 'no-cache');
 
   // RFC 6750 Section 3: Add WWW-Authenticate header for 401 responses
+  // Include error_description for better diagnostics (RFC 6750 Section 3.1)
   if (status === 401) {
-    c.header('WWW-Authenticate', `Bearer error="${error}"`);
+    // Escape double quotes in error_description for header safety
+    const escapedDescription = errorDescription.replace(/"/g, '\\"');
+    c.header(
+      'WWW-Authenticate',
+      `Bearer error="${error}", error_description="${escapedDescription}"`
+    );
   }
 
   return c.json(
@@ -799,10 +805,12 @@ async function handleAuthorizationCodeGrant(
     );
 
     if (!assertionValidation.valid) {
+      // Security: Log detailed error but return generic message to prevent information leakage
+      console.error('Client assertion validation failed:', assertionValidation.error_description);
       return oauthError(
         c,
         assertionValidation.error || 'invalid_client',
-        assertionValidation.error_description || 'Client assertion validation failed',
+        'Client assertion validation failed',
         401
       );
     }
@@ -1098,11 +1106,12 @@ async function handleAuthorizationCodeGrant(
       try {
         validateJWEOptions(alg, enc);
       } catch (validationError) {
+        // Security: Log internal details but return generic message to prevent information leakage
         console.error('Invalid JWE options:', validationError);
         return c.json(
           {
             error: 'invalid_client_metadata',
-            error_description: `Client encryption configuration is invalid: ${validationError instanceof Error ? validationError.message : 'Unknown error'}`,
+            error_description: 'Client encryption configuration is invalid',
           },
           400
         );
@@ -1393,10 +1402,12 @@ async function handleRefreshTokenGrant(
     );
 
     if (!assertionValidation.valid) {
+      // Security: Log detailed error but return generic message to prevent information leakage
+      console.error('Client assertion validation failed:', assertionValidation.error_description);
       return oauthError(
         c,
         assertionValidation.error || 'invalid_client',
-        assertionValidation.error_description || 'Client assertion validation failed',
+        'Client assertion validation failed',
         401
       );
     }
@@ -3079,12 +3090,9 @@ async function handleTokenExchangeGrant(
       typedClient
     );
     if (!assertionValidation.valid) {
-      return oauthError(
-        c,
-        'invalid_client',
-        assertionValidation.error_description || 'Client assertion validation failed',
-        401
-      );
+      // Security: Log detailed error but return generic message to prevent information leakage
+      console.error('Client assertion validation failed:', assertionValidation.error_description);
+      return oauthError(c, 'invalid_client', 'Client assertion validation failed', 401);
     }
   } else if (typedClient.client_secret) {
     // client_secret_basic or client_secret_post
@@ -3743,12 +3751,9 @@ async function handleClientCredentialsGrant(
       typedClient
     );
     if (!assertionValidation.valid) {
-      return oauthError(
-        c,
-        'invalid_client',
-        assertionValidation.error_description || 'Client assertion validation failed',
-        401
-      );
+      // Security: Log detailed error but return generic message to prevent information leakage
+      console.error('Client assertion validation failed:', assertionValidation.error_description);
+      return oauthError(c, 'invalid_client', 'Client assertion validation failed', 401);
     }
   } else if (typedClient.client_secret) {
     // client_secret_basic or client_secret_post

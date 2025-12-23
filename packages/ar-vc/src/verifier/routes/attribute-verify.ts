@@ -61,13 +61,13 @@ export async function initiateAttributeVerification(
     // Extract user info from access token
     const authHeader = c.req.header('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ error: 'unauthorized', error_description: 'Missing access token' }, 401);
+      return c.json({ error: 'invalid_token', error_description: 'Missing access token' }, 401);
     }
 
     // Validate access token and get user info
     const userInfo = await validateAccessToken(c.env, authHeader.substring(7));
     if (!userInfo) {
-      return c.json({ error: 'unauthorized', error_description: 'Invalid access token' }, 401);
+      return c.json({ error: 'invalid_token', error_description: 'Invalid access token' }, 401);
     }
 
     const body = await c.req.json<InitiateVerificationRequest>();
@@ -302,12 +302,12 @@ export async function getAttributes(c: Context<{ Bindings: Env }>): Promise<Resp
   try {
     const authHeader = c.req.header('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ error: 'unauthorized', error_description: 'Missing access token' }, 401);
+      return c.json({ error: 'invalid_token', error_description: 'Missing access token' }, 401);
     }
 
     const userInfo = await validateAccessToken(c.env, authHeader.substring(7));
     if (!userInfo) {
-      return c.json({ error: 'unauthorized', error_description: 'Invalid access token' }, 401);
+      return c.json({ error: 'invalid_token', error_description: 'Invalid access token' }, 401);
     }
 
     const adapter = new D1Adapter({ db: c.env.DB });

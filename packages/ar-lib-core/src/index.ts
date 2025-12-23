@@ -66,6 +66,8 @@ export * from './utils/claim-normalizer';
 export * from './utils/feature-flags';
 export * from './utils/ui-config';
 export * from './utils/conformance-config';
+export * from './utils/custom-redirect';
+export * from './utils/ui-url-validator';
 
 // Error System (Phase 10 - SDK public types)
 // Note: Exported with namespace to avoid conflicts with legacy error types

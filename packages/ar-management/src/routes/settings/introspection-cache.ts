@@ -152,7 +152,7 @@ export async function getIntrospectionCacheConfigHandler(c: Context<{ Bindings: 
     console.error('[Introspection Cache Settings API] Error getting settings:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         error_description: 'Failed to get Introspection Cache settings',
       },
       500
@@ -268,7 +268,7 @@ export async function updateIntrospectionCacheConfigHandler(c: Context<{ Binding
     console.error('[Introspection Cache Settings API] Error updating settings:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         // SECURITY: Do not expose internal error details
         error_description: 'Failed to update settings',
       },
@@ -321,7 +321,7 @@ export async function clearIntrospectionCacheConfigHandler(c: Context<{ Bindings
     console.error('[Introspection Cache Settings API] Error clearing settings:', error);
     return c.json(
       {
-        error: 'internal_error',
+        error: 'server_error',
         // SECURITY: Do not expose internal error details
         error_description: 'Failed to clear settings',
       },

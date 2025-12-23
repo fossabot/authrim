@@ -3,20 +3,28 @@
  * RFC 8628: Device User Authorization
  *
  * IMPORTANT: This is a minimal HTML form for OIDC conformance testing only.
- * For production use, redirect users to the SvelteKit UI at UI_BASE_URL/device
+ * For production use, configure UI_URL and redirect users to the external UI.
  * or use the headless JSON API at POST /api/device/verify
  */
 
 import type { Context } from 'hono';
 import type { Env, DeviceCodeMetadata } from '@authrim/ar-lib-core';
-import { normalizeUserCode, validateUserCodeFormat, isMockAuthEnabled } from '@authrim/ar-lib-core';
+import {
+  normalizeUserCode,
+  validateUserCodeFormat,
+  isMockAuthEnabled,
+  getUIConfig,
+  shouldUseBuiltinForms,
+  createConfigurationError,
+  getTenantIdFromContext,
+} from '@authrim/ar-lib-core';
 import { html } from 'hono/html';
 
 /**
  * GET /device
  * Minimal device verification form (Conformance test only)
  *
- * Note: In production, users should be redirected to UI_BASE_URL/device
+ * Note: In production, configure UI_URL and users will be redirected to external UI.
  */
 export async function deviceVerifyHandler(c: Context<{ Bindings: Env }>) {
   if (c.req.method === 'GET') {
@@ -36,13 +44,8 @@ async function showMinimalVerificationForm(c: Context<{ Bindings: Env }>) {
   const error = c.req.query('error');
   const success = c.req.query('success');
 
-  // For production use, redirect to SvelteKit UI
-  // Uncomment the following lines when UI is deployed:
-  // if (c.env.UI_BASE_URL) {
-  //   const redirectUrl = new URL(`${c.env.UI_BASE_URL}/device`);
-  //   if (userCodeParam) redirectUrl.searchParams.set('user_code', userCodeParam);
-  //   return c.redirect(redirectUrl.toString());
-  // }
+  // Note: For production, users are redirected to external UI in handleVerificationSubmission()
+  // This built-in form is only used when CONFORMANCE_MODE=true
 
   // Minimal HTML for conformance testing
   const page = html`
@@ -126,14 +129,30 @@ async function handleVerificationSubmission(c: Context<{ Bindings: Env }>) {
 
     if (!mockAuthEnabled) {
       // Production mode: Redirect to proper authentication flow
-      // Store user_code in session and redirect to login
-      if (c.env.UI_BASE_URL) {
-        const loginUrl = new URL(`${c.env.UI_BASE_URL}/device/authorize`);
+      // Check conformance mode first
+      if (await shouldUseBuiltinForms(c.env)) {
+        // Conformance mode: Show error (mock auth disabled, no real auth in conformance mode)
+        return c.redirect(
+          '/device?error=Authentication required. Enable mock auth for conformance testing.'
+        );
+      }
+
+      // Check UI configuration
+      const uiConfig = await getUIConfig(c.env);
+      if (uiConfig?.baseUrl) {
+        const tenantId = getTenantIdFromContext(c);
+        const deviceAuthPath = uiConfig.paths?.deviceAuthorize || '/device/authorize';
+        const loginUrl = new URL(`${uiConfig.baseUrl}${deviceAuthPath}`);
         loginUrl.searchParams.set('user_code', userCode);
+        // Add tenant_hint for UI branding (UX only, untrusted)
+        if (tenantId && tenantId !== 'default') {
+          loginUrl.searchParams.set('tenant_hint', tenantId);
+        }
         return c.redirect(loginUrl.toString());
       }
-      // No UI configured - show error
-      return c.redirect('/device?error=Authentication required. Please use the full UI.');
+
+      // No UI configured and conformance mode disabled - return configuration error
+      return c.json(createConfigurationError(), 500);
     }
 
     // DEVELOPMENT ONLY: Auto-approve with mock user

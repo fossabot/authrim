@@ -6,12 +6,13 @@ import {
   buildIssuerUrl,
   DEFAULT_LOGOUT_CONFIG,
   LOGOUT_SETTINGS_KEY,
+  getTenantIdFromContext,
 } from '@authrim/ar-lib-core';
 import type { LogoutConfig } from '@authrim/ar-lib-core';
 
 // Cache for metadata to improve performance
-let cachedMetadata: OIDCProviderMetadata | null = null;
-let cachedSettingsHash: string | null = null;
+// Key: tenantId:settingsHash, Value: metadata
+const metadataCache = new Map<string, OIDCProviderMetadata>();
 
 /**
  * OpenID Connect Discovery Endpoint Handler
@@ -20,8 +21,11 @@ let cachedSettingsHash: string | null = null;
  * Returns metadata about the OpenID Provider's configuration
  */
 export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
-  // Use buildIssuerUrl for future multi-tenant support
-  const issuer = buildIssuerUrl(c.env);
+  // Get tenant ID from request context (set by requestContextMiddleware)
+  const tenantId = getTenantIdFromContext(c);
+
+  // Build issuer URL for this tenant
+  const issuer = buildIssuerUrl(c.env, tenantId);
 
   // Load dynamic configuration from SETTINGS KV
   let oidcConfig: any = {};
@@ -73,13 +77,16 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
   const clientCredentialsEnabled =
     oidcConfig.clientCredentials?.enabled ?? c.env.ENABLE_CLIENT_CREDENTIALS === 'true';
 
-  // Check if cached metadata is still valid (include feature flags in cache key)
+  // Check if cached metadata is still valid (include feature flags and tenant in cache key)
   const logoutHash = `bc=${logoutConfig.backchannel.enabled}:fc=${logoutConfig.frontchannel.enabled}:sm=${logoutConfig.session_management.enabled}`;
-  const currentHash = `${issuer}:${currentSettingsJson}:te=${tokenExchangeEnabled}:cc=${clientCredentialsEnabled}:${logoutHash}`;
-  if (cachedMetadata && cachedSettingsHash === currentHash) {
+  const settingsHash = `${currentSettingsJson}:te=${tokenExchangeEnabled}:cc=${clientCredentialsEnabled}:${logoutHash}`;
+  const cacheKey = `${tenantId}:${settingsHash}`;
+
+  const cachedMetadata = metadataCache.get(cacheKey);
+  if (cachedMetadata) {
     // Cache hit - return cached metadata
     c.header('Cache-Control', 'public, max-age=300');
-    c.header('Vary', 'Accept-Encoding');
+    c.header('Vary', 'Accept-Encoding, Host');
     return c.json(cachedMetadata);
   }
 
@@ -234,14 +241,18 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
     backchannel_logout_session_supported: logoutConfig.backchannel.enabled,
   };
 
-  // Update cache
-  cachedMetadata = metadata;
-  cachedSettingsHash = currentHash;
+  // Update cache (with size limit to prevent memory issues)
+  if (metadataCache.size > 100) {
+    // Simple LRU: clear oldest entries when cache gets too large
+    const keysToDelete = Array.from(metadataCache.keys()).slice(0, 50);
+    keysToDelete.forEach((key) => metadataCache.delete(key));
+  }
+  metadataCache.set(cacheKey, metadata);
 
   // Add cache headers for better performance
   // Reduced from 3600 to 300 seconds (5 minutes) for dynamic configuration
   c.header('Cache-Control', 'public, max-age=300');
-  c.header('Vary', 'Accept-Encoding');
+  c.header('Vary', 'Accept-Encoding, Host');
 
   return c.json(metadata);
 }

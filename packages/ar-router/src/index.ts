@@ -404,8 +404,8 @@ app.onError((err, c) => {
   console.error('Router Error:', err);
   return c.json(
     {
-      error: 'internal_server_error',
-      message: 'An unexpected error occurred in the router',
+      error: 'server_error',
+      error_description: 'An unexpected error occurred in the router',
     },
     500
   );

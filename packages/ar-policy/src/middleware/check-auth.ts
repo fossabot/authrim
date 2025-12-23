@@ -389,7 +389,7 @@ export async function authenticateCheckApiRequest(
   if (!authHeader) {
     return {
       authenticated: false,
-      error: 'unauthorized',
+      error: 'invalid_token',
       errorDescription: 'Authorization header is required',
       statusCode: 401,
     };
@@ -425,17 +425,17 @@ export async function authenticateCheckApiRequest(
     if (!result.valid || !result.key) {
       const errorMap: Record<string, { error: string; description: string; status: number }> = {
         invalid_api_key: {
-          error: 'unauthorized',
+          error: 'invalid_token',
           description: 'Invalid API key',
           status: 401,
         },
         api_key_inactive: {
-          error: 'unauthorized',
+          error: 'invalid_token',
           description: 'API key is inactive',
           status: 401,
         },
         api_key_expired: {
-          error: 'unauthorized',
+          error: 'invalid_token',
           description: 'API key has expired',
           status: 401,
         },
@@ -479,22 +479,22 @@ export async function authenticateCheckApiRequest(
           status: 400,
         },
         token_expired: {
-          error: 'unauthorized',
+          error: 'invalid_token',
           description: 'Access token has expired',
           status: 401,
         },
         invalid_signature: {
-          error: 'unauthorized',
+          error: 'invalid_token',
           description: 'Invalid token signature',
           status: 401,
         },
         invalid_issuer: {
-          error: 'unauthorized',
+          error: 'invalid_token',
           description: 'Invalid token issuer',
           status: 401,
         },
         invalid_audience: {
-          error: 'unauthorized',
+          error: 'invalid_token',
           description: 'Invalid token audience',
           status: 401,
         },
@@ -504,7 +504,7 @@ export async function authenticateCheckApiRequest(
           status: 500,
         },
         invalid_token: {
-          error: 'unauthorized',
+          error: 'invalid_token',
           description: 'Invalid access token',
           status: 401,
         },
