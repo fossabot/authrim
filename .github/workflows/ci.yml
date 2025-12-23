@@ -34,7 +34,7 @@ jobs:
 
       - name: Setup environment variables
         run: |
-          echo "PUBLIC_API_BASE_URL=http://localhost:8786" > packages/ui/.env
+          echo "PUBLIC_API_BASE_URL=http://localhost:8786" > packages/ar-ui/.env
 
       - name: Run linter
         run: pnpm run lint
@@ -77,13 +77,13 @@ jobs:
 
       - name: Setup environment variables
         run: |
-          echo "PUBLIC_API_BASE_URL=http://localhost:8786" > packages/ui/.env
+          echo "PUBLIC_API_BASE_URL=http://localhost:8786" > packages/ar-ui/.env
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Build UI
-        run: pnpm --filter=ui build
+        run: pnpm --filter=@authrim/ar-ui build
 
       - name: Run E2E tests
         run: pnpm run test:e2e
@@ -122,10 +122,10 @@ jobs:
 
       - name: Setup environment variables
         run: |
-          echo "PUBLIC_API_BASE_URL=http://localhost:8786" > packages/ui/.env
+          echo "PUBLIC_API_BASE_URL=http://localhost:8786" > packages/ar-ui/.env
 
       - name: Build UI
-        run: pnpm --filter=ui build
+        run: pnpm --filter=@authrim/ar-ui build
 
       - name: Run Lighthouse CI
         run: pnpm run test:lighthouse
