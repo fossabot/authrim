@@ -64,6 +64,8 @@ export * from './utils/url-security';
 export * from './utils/email-domain-hash';
 export * from './utils/claim-normalizer';
 export * from './utils/feature-flags';
+export * from './utils/ui-config';
+export * from './utils/conformance-config';
 
 // Error System (Phase 10 - SDK public types)
 // Note: Exported with namespace to avoid conflicts with legacy error types

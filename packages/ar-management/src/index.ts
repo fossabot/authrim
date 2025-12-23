@@ -169,6 +169,19 @@ import {
   clearFapiSecurityConfig,
 } from './routes/settings/fapi-security';
 import {
+  getUIConfigHandler,
+  updateUIConfigHandler,
+  deleteUIConfigHandler,
+  getUIRoutingHandler,
+  updateUIRoutingHandler,
+  deleteUIRoutingHandler,
+} from './routes/settings/ui-config';
+import {
+  getConformanceConfigHandler,
+  updateConformanceConfigHandler,
+  deleteConformanceConfigHandler,
+} from './routes/settings/conformance-config';
+import {
   createRoleAssignmentRule,
   listRoleAssignmentRules,
   getRoleAssignmentRule,
@@ -521,6 +534,21 @@ app.delete('/api/admin/settings/introspection-cache', clearIntrospectionCacheCon
 app.get('/api/admin/settings/fapi-security', getFapiSecurityConfig);
 app.put('/api/admin/settings/fapi-security', updateFapiSecurityConfig);
 app.delete('/api/admin/settings/fapi-security', clearFapiSecurityConfig);
+
+// Admin UI Configuration endpoints
+// UI_URL and path settings for login, consent, and other screens
+app.get('/api/admin/settings/ui-config', getUIConfigHandler);
+app.put('/api/admin/settings/ui-config', updateUIConfigHandler);
+app.delete('/api/admin/settings/ui-config', deleteUIConfigHandler);
+app.get('/api/admin/settings/ui-routing', getUIRoutingHandler);
+app.put('/api/admin/settings/ui-routing', updateUIRoutingHandler);
+app.delete('/api/admin/settings/ui-routing', deleteUIRoutingHandler);
+
+// Admin Conformance Mode Configuration endpoints
+// Enable/disable built-in forms for OIDC certification testing
+app.get('/api/admin/settings/conformance', getConformanceConfigHandler);
+app.put('/api/admin/settings/conformance', updateConformanceConfigHandler);
+app.delete('/api/admin/settings/conformance', deleteConformanceConfigHandler);
 
 // Admin Refresh Token Sharding Configuration endpoints
 app.get('/api/admin/settings/refresh-token-sharding', getRefreshTokenShardingConfig);
