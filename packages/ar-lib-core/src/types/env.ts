@@ -106,8 +106,15 @@ export interface Env {
 
   // Redirect configuration
   DEFAULT_REDIRECT_URL?: string; // Default redirect URL for magic link verification
-  UI_URL?: string; // URL of the UI deployment (Cloudflare Pages)
-  UI_BASE_URL?: string; // Base URL for the UI (used for device authorization flow)
+  UI_URL?: string; // URL of the UI deployment (e.g., https://login.example.com)
+
+  // Conformance Mode (for OIDC certification testing)
+  CONFORMANCE_MODE?: string; // "true" to enable built-in forms instead of external UI
+
+  // Multi-tenant configuration
+  BASE_DOMAIN?: string; // Base domain for subdomain tenant isolation (e.g., authrim.com)
+  DEFAULT_TENANT_ID?: string; // Default tenant ID for single-tenant mode (default: "default")
+  TENANT_ISOLATION_ENABLED?: string; // "true" to enable tenant isolation
 
   // JWT Bearer Flow (RFC 7523) - Phase 6
   TRUSTED_JWT_ISSUERS?: string; // Comma-separated list of trusted issuers for JWT Bearer flow
