@@ -6,6 +6,43 @@
 
 import type { z } from 'zod';
 
+// Import infrastructure types for use in this file
+// These are re-exported at the bottom for plugin developers
+import type {
+  IPolicyInfra as _IPolicyInfra,
+  CheckRequest as _CheckRequest,
+  CheckResponse as _CheckResponse,
+  InfraHealthStatus as _InfraHealthStatus,
+  IUserStore as _IUserStore,
+  IClientStore as _IClientStore,
+  ISessionStore as _ISessionStore,
+  IPasskeyStore as _IPasskeyStore,
+  IOrganizationStore as _IOrganizationStore,
+  IRoleStore as _IRoleStore,
+  IRoleAssignmentStore as _IRoleAssignmentStore,
+  IRelationshipStore as _IRelationshipStore,
+  User as _User,
+  OAuthClient as _OAuthClient,
+  Session as _Session,
+  Passkey as _Passkey,
+  Organization as _Organization,
+  Role as _Role,
+  RoleAssignment as _RoleAssignment,
+  Relationship as _Relationship,
+} from '../infra/types';
+
+// Local type aliases for use in interface definitions
+type IPolicyInfra = _IPolicyInfra;
+type InfraHealthStatus = _InfraHealthStatus;
+type IUserStore = _IUserStore;
+type IClientStore = _IClientStore;
+type ISessionStore = _ISessionStore;
+type IPasskeyStore = _IPasskeyStore;
+type IOrganizationStore = _IOrganizationStore;
+type IRoleStore = _IRoleStore;
+type IRoleAssignmentStore = _IRoleAssignmentStore;
+type IRelationshipStore = _IRelationshipStore;
+
 // =============================================================================
 // Plugin Interface
 // =============================================================================
@@ -207,9 +244,14 @@ export interface PluginMeta {
    * Icon identifier
    *
    * Can be:
-   * - Lucide icon name (e.g., "mail", "shield-check")
+   * - Lucide icon name (e.g., "mail", "shield-check") [Recommended]
    * - URL to icon image (https://...)
    * - Base64 data URL (data:image/svg+xml;base64,...)
+   *
+   * Security Notes:
+   * - URLs are NOT fetched server-side; they are passed to Admin UI for display
+   * - Admin UI should validate URLs and use CSP to restrict image sources
+   * - For official plugins, prefer Lucide icon names to avoid external dependencies
    */
   icon?: string;
 
@@ -222,6 +264,14 @@ export interface PluginMeta {
   /**
    * Logo URL for detailed plugin view
    * Recommended size: 256x256 PNG with transparency
+   *
+   * Security Notes:
+   * - URLs are passed to Admin UI for display (not fetched server-side)
+   * - Admin UI should:
+   *   - Validate URL format (https:// only, no javascript: or data: for logos)
+   *   - Use CSP img-src directive to restrict allowed domains
+   *   - Consider proxying through a trusted CDN for untrusted sources
+   * - For official plugins, host logos on Authrim's CDN or use inline SVG
    */
   logoUrl?: string;
 
@@ -377,6 +427,84 @@ export interface HealthStatus {
 }
 
 // =============================================================================
+// Plugin Source & Trust Level
+// =============================================================================
+
+/**
+ * Plugin source information
+ *
+ * Used to determine trust level and display in Admin UI.
+ * Trust is based on distribution channel, NOT metadata claims.
+ */
+export interface PluginSource {
+  /**
+   * Source type
+   * - builtin: Included in ar-lib-plugin/src/builtin/
+   * - npm: Installed via npm (includes scoped packages)
+   * - local: Local file path
+   * - unknown: Source cannot be determined
+   */
+  type: 'builtin' | 'npm' | 'local' | 'unknown';
+
+  /**
+   * Source identifier
+   * - builtin: "ar-lib-plugin/builtin/{path}"
+   * - npm: "@scope/package-name" or "package-name"
+   * - local: "/path/to/plugin"
+   * - unknown: undefined
+   */
+  identifier?: string;
+
+  /**
+   * npm package version (if source is npm)
+   */
+  npmVersion?: string;
+}
+
+/**
+ * Plugin trust level
+ *
+ * Determined by source, NOT by metadata claims.
+ * - official: Builtin or @authrim/* npm scope
+ * - community: Everything else
+ *
+ * Note: plugin.official flag is for UI hints only,
+ * not used for trust determination.
+ */
+export type PluginTrustLevel = 'official' | 'community';
+
+/**
+ * Determine trust level from plugin source
+ *
+ * Rules:
+ * 1. Builtin plugins are always official
+ * 2. npm @authrim/* scope is official
+ * 3. Everything else is community
+ */
+export function getPluginTrustLevel(source: PluginSource): PluginTrustLevel {
+  // Builtin is always official
+  if (source.type === 'builtin') {
+    return 'official';
+  }
+
+  // npm @authrim/* scope is official
+  if (source.type === 'npm' && source.identifier?.startsWith('@authrim/')) {
+    return 'official';
+  }
+
+  // Everything else is community
+  return 'community';
+}
+
+/**
+ * Disclaimer text for third-party plugins
+ *
+ * Admin UI is responsible for i18n. This provides only the English text.
+ */
+export const THIRD_PARTY_DISCLAIMER =
+  'This plugin is provided by a third party. Authrim does not guarantee its security, reliability, or compatibility. Use at your own risk.';
+
+// =============================================================================
 // Forward Declarations (implemented in other modules)
 // =============================================================================
 
@@ -392,13 +520,21 @@ export interface CapabilityRegistry {
 
 /**
  * Plugin context providing access to infrastructure and services
- * @see ./context.ts for implementation
+ *
+ * Note: Storage and Policy implementations are injected by the Worker.
+ * ar-lib-plugin only defines interfaces; ar-lib-core provides implementations.
  */
 export interface PluginContext {
-  /** Storage infrastructure */
-  readonly storage: IStorageInfra;
+  /**
+   * Storage access via Store interfaces
+   *
+   * Note: Raw adapter access is NOT provided to plugins.
+   * Use the appropriate Store (user, client, session, etc.) instead.
+   * Implementation is provided by ar-lib-core and injected by Worker.
+   */
+  readonly storage: PluginStorageAccess;
 
-  /** Policy infrastructure */
+  /** Policy infrastructure (implementation from ar-lib-core) */
   readonly policy: IPolicyInfra;
 
   /** Plugin configuration store */
@@ -544,32 +680,92 @@ export interface PluginConfigStore {
 
 /**
  * Storage infrastructure interface
- * @see ../infra/types.ts for full definition
+ *
+ * @internal - Full infrastructure interface with provider info.
+ * Implementation is provided by ar-lib-core (not ar-lib-plugin).
  */
 export interface IStorageInfra {
   readonly provider: 'cloudflare' | 'aws' | 'gcp' | 'azure' | 'custom';
+  readonly user: IUserStore;
+  readonly client: IClientStore;
+  readonly session: ISessionStore;
+  readonly passkey: IPasskeyStore;
+  readonly organization: IOrganizationStore;
+  readonly role: IRoleStore;
+  readonly roleAssignment: IRoleAssignmentStore;
+  readonly relationship: IRelationshipStore;
   initialize(env: Env): Promise<void>;
   healthCheck(): Promise<InfraHealthStatus>;
 }
 
 /**
- * Policy infrastructure interface
- * @see ../infra/types.ts for full definition
+ * Plugin-safe storage access
+ *
+ * Exposes only Store interfaces, NOT the raw adapter.
+ * This prevents plugins from writing arbitrary SQL queries,
+ * and enforces PII/non-PII data separation at the Store level.
+ *
+ * Implementation is provided by ar-lib-core and injected by Worker.
  */
-export interface IPolicyInfra {
-  readonly provider: 'builtin' | 'openfga' | 'opa' | 'custom';
-  initialize(env: Env, storage: IStorageInfra): Promise<void>;
+export interface PluginStorageAccess {
+  /** User data store (@pii) */
+  readonly user: IUserStore;
+
+  /** OAuth client store (@non-pii) */
+  readonly client: IClientStore;
+
+  /** Session store (@pii - contains IP, user agent) */
+  readonly session: ISessionStore;
+
+  /** Passkey credential store (@non-pii) */
+  readonly passkey: IPasskeyStore;
+
+  /** Organization store (@non-pii) */
+  readonly organization: IOrganizationStore;
+
+  /** Role store (@non-pii) */
+  readonly role: IRoleStore;
+
+  /** Role assignment store (@non-pii) */
+  readonly roleAssignment: IRoleAssignmentStore;
+
+  /** Relationship store (@non-pii) */
+  readonly relationship: IRelationshipStore;
 }
 
+// =============================================================================
+// Re-export infrastructure types from infra/types.ts (DRY)
+// =============================================================================
+
 /**
- * Infrastructure health status
+ * Re-exported from infra/types.ts for convenience.
+ * These are the canonical definitions - do not duplicate here.
  */
-export interface InfraHealthStatus {
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  provider: string;
-  latencyMs?: number;
-  message?: string;
-}
+export type {
+  // Policy infrastructure
+  _IPolicyInfra as IPolicyInfra,
+  _CheckRequest as CheckRequest,
+  _CheckResponse as CheckResponse,
+  _InfraHealthStatus as InfraHealthStatus,
+  // Store interfaces
+  _IUserStore as IUserStore,
+  _IClientStore as IClientStore,
+  _ISessionStore as ISessionStore,
+  _IPasskeyStore as IPasskeyStore,
+  _IOrganizationStore as IOrganizationStore,
+  _IRoleStore as IRoleStore,
+  _IRoleAssignmentStore as IRoleAssignmentStore,
+  _IRelationshipStore as IRelationshipStore,
+  // Entity types
+  _User as User,
+  _OAuthClient as OAuthClient,
+  _Session as Session,
+  _Passkey as Passkey,
+  _Organization as Organization,
+  _Role as Role,
+  _RoleAssignment as RoleAssignment,
+  _Relationship as Relationship,
+};
 
 // =============================================================================
 // Logging Interfaces
@@ -621,7 +817,7 @@ export interface Env {
 
   // D1 Databases
   DB?: D1Database;
-  PII_DB?: D1Database;
+  DB_PII?: D1Database;
 
   // Durable Objects
   SESSION_STORE?: DurableObjectNamespace;

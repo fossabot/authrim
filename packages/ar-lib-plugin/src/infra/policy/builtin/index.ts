@@ -41,6 +41,18 @@ import type {
  * - Recursive CTE for inherited relationships
  * - KV caching for performance
  */
+/** Default cache TTL in seconds */
+const DEFAULT_CACHE_TTL_SECONDS = 60;
+
+/** Maximum allowed cache TTL in seconds (1 hour) */
+const MAX_CACHE_TTL_SECONDS = 3600;
+
+/** Maximum regex pattern length for ReDoS protection */
+const MAX_REGEX_PATTERN_LENGTH = 1000;
+
+/** Maximum input length for regex matching (ReDoS protection) */
+const MAX_REGEX_INPUT_LENGTH = 10000;
+
 export class BuiltinPolicyInfra implements IPolicyInfra {
   readonly provider = 'builtin' as const;
 
@@ -49,8 +61,8 @@ export class BuiltinPolicyInfra implements IPolicyInfra {
   private cache: KVNamespace | null = null;
   private initialized = false;
 
-  // Cache configuration
-  private readonly CACHE_TTL_SECONDS = 60;
+  // Cache configuration (configurable via environment variable)
+  private cacheTtlSeconds = DEFAULT_CACHE_TTL_SECONDS;
   private readonly CACHE_PREFIX = 'rebac:';
 
   // ---------------------------------------------------------------------------
@@ -65,6 +77,16 @@ export class BuiltinPolicyInfra implements IPolicyInfra {
     this.env = env;
     this.storage = storage;
     this.cache = env.REBAC_CACHE ?? null;
+
+    // Read cache TTL from environment variable
+    const envTtl = env.REBAC_CACHE_TTL_SECONDS;
+    if (envTtl !== undefined) {
+      const parsed = parseInt(String(envTtl), 10);
+      if (!isNaN(parsed) && parsed > 0 && parsed <= MAX_CACHE_TTL_SECONDS) {
+        this.cacheTtlSeconds = parsed;
+      }
+    }
+
     this.initialized = true;
   }
 
@@ -328,7 +350,7 @@ export class BuiltinPolicyInfra implements IPolicyInfra {
 
     try {
       await this.cache.put(this.CACHE_PREFIX + key, String(allowed), {
-        expirationTtl: this.CACHE_TTL_SECONDS,
+        expirationTtl: this.cacheTtlSeconds,
       });
     } catch {
       // Ignore cache errors
@@ -504,7 +526,10 @@ export class BuiltinPolicyInfra implements IPolicyInfra {
       case 'matches':
         if (typeof actualValue === 'string' && typeof value === 'string') {
           try {
-            return new RegExp(value).test(actualValue);
+            // ReDoS protection: limit pattern and input length
+            const pattern = value.slice(0, MAX_REGEX_PATTERN_LENGTH);
+            const input = actualValue.slice(0, MAX_REGEX_INPUT_LENGTH);
+            return new RegExp(pattern).test(input);
           } catch {
             return false;
           }

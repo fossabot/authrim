@@ -57,6 +57,9 @@ export interface PluginLoaderOptions {
 
   /** Custom error handler */
   onError?: (pluginId: string, error: Error) => void;
+
+  /** Health check timeout in milliseconds (default: 5000) */
+  healthCheckTimeoutMs?: number;
 }
 
 // =============================================================================
@@ -111,6 +114,7 @@ export class PluginLoader {
             error: error.message,
           });
         }),
+      healthCheckTimeoutMs: options.healthCheckTimeoutMs ?? 5000,
     };
   }
 
@@ -241,11 +245,18 @@ export class PluginLoader {
       return null;
     }
 
-    // Get health status
+    // Get health status with timeout
     let health: HealthStatus = { status: 'healthy', message: 'No health check defined' };
     if (loaded.plugin.healthCheck) {
       try {
-        health = await loaded.plugin.healthCheck(this.context, loaded.config);
+        const timeout = this.options.healthCheckTimeoutMs;
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Health check timeout')), timeout)
+        );
+        health = await Promise.race([
+          loaded.plugin.healthCheck(this.context, loaded.config),
+          timeoutPromise,
+        ]);
       } catch (error) {
         health = {
           status: 'unhealthy',
@@ -287,11 +298,18 @@ export class PluginLoader {
    */
   async healthCheckAll(): Promise<Map<string, HealthStatus>> {
     const results = new Map<string, HealthStatus>();
+    const timeout = this.options.healthCheckTimeoutMs;
 
     for (const [pluginId, loaded] of this.loadedPlugins) {
       if (loaded.plugin.healthCheck) {
         try {
-          const health = await loaded.plugin.healthCheck(this.context, loaded.config);
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Health check timeout')), timeout)
+          );
+          const health = await Promise.race([
+            loaded.plugin.healthCheck(this.context, loaded.config),
+            timeoutPromise,
+          ]);
           results.set(pluginId, health);
         } catch (error) {
           results.set(pluginId, {

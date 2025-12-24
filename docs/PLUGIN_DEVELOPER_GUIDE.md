@@ -197,25 +197,50 @@ export const myPlugin: AuthrimPlugin<MyPluginConfig> = {
 
 ### 2.2 Registering Your Plugin
 
+> **Note:** ar-lib-plugin provides interfaces and utilities. Storage implementations
+> are provided by ar-lib-core. See [PLUGIN_SYSTEM_SPECIFICATION.md](./PLUGIN_SYSTEM_SPECIFICATION.md#appendix-c-integration-with-ar-lib-core) for full integration details.
+
 ```typescript
-import { createPluginContext, createPluginLoader, globalRegistry } from '@authrim/ar-lib-plugin';
+import {
+  createPluginContext,
+  createPluginLoader,
+  globalRegistry,
+  KVPluginConfigStore,
+  ConsoleLogger,
+  NoopAuditLogger,
+} from '@authrim/ar-lib-plugin';
+import { ContextFactory, createD1Adapter } from '@authrim/ar-lib-core';
 import { myPlugin } from './my-plugin';
 
 // In your Worker initialization
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Create plugin context
-    const ctx = await createPluginContext(env, {
+    // 1. Create storage context using ar-lib-core
+    const contextFactory = new ContextFactory({
+      coreAdapter: createD1Adapter(env.DB, 'core'),
+      defaultPiiAdapter: createD1Adapter(env.DB_PII, 'pii'),
       tenantId: 'default',
     });
+    const storageCtx = contextFactory.createPIIContext(c);
 
-    // Create plugin loader
+    // 2. Create plugin context (ar-lib-plugin provides utilities)
+    const ctx = createPluginContext({
+      storage: storageCtx.piiRepositories,
+      policy: builtinPolicy,  // from ar-lib-plugin or ar-lib-core
+      config: new KVPluginConfigStore(env.AUTHRIM_CONFIG, env),
+      logger: new ConsoleLogger('[plugin]'),
+      audit: new NoopAuditLogger(),
+      tenantId: 'default',
+      env,
+    });
+
+    // 3. Create plugin loader
     const loader = createPluginLoader(globalRegistry);
 
-    // Load configuration (from KV, env, or defaults)
+    // 4. Load configuration (from KV → env → defaults)
     const config = await ctx.config.get(myPlugin.id, myPlugin.configSchema);
 
-    // Load the plugin
+    // 5. Load the plugin
     await loader.loadPlugin(myPlugin, ctx, config);
 
     // Now the plugin is active and capabilities are registered
@@ -845,6 +870,43 @@ const configSchema = z.object({
 });
 ```
 
+### 6.4 Configuration Masking (Security)
+
+Plugin configurations are automatically masked before logging or API responses.
+
+**Important Requirements:**
+
+| Requirement | Value |
+|-------------|-------|
+| Maximum nesting depth | **20 levels** |
+| Masked field patterns | `apiKey`, `secret`, `token`, `password`, `credential`, etc. |
+| Masking format | `sk_l****bc12` (show first 4 and last 4 chars) |
+
+⚠️ **Warning:** Configurations with nesting deeper than 20 levels will **not** have sensitive fields masked. Keep your schemas flat or shallow.
+
+```typescript
+// ✅ Good: Flat structure (2 levels)
+const configSchema = z.object({
+  apiKey: z.string(),           // Will be masked
+  settings: z.object({
+    timeout: z.number(),
+    secretToken: z.string(),    // Will be masked
+  }),
+});
+
+// ❌ Bad: Too deep (may exceed 20 levels with complex nested objects)
+const badSchema = z.object({
+  deep: z.object({
+    nested: z.object({
+      structure: z.object({
+        // ... continuing 20+ levels
+        apiKey: z.string(),  // WON'T be masked if beyond depth 20!
+      }),
+    }),
+  }),
+});
+```
+
 ---
 
 ## 7. Testing Plugins
@@ -917,8 +979,17 @@ describe('MyPlugin', () => {
 ### 7.2 Integration Testing
 
 ```typescript
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createPluginContext, createPluginLoader, CapabilityRegistry } from '@authrim/ar-lib-plugin';
+import { describe, it, expect, beforeAll } from 'vitest';
+import {
+  createPluginContext,
+  createPluginLoader,
+  CapabilityRegistry,
+  KVPluginConfigStore,
+  ConsoleLogger,
+  NoopAuditLogger,
+  type PluginContext,
+  type PluginLoader,
+} from '@authrim/ar-lib-plugin';
 import { myPlugin } from './my-plugin';
 
 describe('MyPlugin Integration', () => {
@@ -927,13 +998,17 @@ describe('MyPlugin Integration', () => {
   let registry: CapabilityRegistry;
 
   beforeAll(async () => {
-    // Use mock env for testing
-    const mockEnv = {
-      DB: createMockD1(),
-      AUTHRIM_CONFIG: createMockKV(),
-    };
+    // Create mock context for testing
+    ctx = createPluginContext({
+      storage: createMockStorage(),  // See 7.3 for mock implementation
+      policy: createMockPolicy(),
+      config: new KVPluginConfigStore(null, {}),  // null KV uses defaults
+      logger: new ConsoleLogger('[test]'),
+      audit: new NoopAuditLogger(),
+      tenantId: 'test',
+      env: {},
+    });
 
-    ctx = await createPluginContext(mockEnv, { tenantId: 'test' });
     registry = new CapabilityRegistry();
     loader = createPluginLoader(registry);
   });
@@ -962,25 +1037,59 @@ describe('MyPlugin Integration', () => {
 
 ```typescript
 import { vi } from 'vitest';
-import type { PluginContext } from '@authrim/ar-lib-plugin';
+import type { PluginContext, PluginStorageAccess, IPolicyInfra } from '@authrim/ar-lib-plugin';
 
+// Mock storage (implements PluginStorageAccess interface)
+function createMockStorage(): PluginStorageAccess {
+  return {
+    user: {
+      get: vi.fn(),
+      getByEmail: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    client: {
+      get: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      list: vi.fn(),
+    },
+    session: {
+      get: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      deleteAllForUser: vi.fn(),
+      listByUser: vi.fn(),
+      extend: vi.fn(),
+    },
+    passkey: {
+      getByCredentialId: vi.fn(),
+      listByUser: vi.fn(),
+      create: vi.fn(),
+      updateCounter: vi.fn(),
+      delete: vi.fn(),
+    },
+    // Add other stores as needed
+  } as PluginStorageAccess;
+}
+
+// Mock policy
+function createMockPolicy(): IPolicyInfra {
+  return {
+    provider: 'builtin',
+    check: vi.fn().mockResolvedValue({ allowed: true }),
+    batchCheck: vi.fn().mockResolvedValue([]),
+  } as unknown as IPolicyInfra;
+}
+
+// Full mock context
 function createMockContext(): PluginContext {
   return {
-    storage: {
-      provider: 'cloudflare',
-      user: {
-        get: vi.fn(),
-        create: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
-      },
-      // ... other stores
-    } as any,
-
-    policy: {
-      provider: 'builtin',
-      check: vi.fn().mockResolvedValue({ allowed: true }),
-    } as any,
+    storage: createMockStorage(),
+    policy: createMockPolicy(),
 
     config: {
       get: vi.fn(),
@@ -1178,10 +1287,17 @@ export const myPlugin: AuthrimPlugin<Config> = {
 ### 9.2 Debugging
 
 ```typescript
-// Enable debug logging
-const ctx = await createPluginContext(env, {
+// Enable debug logging with custom logger
+const debugLogger = new ConsoleLogger('[DEBUG]');
+
+const ctx = createPluginContext({
+  storage: storageCtx.piiRepositories,
+  policy: builtinPolicy,
+  config: new KVPluginConfigStore(env.AUTHRIM_CONFIG, env),
+  logger: debugLogger,  // Custom debug logger
+  audit: new NoopAuditLogger(),
   tenantId: 'default',
-  logger: new ConsoleLogger('[DEBUG]'),  // Custom prefix
+  env,
 });
 
 // Check plugin status

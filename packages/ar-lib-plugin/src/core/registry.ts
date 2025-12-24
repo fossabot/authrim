@@ -137,6 +137,54 @@ export class CapabilityRegistry {
   private capabilityOwners = new Map<string, string>();
 
   // ==========================================================================
+  // Private Helper - Generic Handler Registration (DRY)
+  // ==========================================================================
+
+  /**
+   * Generic handler registration method
+   *
+   * Extracts common registration logic to avoid code duplication.
+   */
+  private registerHandler<T>(
+    map: Map<string, T>,
+    category: string,
+    key: string,
+    handler: T,
+    pluginId?: string
+  ): void {
+    const capabilityKey = `${category}.${key}`;
+
+    if (map.has(key)) {
+      const existingOwner = this.capabilityOwners.get(capabilityKey);
+      throw new Error(
+        `${this.formatCategory(category)} '${key}' already registered` +
+          (existingOwner ? ` by plugin '${existingOwner}'` : '')
+      );
+    }
+
+    map.set(key, handler);
+    if (pluginId) {
+      this.capabilityOwners.set(capabilityKey, pluginId);
+    }
+  }
+
+  /**
+   * Format category name for error messages
+   */
+  private formatCategory(category: string): string {
+    switch (category) {
+      case 'notifier':
+        return 'Notifier for channel';
+      case 'idp':
+        return 'IdP';
+      case 'authenticator':
+        return 'Authenticator';
+      default:
+        return category;
+    }
+  }
+
+  // ==========================================================================
   // Notifier Registration
   // ==========================================================================
 
@@ -153,20 +201,7 @@ export class CapabilityRegistry {
    * @param pluginId - ID of the plugin registering this capability
    */
   registerNotifier(channel: string, handler: NotifierHandler, pluginId?: string): void {
-    const capabilityKey = `notifier.${channel}`;
-
-    if (this.notifiers.has(channel)) {
-      const existingOwner = this.capabilityOwners.get(capabilityKey);
-      throw new Error(
-        `Notifier for channel '${channel}' already registered` +
-          (existingOwner ? ` by plugin '${existingOwner}'` : '')
-      );
-    }
-
-    this.notifiers.set(channel, handler);
-    if (pluginId) {
-      this.capabilityOwners.set(capabilityKey, pluginId);
-    }
+    this.registerHandler(this.notifiers, 'notifier', channel, handler, pluginId);
   }
 
   /**
@@ -223,20 +258,7 @@ export class CapabilityRegistry {
    * @param pluginId - ID of the plugin registering this capability
    */
   registerIdP(providerId: string, handler: IdPHandler, pluginId?: string): void {
-    const capabilityKey = `idp.${providerId}`;
-
-    if (this.idps.has(providerId)) {
-      const existingOwner = this.capabilityOwners.get(capabilityKey);
-      throw new Error(
-        `IdP '${providerId}' already registered` +
-          (existingOwner ? ` by plugin '${existingOwner}'` : '')
-      );
-    }
-
-    this.idps.set(providerId, handler);
-    if (pluginId) {
-      this.capabilityOwners.set(capabilityKey, pluginId);
-    }
+    this.registerHandler(this.idps, 'idp', providerId, handler, pluginId);
   }
 
   /**
@@ -258,20 +280,7 @@ export class CapabilityRegistry {
    * @param pluginId - ID of the plugin registering this capability
    */
   registerAuthenticator(method: string, handler: AuthenticatorHandler, pluginId?: string): void {
-    const capabilityKey = `authenticator.${method}`;
-
-    if (this.authenticators.has(method)) {
-      const existingOwner = this.capabilityOwners.get(capabilityKey);
-      throw new Error(
-        `Authenticator '${method}' already registered` +
-          (existingOwner ? ` by plugin '${existingOwner}'` : '')
-      );
-    }
-
-    this.authenticators.set(method, handler);
-    if (pluginId) {
-      this.capabilityOwners.set(capabilityKey, pluginId);
-    }
+    this.registerHandler(this.authenticators, 'authenticator', method, handler, pluginId);
   }
 
   /**

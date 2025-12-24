@@ -170,7 +170,7 @@ export interface InfraEnv {
 
   // D1 Databases
   DB?: D1Database;
-  PII_DB?: D1Database;
+  DB_PII?: D1Database;
 
   // Durable Objects
   SESSION_STORE?: DurableObjectNamespace;
@@ -186,9 +186,41 @@ export interface InfraEnv {
   STORAGE_PROVIDER?: StorageProvider;
   POLICY_PROVIDER?: PolicyProvider;
 
+  // Policy engine configuration
+  /** ReBAC cache TTL in seconds (default: 60, max: 3600) */
+  REBAC_CACHE_TTL_SECONDS?: number | string;
+
   // Additional bindings
   [key: string]: unknown;
 }
+
+// =============================================================================
+// Store Classification (PII vs Non-PII)
+// =============================================================================
+
+/**
+ * Marker interface for stores that access PII data
+ *
+ * Stores with this marker:
+ * - Access DB_PII (separate D1 database for personal data)
+ * - Contain user personal information (email, name, phone, etc.)
+ * - Subject to GDPR and data localization requirements
+ *
+ * Used for documentation and potential future tooling/linting.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface PIIStore {}
+
+/**
+ * Marker interface for stores that access non-PII data
+ *
+ * Stores with this marker:
+ * - Access DB (core D1 database)
+ * - Contain no personally identifiable information
+ * - Safe to replicate across regions without GDPR concerns
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface NonPIIStore {}
 
 // =============================================================================
 // Storage Adapter Interface
@@ -199,6 +231,8 @@ export interface InfraEnv {
  *
  * Used internally by store implementations. Plugins should use the
  * higher-level store interfaces instead.
+ *
+ * @internal - Not exposed to plugins via PluginContext
  */
 export interface IStorageAdapter {
   /** Get a value by key */
@@ -239,7 +273,12 @@ export interface TransactionContext {
 // User Store Interface
 // =============================================================================
 
-export interface IUserStore {
+/**
+ * User data store
+ *
+ * @pii - Contains personally identifiable information (email, name, phone)
+ */
+export interface IUserStore extends PIIStore {
   get(userId: string): Promise<User | null>;
   getByEmail(email: string): Promise<User | null>;
   create(user: Partial<User>): Promise<User>;
@@ -269,7 +308,12 @@ export interface User {
 // Client Store Interface
 // =============================================================================
 
-export interface IClientStore {
+/**
+ * OAuth client data store
+ *
+ * @non-pii - Contains only client configuration, no user data
+ */
+export interface IClientStore extends NonPIIStore {
   get(clientId: string): Promise<OAuthClient | null>;
   create(client: Partial<OAuthClient>): Promise<OAuthClient>;
   update(clientId: string, updates: Partial<OAuthClient>): Promise<OAuthClient>;
@@ -297,7 +341,12 @@ export interface OAuthClient {
 // Session Store Interface
 // =============================================================================
 
-export interface ISessionStore {
+/**
+ * Session data store
+ *
+ * @pii - Contains user_agent and ip_address (considered PII in some jurisdictions)
+ */
+export interface ISessionStore extends PIIStore {
   get(sessionId: string): Promise<Session | null>;
   create(session: Partial<Session>): Promise<Session>;
   update(sessionId: string, updates: Partial<Session>): Promise<Session>;
@@ -324,7 +373,12 @@ export interface Session {
 // Passkey Store Interface
 // =============================================================================
 
-export interface IPasskeyStore {
+/**
+ * Passkey credential store
+ *
+ * @non-pii - Contains only credential data (public keys, counters), no user PII
+ */
+export interface IPasskeyStore extends NonPIIStore {
   getByCredentialId(credentialId: string): Promise<Passkey | null>;
   listByUser(userId: string): Promise<Passkey[]>;
   create(passkey: Partial<Passkey>): Promise<Passkey>;
@@ -348,7 +402,12 @@ export interface Passkey {
 // RBAC Store Interfaces
 // =============================================================================
 
-export interface IOrganizationStore {
+/**
+ * Organization store
+ *
+ * @non-pii - Contains organizational hierarchy, no user PII
+ */
+export interface IOrganizationStore extends NonPIIStore {
   get(orgId: string): Promise<Organization | null>;
   getByName(tenantId: string, name: string): Promise<Organization | null>;
   create(org: Partial<Organization>): Promise<Organization>;
@@ -369,7 +428,12 @@ export interface Organization {
   updated_at: number;
 }
 
-export interface IRoleStore {
+/**
+ * Role store
+ *
+ * @non-pii - Contains role definitions, no user PII
+ */
+export interface IRoleStore extends NonPIIStore {
   get(roleId: string): Promise<Role | null>;
   getByName(tenantId: string, name: string): Promise<Role | null>;
   create(role: Partial<Role>): Promise<Role>;
@@ -390,7 +454,12 @@ export interface Role {
   created_at: number;
 }
 
-export interface IRoleAssignmentStore {
+/**
+ * Role assignment store
+ *
+ * @non-pii - Contains role-subject mappings (subject_id is opaque ID, not PII)
+ */
+export interface IRoleAssignmentStore extends NonPIIStore {
   get(assignmentId: string): Promise<RoleAssignment | null>;
   create(assignment: Partial<RoleAssignment>): Promise<RoleAssignment>;
   update(assignmentId: string, updates: Partial<RoleAssignment>): Promise<RoleAssignment>;
@@ -413,7 +482,12 @@ export interface RoleAssignment {
   updated_at: number;
 }
 
-export interface IRelationshipStore {
+/**
+ * Relationship store (for ReBAC)
+ *
+ * @non-pii - Contains entity relationships, no user PII
+ */
+export interface IRelationshipStore extends NonPIIStore {
   get(relationshipId: string): Promise<Relationship | null>;
   create(relationship: Partial<Relationship>): Promise<Relationship>;
   update(relationshipId: string, updates: Partial<Relationship>): Promise<Relationship>;

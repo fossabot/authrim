@@ -94,24 +94,21 @@ The Authrim Plugin System provides a modular, extensible architecture for integr
 packages/ar-lib-plugin/
 ├── src/
 │   ├── core/                    # Plugin Foundation
-│   │   ├── types.ts             # AuthrimPlugin, PluginCapability
+│   │   ├── types.ts             # AuthrimPlugin, PluginCapability, Store interfaces
 │   │   ├── registry.ts          # CapabilityRegistry
 │   │   ├── loader.ts            # PluginLoader
-│   │   ├── context.ts           # PluginContext implementation
+│   │   ├── context.ts           # PluginContext utilities (KVPluginConfigStore, etc.)
 │   │   ├── schema.ts            # Zod → JSON Schema conversion
+│   │   ├── security.ts          # Secret field handling, encryption utilities
 │   │   └── index.ts
 │   │
-│   ├── infra/                   # Infrastructure Layer
-│   │   ├── types.ts             # IStorageInfra, IPolicyInfra
-│   │   ├── storage/
-│   │   │   ├── cloudflare/      # Cloudflare implementation
-│   │   │   ├── factory.ts       # createStorageInfra()
-│   │   │   └── index.ts
+│   ├── infra/                   # Infrastructure Layer (INTERFACES ONLY)
+│   │   ├── types.ts             # IStorageInfra, IPolicyInfra, Store interfaces
 │   │   ├── policy/
-│   │   │   ├── builtin/         # Built-in ReBAC engine
+│   │   │   ├── builtin/         # Built-in ReBAC reference implementation
 │   │   │   ├── factory.ts       # createPolicyInfra()
 │   │   │   └── index.ts
-│   │   └── index.ts
+│   │   └── index.ts             # Type exports only
 │   │
 │   ├── builtin/                 # Official Plugins
 │   │   ├── notifier/
@@ -122,9 +119,24 @@ packages/ar-lib-plugin/
 │   │
 │   └── index.ts                 # Public API
 │
-├── docs/                        # Documentation
+└── package.json
+
+packages/ar-lib-core/            # Storage IMPLEMENTATIONS (separate package)
+├── src/
+│   ├── storage/
+│   │   ├── adapters/
+│   │   │   └── cloudflare-adapter.ts  # CloudflareStorageAdapter
+│   │   └── repositories/              # UserStore, ClientStore, etc.
+│   ├── context/
+│   │   └── factory.ts                 # ContextFactory (AuthContext, PIIContext)
+│   └── ...
 └── package.json
 ```
+
+**Architecture Note:**
+- `ar-lib-plugin`: Provides **interfaces** (IStorageInfra, IUserStore, etc.) and utilities
+- `ar-lib-core`: Provides **implementations** (CloudflareStorageAdapter, UserStore, etc.)
+- Workers: Inject ar-lib-core implementations into PluginContext
 
 ---
 
@@ -237,7 +249,25 @@ interface PluginMeta {
 
 ## 4. Infrastructure Layer
 
-### 4.1 IStorageInfra Interface
+> **Important:** ar-lib-plugin provides only **interfaces** for the Infrastructure Layer.
+> Implementations (CloudflareStorageAdapter, UserStore, etc.) are provided by **ar-lib-core**.
+> Workers inject ar-lib-core implementations into PluginContext at initialization.
+
+### 4.1 PII / Non-PII Separation
+
+The storage layer automatically routes data to appropriate databases:
+
+| Store | Data Classification | Database |
+|-------|-------------------|----------|
+| `IUserStore` | PII (email, name, phone) | `DB_PII` |
+| `ISessionStore` | PII (IP address, user agent) | `DB_PII` |
+| `IClientStore` | Non-PII (client config) | `DB` |
+| `IPasskeyStore` | Non-PII (public keys only) | `DB` |
+| RBAC Stores | Non-PII (role/org structure) | `DB` |
+
+**Developer Experience:** Developers use store interfaces (e.g., `ctx.storage.user.get(id)`) without worrying about which database is used. The underlying adapter handles PII/non-PII routing automatically.
+
+### 4.2 IStorageInfra Interface
 
 Unified storage abstraction supporting multiple cloud providers:
 
@@ -591,26 +621,89 @@ const configSchema = z.object({
 });
 ```
 
+### 8.5 Configuration Masking
+
+Plugin configurations are recursively masked before logging or API responses to protect sensitive data.
+
+**Requirements:**
+
+- **Maximum depth**: 20 levels of nesting
+  - Configurations deeper than 20 levels will pass through unmasked
+  - This is a security/performance trade-off to prevent recursive attacks
+- **Secret field detection**: Uses pattern matching for field names:
+  - `apiKey`, `apiSecret`, `secretKey`, `password`, `token`, `authToken`
+  - `accessToken`, `refreshToken`, `privateKey`, `clientSecret`, `credential`
+- **Masking format**: First 4 and last 4 characters shown (e.g., `sk_l****bc12`)
+- **Short values**: Completely masked as `****`
+
+**Plugin Developer Note:**
+
+Configuration structures **MUST** stay within 20 levels of nesting. Deeply nested configurations beyond this limit will not have sensitive fields masked, potentially exposing secrets in logs or API responses.
+
+```typescript
+// ✅ Good: Flat or shallow nesting
+const configSchema = z.object({
+  apiKey: z.string(),
+  settings: z.object({
+    timeout: z.number(),
+    retries: z.number(),
+  }),
+});
+
+// ❌ Bad: Excessively deep nesting
+const badConfigSchema = z.object({
+  level1: z.object({
+    level2: z.object({
+      // ... 20+ levels deep - secrets won't be masked!
+    }),
+  }),
+});
+```
+
 ---
 
 ## 9. API Reference
 
 ### 9.1 Factory Functions
 
-#### createStorageInfra
+> **Note:** Storage implementations are provided by **ar-lib-core**, not ar-lib-plugin.
+> See [ar-lib-core documentation](/packages/ar-lib-core/README.md) for ContextFactory usage.
+
+#### createPluginContext (ar-lib-plugin)
+
+Creates a PluginContext from pre-built components. Workers are responsible for
+providing storage and policy implementations from ar-lib-core.
 
 ```typescript
-async function createStorageInfra(
-  env: InfraEnv,
-  options?: StorageInfraOptions
-): Promise<IStorageInfra>;
+function createPluginContext(options: PluginContextOptions): PluginContext;
 
-interface StorageInfraOptions {
-  provider?: StorageProvider; // Default: from env.STORAGE_PROVIDER or 'cloudflare'
+interface PluginContextOptions {
+  /** Storage access (provided by ar-lib-core) */
+  storage: PluginStorageAccess;
+
+  /** Policy infrastructure (provided by ar-lib-core or ar-lib-plugin) */
+  policy: IPolicyInfra;
+
+  /** Plugin configuration store */
+  config: PluginConfigStore;
+
+  /** Logger */
+  logger: Logger;
+
+  /** Audit logger */
+  audit: AuditLogger;
+
+  /** Tenant ID */
+  tenantId: string;
+
+  /** Environment bindings */
+  env: Env;
 }
 ```
 
-#### createPolicyInfra
+#### createPolicyInfra (ar-lib-plugin)
+
+Creates a built-in ReBAC policy infrastructure instance:
 
 ```typescript
 async function createPolicyInfra(
@@ -621,22 +714,6 @@ async function createPolicyInfra(
 
 interface PolicyInfraOptions {
   provider?: PolicyProvider; // Default: from env.POLICY_PROVIDER or 'builtin'
-}
-```
-
-#### createPluginContext
-
-```typescript
-async function createPluginContext(
-  env: InfraEnv & Env,
-  options: CreatePluginContextOptions
-): Promise<PluginContext>;
-
-interface CreatePluginContextOptions {
-  tenantId: string;
-  logger?: Logger;
-  auditLogger?: AuditLogger;
-  enableAudit?: boolean; // Default: true
 }
 ```
 
@@ -751,28 +828,63 @@ interface FlowPortDefinition {
 
 ---
 
-## Appendix C: Migration from ar-lib-core
+## Appendix C: Integration with ar-lib-core
 
-For applications currently using `ar-lib-core`:
+### Architecture Overview
 
-```typescript
-// Before (ar-lib-core)
-import { CloudflareStorageAdapter, UserStore } from '@authrim/ar-lib-core';
+- **ar-lib-plugin**: Provides interfaces (`IStorageInfra`, `IUserStore`, etc.) and utilities
+- **ar-lib-core**: Provides implementations (`CloudflareStorageAdapter`, `ContextFactory`, etc.)
+- **Workers**: Combine both to create PluginContext
 
-const adapter = new CloudflareStorageAdapter(env);
-const userStore = new UserStore(adapter);
-
-// After (ar-lib-plugin)
-import { createPluginContext } from '@authrim/ar-lib-plugin';
-
-const ctx = await createPluginContext(env, { tenantId: 'default' });
-const user = await ctx.storage.user.get(userId);
-```
-
-The old exports remain available but are deprecated:
+### Worker Integration Example
 
 ```typescript
-// Deprecated - will be removed in v2.0
-import { CloudflareStorageAdapter } from '@authrim/ar-lib-core';
-// ⚠️ Deprecation warning will be logged
+// In your Worker initialization
+import { ContextFactory, createD1Adapter } from '@authrim/ar-lib-core';
+import {
+  createPluginContext,
+  createPluginLoader,
+  KVPluginConfigStore,
+  ConsoleLogger,
+  NoopAuditLogger,
+} from '@authrim/ar-lib-plugin';
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // 1. Create storage using ar-lib-core
+    const coreAdapter = createD1Adapter(env.DB, 'core');
+    const piiAdapter = createD1Adapter(env.DB_PII, 'pii');
+
+    const contextFactory = new ContextFactory({
+      coreAdapter,
+      defaultPiiAdapter: piiAdapter,
+      tenantId: 'default',
+    });
+
+    // 2. Create PluginContext using ar-lib-plugin utilities
+    const pluginContext = createPluginContext({
+      storage: contextFactory.createPIIContext(c).piiRepositories,
+      policy: await createPolicyInfra(env, storage),
+      config: new KVPluginConfigStore(env.AUTHRIM_CONFIG, env),
+      logger: new ConsoleLogger('[plugin]'),
+      audit: new NoopAuditLogger(),
+      tenantId: 'default',
+      env,
+    });
+
+    // 3. Load plugins
+    const loader = createPluginLoader();
+    await loader.loadPlugin(myPlugin, pluginContext, config);
+
+    // ...
+  },
+};
 ```
+
+### PII/Non-PII Database Separation
+
+The ar-lib-core `ContextFactory` handles PII separation automatically:
+
+- Use `createAuthContext()` for handlers that don't need PII
+- Use `createPIIContext()` for handlers that need user personal data
+- The adapter routes queries to `DB` or `DB_PII` automatically based on store type
