@@ -127,9 +127,8 @@ export const resendEmailPlugin: AuthrimPlugin<ResendNotifierConfig> = {
 
     // Author (official plugin)
     author: {
-      name: 'Authrim Team',
-      organization: 'Authrim',
-      url: 'https://authrim.io',
+      name: 'Authrim',
+      url: 'https://authrim.com',
     },
     license: 'MIT',
 

@@ -15,6 +15,7 @@
   "dependencies": {
     "@authrim/ar-lib-scim": "workspace:*",
     "@authrim/ar-lib-core": "workspace:*",
+    "@authrim/ar-lib-plugin": "workspace:*",
     "hono": "^4.10.6",
     "jose": "^6.1.2"
   },

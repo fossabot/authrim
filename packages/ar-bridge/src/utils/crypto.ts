@@ -10,6 +10,71 @@
 
 const IV_LENGTH = 12; // 96 bits for GCM
 const KEY_LENGTH = 32; // 256 bits
+const HEX_KEY_LENGTH = KEY_LENGTH * 2; // 64 hex characters
+
+/**
+ * Error thrown when encryption key format is invalid
+ */
+export class EncryptionKeyInvalidError extends Error {
+  constructor(reason: string) {
+    super(
+      `RP_TOKEN_ENCRYPTION_KEY format is invalid: ${reason}. ` +
+        `Key must be exactly ${HEX_KEY_LENGTH} hex characters (256-bit key). ` +
+        `Generate a valid key with: openssl rand -hex 32`
+    );
+    this.name = 'EncryptionKeyInvalidError';
+  }
+}
+
+/**
+ * Detect weak key patterns (low entropy)
+ * Returns reason string if weak, undefined if OK
+ */
+function detectWeakKeyPattern(key: string): string | undefined {
+  const lowerKey = key.toLowerCase();
+
+  // Check for all identical characters (e.g., "0000...0000", "aaaa...aaaa")
+  if (/^(.)\1+$/.test(lowerKey)) {
+    return 'key contains all identical characters (zero entropy)';
+  }
+
+  // Check for short repeating patterns (2-8 chars)
+  for (let patternLen = 2; patternLen <= 8; patternLen++) {
+    const pattern = lowerKey.slice(0, patternLen);
+    const repeated = pattern
+      .repeat(Math.ceil(lowerKey.length / patternLen))
+      .slice(0, lowerKey.length);
+    if (lowerKey === repeated) {
+      return `key is a repeating pattern of "${pattern}"`;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Validate encryption key format (hex string of correct length)
+ * Also checks for obviously weak key patterns
+ */
+function isValidHexKey(key: string): { valid: boolean; reason?: string } {
+  if (key.length !== HEX_KEY_LENGTH) {
+    return {
+      valid: false,
+      reason: `expected ${HEX_KEY_LENGTH} characters, got ${key.length}`,
+    };
+  }
+  if (!/^[0-9a-fA-F]+$/.test(key)) {
+    return { valid: false, reason: 'contains non-hex characters' };
+  }
+
+  // Check for weak patterns
+  const weakReason = detectWeakKeyPattern(key);
+  if (weakReason) {
+    return { valid: false, reason: weakReason };
+  }
+
+  return { valid: true };
+}
 
 /**
  * Derives a CryptoKey from hex-encoded key string
@@ -102,25 +167,43 @@ export async function decrypt(encrypted: string, hexKey: string): Promise<string
 
 /**
  * Get encryption key from environment
- * Throws if not configured
+ * Throws if not configured or invalid format
  */
 export function getEncryptionKey(env: { RP_TOKEN_ENCRYPTION_KEY?: string }): string {
   const key = env.RP_TOKEN_ENCRYPTION_KEY;
   if (!key) {
     throw new Error(
-      'RP_TOKEN_ENCRYPTION_KEY is not configured. ' +
-        'Generate one with: head -c 32 /dev/urandom | xxd -p -c 64'
+      'RP_TOKEN_ENCRYPTION_KEY is not configured. ' + 'Generate one with: openssl rand -hex 32'
     );
   }
+
+  // Validate key format
+  const validation = isValidHexKey(key);
+  if (!validation.valid) {
+    throw new EncryptionKeyInvalidError(validation.reason!);
+  }
+
   return key;
 }
 
 /**
  * Safe version that returns undefined if encryption is not configured
  * (for optional encryption scenarios)
+ * Throws EncryptionKeyInvalidError if key is present but has invalid format
  */
 export function getEncryptionKeyOrUndefined(env: {
   RP_TOKEN_ENCRYPTION_KEY?: string;
 }): string | undefined {
-  return env.RP_TOKEN_ENCRYPTION_KEY;
+  const key = env.RP_TOKEN_ENCRYPTION_KEY;
+  if (!key) {
+    return undefined;
+  }
+
+  // Validate key format when present
+  const validation = isValidHexKey(key);
+  if (!validation.valid) {
+    throw new EncryptionKeyInvalidError(validation.reason!);
+  }
+
+  return key;
 }

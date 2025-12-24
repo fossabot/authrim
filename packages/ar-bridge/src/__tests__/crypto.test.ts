@@ -4,12 +4,25 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { encrypt, decrypt, getEncryptionKey, getEncryptionKeyOrUndefined } from '../utils/crypto';
+import {
+  encrypt,
+  decrypt,
+  getEncryptionKey,
+  getEncryptionKeyOrUndefined,
+  EncryptionKeyInvalidError,
+} from '../utils/crypto';
 
 // Valid 32-byte (256-bit) key in hex format (64 characters)
 const VALID_KEY = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2';
+const VALID_KEY_UPPERCASE = 'A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1D2E3F4A5B6C7D8E9F0A1B2';
 const SHORT_KEY = 'a1b2c3d4e5f6a7b8'; // Too short
 const LONG_KEY = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4'; // Too long
+const INVALID_HEX_KEY = 'g1h2i3j4k5l6m7n8o9p0q1r2s3t4u5v6w7x8y9z0a1b2c3d4e5f6g7h8i9j0k1l2'; // 64 chars but invalid hex
+
+// Weak keys (valid format but low entropy)
+const ALL_ZEROS_KEY = '0000000000000000000000000000000000000000000000000000000000000000';
+const ALL_SAME_KEY = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const REPEATING_PATTERN_KEY = '0123456701234567012345670123456701234567012345670123456701234567';
 
 describe('Crypto Utilities', () => {
   describe('encrypt', () => {
@@ -120,9 +133,14 @@ describe('Crypto Utilities', () => {
   });
 
   describe('getEncryptionKey', () => {
-    it('should return key when configured', () => {
+    it('should return key when configured with valid format', () => {
       const env = { RP_TOKEN_ENCRYPTION_KEY: VALID_KEY };
       expect(getEncryptionKey(env)).toBe(VALID_KEY);
+    });
+
+    it('should accept uppercase hex key', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: VALID_KEY_UPPERCASE };
+      expect(getEncryptionKey(env)).toBe(VALID_KEY_UPPERCASE);
     });
 
     it('should throw when key is not configured', () => {
@@ -134,10 +152,57 @@ describe('Crypto Utilities', () => {
       const env = { RP_TOKEN_ENCRYPTION_KEY: '' };
       expect(() => getEncryptionKey(env)).toThrow('RP_TOKEN_ENCRYPTION_KEY is not configured');
     });
+
+    it('should throw EncryptionKeyInvalidError when key is too short', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: SHORT_KEY };
+      expect(() => getEncryptionKey(env)).toThrow(EncryptionKeyInvalidError);
+      expect(() => getEncryptionKey(env)).toThrow('expected 64 characters');
+    });
+
+    it('should throw EncryptionKeyInvalidError when key is too long', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: LONG_KEY };
+      expect(() => getEncryptionKey(env)).toThrow(EncryptionKeyInvalidError);
+      expect(() => getEncryptionKey(env)).toThrow('expected 64 characters');
+    });
+
+    it('should throw EncryptionKeyInvalidError when key contains non-hex characters', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: INVALID_HEX_KEY };
+      expect(() => getEncryptionKey(env)).toThrow(EncryptionKeyInvalidError);
+      expect(() => getEncryptionKey(env)).toThrow('contains non-hex characters');
+    });
+
+    it('should include helpful message with openssl command', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: SHORT_KEY };
+      try {
+        getEncryptionKey(env);
+        expect.fail('Should have thrown');
+      } catch (e) {
+        expect((e as Error).message).toContain('openssl rand -hex 32');
+      }
+    });
+
+    // Weak key detection tests
+    it('should reject all-zeros key (zero entropy)', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: ALL_ZEROS_KEY };
+      expect(() => getEncryptionKey(env)).toThrow(EncryptionKeyInvalidError);
+      expect(() => getEncryptionKey(env)).toThrow('all identical characters');
+    });
+
+    it('should reject all-same-character key', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: ALL_SAME_KEY };
+      expect(() => getEncryptionKey(env)).toThrow(EncryptionKeyInvalidError);
+      expect(() => getEncryptionKey(env)).toThrow('all identical characters');
+    });
+
+    it('should reject repeating pattern key', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: REPEATING_PATTERN_KEY };
+      expect(() => getEncryptionKey(env)).toThrow(EncryptionKeyInvalidError);
+      expect(() => getEncryptionKey(env)).toThrow('repeating pattern');
+    });
   });
 
   describe('getEncryptionKeyOrUndefined', () => {
-    it('should return key when configured', () => {
+    it('should return key when configured with valid format', () => {
       const env = { RP_TOKEN_ENCRYPTION_KEY: VALID_KEY };
       expect(getEncryptionKeyOrUndefined(env)).toBe(VALID_KEY);
     });
@@ -145,6 +210,22 @@ describe('Crypto Utilities', () => {
     it('should return undefined when key is not configured', () => {
       const env = {};
       expect(getEncryptionKeyOrUndefined(env)).toBeUndefined();
+    });
+
+    it('should return undefined when key is empty string', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: '' };
+      expect(getEncryptionKeyOrUndefined(env)).toBeUndefined();
+    });
+
+    it('should throw EncryptionKeyInvalidError when key is present but invalid length', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: SHORT_KEY };
+      expect(() => getEncryptionKeyOrUndefined(env)).toThrow(EncryptionKeyInvalidError);
+    });
+
+    it('should throw EncryptionKeyInvalidError when key is present but has invalid characters', () => {
+      const env = { RP_TOKEN_ENCRYPTION_KEY: INVALID_HEX_KEY };
+      expect(() => getEncryptionKeyOrUndefined(env)).toThrow(EncryptionKeyInvalidError);
+      expect(() => getEncryptionKeyOrUndefined(env)).toThrow('contains non-hex characters');
     });
   });
 

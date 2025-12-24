@@ -52,6 +52,8 @@ export * from './utils/resource-permissions';
 export * from './utils/consent-rbac';
 export * from './utils/refresh-token-sharding';
 export * from './utils/oauth-config';
+export * from './utils/encryption-config';
+export * from './utils/pii-encryption';
 export * from './utils/challenge-sharding';
 export * from './utils/token-revocation-sharding';
 export * from './utils/region-sharding';

@@ -1,70 +1,80 @@
 /**
- * Plugin Context Implementation
+ * Plugin Context Utilities
  *
- * Provides plugins with access to infrastructure and services.
- * This is the main interface plugins use to interact with Authrim.
+ * Provides utility classes for creating PluginContext.
+ * The actual PluginContext creation is done by the Worker using ar-lib-core.
  *
- * Usage:
- * ```typescript
- * // In Worker initialization
- * const ctx = await createPluginContext(env, { tenantId: 'default' });
+ * ar-lib-plugin provides:
+ * - Interfaces (PluginContext, PluginConfigStore, Logger, etc.)
+ * - Utility implementations (KVPluginConfigStore, ConsoleLogger, NoopAuditLogger)
  *
- * // Pass to plugins
- * await plugin.initialize(ctx, config);
- * ```
+ * ar-lib-core provides:
+ * - Storage implementations (CloudflareStorageAdapter, UserStore, etc.)
+ * - Policy implementations (ReBACService, etc.)
+ *
+ * Worker creates PluginContext by combining both.
  */
 
 import type {
   PluginContext,
   PluginConfigStore,
+  PluginStorageAccess,
+  IPolicyInfra,
   Logger,
   AuditLogger,
   AuditEvent,
   Env,
 } from './types';
-import type { IStorageInfra, IPolicyInfra, InfraEnv } from '../infra/types';
-import { createStorageInfra } from '../infra/storage';
-import { createPolicyInfra } from '../infra/policy';
 import { z } from 'zod';
 
 // =============================================================================
-// Plugin Context Implementation
+// Plugin Context Options
 // =============================================================================
 
 /**
- * Default Plugin Context implementation
+ * Options for creating PluginContext
+ *
+ * Worker provides storage and policy implementations from ar-lib-core.
  */
-export class DefaultPluginContext implements PluginContext {
-  readonly storage: IStorageInfra;
-  readonly policy: IPolicyInfra;
-  readonly config: PluginConfigStore;
-  readonly logger: Logger;
-  readonly audit: AuditLogger;
-  readonly tenantId: string;
-  readonly env: Env;
+export interface PluginContextOptions {
+  /** Storage access (implementation from ar-lib-core) */
+  storage: PluginStorageAccess;
 
-  constructor(options: PluginContextOptions) {
-    this.storage = options.storage;
-    this.policy = options.policy;
-    this.config = options.config;
-    this.logger = options.logger;
-    this.audit = options.audit;
-    this.tenantId = options.tenantId;
-    this.env = options.env;
-  }
+  /** Policy infrastructure (implementation from ar-lib-core) */
+  policy: IPolicyInfra;
+
+  /** Plugin configuration store */
+  config: PluginConfigStore;
+
+  /** Logger */
+  logger: Logger;
+
+  /** Audit logger */
+  audit: AuditLogger;
+
+  /** Tenant ID */
+  tenantId: string;
+
+  /** Environment bindings */
+  env: Env;
 }
 
 /**
- * Options for creating PluginContext
+ * Create a PluginContext from options
+ *
+ * This is a simple factory function. The Worker is responsible for
+ * providing storage and policy implementations from ar-lib-core.
  */
-export interface PluginContextOptions {
-  storage: IStorageInfra;
-  policy: IPolicyInfra;
-  config: PluginConfigStore;
-  logger: Logger;
-  audit: AuditLogger;
-  tenantId: string;
-  env: Env;
+export function createPluginContext(options: PluginContextOptions): PluginContext {
+  return {
+    storage: options.storage,
+    policy: options.policy,
+    config: options.config,
+    logger: options.logger,
+    audit: options.audit,
+    tenantId: options.tenantId,
+    env: options.env,
+  };
 }
 
 // =============================================================================
@@ -231,134 +241,12 @@ export class ConsoleLogger implements Logger {
 // =============================================================================
 
 /**
- * D1-based Audit Logger implementation
- */
-export class D1AuditLogger implements AuditLogger {
-  private storage: IStorageInfra;
-  private tenantId: string;
-
-  constructor(storage: IStorageInfra, tenantId: string) {
-    this.storage = storage;
-    this.tenantId = tenantId;
-  }
-
-  async log(event: AuditEvent): Promise<void> {
-    const id = crypto.randomUUID();
-    const timestamp = event.timestamp ?? Date.now();
-
-    try {
-      await this.storage.adapter.execute(
-        `INSERT INTO audit_logs (id, tenant_id, event_type, actor_id, actor_type, target_type, target_id, metadata, timestamp)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          this.tenantId,
-          event.eventType,
-          event.actorId ?? null,
-          event.actorType,
-          event.targetType ?? null,
-          event.targetId ?? null,
-          event.metadata ? JSON.stringify(event.metadata) : null,
-          timestamp,
-        ]
-      );
-    } catch (error) {
-      // Don't throw on audit log failures, just log to console
-      console.error('[audit] Failed to write audit log:', error);
-    }
-  }
-}
-
-/**
  * No-op Audit Logger (for testing or when audit is disabled)
  */
 export class NoopAuditLogger implements AuditLogger {
   async log(_event: AuditEvent): Promise<void> {
     // No-op
   }
-}
-
-// =============================================================================
-// Factory Function
-// =============================================================================
-
-/**
- * Options for creating PluginContext
- */
-export interface CreatePluginContextOptions {
-  /** Tenant ID */
-  tenantId: string;
-
-  /** Custom logger (optional) */
-  logger?: Logger;
-
-  /** Custom audit logger (optional) */
-  auditLogger?: AuditLogger;
-
-  /** Enable audit logging (defaults to true) */
-  enableAudit?: boolean;
-}
-
-/**
- * Create a PluginContext instance
- *
- * This is the main entry point for initializing the plugin infrastructure.
- *
- * @param env - Cloudflare Workers environment bindings
- * @param options - Context options
- * @returns Initialized PluginContext
- *
- * @example
- * ```typescript
- * // In Worker fetch handler
- * export default {
- *   async fetch(request, env) {
- *     const ctx = await createPluginContext(env, { tenantId: 'default' });
- *
- *     // Use context
- *     const user = await ctx.storage.user.get(userId);
- *
- *     // Pass to plugins
- *     await somePlugin.initialize(ctx, config);
- *   }
- * };
- * ```
- */
-export async function createPluginContext(
-  env: InfraEnv & Env,
-  options: CreatePluginContextOptions
-): Promise<PluginContext> {
-  // Initialize storage
-  const storage = await createStorageInfra(env);
-
-  // Initialize policy
-  const policy = await createPolicyInfra(env, storage);
-
-  // Create config store
-  const config = new KVPluginConfigStore(env.AUTHRIM_CONFIG ?? null, env);
-
-  // Create logger
-  const logger = options.logger ?? new ConsoleLogger();
-
-  // Create audit logger
-  let audit: AuditLogger;
-  if (options.auditLogger) {
-    audit = options.auditLogger;
-  } else if (options.enableAudit !== false) {
-    audit = new D1AuditLogger(storage, options.tenantId);
-  } else {
-    audit = new NoopAuditLogger();
-  }
-
-  return new DefaultPluginContext({
-    storage,
-    policy,
-    config,
-    logger,
-    audit,
-    tenantId: options.tenantId,
-    env,
-  });
 }
 
 // =============================================================================

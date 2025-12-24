@@ -216,6 +216,19 @@ export interface Env {
   // Encryption key for storing external IdP tokens (32-byte hex string)
   RP_TOKEN_ENCRYPTION_KEY?: string;
 
+  // PII Encryption Configuration
+  // 32-byte hex string (64 characters) for AES-256 encryption key
+  // Generate with: head -c 32 /dev/urandom | xxd -p -c 64
+  PII_ENCRYPTION_KEY?: string;
+  // Enable/disable PII field encryption (default: false)
+  PII_ENCRYPTION_ENABLED?: string;
+  // Encryption algorithm: AES-256-GCM (default), AES-256-CBC, or NONE
+  PII_ENCRYPTION_ALGORITHM?: string;
+  // Comma-separated list of fields to encrypt (default: email,phone_number,name,given_name,family_name)
+  PII_ENCRYPTION_FIELDS?: string;
+  // Key version for rotation (default: 1)
+  PII_ENCRYPTION_KEY_VERSION?: string;
+
   // Policy ↔ Identity Integration (Phase 8.1)
   // HMAC secret for email domain blind index (minimum 16 characters)
   // Used to generate email_domain_hash for policy rule evaluation

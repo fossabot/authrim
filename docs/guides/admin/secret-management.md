@@ -8,6 +8,52 @@ Authrim uses cryptographic keys for JWT signing. These keys must be managed secu
 
 ## Key Types
 
+### AES-256 Encryption Keys
+
+Authrim uses AES-256-GCM encryption for protecting sensitive data at rest:
+
+| Key Name | Purpose | Storage |
+|----------|---------|---------|
+| `PII_ENCRYPTION_KEY` | Encrypts PII fields in user database | Environment Variable |
+| `RP_TOKEN_ENCRYPTION_KEY` | Encrypts external IdP tokens | Environment Variable |
+| `KEY_ENCRYPTION_MASTER_KEY` | Master key for envelope encryption | Cloudflare Secrets |
+
+#### Key Format Requirements
+
+All AES-256 encryption keys must be:
+- **Exactly 64 hexadecimal characters** (32 bytes = 256 bits)
+- **Valid hex characters only** (0-9, a-f, A-F)
+- **Cryptographically random** (high entropy)
+
+```bash
+# Generate a valid encryption key
+openssl rand -hex 32
+```
+
+#### Automatic Key Validation
+
+Authrim validates encryption keys at startup with fail-fast behavior:
+
+| Validation | Error |
+|------------|-------|
+| Key not set (when encryption enabled) | `EncryptionKeyMissingError` |
+| Invalid length (≠64 characters) | `EncryptionKeyInvalidError` |
+| Non-hex characters | `EncryptionKeyInvalidError` |
+| All identical characters (e.g., `0000...`) | `EncryptionKeyInvalidError` (weak key) |
+| Repeating patterns (e.g., `01234567...`) | `EncryptionKeyInvalidError` (weak key) |
+
+**Weak Key Detection**: Keys with obvious patterns (all zeros, repeating sequences) are rejected to prevent accidental use of low-entropy keys.
+
+#### Example Error Messages
+
+```
+PII_ENCRYPTION_KEY format is invalid: expected 64 characters, got 32.
+Key must be exactly 64 hex characters (256-bit key).
+Generate a valid key with: openssl rand -hex 32
+
+PII_ENCRYPTION_KEY format is invalid: key contains all identical characters (zero entropy).
+```
+
 ### RSA Key Pair
 
 Authrim uses RSA-2048 key pairs with the RS256 algorithm (RSA signature with SHA-256) for signing JWT tokens.

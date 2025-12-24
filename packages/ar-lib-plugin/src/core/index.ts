@@ -14,6 +14,7 @@ export type {
   PluginMeta,
   HealthStatus,
   PluginContext,
+  PluginStorageAccess,
   PluginConfigStore,
   NotifierHandler,
   Notification,
@@ -26,7 +27,35 @@ export type {
   AuditLogger,
   AuditEvent,
   Env,
+  // Store interfaces (for type-safe storage access)
+  IUserStore,
+  IClientStore,
+  ISessionStore,
+  IPasskeyStore,
+  IOrganizationStore,
+  IRoleStore,
+  IRoleAssignmentStore,
+  IRelationshipStore,
+  // Plugin metadata types
+  PluginAuthor,
+  PluginSupport,
+  ExternalDependency,
+  // Trust level types
+  PluginSource,
+  PluginTrustLevel,
+  // Entity types (for store interfaces)
+  User,
+  OAuthClient,
+  Session,
+  Passkey,
+  Organization,
+  Role,
+  RoleAssignment,
+  Relationship,
 } from './types';
+
+// Trust level utilities
+export { getPluginTrustLevel, THIRD_PARTY_DISCLAIMER } from './types';
 
 // Registry
 export {
@@ -74,14 +103,40 @@ export {
   type PluginLoaderOptions,
 } from './loader';
 
-// Plugin Context
+// Plugin Context Utilities
+// Note: PluginContext creation is done by Workers using ar-lib-core implementations
 export {
-  DefaultPluginContext,
   KVPluginConfigStore,
   ConsoleLogger,
-  D1AuditLogger,
   NoopAuditLogger,
   createPluginContext,
   type PluginContextOptions,
-  type CreatePluginContextOptions,
 } from './context';
+
+// Security Utilities
+export {
+  // Secret field support
+  secretField,
+  isSecretField,
+  extractSecretFields,
+  matchesSecretPattern,
+  DEFAULT_SECRET_PATTERNS,
+  SECRET_FIELD_MARKER,
+  // URL validation
+  validateExternalUrl,
+  type UrlValidationResult,
+  type UrlValidationOptions,
+  // Recursive masking
+  maskSensitiveFieldsRecursive,
+  type MaskOptions,
+  // Encryption (for KV storage)
+  encryptValue,
+  decryptValue,
+  encryptSecretFields,
+  decryptSecretFields,
+  isEncryptedValue,
+  type EncryptedConfig,
+  // Encryption key management
+  deriveEncryptionKey,
+  getPluginEncryptionKey,
+} from './security';

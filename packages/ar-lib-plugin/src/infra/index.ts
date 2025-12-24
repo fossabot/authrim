@@ -1,22 +1,32 @@
 /**
  * Infrastructure Layer
  *
- * This module exports infrastructure interfaces and implementations.
+ * This module exports infrastructure INTERFACES only.
+ * Implementations are provided by ar-lib-core (e.g., CloudflareStorageAdapter).
+ *
  * Application code uses this to access storage and policy infrastructure.
  *
  * Note: Plugin developers should NOT import from this module directly.
  * Use PluginContext.storage and PluginContext.policy instead.
+ *
+ * Architecture:
+ * - ar-lib-plugin: Interfaces (IStorageInfra, IPolicyInfra, IUserStore, etc.)
+ * - ar-lib-core: Implementations (CloudflareStorageAdapter, UserStore, ReBACService, etc.)
+ * - Workers: Inject ar-lib-core implementations into PluginContext
  */
 
-// Types
+// Types (Interfaces only - implementations are in ar-lib-core)
 export type {
-  // Storage Infrastructure
+  // Storage Infrastructure Interface
   IStorageInfra,
   StorageProvider,
   IStorageAdapter,
   ExecuteResult,
   TransactionContext,
-  // Stores
+  // PII Classification Markers
+  PIIStore,
+  NonPIIStore,
+  // Store Interfaces
   IUserStore,
   User,
   IClientStore,
@@ -25,7 +35,7 @@ export type {
   Session,
   IPasskeyStore,
   Passkey,
-  // RBAC Stores
+  // RBAC Store Interfaces
   IOrganizationStore,
   Organization,
   IRoleStore,
@@ -34,7 +44,7 @@ export type {
   RoleAssignment,
   IRelationshipStore,
   Relationship,
-  // Policy Infrastructure
+  // Policy Infrastructure Interface
   IPolicyInfra,
   PolicyProvider,
   // Policy Check Types
@@ -56,13 +66,5 @@ export type {
   InfraHealthStatus,
 } from './types';
 
-// Storage Implementations
-export {
-  CloudflareStorageInfra,
-  CloudflareStorageAdapter,
-  createStorageInfra,
-  type StorageInfraOptions,
-} from './storage';
-
-// Policy Implementations
+// Policy Implementations (Built-in ReBAC - stays in ar-lib-plugin as reference implementation)
 export { BuiltinPolicyInfra, createPolicyInfra, type PolicyInfraOptions } from './policy';

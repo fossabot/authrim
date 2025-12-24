@@ -81,9 +81,8 @@ export const consoleNotifierPlugin: AuthrimPlugin<ConsoleNotifierConfig> = {
 
     // Author (official plugin)
     author: {
-      name: 'Authrim Team',
-      organization: 'Authrim',
-      url: 'https://authrim.io',
+      name: 'Authrim',
+      url: 'https://authrim.com',
     },
     license: 'MIT',
 

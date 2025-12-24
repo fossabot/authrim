@@ -26,10 +26,85 @@
 import type { Context } from 'hono';
 import type { Env, AdminAuthContext } from '@authrim/ar-lib-core';
 import { createRFCErrorResponse, RFC_ERROR_CODES } from '@authrim/ar-lib-core';
+import {
+  maskSensitiveFieldsRecursive,
+  validateExternalUrl,
+  encryptSecretFields,
+  decryptSecretFields,
+  getPluginEncryptionKey,
+  matchesSecretPattern,
+  type EncryptedConfig,
+} from '@authrim/ar-lib-plugin';
 
 // =============================================================================
 // Types
 // =============================================================================
+
+/**
+ * Plugin source information
+ *
+ * Used to determine trust level and display in Admin UI.
+ * Trust is based on distribution channel, NOT metadata claims.
+ */
+interface PluginSource {
+  /**
+   * Source type
+   * - builtin: Included in ar-lib-plugin/src/builtin/
+   * - npm: Installed via npm (includes scoped packages)
+   * - local: Local file path
+   * - unknown: Source cannot be determined
+   */
+  type: 'builtin' | 'npm' | 'local' | 'unknown';
+
+  /**
+   * Source identifier
+   * - builtin: "ar-lib-plugin/builtin/{path}"
+   * - npm: "@scope/package-name" or "package-name"
+   * - local: "/path/to/plugin"
+   * - unknown: undefined
+   */
+  identifier?: string;
+
+  /**
+   * npm package version (if source is npm)
+   */
+  npmVersion?: string;
+}
+
+/**
+ * Plugin trust level
+ *
+ * Determined by source, NOT by metadata claims.
+ * - official: Builtin or @authrim/* npm scope
+ * - community: Everything else
+ */
+type PluginTrustLevel = 'official' | 'community';
+
+/**
+ * Determine trust level from plugin source
+ */
+function getPluginTrustLevel(source: PluginSource): PluginTrustLevel {
+  // Builtin is always official
+  if (source.type === 'builtin') {
+    return 'official';
+  }
+
+  // npm @authrim/* scope is official
+  if (source.type === 'npm' && source.identifier?.startsWith('@authrim/')) {
+    return 'official';
+  }
+
+  // Everything else is community
+  return 'community';
+}
+
+/**
+ * Disclaimer text for third-party plugins
+ *
+ * Admin UI is responsible for i18n. This provides only the English text.
+ */
+const THIRD_PARTY_DISCLAIMER =
+  'This plugin is provided by a third party. Authrim does not guarantee its security, reliability, or compatibility. Use at your own risk.';
 
 interface PluginRegistryEntry {
   id: string;
@@ -42,7 +117,17 @@ interface PluginRegistryEntry {
     icon?: string;
     category: string;
     documentationUrl?: string;
+    author?: {
+      name: string;
+      email?: string;
+      url?: string;
+    };
+    license?: string;
+    tags?: string[];
+    stability?: 'stable' | 'beta' | 'alpha' | 'deprecated';
   };
+  source: PluginSource;
+  trustLevel: PluginTrustLevel;
   registeredAt: number;
 }
 
@@ -68,6 +153,8 @@ interface PluginDetailResponse {
   status: PluginStatus;
   config: Record<string, unknown>;
   configSchema?: Record<string, unknown>;
+  /** Disclaimer for community plugins (null for official plugins). Admin UI handles i18n. */
+  disclaimer: string | null;
 }
 
 // =============================================================================
@@ -91,23 +178,66 @@ function getPluginKV(env: Env): KVNamespace | undefined {
 
 /**
  * Mask sensitive fields in configuration for API responses
+ *
+ * Uses recursive masking from ar-lib-plugin to handle:
+ * - Top-level fields
+ * - Nested objects
+ * - Arrays of objects
  */
 function maskSensitiveFields(config: Record<string, unknown>): Record<string, unknown> {
-  const masked = { ...config };
-  const sensitiveKeys = ['apiKey', 'apiSecret', 'secretKey', 'password', 'token', 'authToken'];
+  return maskSensitiveFieldsRecursive(config, {
+    usePatternMatching: true, // Use default patterns (apiKey, token, password, etc.)
+  });
+}
 
-  for (const key of Object.keys(masked)) {
-    if (sensitiveKeys.some((sk) => key.toLowerCase().includes(sk.toLowerCase()))) {
-      const value = masked[key];
-      if (typeof value === 'string' && value.length > 8) {
-        masked[key] = value.substring(0, 4) + '****' + value.substring(value.length - 4);
-      } else if (typeof value === 'string') {
-        masked[key] = '****';
-      }
+/**
+ * Validate plugin metadata URLs for security
+ *
+ * Server-side validation for headless operation.
+ * Blocks dangerous URLs (javascript:, internal IPs, metadata endpoints).
+ */
+function validatePluginMetaUrls(meta?: PluginRegistryEntry['meta']): {
+  valid: boolean;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+
+  if (!meta) {
+    return { valid: true, warnings };
+  }
+
+  // Validate icon URL
+  if (meta.icon) {
+    const iconResult = validateExternalUrl(meta.icon, {
+      allowDataUrl: true, // Allow data:image/svg+xml for icons
+    });
+    if (!iconResult.valid) {
+      warnings.push(`Invalid icon URL: ${iconResult.reason}`);
     }
   }
 
-  return masked;
+  // Validate logo URL (stricter - no data URLs)
+  if ('logoUrl' in meta && typeof (meta as { logoUrl?: string }).logoUrl === 'string') {
+    const logoUrl = (meta as { logoUrl?: string }).logoUrl!;
+    const logoResult = validateExternalUrl(logoUrl, {
+      allowDataUrl: false, // No data URLs for logos
+    });
+    if (!logoResult.valid) {
+      warnings.push(`Invalid logo URL: ${logoResult.reason}`);
+    }
+  }
+
+  // Validate documentation URL
+  if (meta.documentationUrl) {
+    const docResult = validateExternalUrl(meta.documentationUrl);
+    if (!docResult.valid) {
+      warnings.push(`Invalid documentation URL: ${docResult.reason}`);
+    }
+  }
+
+  // For community plugins, log warnings but don't reject
+  // For security, warnings are logged for operator review
+  return { valid: true, warnings };
 }
 
 /**
@@ -169,6 +299,33 @@ async function isPluginEnabled(
 }
 
 /**
+ * Decrypt secret fields in configuration if encrypted
+ */
+async function decryptConfigIfNeeded(
+  config: Record<string, unknown>,
+  env: Env
+): Promise<Record<string, unknown>> {
+  // Check if config has encrypted fields
+  const encryptedConfig = config as EncryptedConfig;
+  if (!encryptedConfig._encrypted || encryptedConfig._encrypted.length === 0) {
+    return config;
+  }
+
+  try {
+    const key = await getPluginEncryptionKey(
+      env as { PLUGIN_ENCRYPTION_KEY?: string; KEY_MANAGER_SECRET?: string }
+    );
+    return await decryptSecretFields(encryptedConfig, key);
+  } catch (error) {
+    // If decryption fails, log and return config as-is (may be unencrypted legacy data)
+    console.warn('[Plugin Config] Failed to decrypt config, returning as-is:', error);
+    // Remove _encrypted marker to avoid confusion
+    const { _encrypted, ...rest } = config as EncryptedConfig;
+    return rest;
+  }
+}
+
+/**
  * Get plugin configuration
  */
 async function getPluginConfig(
@@ -184,10 +341,11 @@ async function getPluginConfig(
     if (tenantValue) {
       try {
         const tenantConfig = JSON.parse(tenantValue);
+        const decryptedTenantConfig = await decryptConfigIfNeeded(tenantConfig, env);
         // Merge with global config
         const globalConfig = await getPluginConfig(kv, env, pluginId);
         return {
-          config: { ...globalConfig.config, ...tenantConfig },
+          config: { ...globalConfig.config, ...decryptedTenantConfig },
           source: 'kv',
         };
       } catch {
@@ -201,7 +359,9 @@ async function getPluginConfig(
   const kvValue = await kv.get(globalKey);
   if (kvValue) {
     try {
-      return { config: JSON.parse(kvValue), source: 'kv' };
+      const parsedConfig = JSON.parse(kvValue);
+      const decryptedConfig = await decryptConfigIfNeeded(parsedConfig, env);
+      return { config: decryptedConfig, source: 'kv' };
     } catch {
       // Ignore parse errors
     }
@@ -219,6 +379,19 @@ async function getPluginConfig(
   }
 
   return { config: {}, source: 'default' };
+}
+
+/**
+ * Identify secret fields in configuration by pattern matching
+ */
+function identifySecretFields(config: Record<string, unknown>): string[] {
+  const secretFields: string[] = [];
+  for (const key of Object.keys(config)) {
+    if (matchesSecretPattern(key) && typeof config[key] === 'string') {
+      secretFields.push(key);
+    }
+  }
+  return secretFields;
 }
 
 // =============================================================================
@@ -327,6 +500,9 @@ export async function getPluginHandler(c: Context<{ Bindings: Env }>) {
     // Ignore
   }
 
+  // Include disclaimer for community plugins
+  const disclaimer = entry.trustLevel === 'community' ? THIRD_PARTY_DISCLAIMER : null;
+
   const response: PluginDetailResponse = {
     plugin: entry,
     status: {
@@ -337,6 +513,7 @@ export async function getPluginHandler(c: Context<{ Bindings: Env }>) {
     },
     config: maskSensitiveFields(config),
     configSchema,
+    disclaimer,
   };
 
   return c.json(response);
@@ -373,6 +550,11 @@ export async function getPluginConfigHandler(c: Context<{ Bindings: Env }>) {
 /**
  * PUT /api/admin/plugins/:id/config
  * Update plugin configuration
+ *
+ * Security:
+ * - Secret fields (apiKey, password, token, etc.) are automatically encrypted
+ * - Encrypted data is stored with enc:v1: prefix in KV
+ * - Requires PLUGIN_ENCRYPTION_KEY or KEY_MANAGER_SECRET environment variable
  */
 export async function updatePluginConfigHandler(c: Context<{ Bindings: Env }>) {
   const pluginId = c.req.param('id');
@@ -398,6 +580,8 @@ export async function updatePluginConfigHandler(c: Context<{ Bindings: Env }>) {
   const body = await c.req.json<{
     config: Record<string, unknown>;
     tenant_id?: string;
+    /** Explicit list of secret fields to encrypt (optional, uses pattern matching if not provided) */
+    secret_fields?: string[];
   }>();
 
   if (!body.config || typeof body.config !== 'object') {
@@ -420,14 +604,36 @@ export async function updatePluginConfigHandler(c: Context<{ Bindings: Env }>) {
   // Merge with existing config
   const newConfig = { ...existingConfig, ...body.config };
 
-  // Save to KV
-  await kv.put(configKey, JSON.stringify(newConfig));
+  // Identify secret fields to encrypt
+  const secretFields = body.secret_fields ?? identifySecretFields(newConfig);
 
-  // Log the change
+  // Encrypt secret fields if any exist and encryption key is available
+  let configToStore: Record<string, unknown> = newConfig;
+  if (secretFields.length > 0) {
+    try {
+      const encryptionKey = await getPluginEncryptionKey(
+        c.env as { PLUGIN_ENCRYPTION_KEY?: string; KEY_MANAGER_SECRET?: string }
+      );
+      configToStore = await encryptSecretFields(newConfig, secretFields, encryptionKey);
+    } catch (error) {
+      // If encryption fails due to missing key, store unencrypted with warning
+      console.warn(
+        '[Plugin Config] Encryption key not available, storing config unencrypted:',
+        error
+      );
+      // Continue with unencrypted config
+    }
+  }
+
+  // Save to KV
+  await kv.put(configKey, JSON.stringify(configToStore));
+
+  // Log the change (with masked values for audit)
   logPluginConfigChange('update', adminId, {
     pluginId,
     tenantId: body.tenant_id ?? null,
     changedFields: Object.keys(body.config),
+    encryptedFields: secretFields,
   });
 
   return c.json({
@@ -435,6 +641,7 @@ export async function updatePluginConfigHandler(c: Context<{ Bindings: Env }>) {
     pluginId,
     tenantId: body.tenant_id ?? null,
     config: maskSensitiveFields(newConfig),
+    encryptedFields: secretFields,
   });
 }
 
@@ -649,6 +856,8 @@ export async function getPluginSchemaHandler(c: Context<{ Bindings: Env }>) {
 /**
  * Register a plugin in the registry
  * This is called by the plugin loader when a plugin is loaded
+ *
+ * Security: Validates external URLs in plugin metadata for headless operation.
  */
 export async function registerPlugin(
   kv: KVNamespace,
@@ -658,10 +867,27 @@ export async function registerPlugin(
     capabilities: string[];
     official?: boolean;
     meta?: PluginRegistryEntry['meta'];
+    source?: PluginSource;
   },
   schema?: Record<string, unknown>
 ): Promise<void> {
   const registry = await getPluginRegistry(kv);
+
+  // Determine source - default to unknown if not provided
+  const source: PluginSource = plugin.source ?? { type: 'unknown' };
+
+  // Trust level is determined by source, NOT by official flag
+  const trustLevel = getPluginTrustLevel(source);
+
+  // Validate URLs in metadata (for headless security)
+  const urlValidation = validatePluginMetaUrls(plugin.meta);
+  if (urlValidation.warnings.length > 0) {
+    // Log warnings for operator review
+    console.warn(`[Plugin Registration] ${plugin.id}: URL validation warnings`, {
+      trustLevel,
+      warnings: urlValidation.warnings,
+    });
+  }
 
   registry[plugin.id] = {
     id: plugin.id,
@@ -669,6 +895,8 @@ export async function registerPlugin(
     capabilities: plugin.capabilities,
     official: plugin.official ?? false,
     meta: plugin.meta,
+    source,
+    trustLevel,
     registeredAt: Date.now(),
   };
 

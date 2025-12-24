@@ -257,6 +257,7 @@ import {
   clearLogoutFailure,
   clearAllLogoutFailures,
 } from './routes/settings/logout-failures';
+import { getEncryptionStatus } from './routes/settings/encryption-config';
 import {
   revokeCredentialHandler,
   suspendCredentialHandler,
@@ -503,6 +504,11 @@ app.get('/api/admin/settings/oauth-config', getOAuthConfig);
 app.put('/api/admin/settings/oauth-config/:name', updateOAuthConfig);
 app.delete('/api/admin/settings/oauth-config/:name', clearOAuthConfig);
 app.delete('/api/admin/settings/oauth-config', clearAllOAuthConfig);
+
+// Admin PII Encryption Configuration endpoints
+// Control encryption settings for PII fields in the database
+// PII Encryption status (read-only, configured via environment variables)
+app.get('/api/admin/settings/encryption/status', getEncryptionStatus);
 
 // Admin Policy Flags (Check API) Configuration endpoints
 app.get('/api/admin/settings/policy-flags', getPolicyFlags);
