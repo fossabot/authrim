@@ -68,9 +68,11 @@ app.use('*', pluginContextMiddleware());
 
 // Enhanced security headers
 // Skip for /session/check endpoint (OIDC Session Management iframe needs custom headers)
+// Skip for /logout endpoint (OIDC Front-Channel Logout needs to embed iframes to call RPs)
 app.use('*', async (c, next) => {
   // Skip secure headers for /session/check - it returns custom headers for iframe embedding
-  if (c.req.path === '/session/check') {
+  // Skip secure headers for /logout - frontchannel logout embeds iframes to notify RPs
+  if (c.req.path === '/session/check' || c.req.path === '/logout') {
     return next();
   }
 

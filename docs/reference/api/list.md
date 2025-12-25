@@ -1,6 +1,6 @@
 # Authrim API Endpoints List
 
-**Last Updated**: 2025-12-22
+**Last Updated**: 2025-12-25
 **Total Endpoints**: 150+
 
 This document provides a concise list of all available API endpoints in Authrim OIDC Provider.
@@ -243,7 +243,62 @@ This document provides a concise list of all available API endpoints in Authrim 
 | GET    | `/api/admin/users/:id/relationships` | List user's relationships (parent/guardian) |
 | POST   | `/api/admin/users/:id/relationships` | Create relationship between users           |
 
-### Settings - Dynamic Configuration
+### ⭐ Settings API v2 (Recommended)
+
+Unified settings management with category-based endpoints and optimistic locking.
+
+**Configuration Priority**: `env > KV > default` (environment has highest priority)
+
+#### Tenant Settings
+
+| Method | Endpoint                                           | Description                     |
+| ------ | -------------------------------------------------- | ------------------------------- |
+| GET    | `/api/admin/tenants/:tenantId/settings/:category`  | Get tenant settings by category |
+| PATCH  | `/api/admin/tenants/:tenantId/settings/:category`  | Update tenant settings (ifMatch required) |
+
+**Categories**: `oauth`, `session`, `security`, `consent`, `ciba`, `rate-limit`, `credentials`, `federation`, `scim`, `device-flow`, `tokens`, `external-idp`
+
+#### Client Settings
+
+| Method | Endpoint                              | Description           |
+| ------ | ------------------------------------- | --------------------- |
+| GET    | `/api/admin/clients/:clientId/settings` | Get client settings   |
+| PATCH  | `/api/admin/clients/:clientId/settings` | Update client settings (ifMatch required) |
+
+#### Platform Settings (Read-Only)
+
+| Method | Endpoint                                   | Description              |
+| ------ | ------------------------------------------ | ------------------------ |
+| GET    | `/api/admin/platform/settings/:category`   | Get platform settings    |
+
+**Categories**: `infrastructure`, `encryption`
+
+#### Meta API
+
+| Method | Endpoint                           | Description              |
+| ------ | ---------------------------------- | ------------------------ |
+| GET    | `/api/admin/settings/meta`         | List all categories      |
+| GET    | `/api/admin/settings/meta/:category` | Get category metadata    |
+
+#### Migration API
+
+| Method | Endpoint                             | Description              |
+| ------ | ------------------------------------ | ------------------------ |
+| POST   | `/api/admin/settings/migrate`        | Execute migration (v1→v2) |
+| GET    | `/api/admin/settings/migrate/status` | Get migration status     |
+| DELETE | `/api/admin/settings/migrate/lock`   | Clear migration lock     |
+
+---
+
+### Legacy Settings API (Deprecated)
+
+> ⚠️ **Deprecated**: The following endpoints are deprecated in favor of Settings API v2 above.
+> Use `/api/admin/tenants/:tenantId/settings/:category` instead.
+
+<details>
+<summary>Click to expand legacy endpoints</summary>
+
+#### Settings - Dynamic Configuration
 
 | Method | Endpoint                                             | Description                                     |
 | ------ | ---------------------------------------------------- | ----------------------------------------------- |
@@ -273,7 +328,7 @@ This document provides a concise list of all available API endpoints in Authrim 
 | POST   | `/api/admin/settings/region-shards/migrate`          | Create new generation (rolling migration)       |
 | GET    | `/api/admin/settings/region-shards/validate`         | Validate current configuration                  |
 
-### Settings - JIT Provisioning
+#### Settings - JIT Provisioning
 
 | Method | Endpoint                               | Description                        |
 | ------ | -------------------------------------- | ---------------------------------- |
@@ -281,7 +336,7 @@ This document provides a concise list of all available API endpoints in Authrim 
 | PUT    | `/api/admin/settings/jit-provisioning` | Update JIT provisioning settings   |
 | DELETE | `/api/admin/settings/jit-provisioning` | Reset JIT provisioning to defaults |
 
-### Settings - Domain Hash Keys (Key Rotation)
+#### Settings - Domain Hash Keys (Key Rotation)
 
 | Method | Endpoint                                        | Description                                 |
 | ------ | ----------------------------------------------- | ------------------------------------------- |
@@ -290,6 +345,8 @@ This document provides a concise list of all available API endpoints in Authrim 
 | PUT    | `/api/admin/settings/domain-hash-keys/complete` | Complete key rotation (deprecate old keys)  |
 | GET    | `/api/admin/settings/domain-hash-keys/status`   | Get key rotation migration status           |
 | DELETE | `/api/admin/settings/domain-hash-keys/:version` | Delete deprecated secret version            |
+
+</details>
 
 ### Role Assignment Rules
 

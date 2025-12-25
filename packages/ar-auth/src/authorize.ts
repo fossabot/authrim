@@ -54,6 +54,8 @@ import {
   calculateSessionState,
   extractOrigin,
   isInternalUrl,
+  generateBrowserState,
+  BROWSER_STATE_COOKIE_NAME,
 } from '@authrim/ar-lib-core';
 import { SignJWT, importJWK, importPKCS8, compactDecrypt, type CryptoKey } from 'jose';
 
@@ -2514,11 +2516,15 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
   // OIDC Session Management 1.0: Add session_state parameter
   // https://openid.net/specs/openid-connect-session-1_0.html#CreatingUpdatingSessions
+  // Use browser state (derived from session ID) instead of raw session ID
+  // because browser state is what the check_session_iframe can read (non-HttpOnly cookie)
   if (sessionId && validRedirectUri) {
     try {
       const rpOrigin = extractOrigin(validRedirectUri);
       if (rpOrigin) {
-        const sessionState = await calculateSessionState(validClientId, rpOrigin, sessionId);
+        // Generate browser state from session ID - this must match what's in the cookie
+        const browserState = await generateBrowserState(sessionId);
+        const sessionState = await calculateSessionState(validClientId, rpOrigin, browserState);
         responseParams.session_state = sessionState;
       }
     } catch (error) {
@@ -3379,10 +3385,18 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
       }
     );
 
-    // Set session cookie with the pre-generated sharded session ID
+    // Set session cookie with the pre-generated sharded session ID (HttpOnly for security)
     c.header(
       'Set-Cookie',
       `authrim_session=${newSessionId}; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=3600`
+    );
+
+    // Generate and set browser state cookie for OIDC Session Management
+    // This cookie is NOT HttpOnly so check_session_iframe can read it via JavaScript
+    const browserState = await generateBrowserState(newSessionId);
+    c.res.headers.append(
+      'Set-Cookie',
+      `${BROWSER_STATE_COOKIE_NAME}=${browserState}; Path=/; SameSite=None; Secure; Max-Age=3600`
     );
   } catch (error) {
     console.error('Failed to create session:', error);

@@ -261,6 +261,14 @@ export interface ClientRegistrationRequest {
   // OIDC RP-Initiated Logout 1.0 - post_logout_redirect_uris
   // https://openid.net/specs/openid-connect-rpinitiated-1_0.html
   post_logout_redirect_uris?: string[];
+  // OIDC Backchannel Logout 1.0
+  // https://openid.net/specs/openid-connect-backchannel-1_0.html
+  backchannel_logout_uri?: string;
+  backchannel_logout_session_required?: boolean;
+  // OIDC Front-Channel Logout 1.0
+  // https://openid.net/specs/openid-connect-frontchannel-1_0.html
+  frontchannel_logout_uri?: string;
+  frontchannel_logout_session_required?: boolean;
 }
 
 /**
@@ -310,6 +318,12 @@ export interface ClientRegistrationResponse {
   sd_jwt_selective_claims?: string[];
   // OIDC RP-Initiated Logout 1.0 - post_logout_redirect_uris
   post_logout_redirect_uris?: string[];
+  // OIDC Backchannel Logout 1.0
+  backchannel_logout_uri?: string;
+  backchannel_logout_session_required?: boolean;
+  // OIDC Front-Channel Logout 1.0
+  frontchannel_logout_uri?: string;
+  frontchannel_logout_session_required?: boolean;
 }
 
 /**

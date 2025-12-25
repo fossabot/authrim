@@ -120,6 +120,9 @@ export function generateFrontchannelLogoutHtml(
     str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   // Generate iframe elements
+  // Note: sandbox attribute removed to allow cross-origin requests for frontchannel logout
+  // The RP's frontchannel_logout_uri just needs to receive the GET request with iss and sid
+  // Using 1x1px size instead of 0x0 to ensure browsers don't skip loading invisible iframes
   const iframeElements = iframes
     .slice(0, config.max_concurrent_iframes)
     .map(
@@ -127,8 +130,7 @@ export function generateFrontchannelLogoutHtml(
     <iframe
       id="logout-frame-${index}"
       src="${escapeHtml(iframe.logoutUri)}"
-      style="width:0;height:0;border:0;position:absolute;"
-      sandbox="allow-scripts allow-same-origin"
+      style="width:1px;height:1px;border:0;position:absolute;left:-9999px;top:-9999px;"
       loading="eager"
     ></iframe>`
     )
@@ -198,9 +200,27 @@ export function generateFrontchannelLogoutHtml(
     var totalIframes = ${iframes.length};
     var timeoutMs = ${config.iframe_timeout_ms};
     var redirectUrl = "${escapeHtml(redirectUrl)}";
+    var redirectDone = false;
+    // Minimum wait time to ensure iframes have time to send requests
+    // Cross-origin iframes may fire onload immediately even before the request completes
+    // Using 2500ms to give enough time for network latency
+    var minWaitMs = 2500;
+    var startTime = Date.now();
 
     function doRedirect() {
+      if (redirectDone) return;
+      redirectDone = true;
       window.location.href = redirectUrl;
+    }
+
+    function tryRedirect() {
+      // Ensure minimum wait time has passed
+      var elapsed = Date.now() - startTime;
+      if (elapsed < minWaitMs) {
+        setTimeout(doRedirect, minWaitMs - elapsed);
+      } else {
+        doRedirect();
+      }
     }
 
     // Listen for iframe load events
@@ -208,14 +228,14 @@ export function generateFrontchannelLogoutHtml(
       iframe.onload = function() {
         loadedCount++;
         if (loadedCount >= totalIframes) {
-          // All iframes loaded, redirect immediately
-          doRedirect();
+          // All iframes loaded - but wait for minimum time
+          tryRedirect();
         }
       };
       iframe.onerror = function() {
         loadedCount++;
         if (loadedCount >= totalIframes) {
-          doRedirect();
+          tryRedirect();
         }
       };
     });

@@ -35,6 +35,7 @@ import {
   buildFrontchannelLogoutIframes,
   generateFrontchannelLogoutHtml,
   getFrontchannelLogoutConfig,
+  BROWSER_STATE_COOKIE_NAME,
 } from '@authrim/ar-lib-core';
 import type { BackchannelLogoutConfig, LogoutSendResult, LogoutConfig } from '@authrim/ar-lib-core';
 import { importJWK, jwtVerify, importPKCS8 } from 'jose';
@@ -191,32 +192,100 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
     // 2. sid from validated id_token_hint (if valid - for server-to-server logout)
     const sessionId = getCookie(c, 'authrim_session');
     const deletedSessions: string[] = [];
-    const sessionsToNotify: Array<{ sessionId: string; userId: string }> = [];
 
     // Get context for repository access
     const tenantId = getTenantIdFromContext(c);
     const authCtx = createAuthContextFromHono(c, tenantId);
 
-    // Helper to collect session info before deletion
-    const collectSessionClients = async (sessId: string) => {
-      // Get session info first to get userId
-      const session = await authCtx.repositories.session.findById(sessId);
-      if (session && session.user_id) {
-        sessionsToNotify.push({ sessionId: sessId, userId: session.user_id });
+    // Collect all data needed for logout **before** deleting the session.
+    // Session deletion cascades to session_clients via FK, so we need the client
+    // lists upfront to send backchannel/frontchannel notifications.
+    type SessionNotificationTarget = {
+      sessionId: string;
+      userId: string;
+      backchannelClients: Awaited<
+        ReturnType<typeof authCtx.repositories.sessionClient.findBackchannelLogoutClients>
+      >;
+      frontchannelClients: Awaited<
+        ReturnType<typeof authCtx.repositories.sessionClient.findFrontchannelLogoutClients>
+      >;
+    };
+    const sessionsToNotify: SessionNotificationTarget[] = [];
+
+    const collectSessionData = async (sessId: string, fallbackUserId?: string) => {
+      // Avoid duplicate work if the same session is encountered twice
+      if (sessionsToNotify.some((s) => s.sessionId === sessId)) {
+        return;
+      }
+
+      try {
+        // Try to get user_id from D1 session (may not exist since sessions are in Durable Objects)
+        let effectiveUserId = fallbackUserId || '';
+        try {
+          const session = await authCtx.repositories.session.findById(sessId);
+          if (session?.user_id) {
+            effectiveUserId = session.user_id;
+          }
+        } catch {
+          // Session not in D1, use fallback userId from id_token_hint
+          console.debug(`[LOGOUT] Session ${sessId} not in D1, using fallback userId`);
+        }
+
+        // Get clients from session_clients table (this works regardless of D1 session)
+        const [backchannelClients, frontchannelClients] = await Promise.all([
+          authCtx.repositories.sessionClient.findBackchannelLogoutClients(sessId).catch((error) => {
+            console.warn(
+              `[BACKCHANNEL_LOGOUT] Failed to load backchannel clients for ${sessId}:`,
+              error
+            );
+            return [];
+          }),
+          authCtx.repositories.sessionClient
+            .findFrontchannelLogoutClients(sessId)
+            .catch((error) => {
+              console.warn(
+                `[FRONTCHANNEL_LOGOUT] Failed to load frontchannel clients for ${sessId}:`,
+                error
+              );
+              return [];
+            }),
+        ]);
+
+        // Only add if we have clients to notify
+        if (backchannelClients.length > 0 || frontchannelClients.length > 0) {
+          console.log(
+            `[LOGOUT] Collected ${backchannelClients.length} backchannel + ${frontchannelClients.length} frontchannel clients for session ${sessId}`
+          );
+          sessionsToNotify.push({
+            sessionId: sessId,
+            userId: effectiveUserId,
+            backchannelClients,
+            frontchannelClients,
+          });
+        } else {
+          console.debug(`[LOGOUT] No logout clients found for session ${sessId}`);
+        }
+      } catch (error) {
+        console.warn(`Failed to load session data for ${sessId}:`, error);
       }
     };
 
     // Delete session from cookie if present (only sharded format)
+    console.log(
+      `[LOGOUT] Processing: cookieSession=${sessionId?.substring(0, 30) || 'none'}, sid=${sid?.substring(0, 30) || 'none'}, idTokenValid=${idTokenValid}`
+    );
+
     if (sessionId && isShardedSessionId(sessionId)) {
       try {
-        // Collect session info before deletion
-        await collectSessionClients(sessionId);
+        // Collect session info before deletion (pass userId from id_token_hint as fallback)
+        await collectSessionData(sessionId, userId);
 
         const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sessionId);
         const deleted = await sessionStore.invalidateSessionRpc(sessionId);
 
         if (deleted) {
           deletedSessions.push(sessionId);
+          console.log(`[LOGOUT] Cookie session deleted: ${sessionId.substring(0, 30)}...`);
         } else {
           console.warn('Failed to delete cookie session:', sessionId);
         }
@@ -236,9 +305,10 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
       isShardedSessionId(sid)
     ) {
       try {
-        // Collect session info before deletion
+        // Collect session info before deletion (pass userId from id_token_hint as fallback)
         if (!sessionsToNotify.some((s) => s.sessionId === sid)) {
-          await collectSessionClients(sid);
+          console.log(`[LOGOUT] Collecting session data for sid: ${sid.substring(0, 30)}...`);
+          await collectSessionData(sid, userId);
         }
 
         const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sid);
@@ -246,6 +316,7 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
 
         if (deleted) {
           deletedSessions.push(sid);
+          console.log(`[LOGOUT] Session from sid deleted: ${sid.substring(0, 30)}...`);
         } else {
           // Session might not exist or already deleted - this is OK
           console.debug('Session from id_token_hint not found or already deleted:', sid);
@@ -254,6 +325,10 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
         console.warn('Failed to route to session store for sid:', sid, error);
       }
     }
+
+    console.log(
+      `[LOGOUT] After processing: deletedSessions=${deletedSessions.length}, sessionsToNotify=${sessionsToNotify.length}`
+    );
 
     // ========================================
     // Step 2.5: Send Backchannel Logout notifications (async)
@@ -301,22 +376,22 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
             // Send logout notifications for each deleted session
             const allResults: LogoutSendResult[] = [];
 
-            for (const { sessionId: sessId, userId: sessUserId } of sessionsToNotify) {
-              // Get clients that need to be notified
-              const sessionClients =
-                await authCtx.repositories.sessionClient.findBackchannelLogoutClients(sessId);
-
-              if (sessionClients.length === 0) {
+            for (const {
+              sessionId: sessId,
+              userId: sessUserId,
+              backchannelClients,
+            } of sessionsToNotify) {
+              if (backchannelClients.length === 0) {
                 console.debug(`[BACKCHANNEL_LOGOUT] No clients to notify for session ${sessId}`);
                 continue;
               }
 
               console.log(
-                `[BACKCHANNEL_LOGOUT] Sending logout notifications for session ${sessId} to ${sessionClients.length} clients`
+                `[BACKCHANNEL_LOGOUT] Sending logout notifications for session ${sessId} to ${backchannelClients.length} clients`
               );
 
               const results = await orchestrator.sendToAll(
-                sessionClients,
+                backchannelClients,
                 {
                   issuer: c.env.ISSUER_URL,
                   userId: sessUserId,
@@ -341,10 +416,16 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
-    // Step 3: Clear session cookie immediately
+    // Step 3: Clear session cookies immediately (both session and browser state)
     setCookie(c, 'authrim_session', '', {
       path: '/',
       httpOnly: true,
+      secure: true,
+      sameSite: 'None',
+      maxAge: 0,
+    });
+    setCookie(c, BROWSER_STATE_COOKIE_NAME, '', {
+      path: '/',
       secure: true,
       sameSite: 'None',
       maxAge: 0,
@@ -458,14 +539,16 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
     // ========================================
     // If any RP has frontchannel_logout_uri, show a page with iframes
     // before redirecting to post_logout_redirect_uri
-    if (logoutConfig.frontchannel.enabled && deletedSessions.length > 0) {
-      // Collect all frontchannel logout clients from deleted sessions
+    // Note: We check sessionsToNotify instead of deletedSessions because
+    // session may not exist in Durable Object (expired) but we still have
+    // client registrations to notify.
+    if (logoutConfig.frontchannel.enabled && sessionsToNotify.length > 0) {
+      // Collect all frontchannel logout clients from sessions
       const frontchannelClients = [];
-      const primarySessionId = deletedSessions[0]; // Use first deleted session for sid
+      // Use session from sessionsToNotify (may include sessions not in deletedSessions)
+      const primarySessionId = sessionsToNotify[0]?.sessionId || deletedSessions[0] || sid || '';
 
-      for (const { sessionId: sessId } of sessionsToNotify) {
-        const clients =
-          await authCtx.repositories.sessionClient.findFrontchannelLogoutClients(sessId);
+      for (const { frontchannelClients: clients } of sessionsToNotify) {
         frontchannelClients.push(...clients);
       }
 
@@ -474,12 +557,24 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
           `[FRONTCHANNEL_LOGOUT] Showing iframe page for ${frontchannelClients.length} clients`
         );
 
+        // Log client details for debugging
+        for (const client of frontchannelClients) {
+          console.log(
+            `[FRONTCHANNEL_LOGOUT] Client: ${client.client_id}, URI: ${client.frontchannel_logout_uri}, sessionRequired: ${client.frontchannel_logout_session_required}`
+          );
+        }
+
         // Build iframe configurations
         const iframes = buildFrontchannelLogoutIframes(
           frontchannelClients,
           c.env.ISSUER_URL,
           primarySessionId
         );
+
+        // Log generated iframe URLs for debugging
+        for (const iframe of iframes) {
+          console.log(`[FRONTCHANNEL_LOGOUT] Iframe URL: ${iframe.logoutUri}`);
+        }
 
         // Generate HTML page with iframes
         const html = generateFrontchannelLogoutHtml(
@@ -489,14 +584,23 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
           undefined // state already included in redirectUrl
         );
 
-        // Return HTML response with Set-Cookie header to clear session
+        // Return HTML response with Set-Cookie headers to clear session and browser state
+        const responseHeaders = new Headers({
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        // Clear both cookies - need append() for multiple Set-Cookie headers
+        responseHeaders.append(
+          'Set-Cookie',
+          'authrim_session=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0'
+        );
+        responseHeaders.append(
+          'Set-Cookie',
+          `${BROWSER_STATE_COOKIE_NAME}=; Path=/; Secure; SameSite=None; Max-Age=0`
+        );
         return new Response(html, {
           status: 200,
-          headers: {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-store',
-            'Set-Cookie': 'authrim_session=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0',
-          },
+          headers: responseHeaders,
         });
       }
     }
@@ -507,11 +611,15 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
     // to ensure the session cookie is properly cleared in the browser.
     const response = c.redirect(redirectUrl, 302);
 
-    // Clone the response and add the Set-Cookie header
+    // Clone the response and add the Set-Cookie headers (need append for multiple cookies)
     const headers = new Headers(response.headers);
-    headers.set(
+    headers.append(
       'Set-Cookie',
       'authrim_session=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0'
+    );
+    headers.append(
+      'Set-Cookie',
+      `${BROWSER_STATE_COOKIE_NAME}=; Path=/; Secure; SameSite=None; Max-Age=0`
     );
 
     return new Response(response.body, {
@@ -520,10 +628,16 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     console.error('Front-channel logout error:', error);
-    // Even on error, try to clear session cookie
+    // Even on error, try to clear session cookies
     setCookie(c, 'authrim_session', '', {
       path: '/',
       httpOnly: true,
+      secure: true,
+      sameSite: 'None',
+      maxAge: 0,
+    });
+    setCookie(c, BROWSER_STATE_COOKIE_NAME, '', {
+      path: '/',
       secure: true,
       sameSite: 'None',
       maxAge: 0,

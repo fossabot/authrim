@@ -32,6 +32,7 @@ import {
   getClient,
   getCachedUser,
   getCachedUserCore,
+  SessionClientRepository,
 } from '@authrim/ar-lib-core';
 import {
   createIDToken,
@@ -1281,6 +1282,35 @@ async function handleAuthorizationCodeGrant(
   // as a DO hop optimization. The consume() call now handles code invalidation
   // atomically, which is the primary security guarantee. Token revocation on
   // replay is a secondary feature that adds latency for rare attack scenarios.
+
+  // OIDC Session Management: Register session-client association for logout
+  // This enables frontchannel/backchannel logout to notify the correct RPs
+  console.log(
+    `[Logout] Session-client check: sid=${authCodeData.sid ? 'present' : 'missing'}, DB=${c.env.DB ? 'present' : 'missing'}`
+  );
+  if (authCodeData.sid && c.env.DB) {
+    try {
+      console.log(
+        `[Logout] Attempting to register session-client: sid=${authCodeData.sid}, client_id=${client_id}`
+      );
+      const coreAdapter: DatabaseAdapter = new D1Adapter({ db: c.env.DB });
+      const sessionClientRepo = new SessionClientRepository(coreAdapter);
+      const result = await sessionClientRepo.createOrUpdate({
+        session_id: authCodeData.sid,
+        client_id: client_id,
+      });
+      console.log(
+        `[Logout] Successfully registered session-client: id=${result.id}, sid=${authCodeData.sid.substring(0, 25)}... -> ${client_id.substring(0, 25)}...`
+      );
+    } catch (error) {
+      // Log error but don't fail the token request - logout tracking is non-critical
+      console.error('[Logout] Failed to register session-client:', error);
+    }
+  } else {
+    console.warn(
+      `[Logout] Skipped session-client registration: sid=${authCodeData.sid}, DB=${!!c.env.DB}`
+    );
+  }
 
   // Return token response
   c.header('Cache-Control', 'no-store');

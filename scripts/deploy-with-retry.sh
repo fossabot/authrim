@@ -16,7 +16,7 @@ set -e
 # Trap Ctrl+C and other signals to ensure clean exit
 trap 'echo ""; echo "⚠️  Deployment cancelled by user"; exit 130' INT TERM
 
-INTER_DEPLOY_DELAY=10    # Delay between deployments to avoid rate limits
+INTER_DEPLOY_DELAY=5     # Delay between deployments to avoid rate limits
 DEPLOY_ENV=""
 API_ONLY=false
 VERSIONED_WORKERS=(
@@ -291,7 +291,8 @@ for pkg_dir in packages/*/; do
         fi
 
         # Skip library packages (not deployable workers)
-        if [ "$package_name" = "ar-lib-policy" ] || [ "$package_name" = "ar-lib-scim" ]; then
+        # ar-lib-core is special - it contains Durable Objects and IS deployed
+        if [[ "$package_name" == ar-lib-* && "$package_name" != "ar-lib-core" ]]; then
             continue
         fi
 

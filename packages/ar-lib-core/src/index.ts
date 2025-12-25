@@ -19,6 +19,9 @@ export * from './types/openid4vci';
 // Phase A-6: Logout Types
 export * from './types/logout';
 
+// Settings Types (Settings API v2)
+export * from './types/settings';
+
 // Utils
 export * from './utils/audit-log';
 export * from './utils/client-authentication';
@@ -53,6 +56,7 @@ export * from './utils/consent-rbac';
 export * from './utils/refresh-token-sharding';
 export * from './utils/oauth-config';
 export * from './utils/encryption-config';
+export * from './utils/settings-manager';
 export * from './utils/pii-encryption';
 export * from './utils/challenge-sharding';
 export * from './utils/token-revocation-sharding';

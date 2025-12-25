@@ -12,7 +12,12 @@
 
 import { Context } from 'hono';
 import type { Env, AdminAuthContext } from '@authrim/ar-lib-core';
-import { getTenantIdFromContext, D1Adapter, type DatabaseAdapter } from '@authrim/ar-lib-core';
+import {
+  getTenantIdFromContext,
+  D1Adapter,
+  type DatabaseAdapter,
+  escapeLikePattern,
+} from '@authrim/ar-lib-core';
 
 /**
  * Convert timestamp to milliseconds for API response
@@ -72,9 +77,11 @@ export async function adminOrganizationsListHandler(c: Context<{ Bindings: Env }
     const bindings: unknown[] = [tenantId];
 
     // Search filter (name or display_name)
+    // Escape special LIKE characters (%, _) to prevent unintended wildcards
     if (search) {
-      whereClauses.push('(name LIKE ? OR display_name LIKE ?)');
-      bindings.push(`%${search}%`, `%${search}%`);
+      const escapedSearch = escapeLikePattern(search);
+      whereClauses.push("(name LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\')");
+      bindings.push(`%${escapedSearch}%`, `%${escapedSearch}%`);
     }
 
     // Active status filter

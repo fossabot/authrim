@@ -1,6 +1,6 @@
 # Authrim API Documentation 🚀
 
-**Last Updated**: 2025-11-13
+**Last Updated**: 2025-12-25
 **API Version**: v1.0 (Phase 5)
 **Base URL**: `https://your-domain.com`
 
@@ -220,27 +220,38 @@ X-RateLimit-Reset: 1678901234
 
 ### Dynamic Rate Limit Configuration
 
-Rate limits can be configured dynamically via Admin API without redeployment:
+Rate limits can be configured dynamically via Settings API v2 without redeployment:
 
 **Profiles**: `strict`, `moderate`, `lenient`, `loadTest`
 
 ```bash
-# Get all rate limit settings
-curl https://your-domain.com/api/admin/settings/rate-limit \
+# Get rate limit settings (Settings API v2)
+curl https://your-domain.com/api/admin/tenants/default/settings/rate-limit \
   -H "Authorization: Bearer ADMIN_TOKEN"
 
-# Update loadTest profile (for load testing)
-curl -X PUT https://your-domain.com/api/admin/settings/rate-limit/loadTest \
+# Response includes version for optimistic locking:
+# { "category": "rate-limit", "version": "sha256:...", "values": {...} }
+
+# Update rate limit settings (PATCH with ifMatch for optimistic locking)
+curl -X PATCH https://your-domain.com/api/admin/tenants/default/settings/rate-limit \
   -H "Authorization: Bearer ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"maxRequests": 20000, "windowSeconds": 60}'
+  -d '{
+    "ifMatch": "sha256:...",
+    "set": { "rate-limit.load_test_max_requests": 20000, "rate-limit.load_test_window_seconds": 60 }
+  }'
 
-# Reset profile to default
-curl -X DELETE https://your-domain.com/api/admin/settings/rate-limit/loadTest \
-  -H "Authorization: Bearer ADMIN_TOKEN"
+# Clear specific setting (falls back to env/default)
+curl -X PATCH https://your-domain.com/api/admin/tenants/default/settings/rate-limit \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ifMatch": "sha256:...",
+    "clear": ["rate-limit.load_test_max_requests"]
+  }'
 ```
 
-**Configuration Priority**: Cache (10s TTL) → KV → Environment Variable → Default
+**Configuration Priority**: `env > KV > default` (environment variables have highest priority)
 
 ---
 

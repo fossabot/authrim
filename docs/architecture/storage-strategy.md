@@ -245,36 +245,48 @@ flowchart LR
 
 ## Configuration Storage
 
-### Priority Hierarchy
+### Priority Hierarchy (Settings API v2)
 
 ```
-KV (dynamic) → Environment Variable → Code Default
+Environment Variable (env) > KV (dynamic) > Code Default
 ```
+
+Environment variables have **highest priority** to ensure deployment-time constraints cannot be bypassed via the Admin API.
 
 All settings follow this pattern:
 
 ```typescript
 async function getSetting(key: string): Promise<string> {
-  // 1. Check KV for dynamic override
-  const kvValue = await env.KV.get(`setting:${key}`);
-  if (kvValue) return kvValue;
+  // 1. Check in-memory cache (5s TTL)
+  const cached = settingsCache.get(key);
+  if (cached && !cached.expired) return cached.value;
 
-  // 2. Check environment variable
-  if (env[key]) return env[key];
+  // 2. Check environment variable (HIGHEST priority)
+  const envValue = env[key];
+  if (envValue !== undefined) return envValue;
 
-  // 3. Return secure default
+  // 3. Check KV for dynamic override
+  const kvValue = await env.AUTHRIM_CONFIG.get(`settings:tenant:default:${category}`);
+  if (kvValue) {
+    const parsed = JSON.parse(kvValue);
+    if (parsed[key] !== undefined) return parsed[key];
+  }
+
+  // 4. Return secure default
   return DEFAULTS[key];
 }
 ```
 
-### Settings Storage
+### Settings Storage (Settings API v2)
 
-| Setting Type    | Storage         | Update Method     |
-| --------------- | --------------- | ----------------- |
-| Feature flags   | KV              | Admin API         |
-| Security config | KV + Env        | Admin API, deploy |
-| Secrets         | Env (encrypted) | Deploy only       |
-| Tenant settings | D1              | Admin API         |
+| Setting Type      | Storage         | Update Method      | Priority |
+| ----------------- | --------------- | ------------------ | -------- |
+| Deploy-time force | Env (wrangler)  | Deploy only        | Highest  |
+| Dynamic override  | KV              | Settings API v2    | Medium   |
+| Secure defaults   | Code            | Code change        | Lowest   |
+| Secrets           | Env (encrypted) | Deploy only        | -        |
+
+See [Configuration Architecture](./configuration.md) and [Settings API Documentation](../reference/api/admin/settings.md) for details.
 
 ---
 
@@ -397,6 +409,6 @@ async function healthCheck(): Promise<StorageHealth> {
 
 ---
 
-**Last Updated**: 2025-12-20
+**Last Updated**: 2025-12-25
 **Status**: Production
-**Version**: 2.0.0
+**Version**: 2.1.0 (Updated Settings API v2 priority)

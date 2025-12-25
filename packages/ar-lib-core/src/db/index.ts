@@ -33,6 +33,9 @@ export type {
   PIIClass,
 } from './adapter';
 
+// Utilities
+export { escapeLikePattern } from './adapter';
+
 // Adapters
 export { D1Adapter, createD1Adapter, type D1AdapterConfig } from './adapters';
 

@@ -24,8 +24,66 @@ import {
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
   validateAllowedOrigins,
+  escapeLikePattern,
 } from '@authrim/ar-lib-core';
 import type { UserCore, UserPII } from '@authrim/ar-lib-core';
+
+// =============================================================================
+// Image Type Detection (Magic Bytes)
+// =============================================================================
+
+interface ImageTypeInfo {
+  mimeType: string;
+  extension: string;
+}
+
+/**
+ * Detect image type from file content using Magic Bytes
+ * Returns null if not a recognized image format
+ */
+function detectImageType(data: Uint8Array): ImageTypeInfo | null {
+  if (data.length < 12) return null;
+
+  // JPEG: FF D8 FF
+  if (data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+    return { mimeType: 'image/jpeg', extension: 'jpg' };
+  }
+
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    data[0] === 0x89 &&
+    data[1] === 0x50 &&
+    data[2] === 0x4e &&
+    data[3] === 0x47 &&
+    data[4] === 0x0d &&
+    data[5] === 0x0a &&
+    data[6] === 0x1a &&
+    data[7] === 0x0a
+  ) {
+    return { mimeType: 'image/png', extension: 'png' };
+  }
+
+  // GIF: 47 49 46 38 (GIF87a or GIF89a)
+  if (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46 && data[3] === 0x38) {
+    return { mimeType: 'image/gif', extension: 'gif' };
+  }
+
+  // WebP: 52 49 46 46 xx xx xx xx 57 45 42 50 (RIFF....WEBP)
+  if (
+    data[0] === 0x52 &&
+    data[1] === 0x49 &&
+    data[2] === 0x46 &&
+    data[3] === 0x46 &&
+    data[8] === 0x57 &&
+    data[9] === 0x45 &&
+    data[10] === 0x42 &&
+    data[11] === 0x50
+  ) {
+    return { mimeType: 'image/webp', extension: 'webp' };
+  }
+
+  return null;
+}
 
 // =============================================================================
 // PII Protection: Error Handling Helpers
@@ -410,9 +468,11 @@ export async function adminUsersListHandler(c: Context<{ Bindings: Env }>) {
     // Step 1: If search is provided, find matching users in PII DB via adapter
     if (search && c.env.DB_PII) {
       const piiCtx = createPIIContextFromHono(c, tenantId);
+      // Escape special LIKE characters (%, _) to prevent unintended wildcards
+      const escapedSearch = escapeLikePattern(search);
       const piiSearchResult = await piiCtx.defaultPiiAdapter.query<{ id: string }>(
-        'SELECT id FROM users_pii WHERE tenant_id = ? AND (email LIKE ? OR name LIKE ?)',
-        [tenantId, `%${search}%`, `%${search}%`]
+        "SELECT id FROM users_pii WHERE tenant_id = ? AND (email LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\')",
+        [tenantId, `%${escapedSearch}%`, `%${escapedSearch}%`]
       );
       matchingUserIds = piiSearchResult.map((r) => r.id);
 
@@ -1980,13 +2040,42 @@ export async function adminUserAvatarUploadHandler(c: Context<{ Bindings: Env }>
       );
     }
 
-    // Generate file name and path
-    const fileExtension = file.name.split('.').pop() || 'jpg';
+    // Sanitize and validate file extension (prevent path traversal)
+    const sanitizedName = file.name.replace(/\.\./g, '').replace(/[/\\]/g, '');
+    const rawExtension = sanitizedName.split('.').pop()?.toLowerCase() || '';
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    if (!allowedExtensions.includes(rawExtension)) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'Invalid file extension. Allowed: jpg, jpeg, png, gif, webp',
+        },
+        400
+      );
+    }
+
+    // Read file content for Magic Bytes validation
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+
+    // Validate file content matches declared type (Magic Bytes check)
+    const detectedType = detectImageType(uint8Array);
+    if (!detectedType) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'File content does not appear to be a valid image',
+        },
+        400
+      );
+    }
+
+    // Use detected extension for consistency
+    const fileExtension = detectedType.extension;
     const fileName = `${userId}.${fileExtension}`;
     const filePath = `avatars/${fileName}`;
 
-    // Upload to R2
-    const arrayBuffer = await file.arrayBuffer();
+    // Upload to R2 with detected content type
     await c.env.AVATARS.put(filePath, arrayBuffer, {
       httpMetadata: {
         contentType: file.type,

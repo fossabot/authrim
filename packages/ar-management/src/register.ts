@@ -451,6 +451,142 @@ function validateRegistrationRequest(
   }
 
   // ==========================================================================
+  // OIDC Backchannel Logout 1.0: backchannel_logout_uri and backchannel_logout_session_required
+  // https://openid.net/specs/openid-connect-backchannel-1_0.html
+  // ==========================================================================
+  if (data.backchannel_logout_uri !== undefined) {
+    if (typeof data.backchannel_logout_uri !== 'string') {
+      return {
+        valid: false,
+        error: {
+          error: 'invalid_client_metadata',
+          error_description: 'backchannel_logout_uri must be a string',
+        },
+      };
+    }
+
+    try {
+      const parsed = new URL(data.backchannel_logout_uri);
+
+      // HTTPS required (allow http://localhost for development)
+      if (
+        parsed.protocol !== 'https:' &&
+        !(parsed.protocol === 'http:' && parsed.hostname === 'localhost')
+      ) {
+        return {
+          valid: false,
+          error: {
+            error: 'invalid_client_metadata',
+            error_description:
+              'backchannel_logout_uri must use HTTPS (except http://localhost for development)',
+          },
+        };
+      }
+
+      // Fragment identifier not allowed
+      if (parsed.hash) {
+        return {
+          valid: false,
+          error: {
+            error: 'invalid_client_metadata',
+            error_description: 'backchannel_logout_uri must not contain fragment identifiers',
+          },
+        };
+      }
+    } catch {
+      return {
+        valid: false,
+        error: {
+          error: 'invalid_client_metadata',
+          error_description: `Invalid backchannel_logout_uri: ${data.backchannel_logout_uri}`,
+        },
+      };
+    }
+  }
+
+  // backchannel_logout_session_required must be boolean if provided
+  if (
+    data.backchannel_logout_session_required !== undefined &&
+    typeof data.backchannel_logout_session_required !== 'boolean'
+  ) {
+    return {
+      valid: false,
+      error: {
+        error: 'invalid_client_metadata',
+        error_description: 'backchannel_logout_session_required must be a boolean',
+      },
+    };
+  }
+
+  // ==========================================================================
+  // OIDC Front-Channel Logout 1.0: frontchannel_logout_uri and frontchannel_logout_session_required
+  // https://openid.net/specs/openid-connect-frontchannel-1_0.html
+  // ==========================================================================
+  if (data.frontchannel_logout_uri !== undefined) {
+    if (typeof data.frontchannel_logout_uri !== 'string') {
+      return {
+        valid: false,
+        error: {
+          error: 'invalid_client_metadata',
+          error_description: 'frontchannel_logout_uri must be a string',
+        },
+      };
+    }
+
+    try {
+      const parsed = new URL(data.frontchannel_logout_uri);
+
+      // HTTPS required (allow http://localhost for development)
+      if (
+        parsed.protocol !== 'https:' &&
+        !(parsed.protocol === 'http:' && parsed.hostname === 'localhost')
+      ) {
+        return {
+          valid: false,
+          error: {
+            error: 'invalid_client_metadata',
+            error_description:
+              'frontchannel_logout_uri must use HTTPS (except http://localhost for development)',
+          },
+        };
+      }
+
+      // Fragment identifier not allowed
+      if (parsed.hash) {
+        return {
+          valid: false,
+          error: {
+            error: 'invalid_client_metadata',
+            error_description: 'frontchannel_logout_uri must not contain fragment identifiers',
+          },
+        };
+      }
+    } catch {
+      return {
+        valid: false,
+        error: {
+          error: 'invalid_client_metadata',
+          error_description: `Invalid frontchannel_logout_uri: ${data.frontchannel_logout_uri}`,
+        },
+      };
+    }
+  }
+
+  // frontchannel_logout_session_required must be boolean if provided
+  if (
+    data.frontchannel_logout_session_required !== undefined &&
+    typeof data.frontchannel_logout_session_required !== 'boolean'
+  ) {
+    return {
+      valid: false,
+      error: {
+        error: 'invalid_client_metadata',
+        error_description: 'frontchannel_logout_session_required must be a boolean',
+      },
+    };
+  }
+
+  // ==========================================================================
   // Custom Redirect URIs (Authrim Extension)
   // x_allowed_redirect_origins: Array of origins for error_uri/cancel_uri
   // ==========================================================================
@@ -532,9 +668,11 @@ async function storeClient(env: Env, clientId: string, metadata: ClientMetadata)
       jwks, jwks_uri,
       userinfo_signed_response_alg,
       post_logout_redirect_uris,
+      backchannel_logout_uri, backchannel_logout_session_required,
+      frontchannel_logout_uri, frontchannel_logout_session_required,
       allowed_redirect_origins,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     [
       clientId,
@@ -561,6 +699,10 @@ async function storeClient(env: Env, clientId: string, metadata: ClientMetadata)
       metadata.post_logout_redirect_uris
         ? JSON.stringify(metadata.post_logout_redirect_uris)
         : null,
+      metadata.backchannel_logout_uri || null,
+      metadata.backchannel_logout_session_required ? 1 : 0,
+      metadata.frontchannel_logout_uri || null,
+      metadata.frontchannel_logout_session_required ? 1 : 0,
       metadata.allowed_redirect_origins ? JSON.stringify(metadata.allowed_redirect_origins) : null,
       metadata.created_at || now,
       metadata.updated_at || now,
@@ -675,6 +817,16 @@ export async function registerHandler(c: Context<{ Bindings: Env }>): Promise<Re
     // OIDC RP-Initiated Logout 1.0: post_logout_redirect_uris
     if (request.post_logout_redirect_uris)
       response.post_logout_redirect_uris = request.post_logout_redirect_uris;
+    // OIDC Backchannel Logout 1.0
+    if (request.backchannel_logout_uri)
+      response.backchannel_logout_uri = request.backchannel_logout_uri;
+    if (request.backchannel_logout_session_required !== undefined)
+      response.backchannel_logout_session_required = request.backchannel_logout_session_required;
+    // OIDC Front-Channel Logout 1.0
+    if (request.frontchannel_logout_uri)
+      response.frontchannel_logout_uri = request.frontchannel_logout_uri;
+    if (request.frontchannel_logout_session_required !== undefined)
+      response.frontchannel_logout_session_required = request.frontchannel_logout_session_required;
 
     // OIDC Conformance Test: Detect certification.openid.net
     const isCertificationTest = request.redirect_uris.some((uri) =>

@@ -1,6 +1,6 @@
 # Admin Settings API
 
-**Last Updated**: 2025-12-18
+**Last Updated**: 2025-12-25
 
 Administrative API for dynamic system configuration. These settings can be modified at runtime without requiring redeployment.
 
@@ -12,14 +12,166 @@ The Settings API allows administrators to configure system behavior dynamically.
 
 **Configuration Priority**:
 
-1. **In-memory Cache** (180 second / 3 min TTL, configurable) - For performance
-2. **KV Store** (AUTHRIM_CONFIG) - Dynamic override
-3. **Environment Variable** - Deployment-time default
-4. **Default Value** - Hardcoded fallback
+1. **Environment Variable** (env) - Deployment-time override (highest priority)
+2. **KV Store** (AUTHRIM_CONFIG) - Dynamic override via API
+3. **Default Value** - Secure code default (fallback)
 
-This allows settings to be changed instantly via API while maintaining performance through caching.
+This allows settings to be changed instantly via API while maintaining performance through caching (5-second TTL).
 
-> **Note**: The cache TTL was increased from 10 seconds to 180 seconds (3 minutes) in December 2025 to reduce KV read costs. This is configurable via `CONFIG_CACHE_TTL`.
+---
+
+## ⭐ Settings API v2 (Recommended)
+
+> **NEW in December 2025**: Unified settings management with category-based endpoints, optimistic locking, and audit logging.
+
+### Key Features
+
+- **URL-based scope**: `tenantId` / `clientId` in URL prevents accidental cross-tenant changes
+- **PATCH with ifMatch**: Optimistic locking prevents concurrent update conflicts
+- **Source tracking**: Know where each setting value comes from (env/kv/default)
+- **Audit logging**: All changes are automatically logged with actor and diff
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/admin/tenants/:tenantId/settings/:category` | GET | Get tenant settings |
+| `/api/admin/tenants/:tenantId/settings/:category` | PATCH | Update tenant settings |
+| `/api/admin/clients/:clientId/settings` | GET | Get client settings |
+| `/api/admin/clients/:clientId/settings` | PATCH | Update client settings |
+| `/api/admin/platform/settings/:category` | GET | Get platform settings (read-only) |
+| `/api/admin/settings/meta/:category` | GET | Get settings metadata |
+| `/api/admin/settings/meta` | GET | List all categories |
+| `/api/admin/settings/migrate` | POST | Migrate from v1 to v2 format |
+| `/api/admin/settings/migrate/status` | GET | Get migration status |
+
+### Categories
+
+| Category | Scope | Description | Settings Count |
+|----------|-------|-------------|----------------|
+| `oauth` | Tenant | OAuth/OIDC settings | 85+ |
+| `session` | Tenant | Session management | 12 |
+| `security` | Tenant | Security policies | 11 |
+| `consent` | Tenant | Consent handling | 8 |
+| `ciba` | Tenant | CIBA flow settings | 7 |
+| `rate-limit` | Tenant | Rate limiting | 7 |
+| `device-flow` | Tenant | Device flow settings | 5 |
+| `tokens` | Tenant | Token settings | 5 |
+| `external-idp` | Tenant | External IdP settings | 4 |
+| `credentials` | Tenant | Credential settings | 7 |
+| `federation` | Tenant | Federation settings | 7 |
+| `scim` | Tenant | SCIM provisioning | 7 |
+| `client` | Client | Per-client settings | 42 |
+| `infrastructure` | Platform | Infrastructure (read-only) | 85 |
+| `encryption` | Platform | Encryption keys (read-only) | 10 |
+
+### GET Response Format
+
+```json
+{
+  "category": "oauth",
+  "scope": { "type": "tenant", "id": "tenant_123" },
+  "version": "sha256:9b1c...",
+  "values": {
+    "oauth.access_token_expiry": 3600,
+    "oauth.refresh_token_rotation": true
+  },
+  "sources": {
+    "oauth.access_token_expiry": "env",
+    "oauth.refresh_token_rotation": "kv"
+  }
+}
+```
+
+### PATCH Request Format (ifMatch Required)
+
+```json
+{
+  "ifMatch": "sha256:9b1c...",
+  "set": {
+    "oauth.access_token_expiry": 1800
+  },
+  "clear": ["oauth.refresh_token_rotation"],
+  "disable": ["oauth.some_optional_feature"]
+}
+```
+
+| Operation | Description |
+|-----------|-------------|
+| `set` | Set key to value (stored in KV) |
+| `clear` | Remove KV override, fall back to env/default |
+| `disable` | Explicitly disable (value becomes `false`) |
+
+### PATCH Response Format
+
+```json
+{
+  "version": "sha256:aa02...",
+  "applied": ["oauth.access_token_expiry"],
+  "cleared": ["oauth.refresh_token_rotation"],
+  "disabled": ["oauth.some_optional_feature"],
+  "rejected": {
+    "oauth.pkce_required": "read-only (env override)"
+  }
+}
+```
+
+### Error Responses
+
+**409 Conflict** (Version mismatch):
+```json
+{
+  "error": "conflict",
+  "message": "Settings were updated by someone else. Please refresh.",
+  "currentVersion": "sha256:aa02..."
+}
+```
+
+**405 Method Not Allowed** (Platform settings):
+```json
+{
+  "error": "method_not_allowed",
+  "message": "Platform settings are read-only"
+}
+```
+
+### CLI Examples (v2)
+
+```bash
+# Get tenant OAuth settings
+curl -X GET "https://your-domain.com/api/admin/tenants/default/settings/oauth" \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET"
+
+# Update tenant OAuth settings (with optimistic locking)
+VERSION=$(curl -s "https://your-domain.com/api/admin/tenants/default/settings/oauth" \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET" | jq -r '.version')
+
+curl -X PATCH "https://your-domain.com/api/admin/tenants/default/settings/oauth" \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"ifMatch\": \"$VERSION\",
+    \"set\": { \"oauth.access_token_expiry\": 1800 }
+  }"
+
+# Get settings metadata
+curl -X GET "https://your-domain.com/api/admin/settings/meta/oauth" \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET"
+
+# Migrate from v1 to v2 (dry-run first!)
+curl -X POST "https://your-domain.com/api/admin/settings/migrate" \
+  -H "X-Admin-Secret: YOUR_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"dryRun": true}'
+```
+
+---
+
+## Legacy Settings API (Deprecated)
+
+> **⚠️ DEPRECATED**: The following endpoints are deprecated and will be removed in a future release. Please migrate to Settings API v2.
+
+> **Note**: The legacy cache TTL was 180 seconds (3 minutes). The new v2 API uses 5-second TTL for faster propagation.
 
 ---
 

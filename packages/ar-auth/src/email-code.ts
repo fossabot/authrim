@@ -28,6 +28,8 @@ import {
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
   getPluginContext,
+  generateBrowserState,
+  BROWSER_STATE_COOKIE_NAME,
 } from '@authrim/ar-lib-core';
 import { getEmailCodeHtml, getEmailCodeText } from './utils/email/templates';
 import {
@@ -494,12 +496,21 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
       maxAge: 0,
     });
 
-    // Set authentication session cookie
+    // Set authentication session cookie (HttpOnly for security)
     setCookie(c, 'authrim_session', sessionId, {
       path: '/',
       httpOnly: true,
       secure: true,
-      sameSite: 'Lax',
+      sameSite: 'None', // Needs None for OIDC Session Management cross-site iframe
+      maxAge: 24 * 60 * 60, // 24 hours (matches session TTL)
+    });
+
+    // Set browser state cookie for OIDC Session Management (NOT HttpOnly so JS can read it)
+    const browserState = await generateBrowserState(sessionId);
+    setCookie(c, BROWSER_STATE_COOKIE_NAME, browserState, {
+      path: '/',
+      secure: true,
+      sameSite: 'None', // Needs None for OIDC Session Management cross-site iframe
       maxAge: 24 * 60 * 60, // 24 hours (matches session TTL)
     });
 

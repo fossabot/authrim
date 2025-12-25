@@ -1,0 +1,91 @@
+/**
+ * External IdP Settings Category
+ *
+ * Settings related to external identity provider federation.
+ * API: GET/PATCH /api/admin/tenants/:tenantId/settings/external-idp
+ * Config Level: tenant
+ */
+
+import type { CategoryMeta, SettingMeta } from '../../utils/settings-manager';
+
+/**
+ * External IdP Settings Interface
+ */
+export interface ExternalIdPSettings {
+  // JIT Provisioning
+  'external_idp.jit_provisioning_enabled': boolean;
+  'external_idp.jit_update_on_login': boolean;
+
+  // JWKS Settings
+  'external_idp.jwks_cache_ttl': number;
+  'external_idp.jwks_fetch_timeout_ms': number;
+}
+
+/**
+ * External IdP Settings Metadata
+ */
+export const EXTERNAL_IDP_SETTINGS_META: Record<keyof ExternalIdPSettings, SettingMeta> = {
+  'external_idp.jit_provisioning_enabled': {
+    key: 'external_idp.jit_provisioning_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'JIT_PROVISIONING_ENABLED',
+    label: 'JIT Provisioning',
+    description: 'Enable Just-In-Time user provisioning from external IdPs',
+    visibility: 'public',
+  },
+  'external_idp.jit_update_on_login': {
+    key: 'external_idp.jit_update_on_login',
+    type: 'boolean',
+    default: true,
+    envKey: 'JIT_UPDATE_ON_LOGIN',
+    label: 'Update on Login',
+    description: 'Update user attributes on each login from external IdP',
+    visibility: 'public',
+    dependsOn: [{ key: 'external_idp.jit_provisioning_enabled', value: true }],
+  },
+  'external_idp.jwks_cache_ttl': {
+    key: 'external_idp.jwks_cache_ttl',
+    type: 'duration',
+    default: 86400,
+    envKey: 'EXTERNAL_IDP_JWKS_CACHE_TTL',
+    label: 'JWKS Cache TTL',
+    description: 'External IdP JWKS cache lifetime in seconds (default: 24 hours)',
+    min: 300,
+    max: 604800,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+  'external_idp.jwks_fetch_timeout_ms': {
+    key: 'external_idp.jwks_fetch_timeout_ms',
+    type: 'duration',
+    default: 5000,
+    envKey: 'EXTERNAL_IDP_JWKS_FETCH_TIMEOUT_MS',
+    label: 'JWKS Fetch Timeout',
+    description: 'Timeout for fetching external IdP JWKS in milliseconds',
+    min: 1000,
+    max: 30000,
+    unit: 'ms',
+    visibility: 'admin',
+  },
+};
+
+/**
+ * External IdP Category Metadata
+ */
+export const EXTERNAL_IDP_CATEGORY_META: CategoryMeta = {
+  category: 'external-idp',
+  label: 'External IdP',
+  description: 'External identity provider federation settings',
+  settings: EXTERNAL_IDP_SETTINGS_META,
+};
+
+/**
+ * Default External IdP settings values
+ */
+export const EXTERNAL_IDP_DEFAULTS: ExternalIdPSettings = {
+  'external_idp.jit_provisioning_enabled': false,
+  'external_idp.jit_update_on_login': true,
+  'external_idp.jwks_cache_ttl': 86400,
+  'external_idp.jwks_fetch_timeout_ms': 5000,
+};

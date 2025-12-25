@@ -427,11 +427,18 @@ export async function refreshSessionHandler(c: Context<{ Bindings: Env }>) {
  * Returns an HTML page that can be loaded in an iframe by the RP
  * to monitor session state changes using postMessage.
  *
+ * Security: Uses nonce-based CSP instead of 'unsafe-inline' to prevent XSS attacks.
+ *
  * https://openid.net/specs/openid-connect-session-1_0.html#OPiframe
  */
 export async function checkSessionIframeHandler(c: Context<{ Bindings: Env }>) {
   const issuerUrl = c.env.ISSUER_URL;
-  const html = generateCheckSessionIframeHtml(issuerUrl);
+
+  // Generate a cryptographically secure nonce for CSP
+  // This prevents XSS attacks while allowing our inline script to execute
+  const nonce = crypto.randomUUID();
+
+  const html = generateCheckSessionIframeHtml(issuerUrl, nonce);
 
   // Set appropriate headers for iframe embedding
   // Note: We need to allow framing for this specific endpoint
@@ -440,10 +447,9 @@ export async function checkSessionIframeHandler(c: Context<{ Bindings: Env }>) {
       'Content-Type': 'text/html; charset=utf-8',
       // Allow framing from any origin (RPs need to embed this)
       'X-Frame-Options': 'ALLOWALL',
-      // CSP that allows inline scripts (needed for the session check logic)
-      'Content-Security-Policy':
-        "default-src 'none'; script-src 'unsafe-inline'; frame-ancestors *;",
-      // Cache for a short time
+      // Nonce-based CSP for inline script security (no 'unsafe-inline')
+      'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors *;`,
+      // Cache must be disabled - each response has a unique nonce
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       Pragma: 'no-cache',
       Expires: '0',

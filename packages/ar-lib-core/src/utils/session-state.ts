@@ -9,6 +9,33 @@
 import { arrayBufferToBase64Url, generateSecureRandomString } from './crypto';
 
 /**
+ * Browser state cookie name for OIDC Session Management
+ *
+ * This cookie is NOT HttpOnly so that the check_session_iframe can read it.
+ * It contains a value that changes when the session changes, but NOT the actual session ID.
+ */
+export const BROWSER_STATE_COOKIE_NAME = 'authrim_browser_state';
+
+/**
+ * Generate a browser state value for OIDC Session Management
+ *
+ * This value is stored in a non-HttpOnly cookie so JavaScript can read it.
+ * It changes when the session changes (login, logout, etc.).
+ *
+ * @param sessionId - The session ID (not exposed, just used for derivation)
+ * @returns A browser state value
+ */
+export async function generateBrowserState(sessionId: string): Promise<string> {
+  // Create a hash of the session ID + a prefix to derive browser state
+  // This way we don't expose the actual session ID but still have a value that changes with it
+  const data = `browser_state:${sessionId}`;
+  const encoder = new TextEncoder();
+  const dataBuffer = encoder.encode(data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+  return arrayBufferToBase64Url(hashBuffer);
+}
+
+/**
  * Calculate the session state value according to OIDC Session Management 1.0
  *
  * The session state is calculated as:
@@ -133,10 +160,14 @@ export function extractOrigin(url: string): string {
  * The RP posts messages with format "client_id session_state" and
  * receives "changed", "unchanged", or "error" responses.
  *
- * @param issuerUrl - The issuer URL of the OP
+ * @param issuerUrl - The issuer URL of the OP (unused but kept for API compatibility)
+ * @param nonce - CSP nonce for inline script security
  * @returns HTML content for the check_session_iframe
  */
-export function generateCheckSessionIframeHtml(issuerUrl: string): string {
+export function generateCheckSessionIframeHtml(issuerUrl: string, nonce?: string): string {
+  // Use nonce attribute if provided for CSP compliance
+  const scriptTag = nonce ? `<script nonce="${nonce}">` : '<script>';
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -144,17 +175,18 @@ export function generateCheckSessionIframeHtml(issuerUrl: string): string {
   <title>OIDC Session Check</title>
 </head>
 <body>
-<script>
+${scriptTag}
 (function() {
   'use strict';
 
-  // Get the OP's browser state (session cookie)
+  // Get the OP's browser state from non-HttpOnly cookie
+  // This cookie is specifically designed to be readable by JavaScript for OIDC Session Management
   function getOpBrowserState() {
     var cookies = document.cookie.split(';');
     for (var i = 0; i < cookies.length; i++) {
       var cookie = cookies[i].trim();
-      if (cookie.indexOf('authrim_session=') === 0) {
-        return cookie.substring('authrim_session='.length);
+      if (cookie.indexOf('authrim_browser_state=') === 0) {
+        return cookie.substring('authrim_browser_state='.length);
       }
     }
     return '';

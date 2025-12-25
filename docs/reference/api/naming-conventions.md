@@ -411,6 +411,31 @@ X-RateLimit-Reset: 1234567890
 
 ---
 
+## Settings API v2 Naming Conventions
+
+The Settings API v2 uses specific naming conventions:
+
+### URL Categories
+
+Use **kebab-case** for URL path segments:
+- `/api/admin/tenants/:tenantId/settings/rate-limit`
+- `/api/admin/tenants/:tenantId/settings/device-flow`
+
+### Setting Keys
+
+Use **dot.notation** for setting keys (JSON body):
+- `oauth.access_token_expiry`
+- `rate-limit.default_max_requests`
+- `security.require_pkce_public_clients`
+
+### Boolean Settings
+
+Use **enabled** suffix for boolean settings (never use `disabled`):
+- ✅ `oauth.offline_access_enabled`
+- ❌ `oauth.offline_access_disabled`
+
+---
+
 ## Summary
 
 ### Quick Reference
@@ -421,6 +446,7 @@ X-RateLimit-Reset: 1234567890
 | **Custom Auth**   | `/api/auth/`     | `/api/auth/passkey/*`, `/api/auth/magic-link/*` |
 | **Sessions**      | `/api/sessions/` | `/api/sessions/issue`, `/api/sessions/verify`   |
 | **Admin**         | `/api/admin/`    | `/api/admin/users`, `/api/admin/clients`        |
+| **Settings v2**   | `/api/admin/tenants/:id/settings/` | `/api/admin/tenants/:id/settings/oauth` |
 | **Resources**     | `/api/`          | `/api/avatars/:filename`, `/api/health`         |
 
 ### Best Practices Checklist
@@ -436,5 +462,5 @@ X-RateLimit-Reset: 1234567890
 
 ---
 
-**Last Updated:** 2025-01-15
-**Version:** 1.0.0
+**Last Updated:** 2025-12-25
+**Version:** 1.1.0 (Added Settings API v2 naming conventions)

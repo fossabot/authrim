@@ -62,7 +62,7 @@ Technical specifications and system design documentation.
 
 | Document                                             | Description                                |
 | :--------------------------------------------------- | :----------------------------------------- |
-| [Configuration](./architecture/configuration.md)     | Hybrid config (KV + Env + Defaults)        |
+| [Configuration](./architecture/configuration.md)     | Settings API v2 (env > KV > defaults)      |
 | [Multi-Tenancy](./architecture/multi-tenancy.md)     | Tenant isolation architecture              |
 | [Architecture Patterns](./architecture/patterns.md)  | Deployment architecture patterns (A/B/C/D) |
 | [Router Setup](./architecture/router-setup.md)       | Router Worker configuration guide          |
@@ -160,13 +160,14 @@ API endpoint documentation and conventions.
 
 ### Admin API
 
-| Document                                    | Description                  |
-| :------------------------------------------ | :--------------------------- |
-| [Users API](./api/admin/users.md)           | User management endpoints    |
-| [Clients API](./api/admin/clients.md)       | OAuth client management      |
-| [Sessions API](./api/admin/sessions.md)     | Session management endpoints |
-| [Statistics API](./api/admin/statistics.md) | Analytics and statistics     |
-| [Avatars API](./api/admin/avatars.md)       | User avatar management       |
+| Document                                    | Description                                              |
+| :------------------------------------------ | :------------------------------------------------------- |
+| [Settings API](./api/admin/settings.md)     | **⭐ Settings API v2** - Unified configuration management |
+| [Users API](./api/admin/users.md)           | User management endpoints                                |
+| [Clients API](./api/admin/clients.md)       | OAuth client management                                  |
+| [Sessions API](./api/admin/sessions.md)     | Session management endpoints                             |
+| [Statistics API](./api/admin/statistics.md) | Analytics and statistics                                 |
+| [Avatars API](./api/admin/avatars.md)       | User avatar management                                   |
 
 ### Auth API
 

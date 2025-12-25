@@ -2,16 +2,19 @@
 
 Hybrid configuration system with dynamic overrides and secure defaults.
 
+**Last Updated**: 2025-12-25
+
 ## Overview
 
-| Aspect         | Description                             |
-| -------------- | --------------------------------------- |
-| **Pattern**    | Hybrid (KV + Environment + Defaults)    |
-| **Priority**   | Cache → KV → Environment → Code Default |
-| **Management** | Admin API for dynamic changes           |
-| **Defaults**   | Security-first default values           |
+| Aspect         | Description                                    |
+| -------------- | ---------------------------------------------- |
+| **Pattern**    | Hybrid (Environment + KV + Defaults)           |
+| **Priority**   | env > KV > default (environment wins)          |
+| **Management** | Settings API v2 for dynamic changes            |
+| **Defaults**   | Security-first default values                  |
+| **Locking**    | Optimistic locking with version hash (ifMatch) |
 
-Authrim uses a layered configuration system that allows runtime configuration changes without redeployment while maintaining secure defaults.
+Authrim uses a layered configuration system that allows runtime configuration changes without redeployment while maintaining secure defaults. **Environment variables take highest priority** to ensure deployment-time constraints cannot be bypassed via API.
 
 ---
 
@@ -19,32 +22,37 @@ Authrim uses a layered configuration system that allows runtime configuration ch
 
 ```mermaid
 flowchart TB
-    subgraph Priority["Configuration Priority"]
-        Cache["1. In-Memory Cache<br/>(10s TTL)"]
-        KV["2. KV Storage<br/>(Dynamic)"]
-        Env["3. Environment Variable<br/>(Deploy-time)"]
-        Default["4. Code Default<br/>(Secure fallback)"]
+    subgraph Priority["Configuration Priority (env > KV > default)"]
+        Env["1. Environment Variable<br/>(Deploy-time, HIGHEST)"]
+        KV["2. KV Storage<br/>(Dynamic via API)"]
+        Default["3. Code Default<br/>(Secure fallback)"]
     end
 
-    Request[Get Setting] --> Cache
-    Cache -->|Miss| KV
-    KV -->|Miss| Env
-    Env -->|Miss| Default
+    subgraph Cache["In-Memory Cache (5s TTL)"]
+        Cached["Cached Value"]
+    end
 
-    style Cache fill:#90EE90
+    Request[Get Setting] --> Cached
+    Cached -->|Miss| Env
+    Env -->|Not Set| KV
+    KV -->|Not Set| Default
+
+    style Env fill:#FFB6C1
     style KV fill:#87CEEB
-    style Env fill:#FFE4B5
-    style Default fill:#FFB6C1
+    style Default fill:#90EE90
+    style Cached fill:#E0E0E0
 ```
 
 ### Priority Rationale
 
-| Level           | Use Case                 | Change Method       |
-| --------------- | ------------------------ | ------------------- |
-| **Cache**       | Performance optimization | Automatic (10s TTL) |
-| **KV**          | Runtime configuration    | Admin API           |
-| **Environment** | Deploy-time settings     | `wrangler deploy`   |
-| **Default**     | Security fallback        | Code change         |
+| Level           | Priority | Use Case                     | Change Method       |
+| --------------- | -------- | ---------------------------- | ------------------- |
+| **Environment** | Highest  | Deployment-time constraints  | `wrangler deploy`   |
+| **KV**          | Medium   | Runtime configuration        | Settings API v2     |
+| **Default**     | Lowest   | Security-first fallback      | Code change         |
+| **Cache**       | -        | Performance (5s TTL)         | Automatic           |
+
+> **Design Decision**: Environment variables have highest priority so that production deployments can enforce certain settings (e.g., `PKCE_REQUIRED=true`) that cannot be disabled via the Admin API.
 
 ---
 
@@ -177,56 +185,91 @@ feature:scim = "enabled"
 
 ---
 
-## Admin API
+## Admin API (Settings API v2)
 
-### Settings Endpoints
+### Unified Settings Endpoints
 
-| Endpoint                   | Method | Description          |
-| -------------------------- | ------ | -------------------- |
-| `/api/admin/settings`      | GET    | List all settings    |
-| `/api/admin/settings/:key` | GET    | Get specific setting |
-| `/api/admin/settings/:key` | PUT    | Update setting       |
-| `/api/admin/settings/:key` | DELETE | Reset to default     |
+Settings are organized by **category** and **scope** (tenant/client/platform):
+
+| Endpoint                                            | Method | Description               |
+| --------------------------------------------------- | ------ | ------------------------- |
+| `/api/admin/tenants/:tenantId/settings/:category`   | GET    | Get tenant settings       |
+| `/api/admin/tenants/:tenantId/settings/:category`   | PATCH  | Update tenant settings    |
+| `/api/admin/clients/:clientId/settings`             | GET    | Get client settings       |
+| `/api/admin/clients/:clientId/settings`             | PATCH  | Update client settings    |
+| `/api/admin/platform/settings/:category`            | GET    | Get platform settings     |
+| `/api/admin/settings/meta/:category`                | GET    | Get category metadata     |
+| `/api/admin/settings/meta`                          | GET    | List all categories       |
+
+### Categories
+
+| Category         | Scope    | Description             |
+| ---------------- | -------- | ----------------------- |
+| `oauth`          | Tenant   | OAuth/OIDC settings     |
+| `session`        | Tenant   | Session management      |
+| `security`       | Tenant   | Security policies       |
+| `rate-limit`     | Tenant   | Rate limiting           |
+| `client`         | Client   | Per-client settings     |
+| `infrastructure` | Platform | Infrastructure (read-only) |
+| `encryption`     | Platform | Encryption (read-only)  |
 
 ### Example Requests
 
-**Get All Settings**
+**Get Settings (with version for optimistic locking)**
 
 ```bash
-GET /api/admin/settings
+GET /api/admin/tenants/default/settings/oauth
 
 {
-  "settings": {
-    "access_token_expiry": {
-      "value": "3600",
-      "source": "default",
-      "description": "Access token TTL in seconds"
-    },
-    "pkce_required": {
-      "value": "true",
-      "source": "kv",
-      "description": "Require PKCE for authorization"
-    }
+  "category": "oauth",
+  "scope": { "type": "tenant", "id": "default" },
+  "version": "sha256:9b1c...",
+  "values": {
+    "oauth.access_token_expiry": 3600,
+    "oauth.pkce_required": true
+  },
+  "sources": {
+    "oauth.access_token_expiry": "default",
+    "oauth.pkce_required": "env"
   }
 }
 ```
 
-**Update Setting**
+**Update Settings (with optimistic locking)**
 
 ```bash
-PUT /api/admin/settings/access_token_expiry
+PATCH /api/admin/tenants/default/settings/oauth
 Content-Type: application/json
 
 {
-  "value": "1800"
+  "ifMatch": "sha256:9b1c...",
+  "set": { "oauth.access_token_expiry": 1800 },
+  "clear": ["oauth.some_override"]
 }
 ```
 
-**Reset to Default**
+**Response**
 
-```bash
-DELETE /api/admin/settings/access_token_expiry
+```json
+{
+  "version": "sha256:aa02...",
+  "applied": ["oauth.access_token_expiry"],
+  "cleared": ["oauth.some_override"],
+  "rejected": {}
+}
 ```
+
+**Conflict Response (409)**
+
+```json
+{
+  "error": "conflict",
+  "message": "Settings were updated by someone else.",
+  "currentVersion": "sha256:bb03..."
+}
+```
+
+> **Note**: Platform settings (`infrastructure`, `encryption`) are read-only via API. Modify via environment variables.
 
 ---
 

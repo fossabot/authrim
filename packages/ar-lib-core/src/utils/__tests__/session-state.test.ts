@@ -300,10 +300,12 @@ describe('OIDC Session State Utilities', () => {
       expect(html).toContain('</html>');
     });
 
-    it('should contain session cookie reading logic', () => {
+    it('should contain browser state cookie reading logic', () => {
       const html = generateCheckSessionIframeHtml(issuerUrl);
 
-      expect(html).toContain('authrim_session');
+      // Uses browser state cookie (not HttpOnly) instead of session cookie (HttpOnly)
+      // This allows JavaScript in the iframe to read the cookie value
+      expect(html).toContain('authrim_browser_state');
       expect(html).toContain('getOpBrowserState');
     });
 
@@ -334,6 +336,29 @@ describe('OIDC Session State Utilities', () => {
 
       expect(html).toContain('lastIndexOf');
       expect(html).toContain('substring');
+    });
+
+    it('should generate script tag without nonce when nonce is not provided', () => {
+      const html = generateCheckSessionIframeHtml(issuerUrl);
+
+      expect(html).toContain('<script>');
+      expect(html).not.toContain('nonce=');
+    });
+
+    it('should generate script tag with nonce when nonce is provided', () => {
+      const nonce = 'test-nonce-12345';
+      const html = generateCheckSessionIframeHtml(issuerUrl, nonce);
+
+      expect(html).toContain(`<script nonce="${nonce}">`);
+      expect(html).not.toContain('<script>');
+    });
+
+    it('should properly escape nonce in script tag', () => {
+      // Use a UUID-like nonce (what we use in production)
+      const nonce = '550e8400-e29b-41d4-a716-446655440000';
+      const html = generateCheckSessionIframeHtml(issuerUrl, nonce);
+
+      expect(html).toContain(`<script nonce="${nonce}">`);
     });
   });
 });

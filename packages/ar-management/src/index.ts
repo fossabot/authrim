@@ -258,6 +258,7 @@ import {
   clearAllLogoutFailures,
 } from './routes/settings/logout-failures';
 import { getEncryptionStatus } from './routes/settings/encryption-config';
+import settingsV2 from './routes/settings-v2';
 import {
   revokeCredentialHandler,
   suspendCredentialHandler,
@@ -426,9 +427,6 @@ app.post('/introspect', introspectHandler);
 // Token Revocation endpoint - RFC 7009
 app.post('/revoke', revokeHandler);
 
-// Avatar serving endpoint
-app.get('/api/avatars/:filename', serveAvatarHandler);
-
 // Admin authentication middleware - applies to ALL /api/admin/* routes
 // Supports both Bearer token (for headless/API usage) and session-based auth (for UI)
 app.use('/api/admin/*', adminAuthMiddleware());
@@ -442,6 +440,7 @@ app.put('/api/admin/users/:id', adminUserUpdateHandler);
 app.delete('/api/admin/users/:id', adminUserDeleteHandler);
 app.post('/api/admin/users/:id/avatar', adminUserAvatarUploadHandler);
 app.delete('/api/admin/users/:id/avatar', adminUserAvatarDeleteHandler);
+app.get('/api/admin/avatars/:filename', serveAvatarHandler); // Avatar serving (protected by adminAuthMiddleware)
 app.post('/api/admin/users/:id/retry-pii', adminUserRetryPiiHandler);
 app.delete('/api/admin/users/:id/pii', adminUserDeletePiiHandler);
 app.get('/api/admin/clients', adminClientsListHandler);
@@ -461,31 +460,70 @@ app.delete('/api/admin/users/:id/sessions', adminUserRevokeAllSessionsHandler); 
 app.get('/api/admin/audit-logs', adminAuditLogListHandler);
 app.get('/api/admin/audit-logs/:id', adminAuditLogGetHandler);
 
-// Admin Settings endpoints
+// Admin Settings endpoints (legacy - will be deprecated)
 app.get('/api/admin/settings', adminSettingsGetHandler);
 app.put('/api/admin/settings', adminSettingsUpdateHandler);
 
+// =============================================================================
+// Settings API v2 (Unified Settings Management) - RECOMMENDED
+// =============================================================================
+// New unified settings API with:
+// - Category-based endpoints (oauth, session, security, etc.)
+// - Optimistic locking (version/ifMatch)
+// - Audit logging
+// - env > KV > default priority
+//
+// Routes:
+// - GET/PATCH /api/admin/tenants/:tenantId/settings/:category
+// - GET/PATCH /api/admin/clients/:clientId/settings
+// - GET /api/admin/platform/settings/:category (read-only)
+// - GET /api/admin/settings/meta/:category
+// - GET /api/admin/settings/meta (list all categories)
+//
+// Migration: Legacy endpoints below will be deprecated in favor of settings-v2
+// =============================================================================
+app.route('/api/admin', settingsV2);
+
 // Admin Certification Profile endpoints (OpenID Certification)
+// NOTE: Profiles apply predefined settings - kept for certification testing
 app.get('/api/admin/settings/profiles', adminListCertificationProfilesHandler);
 app.put('/api/admin/settings/profile/:profileName', adminApplyCertificationProfileHandler);
 
-// Admin Code Shards Configuration endpoints
+// =============================================================================
+// Legacy Settings Endpoints (DEPRECATED - Use settings-v2)
+// =============================================================================
+// These endpoints will be deprecated. Use the unified settings-v2 API instead:
+// - Infrastructure settings → GET/PATCH /api/admin/platform/settings/infrastructure
+// - OAuth settings → GET/PATCH /api/admin/tenants/:tenantId/settings/oauth
+// - Security settings → GET/PATCH /api/admin/tenants/:tenantId/settings/security
+// - Token settings → GET/PATCH /api/admin/tenants/:tenantId/settings/tokens
+// - Session settings → GET/PATCH /api/admin/tenants/:tenantId/settings/session
+// =============================================================================
+
+// [DEPRECATED] Admin Code Shards Configuration
+// → Migrate to: /api/admin/platform/settings/infrastructure
 app.get('/api/admin/settings/code-shards', getCodeShards);
 app.put('/api/admin/settings/code-shards', updateCodeShards);
 
-// Admin Token Revocation Shards Configuration endpoints
+// [DEPRECATED] Admin Token Revocation Shards Configuration
+// → Migrate to: /api/admin/platform/settings/infrastructure
+// NOTE: Has reset operation - complex functionality, keep until migration complete
 app.get('/api/admin/settings/revocation-shards', getRevocationShards);
 app.put('/api/admin/settings/revocation-shards', updateRevocationShards);
 app.delete('/api/admin/settings/revocation-shards', resetRevocationShards);
 
-// Admin Region Sharding endpoints
+// [DEPRECATED] Admin Region Sharding
+// → Migrate to: /api/admin/platform/settings/infrastructure
+// NOTE: Has migrate/validate operations - keep until settings-v2 supports operations
 app.get('/api/admin/settings/region-shards', getRegionShards);
 app.put('/api/admin/settings/region-shards', updateRegionShards);
 app.delete('/api/admin/settings/region-shards', deleteRegionShards);
 app.post('/api/admin/settings/region-shards/migrate', migrateRegionShards);
 app.get('/api/admin/settings/region-shards/validate', validateRegionShardsConfig);
 
-// Admin PII Partition endpoints
+// [DEPRECATED] Admin PII Partition
+// → Migrate to: /api/admin/platform/settings/infrastructure
+// NOTE: Has test/stats operations - keep until settings-v2 supports operations
 app.get('/api/admin/settings/pii-partitions', getPartitionSettings);
 app.put('/api/admin/settings/pii-partitions', updatePartitionSettings);
 app.post('/api/admin/settings/pii-partitions/test', testPartitionRouting);
@@ -499,23 +537,26 @@ app.post('/api/admin/tombstones/cleanup', cleanupTombstones);
 app.get('/api/admin/tombstones/:id', getTombstone);
 app.delete('/api/admin/tombstones/:id', deleteTombstone);
 
-// Admin OAuth/OIDC Configuration endpoints
+// [DEPRECATED] Admin OAuth/OIDC Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/oauth
 app.get('/api/admin/settings/oauth-config', getOAuthConfig);
 app.put('/api/admin/settings/oauth-config/:name', updateOAuthConfig);
 app.delete('/api/admin/settings/oauth-config/:name', clearOAuthConfig);
 app.delete('/api/admin/settings/oauth-config', clearAllOAuthConfig);
 
-// Admin PII Encryption Configuration endpoints
-// Control encryption settings for PII fields in the database
-// PII Encryption status (read-only, configured via environment variables)
+// [DEPRECATED] Admin PII Encryption Configuration
+// → Migrate to: /api/admin/platform/settings/encryption
 app.get('/api/admin/settings/encryption/status', getEncryptionStatus);
 
-// Admin Policy Flags (Check API) Configuration endpoints
+// [DEPRECATED] Admin Policy Flags (Check API) Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/security
 app.get('/api/admin/settings/policy-flags', getPolicyFlags);
 app.put('/api/admin/settings/policy-flags/:name', updatePolicyFlag);
 app.delete('/api/admin/settings/policy-flags/:name', clearPolicyFlag);
 
-// Admin Rate Limit Configuration endpoints
+// [DEPRECATED] Admin Rate Limit Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/rate-limit
+// NOTE: Has profile-based overrides - complex functionality
 app.get('/api/admin/settings/rate-limits', getRateLimitSettings);
 app.get('/api/admin/settings/rate-limits/profile-override', getProfileOverride);
 app.put('/api/admin/settings/rate-limits/profile-override', setProfileOverride);
@@ -524,7 +565,8 @@ app.get('/api/admin/settings/rate-limits/:profile', getRateLimitProfile);
 app.put('/api/admin/settings/rate-limits/:profile', updateRateLimitProfile);
 app.delete('/api/admin/settings/rate-limits/:profile', resetRateLimitProfile);
 
-// Admin Error Configuration endpoints
+// [DEPRECATED] Admin Error Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/oauth (error settings)
 app.get('/api/admin/settings/error-config', getErrorConfig);
 app.get('/api/admin/settings/error-locale', getErrorLocale);
 app.put('/api/admin/settings/error-locale', updateErrorLocale);
@@ -536,39 +578,39 @@ app.get('/api/admin/settings/error-id-mode', getErrorIdMode);
 app.put('/api/admin/settings/error-id-mode', updateErrorIdMode);
 app.delete('/api/admin/settings/error-id-mode', resetErrorIdMode);
 
-// Admin Token Exchange Configuration endpoints (RFC 8693)
+// [DEPRECATED] Admin Token Exchange Configuration (RFC 8693)
+// → Migrate to: /api/admin/tenants/:tenantId/settings/tokens
 app.get('/api/admin/settings/token-exchange', getTokenExchangeConfig);
 app.put('/api/admin/settings/token-exchange', updateTokenExchangeConfig);
 app.delete('/api/admin/settings/token-exchange', clearTokenExchangeConfig);
 
-// Admin Introspection Validation Configuration endpoints
-// RFC 7662 strict validation mode (aud/client_id checks)
+// [DEPRECATED] Admin Introspection Validation Configuration (RFC 7662)
+// → Migrate to: /api/admin/tenants/:tenantId/settings/tokens
 app.get('/api/admin/settings/introspection-validation', getIntrospectionValidationConfig);
 app.put('/api/admin/settings/introspection-validation', updateIntrospectionValidationConfig);
 app.delete('/api/admin/settings/introspection-validation', clearIntrospectionValidationConfig);
 
-// Admin Introspection Cache Configuration endpoints
-// Cache active=true responses to reduce DO/D1 load
+// [DEPRECATED] Admin Introspection Cache Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/tokens
 app.get('/api/admin/settings/introspection-cache', getIntrospectionCacheConfigHandler);
 app.put('/api/admin/settings/introspection-cache', updateIntrospectionCacheConfigHandler);
 app.delete('/api/admin/settings/introspection-cache', clearIntrospectionCacheConfigHandler);
 
-// Admin FAPI/Security Configuration endpoints
-// FAPI 2.0 Security Profile and OIDC ACR settings
+// [DEPRECATED] Admin FAPI/Security Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/security
 app.get('/api/admin/settings/fapi-security', getFapiSecurityConfig);
 app.put('/api/admin/settings/fapi-security', updateFapiSecurityConfig);
 app.delete('/api/admin/settings/fapi-security', clearFapiSecurityConfig);
 
-// Admin IP Security Configuration endpoints
-// Control cloud provider selection for IP extraction (rate limiting, security)
-// Security: Requires system_admin role to prevent privilege escalation
-// org_admin should not be able to change tenant-wide IP security settings
+// [DEPRECATED] Admin IP Security Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/security
+// Security: Requires system_admin role
 app.get('/api/admin/settings/ip-security', requireSystemAdmin(), getIpSecurityConfig);
 app.put('/api/admin/settings/ip-security', requireSystemAdmin(), updateIpSecurityConfig);
 app.delete('/api/admin/settings/ip-security', requireSystemAdmin(), clearIpSecurityConfig);
 
-// Admin UI Configuration endpoints
-// UI_URL and path settings for login, consent, and other screens
+// [DEPRECATED] Admin UI Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/oauth (ui settings)
 app.get('/api/admin/settings/ui-config', getUIConfigHandler);
 app.put('/api/admin/settings/ui-config', updateUIConfigHandler);
 app.delete('/api/admin/settings/ui-config', deleteUIConfigHandler);
@@ -576,13 +618,15 @@ app.get('/api/admin/settings/ui-routing', getUIRoutingHandler);
 app.put('/api/admin/settings/ui-routing', updateUIRoutingHandler);
 app.delete('/api/admin/settings/ui-routing', deleteUIRoutingHandler);
 
-// Admin Conformance Mode Configuration endpoints
-// Enable/disable built-in forms for OIDC certification testing
+// [DEPRECATED] Admin Conformance Mode Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/oauth
 app.get('/api/admin/settings/conformance', getConformanceConfigHandler);
 app.put('/api/admin/settings/conformance', updateConformanceConfigHandler);
 app.delete('/api/admin/settings/conformance', deleteConformanceConfigHandler);
 
-// Admin Refresh Token Sharding Configuration endpoints
+// [DEPRECATED] Admin Refresh Token Sharding Configuration
+// → Migrate to: /api/admin/platform/settings/infrastructure
+// NOTE: Has stats/cleanup operations
 app.get('/api/admin/settings/refresh-token-sharding', getRefreshTokenShardingConfig);
 app.put('/api/admin/settings/refresh-token-sharding', updateRefreshTokenShardingConfig);
 app.get('/api/admin/settings/refresh-token-sharding/stats', getRefreshTokenShardingStats);
@@ -661,12 +705,15 @@ app.put('/api/admin/org-domain-mappings/:id', updateOrgDomainMapping);
 app.delete('/api/admin/org-domain-mappings/:id', deleteOrgDomainMapping);
 app.get('/api/admin/organizations/:org_id/domain-mappings', listOrgDomainMappingsByOrg);
 
-// JIT Provisioning Configuration endpoints
+// [DEPRECATED] JIT Provisioning Configuration
+// → Migrate to: /api/admin/tenants/:tenantId/settings/federation
 app.get('/api/admin/settings/jit-provisioning', getJITProvisioningConfig);
 app.put('/api/admin/settings/jit-provisioning', updateJITProvisioningConfig);
 app.delete('/api/admin/settings/jit-provisioning', resetJITProvisioningConfig);
 
-// Domain Hash Key Rotation endpoints
+// [DEPRECATED] Domain Hash Key Rotation
+// → Migrate to: /api/admin/platform/settings/encryption
+// NOTE: Has rotate/complete lifecycle operations - keep for key management
 app.get('/api/admin/settings/domain-hash-keys', getDomainHashKeysConfig);
 app.post('/api/admin/settings/domain-hash-keys/rotate', rotateDomainHashKey);
 app.put('/api/admin/settings/domain-hash-keys/complete', completeDomainHashKeyRotation);
@@ -694,11 +741,13 @@ app.get('/api/admin/resource-permissions/subject/:id', getPermissionsBySubject);
 app.get('/api/admin/resource-permissions/resource/:type/:id', getPermissionsByResource);
 app.delete('/api/admin/resource-permissions/:id', deleteResourcePermission);
 
-// Token Embedding Settings endpoints
+// [DEPRECATED] Token Embedding Settings
+// → Migrate to: /api/admin/tenants/:tenantId/settings/tokens
 app.get('/api/admin/settings/token-embedding', getTokenEmbeddingSettings);
 app.put('/api/admin/settings/token-embedding', updateTokenEmbeddingSettings);
 
-// Logout Configuration endpoints (Phase A-6)
+// [DEPRECATED] Logout Configuration (Phase A-6)
+// → Migrate to: /api/admin/tenants/:tenantId/settings/session
 app.get('/api/admin/settings/logout', getLogoutConfig);
 app.put('/api/admin/settings/logout', updateLogoutConfig);
 app.delete('/api/admin/settings/logout', resetLogoutConfig);

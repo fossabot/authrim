@@ -32,14 +32,17 @@ app.use('*', logger());
 // Enhanced security headers
 // Skip for /authorize endpoint to allow form_post response mode with nonce-based CSP
 // Skip for /session/check to allow iframe embedding (OIDC Session Management)
+// Skip for /logout to allow frontchannel logout iframes (OIDC Front-Channel Logout 1.0)
 app.use('*', async (c, next) => {
   // Skip secure headers for /authorize and /flow endpoints (handled by op-auth worker with nonce-based CSP)
   // Skip for /session/check endpoint (OIDC Session Management iframe needs custom headers)
+  // Skip for /logout endpoint (OIDC Front-Channel Logout needs to embed iframes)
   if (
     c.req.path === '/authorize' ||
     c.req.path.startsWith('/authorize/') ||
     c.req.path.startsWith('/flow/') ||
-    c.req.path === '/session/check'
+    c.req.path === '/session/check' ||
+    c.req.path === '/logout'
   ) {
     return next();
   }
