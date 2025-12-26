@@ -71,6 +71,10 @@ export {
   type SessionClientWithDetails,
   type CreateSessionClientInput,
   type UpdateSessionClientInput,
+  // Native SSO (OIDC Native SSO 1.0)
+  DeviceSecretRepository,
+  type CreateDeviceSecretResult,
+  type DeviceSecretCreateOptions,
 } from './core';
 
 // PII repositories

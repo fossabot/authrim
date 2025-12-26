@@ -312,6 +312,29 @@ export async function calculateCHash(
 }
 
 /**
+ * Calculate ds_hash (Device Secret Hash) for ID Token
+ * OIDC Native SSO 1.0 (draft-07)
+ * https://openid.net/specs/openid-connect-native-sso-1_0.html
+ *
+ * ⚠️ IMPORTANT: This function accepts RAW device secret (not stored hash)
+ * - The ds_hash is the base64url encoding of the left-most half of the hash
+ *   of the octets of the ASCII representation of the device_secret value
+ * - App B can verify the ID Token's ds_hash against its own device_secret
+ * - Provides man-in-the-middle protection in Native SSO flow
+ *
+ * @param deviceSecret - Raw device secret (NOT the stored hash)
+ * @param algorithm - Hash algorithm (default: SHA-256 for RS256)
+ * @returns Promise<string> - base64url encoded hash (left half)
+ */
+export async function calculateDsHash(
+  deviceSecret: string,
+  algorithm: 'SHA-256' | 'SHA-384' | 'SHA-512' = 'SHA-256'
+): Promise<string> {
+  // Same calculation as at_hash, c_hash
+  return calculateAtHash(deviceSecret, algorithm);
+}
+
+/**
  * Check if a token string is JWE format (5 parts) or JWT format (3 parts)
  *
  * @param token - Token string to check

@@ -25,6 +25,15 @@ export * from './types/settings';
 // Contract Types (Three-Layer Policy Hierarchy)
 export * from './types/contracts';
 
+// API Versioning Types (Stripe-style date-based versioning)
+export * from './types/api-version';
+
+// Deprecation Types (RFC 8594 Sunset Header)
+export * from './types/deprecation';
+
+// SDK Compatibility Types (preparation for future SDK)
+export * from './types/sdk-compatibility';
+
 // Utils
 export * from './utils/audit-log';
 export * from './utils/client-authentication';
@@ -77,6 +86,12 @@ export * from './utils/ui-config';
 export * from './utils/conformance-config';
 export * from './utils/custom-redirect';
 export * from './utils/ui-url-validator';
+export * from './utils/api-version-config';
+export * from './utils/deprecation-config';
+export * from './utils/sdk-compatibility-config';
+
+// Native SSO (OIDC Native SSO 1.0)
+export * from './utils/native-sso-config';
 
 // Error System (Phase 10 - SDK public types)
 // Note: Exported with namespace to avoid conflicts with legacy error types
@@ -144,6 +159,9 @@ export * from './middleware/rate-limit';
 export * from './middleware/initial-access-token';
 export * from './middleware/request-context';
 export * from './middleware/version-check';
+export * from './middleware/api-version';
+export * from './middleware/deprecation-headers';
+export * from './middleware/sdk-compatibility';
 
 // Plugin Context (Phase 9 - Plugin Architecture)
 export * from './middleware/plugin-context';

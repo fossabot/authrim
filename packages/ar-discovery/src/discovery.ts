@@ -7,6 +7,7 @@ import {
   DEFAULT_LOGOUT_CONFIG,
   LOGOUT_SETTINGS_KEY,
   getTenantIdFromContext,
+  isNativeSSOEnabled,
 } from '@authrim/ar-lib-core';
 import type { LogoutConfig } from '@authrim/ar-lib-core';
 
@@ -77,9 +78,13 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
   const clientCredentialsEnabled =
     oidcConfig.clientCredentials?.enabled ?? c.env.ENABLE_CLIENT_CREDENTIALS === 'true';
 
+  // OIDC Native SSO 1.0 (draft-07) feature flag
+  // Check KV → env → default (using isNativeSSOEnabled from native-sso-config.ts)
+  const nativeSSOEnabled = await isNativeSSOEnabled(c.env);
+
   // Check if cached metadata is still valid (include feature flags and tenant in cache key)
   const logoutHash = `bc=${logoutConfig.backchannel.enabled}:fc=${logoutConfig.frontchannel.enabled}:sm=${logoutConfig.session_management.enabled}`;
-  const settingsHash = `${currentSettingsJson}:te=${tokenExchangeEnabled}:cc=${clientCredentialsEnabled}:${logoutHash}`;
+  const settingsHash = `${currentSettingsJson}:te=${tokenExchangeEnabled}:cc=${clientCredentialsEnabled}:ns=${nativeSSOEnabled}:${logoutHash}`;
   const cacheKey = `${tenantId}:${settingsHash}`;
 
   const cachedMetadata = metadataCache.get(cacheKey);
@@ -152,6 +157,8 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
       'at_hash',
       'auth_time', // OIDC Core: Authentication timestamp
       'acr', // OIDC Core: Authentication Context Class Reference
+      // OIDC Native SSO 1.0: ds_hash (conditionally included when enabled)
+      ...(nativeSSOEnabled ? ['ds_hash'] : []),
       // Profile scope claims (OIDC Core 5.4)
       'name',
       'family_name',
@@ -239,6 +246,13 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
     // OIDC Back-Channel Logout 1.0 (configurable via KV)
     backchannel_logout_supported: logoutConfig.backchannel.enabled,
     backchannel_logout_session_supported: logoutConfig.backchannel.enabled,
+    // OIDC Native SSO 1.0 (draft-07) - conditionally included when enabled
+    ...(nativeSSOEnabled
+      ? {
+          native_sso_token_exchange_supported: true,
+          native_sso_device_secret_supported: true,
+        }
+      : {}),
   };
 
   // Update cache (with size limit to prevent memory issues)

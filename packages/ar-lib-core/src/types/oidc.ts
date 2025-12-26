@@ -77,6 +77,9 @@ export interface OIDCProviderMetadata {
   display_values_supported?: string[];
   op_policy_uri?: string;
   op_tos_uri?: string;
+  // OIDC Native SSO 1.0 (draft-07)
+  native_sso_token_exchange_supported?: boolean;
+  native_sso_device_secret_supported?: boolean;
 }
 
 /**
@@ -130,6 +133,9 @@ export interface IDTokenClaims {
   nonce?: string;
   at_hash?: string;
   c_hash?: string;
+  // OIDC Native SSO 1.0 (draft-07)
+  // Device Secret Hash - for Native SSO Token Exchange verification
+  ds_hash?: string;
   acr?: string;
   amr?: string[];
   azp?: string;
@@ -391,6 +397,22 @@ export interface ClientMetadata extends ClientRegistrationResponse {
    * Note: This is an Authrim extension, not OIDC standard.
    */
   allowed_redirect_origins?: string[];
+
+  // ==========================================================================
+  // OIDC Native SSO 1.0 (draft-07) Settings
+  // ==========================================================================
+  /**
+   * Enable Native SSO for this client.
+   * When true, Authorization Code Grant will return device_secret.
+   */
+  native_sso_enabled?: boolean;
+  /**
+   * Allow cross-client Native SSO (Token Exchange from different client_id).
+   * When true, this client can accept Token Exchange requests where
+   * the ID Token was issued to a different client_id.
+   * Default: false (more secure, same client only)
+   */
+  allow_cross_client_native_sso?: boolean;
 }
 
 /**
@@ -725,4 +747,106 @@ export interface ClientCredentialsResponse {
   token_type: 'Bearer' | 'DPoP';
   expires_in: number;
   scope?: string;
+}
+
+// =============================================================================
+// OIDC Native SSO 1.0 (draft-07)
+// https://openid.net/specs/openid-connect-native-sso-1_0.html
+// =============================================================================
+
+/**
+ * Native SSO Token Type URN
+ * Used as actor_token_type in Token Exchange for Native SSO flow
+ */
+export const DEVICE_SECRET_TOKEN_TYPE = 'urn:openid:params:token-type:device-secret' as const;
+
+/**
+ * Extended Token Type URN including Native SSO device-secret
+ */
+export type NativeSSOTokenTypeURN = TokenTypeURN | typeof DEVICE_SECRET_TOKEN_TYPE;
+
+/**
+ * Device Secret Entity
+ *
+ * Represents a device secret stored in the database.
+ * Non-PII data: only secret_hash is stored, no personal information.
+ *
+ * @see migrations/017_native_sso_device_secrets.sql
+ */
+export interface DeviceSecret {
+  /** Primary key (UUID) */
+  id: string;
+  /** Tenant ID (multi-tenancy support) */
+  tenant_id: string;
+  /** User ID this device secret belongs to */
+  user_id: string;
+  /** Session ID (for logout propagation) */
+  session_id: string;
+  /** SHA-256 hash of the raw device secret */
+  secret_hash: string;
+  /** Device name (optional, for admin visibility) */
+  device_name?: string;
+  /** Device platform */
+  device_platform?: 'ios' | 'android' | 'macos' | 'windows' | 'other';
+  /** Created timestamp (ms) */
+  created_at: number;
+  /** Updated timestamp (ms) */
+  updated_at: number;
+  /** Expiration timestamp (ms) */
+  expires_at: number;
+  /** Last used timestamp (ms) */
+  last_used_at?: number;
+  /** Usage count (for anomaly detection) */
+  use_count: number;
+  /** Revocation timestamp (ms) */
+  revoked_at?: number;
+  /** Revocation reason */
+  revoke_reason?: string;
+  /** Soft delete flag (1 = active, 0 = deleted) */
+  is_active: number;
+}
+
+/**
+ * Device Secret Validation Result
+ *
+ * Detailed error reasons for better SDK/Admin UX.
+ * validateAndUse() accepts raw device secret and hashes internally.
+ */
+export type DeviceSecretValidationResult =
+  | { ok: true; entity: DeviceSecret }
+  | {
+      ok: false;
+      reason: 'expired' | 'revoked' | 'mismatch' | 'not_found' | 'limit_exceeded';
+    };
+
+/**
+ * Device Secret Creation Input
+ */
+export interface CreateDeviceSecretInput {
+  /** User ID */
+  user_id: string;
+  /** Session ID */
+  session_id: string;
+  /** Tenant ID (defaults to 'default') */
+  tenant_id?: string;
+  /** Device name (optional) */
+  device_name?: string;
+  /** Device platform (optional) */
+  device_platform?: 'ios' | 'android' | 'macos' | 'windows' | 'other';
+  /** TTL in milliseconds (defaults to 30 days) */
+  ttl_ms?: number;
+}
+
+/**
+ * Native SSO Token Response Extension
+ *
+ * Extends TokenResponse with device_secret for Native SSO.
+ * device_secret is only returned on initial authentication (Authorization Code Grant).
+ */
+export interface NativeSSOTokenResponse extends TokenResponse {
+  /**
+   * Device secret for Native SSO (only on initial auth).
+   * Store in iOS Keychain / Android Keystore.
+   */
+  device_secret?: string;
 }

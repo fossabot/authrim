@@ -33,11 +33,17 @@ import {
   getCachedUser,
   getCachedUserCore,
   SessionClientRepository,
+  // Native SSO (OIDC Native SSO 1.0)
+  DeviceSecretRepository,
+  isNativeSSOEnabled,
+  getNativeSSOConfig,
+  DEVICE_SECRET_TOKEN_TYPE,
 } from '@authrim/ar-lib-core';
 import {
   createIDToken,
   createAccessToken,
   calculateAtHash,
+  calculateDsHash,
   createRefreshToken,
   parseToken,
   parseTokenHeader,
@@ -1046,9 +1052,93 @@ async function handleAuthorizationCodeGrant(
     );
   }
 
+  // ===== OIDC Native SSO 1.0 (draft-07) =====
+  // Generate device_secret for mobile/desktop SSO scenarios
+  // The device_secret is returned only once and must be stored securely by the client
+  // (e.g., iOS Keychain, Android Keystore)
+  let deviceSecret: string | undefined;
+  let dsHash: string | undefined;
+
+  // Check if Native SSO is enabled (feature flag + client configuration)
+  const nativeSSOGloballyEnabled = await isNativeSSOEnabled(c.env);
+  const clientNativeSSOEnabled = Boolean((clientMetadata as any).native_sso_enabled);
+
+  if (nativeSSOGloballyEnabled && clientNativeSSOEnabled && authCodeData.sid && c.env.DB) {
+    try {
+      const nativeSSOConfig = await getNativeSSOConfig(c.env);
+      const coreAdapter: DatabaseAdapter = new D1Adapter({ db: c.env.DB });
+      const deviceSecretRepo = new DeviceSecretRepository(coreAdapter);
+
+      // Check max device secrets per user (revoke oldest if exceeded)
+      const userSecrets = await deviceSecretRepo.findByUserId(authCodeData.sub);
+      const activeSecrets = userSecrets.filter((s) => s.is_active === 1);
+
+      if (activeSecrets.length >= nativeSSOConfig.maxDeviceSecretsPerUser) {
+        if (nativeSSOConfig.maxSecretsBehavior === 'revoke_oldest') {
+          // Revoke oldest secrets to make room
+          const sortedByCreation = activeSecrets.sort((a, b) => a.created_at - b.created_at);
+          const toRevoke = sortedByCreation.slice(
+            0,
+            activeSecrets.length - nativeSSOConfig.maxDeviceSecretsPerUser + 1
+          );
+          for (const secret of toRevoke) {
+            await deviceSecretRepo.revoke(secret.id, 'max_secrets_exceeded');
+          }
+          console.log(
+            `[NativeSSO] Revoked ${toRevoke.length} oldest device secrets for user: ${authCodeData.sub.substring(0, 8)}...`
+          );
+        } else {
+          // Reject mode: do not issue new device_secret
+          console.warn(
+            `[NativeSSO] Max device secrets reached for user: ${authCodeData.sub.substring(0, 8)}..., rejecting new secret`
+          );
+          // Continue without issuing device_secret (not a fatal error)
+        }
+      }
+
+      // Only create if we have room (after potential revocation) or if revoke_oldest was used
+      const canCreate =
+        nativeSSOConfig.maxSecretsBehavior === 'revoke_oldest' ||
+        activeSecrets.length < nativeSSOConfig.maxDeviceSecretsPerUser;
+
+      if (canCreate) {
+        // Create new device secret
+        const deviceSecretTTLMs = nativeSSOConfig.deviceSecretTTLDays * 24 * 60 * 60 * 1000;
+        const result = await deviceSecretRepo.createSecret({
+          user_id: authCodeData.sub,
+          session_id: authCodeData.sid,
+          ttl_ms: deviceSecretTTLMs,
+        });
+
+        // Check if creation was successful (result has 'secret' property)
+        // CreateDeviceSecretResult has { secret, entity }
+        // DeviceSecretValidationResult has { ok: false, reason: ... } or { ok: true, entity: ... }
+        if ('secret' in result) {
+          deviceSecret = result.secret;
+
+          // Calculate ds_hash (same algorithm as at_hash: SHA-256 left-half base64url)
+          dsHash = await calculateDsHash(deviceSecret);
+
+          console.log(
+            `[NativeSSO] Created device secret for user: ${authCodeData.sub.substring(0, 8)}..., ` +
+              `session: ${authCodeData.sid.substring(0, 8)}..., expires in ${nativeSSOConfig.deviceSecretTTLDays} days`
+          );
+        } else if ('ok' in result && result.ok === false) {
+          // Creation failed (likely limit_exceeded)
+          console.warn(`[NativeSSO] Device secret creation returned failure: ${result.reason}`);
+        }
+      }
+    } catch (error) {
+      // Log error but don't fail the token request - Native SSO is a convenience feature
+      console.error('[NativeSSO] Failed to create device secret:', error);
+      // deviceSecret and dsHash remain undefined
+    }
+  }
+
   // Generate ID Token with at_hash and auth_time
   // Phase 1 RBAC: Include RBAC claims in ID Token
   // Note: sid is required for RP-Initiated Logout per OIDC Session Management 1.0
+  // Note: ds_hash is included when Native SSO is enabled (OIDC Native SSO 1.0)
   const idTokenClaims = {
     iss: c.env.ISSUER_URL,
     sub: authCodeData.sub,
@@ -1058,6 +1148,7 @@ async function handleAuthorizationCodeGrant(
     auth_time: authCodeData.auth_time, // OIDC Core Section 2: Time when End-User authentication occurred
     ...(authCodeData.acr && { acr: authCodeData.acr }),
     ...(authCodeData.sid && { sid: authCodeData.sid }), // OIDC Session Management: Session ID for RP-Initiated Logout
+    ...(dsHash && { ds_hash: dsHash }), // OIDC Native SSO 1.0: Device Secret Hash
     // Phase 1 RBAC: Add RBAC claims to ID token
     ...idTokenRBACClaims,
   };
@@ -1316,14 +1407,24 @@ async function handleAuthorizationCodeGrant(
   c.header('Cache-Control', 'no-store');
   c.header('Pragma', 'no-cache');
 
-  return c.json({
+  // Build response object
+  // Note: device_secret is only included when Native SSO is enabled and successfully generated
+  // The device_secret is returned only once and must be securely stored by the client
+  const tokenResponse: Record<string, unknown> = {
     access_token: accessToken,
     token_type: tokenType, // 'Bearer' or 'DPoP' depending on DPoP usage
     expires_in: expiresIn,
     id_token: idToken,
     refresh_token: refreshToken,
     scope: authCodeData.scope, // OAuth 2.0 spec: include scope for clarity
-  });
+  };
+
+  // OIDC Native SSO 1.0: Include device_secret if generated
+  if (deviceSecret) {
+    tokenResponse.device_secret = deviceSecret;
+  }
+
+  return c.json(tokenResponse);
 }
 
 /**
@@ -3152,6 +3253,26 @@ async function handleTokenExchangeGrant(
     return oauthError(c, 'unauthorized_client', 'Token Exchange is disabled for this client', 403);
   }
 
+  // ===== OIDC Native SSO 1.0 (draft-07) Token Exchange Extension =====
+  // Detect Native SSO pattern: id_token + device-secret
+  // Note: actor_token_type is compared as string because DEVICE_SECRET_TOKEN_TYPE
+  // is a custom URN not included in the standard TokenTypeURN union
+  const isNativeSSORequest =
+    subject_token_type === 'urn:ietf:params:oauth:token-type:id_token' &&
+    (actor_token_type as string) === DEVICE_SECRET_TOKEN_TYPE;
+
+  if (isNativeSSORequest) {
+    return handleNativeSSOTokenExchange(
+      c,
+      subject_token,
+      actor_token!, // device_secret
+      client_id!,
+      typedClient,
+      requestedScope,
+      formData
+    );
+  }
+
   // 5. Validate requested_token_type (RFC 8693 §2.2.1)
   // Only access_token is supported for issued tokens
   if (
@@ -3647,6 +3768,512 @@ async function handleTokenExchangeGrant(
       'urn:ietf:params:oauth:token-type:access_token') as TokenTypeURN,
     token_type: dpopProof ? 'DPoP' : 'Bearer',
     expires_in: expiresIn,
+    scope: grantedScope,
+  });
+}
+
+// =============================================================================
+// OIDC Native SSO 1.0 (draft-07): Native SSO Token Exchange
+// =============================================================================
+
+/**
+ * Handle Native SSO Token Exchange (OIDC Native SSO 1.0)
+ * https://openid.net/specs/openid-connect-native-sso-1_0.html
+ *
+ * Native SSO enables seamless SSO between mobile/desktop apps sharing a Keychain.
+ * - App A authenticates and receives device_secret
+ * - App B uses device_secret + ID Token to get tokens without user interaction
+ *
+ * Security:
+ * - device_secret is validated using SHA-256 hash lookup
+ * - ID Token is verified for signature, issuer, expiration
+ * - Cross-client SSO requires explicit configuration
+ * - Rate limiting protects against brute-force attacks
+ */
+async function handleNativeSSOTokenExchange(
+  c: Context<{ Bindings: Env }>,
+  idToken: string,
+  deviceSecret: string,
+  clientId: string,
+  clientMetadata: ClientMetadata,
+  requestedScope?: string,
+  formData?: Record<string, string>
+): Promise<Response> {
+  // 1. Check Native SSO feature flag
+  const nativeSSOEnabled = await isNativeSSOEnabled(c.env);
+  if (!nativeSSOEnabled) {
+    return c.json(
+      {
+        error: 'unsupported_grant_type',
+        error_description: 'Native SSO is not enabled',
+      },
+      400
+    );
+  }
+
+  // 2. Check if client supports Native SSO
+  const clientNativeSSOEnabled = Boolean((clientMetadata as any).native_sso_enabled);
+  if (!clientNativeSSOEnabled) {
+    return c.json(
+      {
+        error: 'unauthorized_client',
+        error_description: 'Client is not configured for Native SSO',
+      },
+      403
+    );
+  }
+
+  // 3. Check if DB is available
+  if (!c.env.DB) {
+    console.error('[NativeSSO] D1 database not available');
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Database not available',
+      },
+      500
+    );
+  }
+
+  const coreAdapter: DatabaseAdapter = new D1Adapter({ db: c.env.DB });
+  const deviceSecretRepo = new DeviceSecretRepository(coreAdapter);
+  const nativeSSOConfig = await getNativeSSOConfig(c.env);
+
+  // 3b. Rate limiting for brute-force protection (checked BEFORE validation)
+  // Use client_id + IP as key since we don't know user_id until validation
+  if (c.env.AUTHRIM_CONFIG) {
+    const clientIP =
+      c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+    const rateLimitKey = `native-sso:ratelimit:${clientId}:${clientIP}`;
+
+    try {
+      const rateLimitData = await c.env.AUTHRIM_CONFIG.get(rateLimitKey);
+      const { maxAttemptsPerMinute, blockDurationMinutes } = nativeSSOConfig.rateLimit;
+
+      if (rateLimitData) {
+        const { count, blockedUntil } = JSON.parse(rateLimitData) as {
+          count: number;
+          blockedUntil?: number;
+        };
+
+        // Check if currently blocked
+        if (blockedUntil && Date.now() < blockedUntil) {
+          const remainingSeconds = Math.ceil((blockedUntil - Date.now()) / 1000);
+          console.warn(
+            `[NativeSSO] Rate limit blocked: client=${clientId}, IP=${clientIP}, ` +
+              `remaining=${remainingSeconds}s`
+          );
+          return c.json(
+            {
+              error: 'slow_down',
+              error_description: `Too many attempts. Please wait ${remainingSeconds} seconds.`,
+            },
+            429
+          );
+        }
+
+        // Check if approaching limit
+        if (count >= maxAttemptsPerMinute) {
+          // Block for the configured duration
+          const blockedUntilTime = Date.now() + blockDurationMinutes * 60 * 1000;
+          await c.env.AUTHRIM_CONFIG.put(
+            rateLimitKey,
+            JSON.stringify({ count: count + 1, blockedUntil: blockedUntilTime }),
+            { expirationTtl: blockDurationMinutes * 60 + 60 }
+          );
+          console.warn(
+            `[NativeSSO] Rate limit triggered: client=${clientId}, IP=${clientIP}, ` +
+              `block_duration=${blockDurationMinutes}min`
+          );
+          return c.json(
+            {
+              error: 'slow_down',
+              error_description: `Too many attempts. Please wait ${blockDurationMinutes} minutes.`,
+            },
+            429
+          );
+        }
+
+        // Increment counter
+        await c.env.AUTHRIM_CONFIG.put(rateLimitKey, JSON.stringify({ count: count + 1 }), {
+          expirationTtl: 60,
+        });
+      } else {
+        // First attempt in this window
+        await c.env.AUTHRIM_CONFIG.put(rateLimitKey, JSON.stringify({ count: 1 }), {
+          expirationTtl: 60,
+        });
+      }
+    } catch (error) {
+      // Log but don't block on rate limit errors (fail-open for availability)
+      console.error('[NativeSSO] Rate limit check error:', error);
+    }
+  }
+
+  // 4. Validate device_secret (this also marks it as used)
+  // Pass maxUseCountPerSecret from config for replay attack prevention
+  const deviceSecretValidation = await deviceSecretRepo.validateAndUse(deviceSecret, {
+    maxUseCount: nativeSSOConfig.maxUseCountPerSecret,
+  });
+  if (!deviceSecretValidation.ok) {
+    const errorMessages: Record<string, string> = {
+      not_found: 'Device secret not found or invalid',
+      expired: 'Device secret has expired',
+      revoked: 'Device secret has been revoked',
+      mismatch: 'Device secret validation failed',
+      limit_exceeded: 'Device secret use count exceeded - please re-authenticate',
+    };
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: errorMessages[deviceSecretValidation.reason] || 'Invalid device secret',
+      },
+      400
+    );
+  }
+
+  const validatedDeviceSecret = deviceSecretValidation.entity;
+  const deviceSecretUserId = validatedDeviceSecret.user_id;
+
+  // 5. Parse and validate ID Token
+  let idTokenPayload: Record<string, unknown>;
+  let idTokenHeader;
+  try {
+    idTokenPayload = parseToken(idToken);
+    idTokenHeader = parseTokenHeader(idToken);
+  } catch {
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: 'Invalid ID token format',
+      },
+      400
+    );
+  }
+
+  // Get verification key from header
+  const idTokenKid = idTokenHeader.kid;
+  if (!idTokenKid) {
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: 'ID token is missing kid in header',
+      },
+      400
+    );
+  }
+
+  // Verify ID Token signature
+  try {
+    const publicKey = await getVerificationKeyFromJWKS(c.env, idTokenKid);
+    await verifyToken(idToken, publicKey, c.env.ISSUER_URL, {
+      skipAudienceCheck: true, // We validate audience ourselves
+    });
+  } catch (error) {
+    console.error('[NativeSSO] ID token verification failed:', error);
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: 'ID token verification failed',
+      },
+      400
+    );
+  }
+
+  // Check ID Token expiration
+  const now = Math.floor(Date.now() / 1000);
+  const idTokenExp = idTokenPayload.exp as number | undefined;
+  if (idTokenExp && idTokenExp < now) {
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: 'ID token has expired',
+      },
+      400
+    );
+  }
+
+  // 5b. ID Token jti replay attack prevention
+  // Store used jti in KV to prevent replay attacks
+  const idTokenJti = idTokenPayload.jti as string | undefined;
+  if (idTokenJti && c.env.AUTHRIM_CONFIG) {
+    const jtiKey = `native-sso:jti:${idTokenJti}`;
+    const existingJti = await c.env.AUTHRIM_CONFIG.get(jtiKey);
+
+    if (existingJti) {
+      console.warn(`[NativeSSO] ID Token replay detected: jti=${idTokenJti.substring(0, 8)}...`);
+      return c.json(
+        {
+          error: 'invalid_grant',
+          error_description: 'ID token has already been used',
+        },
+        400
+      );
+    }
+
+    // Store jti with expiration = remaining ID token lifetime + 60s buffer
+    // This prevents replay but doesn't waste storage after token expires
+    const ttlSeconds = idTokenExp ? Math.max(60, idTokenExp - now + 60) : 3600;
+    await c.env.AUTHRIM_CONFIG.put(jtiKey, '1', { expirationTtl: ttlSeconds });
+  }
+
+  // 6. Verify user_id matches between ID Token and device_secret
+  const idTokenSub = idTokenPayload.sub as string;
+  if (idTokenSub !== deviceSecretUserId) {
+    console.warn(
+      `[NativeSSO] User mismatch: ID token sub=${idTokenSub.substring(0, 8)}..., ` +
+        `device_secret user=${deviceSecretUserId.substring(0, 8)}...`
+    );
+    return c.json(
+      {
+        error: 'invalid_grant',
+        error_description: 'ID token subject does not match device secret owner',
+      },
+      400
+    );
+  }
+
+  // 7. Cross-client SSO check
+  const idTokenAud = idTokenPayload.aud as string | string[] | undefined;
+  const idTokenAudArray = Array.isArray(idTokenAud) ? idTokenAud : idTokenAud ? [idTokenAud] : [];
+  const idTokenClientId = idTokenPayload.client_id as string | undefined;
+  const originalClientId =
+    idTokenClientId || (idTokenAudArray[0] !== c.env.ISSUER_URL ? idTokenAudArray[0] : undefined);
+
+  const isSameClient = originalClientId === clientId || idTokenAudArray.includes(clientId);
+
+  if (!isSameClient) {
+    // Cross-client SSO security: ALL conditions must be met (AND logic, not OR)
+    // 1. Global setting must allow cross-client SSO
+    // 2. Requesting client (App B) must have cross-client SSO enabled
+    // 3. Original client (App A) must also allow its tokens to be used by other clients
+    const crossClientAllowed = nativeSSOConfig.allowCrossClientNativeSSO;
+    const requestingClientCrossClientAllowed = Boolean(
+      (clientMetadata as any).allow_cross_client_native_sso
+    );
+
+    // Verify original client also allows cross-client SSO
+    let originalClientCrossClientAllowed = false;
+    if (originalClientId) {
+      try {
+        const originalClientMetadata = await getClient(c.env, originalClientId);
+        originalClientCrossClientAllowed = Boolean(
+          (originalClientMetadata as any)?.allow_cross_client_native_sso
+        );
+      } catch {
+        // If we can't verify original client, deny cross-client SSO for safety
+        console.warn(`[NativeSSO] Failed to verify original client: ${originalClientId}`);
+        originalClientCrossClientAllowed = false;
+      }
+    }
+
+    // Security: Require ALL three conditions to allow cross-client SSO
+    if (
+      !crossClientAllowed ||
+      !requestingClientCrossClientAllowed ||
+      !originalClientCrossClientAllowed
+    ) {
+      console.warn(
+        `[NativeSSO] Cross-client SSO denied: original=${originalClientId}, requesting=${clientId}, ` +
+          `global=${crossClientAllowed}, requesting_client=${requestingClientCrossClientAllowed}, ` +
+          `original_client=${originalClientCrossClientAllowed}`
+      );
+      return c.json(
+        {
+          error: 'invalid_target',
+          error_description: 'Cross-client Native SSO is not allowed',
+        },
+        403
+      );
+    }
+  }
+
+  // 8. Scope handling
+  // Native SSO inherits scope from original ID Token or uses requested scope
+  const idTokenScope = idTokenPayload.scope as string | undefined;
+  const originalScopes = idTokenScope ? idTokenScope.split(' ') : ['openid'];
+  const requestedScopes = requestedScope ? requestedScope.split(' ') : originalScopes;
+  const allowedScopes = (clientMetadata as any).allowed_scopes || [];
+
+  // Intersection: requested ∩ original ∩ client.allowed_scopes
+  let grantedScopes = requestedScopes;
+  if (originalScopes.length > 0) {
+    grantedScopes = grantedScopes.filter((s) => originalScopes.includes(s));
+  }
+  if (allowedScopes.length > 0) {
+    grantedScopes = grantedScopes.filter((s) => allowedScopes.includes(s));
+  }
+
+  // Ensure openid is always included for OIDC
+  if (!grantedScopes.includes('openid')) {
+    grantedScopes.unshift('openid');
+  }
+
+  const grantedScope = grantedScopes.join(' ');
+
+  // 9. Generate tokens
+  let privateKey: CryptoKey;
+  let keyId: string;
+  try {
+    const signingKey = await getSigningKeyFromKeyManager(c.env);
+    privateKey = signingKey.privateKey;
+    keyId = signingKey.kid;
+  } catch (error) {
+    console.error('[NativeSSO] Failed to get signing key:', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to load signing key',
+      },
+      500
+    );
+  }
+
+  const configManager = createOAuthConfigManager(c.env);
+  const expiresIn = await configManager.getTokenExpiry();
+
+  // DPoP support
+  let dpopJkt: string | undefined;
+  const dpopProof = extractDPoPProof(c.req.raw.headers);
+  if (dpopProof) {
+    const dpopValidation = await validateDPoPProof(
+      dpopProof,
+      c.req.method,
+      c.req.url,
+      undefined,
+      c.env,
+      clientId
+    );
+    if (!dpopValidation.valid) {
+      return c.json(
+        {
+          error: 'invalid_dpop_proof',
+          error_description: dpopValidation.error_description || 'DPoP validation failed',
+        },
+        400
+      );
+    }
+    dpopJkt = dpopValidation.jkt;
+  }
+
+  // Build access token claims
+  const accessTokenClaims: Record<string, unknown> = {
+    iss: c.env.ISSUER_URL,
+    sub: idTokenSub,
+    aud: c.env.ISSUER_URL,
+    scope: grantedScope,
+    client_id: clientId,
+    // Include session_id if available from device_secret
+    ...(validatedDeviceSecret.session_id && { sid: validatedDeviceSecret.session_id }),
+    // Add DPoP confirmation
+    ...(dpopJkt ? { cnf: { jkt: dpopJkt } } : {}),
+  };
+
+  let accessToken: string;
+  let accessTokenJti: string;
+  try {
+    const { jti: regionAwareJti } = await generateRegionAwareJti(c.env);
+    const result = await createAccessToken(
+      accessTokenClaims as Parameters<typeof createAccessToken>[0],
+      privateKey,
+      keyId,
+      expiresIn,
+      regionAwareJti
+    );
+    accessToken = result.token;
+    accessTokenJti = result.jti;
+  } catch (error) {
+    console.error('[NativeSSO] Failed to create access token:', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to create access token',
+      },
+      500
+    );
+  }
+
+  // Calculate at_hash for new ID Token
+  let newAtHash: string;
+  try {
+    newAtHash = await calculateAtHash(accessToken);
+  } catch (error) {
+    console.error('[NativeSSO] Failed to calculate at_hash:', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to calculate token hash',
+      },
+      500
+    );
+  }
+
+  // Build new ID Token claims
+  // Extract values first to avoid spread type issues
+  const authTime = idTokenPayload.auth_time as number | undefined;
+  const acr = idTokenPayload.acr as string | undefined;
+  const newIdTokenClaims: Record<string, unknown> = {
+    iss: c.env.ISSUER_URL,
+    sub: idTokenSub,
+    aud: clientId,
+    at_hash: newAtHash,
+  };
+  // Preserve auth_time from original ID Token
+  if (authTime !== undefined) {
+    newIdTokenClaims.auth_time = authTime;
+  }
+  // Preserve acr from original ID Token
+  if (acr !== undefined) {
+    newIdTokenClaims.acr = acr;
+  }
+  // Include session_id
+  if (validatedDeviceSecret.session_id) {
+    newIdTokenClaims.sid = validatedDeviceSecret.session_id;
+  }
+
+  let newIdToken: string;
+  try {
+    newIdToken = await createIDToken(
+      newIdTokenClaims as Omit<IDTokenClaims, 'iat' | 'exp'>,
+      privateKey,
+      keyId,
+      expiresIn
+    );
+  } catch (error) {
+    console.error('[NativeSSO] Failed to create ID token:', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to create ID token',
+      },
+      500
+    );
+  }
+
+  // 10. Audit log
+  console.log('[NativeSSO Token Exchange] Success', {
+    client_id: clientId,
+    user_id: idTokenSub.substring(0, 8) + '...',
+    session_id: validatedDeviceSecret.session_id?.substring(0, 8) + '...',
+    device_secret_id: validatedDeviceSecret.id.substring(0, 8) + '...',
+    device_secret_use_count: validatedDeviceSecret.use_count + 1,
+    is_cross_client: !isSameClient,
+    original_client_id: originalClientId,
+    granted_scope: grantedScope,
+    token_binding: dpopProof ? 'DPoP' : 'Bearer',
+    access_token_jti: accessTokenJti,
+  });
+
+  // Set cache control headers
+  c.header('Cache-Control', 'no-store');
+  c.header('Pragma', 'no-cache');
+
+  return c.json({
+    access_token: accessToken,
+    issued_token_type: 'urn:ietf:params:oauth:token-type:access_token' as TokenTypeURN,
+    token_type: dpopProof ? 'DPoP' : 'Bearer',
+    expires_in: expiresIn,
+    id_token: newIdToken,
     scope: grantedScope,
   });
 }

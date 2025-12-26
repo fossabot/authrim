@@ -20,6 +20,9 @@ import {
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
   requireSystemAdmin,
+  // Native SSO device_secret cleanup
+  DeviceSecretRepository,
+  isNativeSSOEnabled,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -279,6 +282,18 @@ import {
   getPluginHealthHandler,
   getPluginSchemaHandler,
 } from './routes/settings/plugins';
+import {
+  getNativeSSOSettingsConfig,
+  updateNativeSSOConfig,
+  clearNativeSSOConfig,
+} from './routes/settings/native-sso';
+import {
+  listUserDeviceSecrets,
+  getDeviceSecret,
+  revokeDeviceSecret,
+  revokeAllUserDeviceSecrets,
+  cleanupExpiredDeviceSecrets,
+} from './routes/device-secrets';
 
 // Create Hono app with Cloudflare Workers types
 const app = new Hono<{ Bindings: Env }>();
@@ -835,6 +850,28 @@ app.put('/api/admin/plugins/:id/disable', disablePluginHandler);
 app.get('/api/admin/plugins/:id/health', getPluginHealthHandler);
 app.get('/api/admin/plugins/:id/schema', getPluginSchemaHandler);
 
+// =============================================================================
+// Native SSO Settings (OIDC Native SSO 1.0)
+// =============================================================================
+// Settings for Native SSO feature (device_secret, ds_hash, Token Exchange)
+// - GET: Retrieve current settings with value sources
+// - PUT: Update settings (partial update supported)
+// - DELETE: Reset to defaults
+app.get('/api/admin/settings/native-sso', getNativeSSOSettingsConfig);
+app.put('/api/admin/settings/native-sso', updateNativeSSOConfig);
+app.delete('/api/admin/settings/native-sso', clearNativeSSOConfig);
+
+// Device Secret Management (Native SSO)
+// - List user's device secrets (with pagination and summary)
+// - Get, revoke individual device secrets
+// - Bulk revoke all device secrets for a user
+// - Cleanup expired device secrets
+app.get('/api/admin/users/:userId/device-secrets', listUserDeviceSecrets);
+app.delete('/api/admin/users/:userId/device-secrets', revokeAllUserDeviceSecrets);
+app.post('/api/admin/device-secrets/cleanup', cleanupExpiredDeviceSecrets); // Must be before :id
+app.get('/api/admin/device-secrets/:id', getDeviceSecret);
+app.delete('/api/admin/device-secrets/:id', revokeDeviceSecret);
+
 // SCIM 2.0 endpoints - RFC 7643, 7644
 app.route('/scim/v2', scimApp);
 
@@ -1057,8 +1094,24 @@ async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
     const auditLogsDeleted = auditLogsResult.rowsAffected || 0;
     console.log(`[Scheduled] Deleted ${auditLogsDeleted} audit logs older than 90 days`);
 
+    // 4. Cleanup expired Native SSO device_secrets (if enabled)
+    // This cleans up device secrets that have passed their expiration date
+    let deviceSecretsDeleted = 0;
+    try {
+      const nativeSSOEnabled = await isNativeSSOEnabled(env);
+      if (nativeSSOEnabled) {
+        const deviceSecretRepo = new DeviceSecretRepository(coreAdapter);
+        deviceSecretsDeleted = await deviceSecretRepo.cleanupExpired();
+        console.log(`[Scheduled] Cleaned up ${deviceSecretsDeleted} expired device secrets`);
+      }
+    } catch (deviceSecretError) {
+      // Log but don't fail the entire cleanup job
+      console.error('[Scheduled] Device secret cleanup failed:', deviceSecretError);
+    }
+
     console.log(
-      `[Scheduled] D1 cleanup completed: ${sessionsDeleted} sessions, ${passwordTokensDeleted} tokens, ${auditLogsDeleted} audit logs`
+      `[Scheduled] D1 cleanup completed: ${sessionsDeleted} sessions, ${passwordTokensDeleted} tokens, ` +
+        `${auditLogsDeleted} audit logs, ${deviceSecretsDeleted} device secrets`
     );
   } catch (error) {
     console.error('[Scheduled] D1 cleanup job failed:', error);

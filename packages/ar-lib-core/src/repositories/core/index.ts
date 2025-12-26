@@ -65,3 +65,9 @@ export {
   type CreateSessionClientInput,
   type UpdateSessionClientInput,
 } from './session-client';
+
+export {
+  DeviceSecretRepository,
+  type CreateDeviceSecretResult,
+  type DeviceSecretCreateOptions,
+} from './device-secret';

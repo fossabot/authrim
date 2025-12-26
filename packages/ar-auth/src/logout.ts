@@ -36,6 +36,10 @@ import {
   generateFrontchannelLogoutHtml,
   getFrontchannelLogoutConfig,
   BROWSER_STATE_COOKIE_NAME,
+  // Native SSO device_secret revocation
+  D1Adapter,
+  DeviceSecretRepository,
+  isNativeSSOEnabled,
 } from '@authrim/ar-lib-core';
 import type { BackchannelLogoutConfig, LogoutSendResult, LogoutConfig } from '@authrim/ar-lib-core';
 import { importJWK, jwtVerify, importPKCS8 } from 'jose';
@@ -329,6 +333,36 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
     console.log(
       `[LOGOUT] After processing: deletedSessions=${deletedSessions.length}, sessionsToNotify=${sessionsToNotify.length}`
     );
+
+    // ========================================
+    // Step 2.4: Revoke Native SSO device_secrets for deleted sessions
+    // ========================================
+    // When a session is invalidated, all associated device_secrets should also be revoked
+    // to prevent continued Native SSO token exchange from other apps
+    if (deletedSessions.length > 0 && c.env.DB) {
+      const nativeSSOEnabled = await isNativeSSOEnabled(c.env);
+      if (nativeSSOEnabled) {
+        try {
+          const adapter = new D1Adapter({ db: c.env.DB });
+          const deviceSecretRepo = new DeviceSecretRepository(adapter);
+
+          let totalRevoked = 0;
+          for (const sessId of deletedSessions) {
+            const revokedCount = await deviceSecretRepo.revokeBySessionId(sessId, 'session_logout');
+            totalRevoked += revokedCount;
+          }
+
+          if (totalRevoked > 0) {
+            console.log(
+              `[LOGOUT] Revoked ${totalRevoked} device secrets for ${deletedSessions.length} sessions`
+            );
+          }
+        } catch (error) {
+          // Log but don't fail logout if device_secret revocation fails
+          console.error('[LOGOUT] Failed to revoke device secrets:', error);
+        }
+      }
+    }
 
     // ========================================
     // Step 2.5: Send Backchannel Logout notifications (async)
@@ -846,13 +880,16 @@ export async function backChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
 
     // Invalidate sessions
     // With sharded SessionStore, we can only delete sessions by specific sessionId
+    let sessionDeleted = false;
     if (sessionId && isShardedSessionId(sessionId)) {
       // Invalidate specific session using sharded routing via RPC
       try {
         const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sessionId);
         const deleted = await sessionStore.invalidateSessionRpc(sessionId);
 
-        if (!deleted) {
+        if (deleted) {
+          sessionDeleted = true;
+        } else {
           console.warn(`Failed to delete session ${sessionId}`);
         }
       } catch (error) {
@@ -868,6 +905,28 @@ export async function backChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
         `Back-channel logout: Cannot invalidate all sessions for user ${userId} - ` +
           `sessionId (sid claim) is required with sharded SessionStore`
       );
+    }
+
+    // Revoke Native SSO device_secrets for the deleted session
+    if (sessionDeleted && sessionId && c.env.DB) {
+      const nativeSSOEnabled = await isNativeSSOEnabled(c.env);
+      if (nativeSSOEnabled) {
+        try {
+          const adapter = new D1Adapter({ db: c.env.DB });
+          const deviceSecretRepo = new DeviceSecretRepository(adapter);
+          const revokedCount = await deviceSecretRepo.revokeBySessionId(
+            sessionId,
+            'backchannel_logout'
+          );
+          if (revokedCount > 0) {
+            console.log(
+              `[BACKCHANNEL_LOGOUT] Revoked ${revokedCount} device secrets for session ${sessionId}`
+            );
+          }
+        } catch (error) {
+          console.error('[BACKCHANNEL_LOGOUT] Failed to revoke device secrets:', error);
+        }
+      }
     }
 
     // Log the logout event
