@@ -30,6 +30,7 @@
 // Core Contract Types
 // =============================================================================
 export * from './tenant';
+export * from './tenant-profile';
 export * from './client';
 export * from './resolved';
 export * from './presets';

@@ -338,17 +338,76 @@ export function validateRedirectUri(
 }
 
 /**
+ * Scope validation options
+ */
+export interface ScopeValidationOptions {
+  /** Allow custom scopes (non-platform scopes). Default: true */
+  allowCustomScopes?: boolean;
+  /** Allow AI namespace scopes (ai:*). Default: false (secure default) */
+  allowAIScopes?: boolean;
+  /** Require 'openid' scope. Default: true */
+  requireOpenid?: boolean;
+  /** Maximum scope length. Default: 256 */
+  maxScopeLength?: number;
+}
+
+/**
+ * Reserved scope namespaces that cannot be used for custom scopes
+ */
+const RESERVED_NAMESPACES = ['ai:', 'system:', 'internal:', 'authrim:'] as const;
+
+/**
+ * AI capability scopes
+ */
+const AI_SCOPES = ['ai:read', 'ai:write', 'ai:execute', 'ai:admin'] as const;
+
+/**
+ * Check if a scope is in a reserved namespace
+ */
+function isReservedNamespaceScope(scope: string): boolean {
+  return RESERVED_NAMESPACES.some((ns) => scope.startsWith(ns));
+}
+
+/**
+ * Check if a scope is an AI capability scope
+ */
+function isAIScope(scope: string): boolean {
+  return scope.startsWith('ai:');
+}
+
+/**
+ * Check if a scope is a valid AI capability scope
+ */
+function isValidAIScope(scope: string): boolean {
+  // Allow predefined AI scopes or custom ai:* scopes with valid format
+  if (AI_SCOPES.includes(scope as (typeof AI_SCOPES)[number])) {
+    return true;
+  }
+  // Allow custom ai:* scopes with valid format (ai:custom_action, ai:tool:read, etc.)
+  return /^ai:[a-z][a-z0-9_:]*$/.test(scope);
+}
+
+/**
  * Scope validation
  * Must contain 'openid' and only valid scope values
  *
  * @param scope - Space-separated scope string
- * @param allowCustomScopes - Allow custom scopes (for resource server integration)
+ * @param options - Validation options (can be boolean for backward compatibility)
  * @returns ValidationResult
  */
 export function validateScope(
   scope: string | undefined,
-  allowCustomScopes: boolean = true
+  options: boolean | ScopeValidationOptions = true
 ): ValidationResult {
+  // Handle backward compatibility: boolean argument means allowCustomScopes
+  const opts: ScopeValidationOptions =
+    typeof options === 'boolean' ? { allowCustomScopes: options } : options;
+
+  const allowCustomScopes = opts.allowCustomScopes ?? true;
+  const allowAIScopes = opts.allowAIScopes ?? false;
+  const requireOpenid = opts.requireOpenid ?? true;
+  const maxScopeLength = opts.maxScopeLength ?? 256;
+
   if (!scope) {
     return {
       valid: false,
@@ -375,8 +434,8 @@ export function validateScope(
     };
   }
 
-  // OpenID Connect requires 'openid' scope
-  if (!scopes.includes('openid')) {
+  // OpenID Connect requires 'openid' scope (unless explicitly disabled)
+  if (requireOpenid && !scopes.includes('openid')) {
     return {
       valid: false,
       error: 'scope must include "openid"',
@@ -386,22 +445,61 @@ export function validateScope(
   // Standard OIDC scopes
   const standardScopes = ['openid', 'profile', 'email', 'address', 'phone', 'offline_access'];
 
-  if (!allowCustomScopes) {
-    // Strict mode: only allow standard scopes
-    const invalidScopes = scopes.filter((s) => !standardScopes.includes(s));
-    if (invalidScopes.length > 0) {
+  // Check each scope
+  for (const s of scopes) {
+    // Check scope length
+    if (s.length > maxScopeLength) {
       return {
         valid: false,
-        error: `Invalid scope(s): ${invalidScopes.join(', ')}. Only standard OIDC scopes are allowed.`,
+        error: `Scope "${s}" exceeds maximum length of ${maxScopeLength} characters`,
       };
     }
-  } else {
-    // Permissive mode: allow custom scopes but warn about unknown standard scopes
-    const unknownScopes = scopes.filter((s) => !standardScopes.includes(s));
-    if (unknownScopes.length > 0) {
-      // Log warning for monitoring, but don't fail validation
-      // This allows custom resource server scopes (e.g., 'api:read', 'admin:write')
-      console.warn(`Non-standard scopes requested: ${unknownScopes.join(', ')}`);
+
+    // Check for AI namespace scopes
+    if (isAIScope(s)) {
+      if (!allowAIScopes) {
+        return {
+          valid: false,
+          error: `AI scope "${s}" is not allowed. AI scopes (ai:*) are reserved for AI Ephemeral Auth tenants.`,
+        };
+      }
+      // Validate AI scope format
+      if (!isValidAIScope(s)) {
+        return {
+          valid: false,
+          error: `Invalid AI scope format: "${s}". AI scopes must match pattern ai:[a-z][a-z0-9_:]*`,
+        };
+      }
+      continue; // Valid AI scope
+    }
+
+    // Check for other reserved namespaces (system:, internal:, authrim:)
+    if (isReservedNamespaceScope(s)) {
+      return {
+        valid: false,
+        error: `Scope "${s}" uses a reserved namespace. Reserved namespaces: ${RESERVED_NAMESPACES.join(', ')}`,
+      };
+    }
+
+    // Standard scope check
+    if (standardScopes.includes(s)) {
+      continue; // Valid standard scope
+    }
+
+    // Custom scope check
+    if (!allowCustomScopes) {
+      return {
+        valid: false,
+        error: `Invalid scope(s): ${s}. Only standard OIDC scopes are allowed.`,
+      };
+    }
+
+    // Custom scope format validation (alphanumeric, underscore, hyphen, colon, period)
+    if (!/^[a-zA-Z0-9_\-:.]+$/.test(s)) {
+      return {
+        valid: false,
+        error: `Invalid scope format: "${s}". Scopes must contain only alphanumeric characters, underscores, hyphens, colons, and periods.`,
+      };
     }
   }
 

@@ -81,6 +81,9 @@ export const RFC_ERROR_CODES = {
   // OpenID4VP
   INVALID_PRESENTATION: 'invalid_presentation',
 
+  // RFC 9396: Rich Authorization Requests
+  INVALID_AUTHORIZATION_DETAILS: 'invalid_authorization_details',
+
   // Custom (non-RFC but commonly used)
   INVALID_REDIRECT_URI: 'invalid_redirect_uri',
   INVALID_CLIENT_METADATA: 'invalid_client_metadata',

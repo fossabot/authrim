@@ -315,6 +315,7 @@ interface AuthCodeStoreResponse {
   cHash?: string; // OIDC c_hash for hybrid flows
   dpopJkt?: string; // DPoP JWK thumbprint (RFC 9449)
   sid?: string; // OIDC Session Management: Session ID for RP-Initiated Logout
+  authorizationDetails?: string; // RFC 9396: Rich Authorization Requests (JSON string)
   // Present when replay attack is detected (RFC 6749 Section 4.1.2)
   replayAttack?: {
     accessTokenJti?: string;
@@ -735,6 +736,7 @@ async function handleAuthorizationCodeGrant(
       claims: consumedData.claims,
       dpopJkt: consumedData.dpopJkt, // DPoP JWK thumbprint for binding verification
       sid: consumedData.sid, // OIDC Session Management: Session ID for RP-Initiated Logout
+      authorizationDetails: consumedData.authorizationDetails, // RFC 9396: Rich Authorization Requests
     };
   } catch (error) {
     // RPC throws error for invalid codes (not found, already consumed, PKCE mismatch, client mismatch)
@@ -1422,6 +1424,16 @@ async function handleAuthorizationCodeGrant(
   // OIDC Native SSO 1.0: Include device_secret if generated
   if (deviceSecret) {
     tokenResponse.device_secret = deviceSecret;
+  }
+
+  // RFC 9396: Include authorization_details if present in the authorization request
+  if (authCodeData.authorizationDetails) {
+    try {
+      tokenResponse.authorization_details = JSON.parse(authCodeData.authorizationDetails);
+    } catch {
+      // If parsing fails, include as-is (should not happen as it was validated)
+      console.warn('[RAR] Failed to parse authorization_details, including as string');
+    }
   }
 
   return c.json(tokenResponse);

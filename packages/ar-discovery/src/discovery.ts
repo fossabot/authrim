@@ -82,9 +82,17 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
   // Check KV → env → default (using isNativeSSOEnabled from native-sso-config.ts)
   const nativeSSOEnabled = await isNativeSSOEnabled(c.env);
 
+  // RFC 9396 Rich Authorization Requests (RAR) feature flag
+  // Check SETTINGS KV first, then fall back to environment variable
+  const rarEnabled = oidcConfig.rar?.enabled ?? c.env.ENABLE_RAR === 'true';
+
+  // AI Ephemeral Auth scopes feature flag
+  // Check SETTINGS KV first, then fall back to environment variable
+  const aiScopesEnabled = oidcConfig.aiScopes?.enabled ?? c.env.ENABLE_AI_SCOPES === 'true';
+
   // Check if cached metadata is still valid (include feature flags and tenant in cache key)
   const logoutHash = `bc=${logoutConfig.backchannel.enabled}:fc=${logoutConfig.frontchannel.enabled}:sm=${logoutConfig.session_management.enabled}`;
-  const settingsHash = `${currentSettingsJson}:te=${tokenExchangeEnabled}:cc=${clientCredentialsEnabled}:ns=${nativeSSOEnabled}:${logoutHash}`;
+  const settingsHash = `${currentSettingsJson}:te=${tokenExchangeEnabled}:cc=${clientCredentialsEnabled}:ns=${nativeSSOEnabled}:rar=${rarEnabled}:ai=${aiScopesEnabled}:${logoutHash}`;
   const cacheKey = `${tenantId}:${settingsHash}`;
 
   const cachedMetadata = metadataCache.get(cacheKey);
@@ -144,7 +152,26 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
     id_token_signing_alg_values_supported: ['RS256'],
     // OIDC Core 8: Both public and pairwise subject identifiers are supported
     subject_types_supported: ['public', 'pairwise'],
-    scopes_supported: ['openid', 'profile', 'email', 'address', 'phone'],
+    // Dynamic scopes based on AI Ephemeral Auth configuration
+    scopes_supported: [
+      'openid',
+      'profile',
+      'email',
+      'address',
+      'phone',
+      // Include AI scopes when enabled
+      ...(aiScopesEnabled ? ['ai:read', 'ai:write', 'ai:execute', 'ai:admin'] : []),
+    ],
+    // RFC 9396: RAR authorization_details_types_supported (when enabled)
+    ...(rarEnabled
+      ? {
+          authorization_details_types_supported: [
+            'ai_agent_action', // Authrim-specific AI Agent capability
+            'payment_initiation', // RFC 9396 example type
+            'account_information', // RFC 9396 example type
+          ],
+        }
+      : {}),
     // Dynamic claims based on OIDC config
     claims_supported: oidcConfig.claimsSupported || [
       // Standard claims (always present)

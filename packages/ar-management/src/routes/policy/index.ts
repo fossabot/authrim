@@ -398,6 +398,7 @@ function createDefaultClientContract(
  */
 const ALLOWED_TENANT_POLICY_KEYS = [
   'preset',
+  'profile', // TenantProfileType: 'human' | 'ai_ephemeral' (reserved for AI Ephemeral Auth)
   'oauth',
   'session',
   'security',
@@ -611,6 +612,46 @@ policyRouter.put('/tenant-policy', async (c) => {
         `Unknown policy keys: ${unknownKeys.join(', ')}. Only standard policy fields are allowed.`,
         400
       );
+    }
+
+    // Validate profile type (if provided)
+    // ai_ephemeral profile requires ENABLE_AI_EPHEMERAL_AUTH feature flag
+    const requestedProfile = body.policy.profile;
+    if (requestedProfile !== undefined) {
+      if (requestedProfile !== 'human' && requestedProfile !== 'ai_ephemeral') {
+        return errorResponse(
+          c,
+          'bad_request',
+          `Invalid profile type: ${requestedProfile}. Allowed values: 'human', 'ai_ephemeral'`,
+          400
+        );
+      }
+
+      if (requestedProfile === 'ai_ephemeral') {
+        // Check feature flag (KV > env > default: false)
+        let aiEphemeralEnabled = false;
+        try {
+          const settingsJson = await c.env.SETTINGS?.get('system_settings');
+          if (settingsJson) {
+            const settings = JSON.parse(settingsJson);
+            aiEphemeralEnabled = settings.oidc?.aiEphemeralAuth?.enabled ?? false;
+          }
+        } catch {
+          // Fall back to env
+        }
+        if (!aiEphemeralEnabled) {
+          aiEphemeralEnabled = c.env.ENABLE_AI_EPHEMERAL_AUTH === 'true';
+        }
+
+        if (!aiEphemeralEnabled) {
+          return errorResponse(
+            c,
+            'feature_disabled',
+            "AI Ephemeral Auth profile is not enabled. Enable ENABLE_AI_EPHEMERAL_AUTH feature flag to use 'ai_ephemeral' profile.",
+            400
+          );
+        }
+      }
     }
   }
 

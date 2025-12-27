@@ -30,6 +30,7 @@ import type {
 } from './common';
 
 import type { TenantPolicyPreset } from './presets';
+import type { TenantProfileType } from './tenant-profile';
 
 // =============================================================================
 // Main TenantContract Interface
@@ -44,6 +45,18 @@ import type { TenantPolicyPreset } from './presets';
 export interface TenantContract {
   /** Tenant ID */
   tenantId: string;
+
+  /**
+   * Tenant Profile Type
+   *
+   * Determines the authentication model for this tenant:
+   * - 'human': Traditional web/mobile authentication (default)
+   * - 'ai_ephemeral': Short-lived tokens for AI agents
+   *
+   * @default 'human'
+   * @see TenantProfile for capability details
+   */
+  profile?: TenantProfileType;
 
   /** Contract version (incremented on change) */
   version: number;

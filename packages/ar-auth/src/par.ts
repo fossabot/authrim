@@ -32,6 +32,7 @@ import {
   getTokenFormat,
   parseToken,
   isInternalUrl,
+  validateAuthorizationDetails,
 } from '@authrim/ar-lib-core';
 import { getClient, getPARRequestStoreForNewRequest } from '@authrim/ar-lib-core';
 import { jwtVerify, compactDecrypt, importJWK, createRemoteJWKSet } from 'jose';
@@ -57,6 +58,7 @@ interface PARRequestParams {
   login_hint?: string | undefined;
   acr_values?: string | undefined;
   claims?: string | undefined;
+  authorization_details?: string | undefined; // RFC 9396: Rich Authorization Requests
 }
 
 /**
@@ -104,6 +106,10 @@ function validatePARParams(formData: Record<string, unknown>): PARRequestParams 
     login_hint: typeof formData.login_hint === 'string' ? formData.login_hint : undefined,
     acr_values: typeof formData.acr_values === 'string' ? formData.acr_values : undefined,
     claims: typeof formData.claims === 'string' ? formData.claims : undefined,
+    authorization_details:
+      typeof formData.authorization_details === 'string'
+        ? formData.authorization_details
+        : undefined,
   };
 }
 
@@ -168,6 +174,7 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
     let oidcConfig: {
       parExpiry?: number;
       allowNoneAlgorithm?: boolean;
+      rar?: { enabled?: boolean };
     } = {};
 
     try {
@@ -482,6 +489,12 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
               typeof requestObjectClaims.claims === 'string'
                 ? requestObjectClaims.claims
                 : JSON.stringify(requestObjectClaims.claims);
+          // RFC 9396: authorization_details from request object
+          if (requestObjectClaims.authorization_details)
+            params.authorization_details =
+              typeof requestObjectClaims.authorization_details === 'string'
+                ? requestObjectClaims.authorization_details
+                : JSON.stringify(requestObjectClaims.authorization_details);
 
           // client_id in request object must match client_id from request
           if (requestObjectClaims.client_id && requestObjectClaims.client_id !== params.client_id) {
@@ -533,6 +546,41 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
     const scopeValidation = validateScope(params.scope);
     if (!scopeValidation.valid) {
       throw new RFCError('invalid_scope', 400, scopeValidation.error || 'Invalid scope');
+    }
+
+    // RFC 9396: Rich Authorization Requests (RAR) validation
+    const rarEnabled = oidcConfig.rar?.enabled ?? c.env.ENABLE_RAR === 'true';
+    if (params.authorization_details) {
+      if (!rarEnabled) {
+        throw new RFCError(
+          'invalid_request',
+          400,
+          'authorization_details parameter is not supported. Enable RAR feature to use Rich Authorization Requests.'
+        );
+      }
+
+      try {
+        const parsedDetails = JSON.parse(params.authorization_details);
+        const rarValidation = validateAuthorizationDetails(parsedDetails, {
+          allowedTypes: ['ai_agent_action', 'payment_initiation', 'account_information'],
+        });
+
+        if (!rarValidation.valid) {
+          const errorMessage =
+            rarValidation.errors?.[0]?.message || 'Invalid authorization_details';
+          throw new RFCError('invalid_authorization_details', 400, errorMessage);
+        }
+
+        // Use sanitized version
+        params.authorization_details = JSON.stringify(rarValidation.sanitized);
+      } catch (e) {
+        if (e instanceof RFCError) throw e;
+        throw new RFCError(
+          'invalid_authorization_details',
+          400,
+          'authorization_details must be valid JSON'
+        );
+      }
     }
 
     // Validate response_type
@@ -614,7 +662,7 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
       requestUriExpiry = 600;
     }
 
-    // Build request data with optional dpop_jkt
+    // Build request data with optional dpop_jkt and authorization_details
     const requestData = {
       client_id: params.client_id,
       response_type: params.response_type,
@@ -635,6 +683,8 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
       claims: params.claims,
       // P2: Store DPoP key thumbprint for binding
       dpop_jkt: dpopJkt,
+      // RFC 9396: Rich Authorization Requests
+      authorization_details: params.authorization_details,
     };
 
     // Store in PARRequestStore DO with region-aware sharding (issue #11: single-use guarantee)

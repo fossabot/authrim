@@ -80,6 +80,8 @@ export interface OIDCProviderMetadata {
   // OIDC Native SSO 1.0 (draft-07)
   native_sso_token_exchange_supported?: boolean;
   native_sso_device_secret_supported?: boolean;
+  // RFC 9396: Rich Authorization Requests (RAR)
+  authorization_details_types_supported?: string[];
 }
 
 /**

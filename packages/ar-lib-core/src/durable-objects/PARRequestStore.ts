@@ -47,6 +47,8 @@ export interface PARRequestData {
   claims?: string;
   // RFC 9449: DPoP key thumbprint for binding
   dpop_jkt?: string;
+  // RFC 9396: Rich Authorization Requests
+  authorization_details?: string;
   createdAt?: number;
   expiresAt?: number;
   consumed?: boolean;

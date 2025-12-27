@@ -222,6 +222,21 @@ export interface Env {
   // Default: disabled (to avoid OIDC certification test interference)
   ENABLE_CLIENT_CREDENTIALS?: string;
 
+  // RFC 9396: Rich Authorization Requests (RAR) Feature Flag
+  // When "true", enables authorization_details parameter for fine-grained authorization
+  // Default: disabled (to avoid OIDC certification test interference)
+  ENABLE_RAR?: string;
+
+  // AI Ephemeral Auth: AI Capability Scopes Feature Flag
+  // When "true", enables ai:* scope namespace (ai:read, ai:write, ai:execute, ai:admin)
+  // Default: disabled (to avoid OIDC certification test interference)
+  ENABLE_AI_SCOPES?: string;
+
+  // AI Ephemeral Auth: Full Feature Flag
+  // When "true", enables AI Ephemeral Auth tenant profile ('ai_ephemeral')
+  // Default: disabled (requires explicit enablement)
+  ENABLE_AI_EPHEMERAL_AUTH?: string;
+
   // External IdP Configuration (Phase 7)
   // Identity stitching: automatically link external identities to existing users by verified email
   IDENTITY_STITCHING_ENABLED?: string; // "true" to enable automatic identity stitching

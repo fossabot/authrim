@@ -90,6 +90,9 @@ export * from './utils/api-version-config';
 export * from './utils/deprecation-config';
 export * from './utils/sdk-compatibility-config';
 
+// RFC 9396: Rich Authorization Requests (RAR)
+export * from './utils/rar-validation';
+
 // Native SSO (OIDC Native SSO 1.0)
 export * from './utils/native-sso-config';
 

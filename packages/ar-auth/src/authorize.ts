@@ -39,6 +39,7 @@ import {
 } from '@authrim/ar-lib-core';
 import type { CachedUser, CachedConsent } from '@authrim/ar-lib-core';
 import type { Session, PARRequestData } from '@authrim/ar-lib-core';
+import { validateAuthorizationDetails } from '@authrim/ar-lib-core';
 import {
   generateSecureRandomString,
   parseToken,
@@ -158,6 +159,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   let code_challenge: string | undefined;
   let code_challenge_method: string | undefined;
   let claims: string | undefined;
+  let authorization_details: string | undefined; // RFC 9396: Rich Authorization Requests
   let request_uri: string | undefined;
   let response_mode: string | undefined;
   let request: string | undefined; // RFC 9101: Request Object (JAR)
@@ -195,6 +197,8 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       code_challenge_method =
         typeof body.code_challenge_method === 'string' ? body.code_challenge_method : undefined;
       claims = typeof body.claims === 'string' ? body.claims : undefined;
+      authorization_details =
+        typeof body.authorization_details === 'string' ? body.authorization_details : undefined;
       response_mode = typeof body.response_mode === 'string' ? body.response_mode : undefined;
       prompt = typeof body.prompt === 'string' ? body.prompt : undefined;
       max_age = typeof body.max_age === 'string' ? body.max_age : undefined;
@@ -237,6 +241,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
     code_challenge = c.req.query('code_challenge');
     code_challenge_method = c.req.query('code_challenge_method');
     claims = c.req.query('claims');
+    authorization_details = c.req.query('authorization_details');
     response_mode = c.req.query('response_mode');
     prompt = c.req.query('prompt');
     max_age = c.req.query('max_age');
@@ -594,6 +599,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         code_challenge_method?: string;
         claims?: string;
         response_mode?: string;
+        authorization_details?: string; // RFC 9396: Rich Authorization Requests
       } = parsedData;
 
       try {
@@ -618,6 +624,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         code_challenge = parData.code_challenge;
         code_challenge_method = parData.code_challenge_method;
         claims = parData.claims;
+        authorization_details = parData.authorization_details; // RFC 9396 RAR
         response_mode = parData.response_mode;
       } catch {
         return c.json(
@@ -1474,6 +1481,37 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
     return sendError('invalid_scope', scopeValidation.error);
   }
 
+  // RFC 9396: Rich Authorization Requests (RAR) validation
+  // Check if RAR is enabled via Feature Flag
+  const rarEnabled = oidcConfig.rar?.enabled ?? c.env.ENABLE_RAR === 'true';
+  if (authorization_details) {
+    if (!rarEnabled) {
+      // RAR is not enabled for this tenant
+      return sendError(
+        'invalid_request',
+        'authorization_details parameter is not supported. Enable RAR feature to use Rich Authorization Requests.'
+      );
+    }
+
+    // Parse and validate authorization_details
+    try {
+      const parsedDetails = JSON.parse(authorization_details);
+      const rarValidation = validateAuthorizationDetails(parsedDetails, {
+        allowedTypes: ['ai_agent_action', 'payment_initiation', 'account_information'],
+      });
+
+      if (!rarValidation.valid) {
+        const errorMessage = rarValidation.errors?.[0]?.message || 'Invalid authorization_details';
+        return sendError('invalid_authorization_details', errorMessage);
+      }
+
+      // Use sanitized version
+      authorization_details = JSON.stringify(rarValidation.sanitized);
+    } catch {
+      return sendError('invalid_authorization_details', 'authorization_details must be valid JSON');
+    }
+  }
+
   // Check if state parameter is required (configurable via KV)
   const configManager = createOAuthConfigManager(c.env);
   const stateRequired = await configManager.isStateRequired();
@@ -2263,6 +2301,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         acr: selectedAcr,
         dpopJkt, // Bind authorization code to DPoP key (RFC 9449)
         sid: sessionId, // OIDC Session Management: Session ID for RP-Initiated Logout
+        authorizationDetails: authorization_details, // RFC 9396 RAR
       });
     } catch (error) {
       console.error('AuthCodeStore DO error:', error);
