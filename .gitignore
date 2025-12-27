@@ -60,10 +60,39 @@ logs/
 tmp/
 temp/
 
-# Cryptographic keys (NEVER commit these!)
+# Cryptographic keys and certificates (NEVER commit these!)
 .keys/
 *.pem
 *.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.cert
+*.csr
+*.jwk
+id_rsa*
+id_ed25519*
+
+# Secrets and credentials
+*.secret
+secrets.json
+credentials.json
+service-account*.json
+setup_token*.txt
+
+# Local databases (may contain sensitive data)
+*.sqlite
+*.sqlite3
+*.db
+!migrations/*.sql
+
+# Infrastructure as Code state (contains secrets)
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
 
 # Monorepo / Turbo
 .turbo/
