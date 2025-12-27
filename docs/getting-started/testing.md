@@ -43,27 +43,27 @@ pnpm test
 pnpm test --coverage
 
 # Run specific package tests
-pnpm --filter=shared test
-pnpm --filter=op-token test
+pnpm --filter=@authrim/ar-lib-core test
+pnpm --filter=@authrim/ar-token test
 
 # Run in watch mode
-pnpm --filter=shared test -- --watch
+pnpm --filter=@authrim/ar-lib-core test -- --watch
 ```
 
 ### Test Structure
 
 ```
 packages/
-├── shared/test/
+├── ar-lib-core/src/__tests__/
 │   ├── durable-objects/     # DO unit tests
 │   │   ├── AuthorizationCodeStore.test.ts
 │   │   ├── SessionStore.test.ts
 │   │   └── RefreshTokenRotator.test.ts
 │   └── utils/               # Utility function tests
-├── op-auth/test/            # Authorization endpoint tests
-├── op-token/test/           # Token endpoint tests
-├── op-userinfo/test/        # UserInfo endpoint tests
-└── op-management/test/      # Admin API tests
+├── ar-auth/src/__tests__/   # Authorization endpoint tests
+├── ar-token/src/__tests__/  # Token endpoint tests
+├── ar-userinfo/src/__tests__/ # UserInfo endpoint tests
+└── ar-management/src/__tests__/ # Admin API tests
 ```
 
 ### Key Test Suites

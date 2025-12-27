@@ -251,9 +251,10 @@ Create and configure KV namespaces for Authrim.
 
 **KV Namespaces created:**
 
-- `{ENV}-CLIENTS` - Registered OAuth clients
+- `{ENV}-CLIENTS_CACHE` - OAuth client metadata cache
 - `{ENV}-INITIAL_ACCESS_TOKENS` - Dynamic Client Registration tokens
 - `{ENV}-SETTINGS` - System settings (initialized with basic-op profile)
+- `{ENV}-REBAC_CACHE`, `{ENV}-USER_CACHE`, `{ENV}-AUTHRIM_CONFIG`, `{ENV}-STATE_STORE`
 
 **Note:** Many KV stores have been migrated to Durable Objects for better consistency:
 
@@ -477,7 +478,7 @@ Delete Cloudflare Workers and associated Durable Objects.
 ./scripts/delete-workers.sh --all
 
 # Delete specific worker
-./scripts/delete-workers.sh --worker authrim-shared
+./scripts/delete-workers.sh --worker ar-lib-core
 
 # Dry run mode
 ./scripts/delete-workers.sh --all --dry-run
@@ -762,7 +763,7 @@ export CLOUDFLARE_API_TOKEN=your_token_here
 ./scripts/delete-workers.sh --all --dry-run
 
 # Delete specific worker
-./scripts/delete-workers.sh --worker authrim-shared
+./scripts/delete-workers.sh --worker ar-lib-core
 
 # Delete all workers
 ./scripts/delete-workers.sh --all

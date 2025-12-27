@@ -183,7 +183,7 @@ await c.env.DB.prepare(
 
 ### 2. Authorization Endpoint
 
-**File**: `packages/op-auth/src/authorize.ts`
+**File**: `packages/ar-auth/src/authorize.ts`
 
 **Modification**: Consent determination logic (around lines 1082-1187)
 

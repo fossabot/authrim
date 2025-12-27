@@ -4,7 +4,7 @@ The Router Worker provides a unified entry point for all Authrim OpenID Connect 
 
 ## Purpose
 
-This worker solves the OpenID Connect specification compliance issue where all endpoints must be accessible from a single issuer domain. When deploying to Cloudflare Workers without a custom domain, each worker gets its own subdomain (e.g., `authrim-op-discovery.subdomain.workers.dev`, `authrim-op-auth.subdomain.workers.dev`), which violates the OIDC spec.
+This worker solves the OpenID Connect specification compliance issue where all endpoints must be accessible from a single issuer domain. When deploying to Cloudflare Workers without a custom domain, each worker gets its own subdomain (e.g., `authrim-ar-discovery.subdomain.workers.dev`, `authrim-ar-auth.subdomain.workers.dev`), which violates the OIDC spec.
 
 The Router Worker acts as a single entry point (`authrim-router.subdomain.workers.dev`) and uses Service Bindings to route requests to the appropriate specialized worker.
 
@@ -13,25 +13,25 @@ The Router Worker acts as a single entry point (`authrim-router.subdomain.worker
 ```mermaid
 flowchart TB
     Client["Client Request"] --> Router["authrim-router.subdomain.workers.dev<br/>Router Worker<br/>(Service Bindings)"]
-    Router --> Discovery["op-discovery"]
-    Router --> Auth["op-auth"]
-    Router --> Token["op-token"]
-    Router --> UserInfo["op-userinfo"]
-    Router --> Management["op-management"]
+    Router --> Discovery["ar-discovery"]
+    Router --> Auth["ar-auth"]
+    Router --> Token["ar-token"]
+    Router --> UserInfo["ar-userinfo"]
+    Router --> Management["ar-management"]
 ```
 
 ## Routing Table
 
 | Path Pattern     | Target Worker | Endpoints                           |
 | ---------------- | ------------- | ----------------------------------- |
-| `/.well-known/*` | op-discovery  | Discovery, JWKS                     |
-| `/authorize`     | op-auth       | Authorization endpoint              |
-| `/as/*`          | op-auth       | Pushed Authorization Requests (PAR) |
-| `/token`         | op-token      | Token endpoint                      |
-| `/userinfo`      | op-userinfo   | UserInfo endpoint                   |
-| `/register`      | op-management | Dynamic Client Registration         |
-| `/introspect`    | op-management | Token Introspection                 |
-| `/revoke`        | op-management | Token Revocation                    |
+| `/.well-known/*` | ar-discovery  | Discovery, JWKS                     |
+| `/authorize`     | ar-auth       | Authorization endpoint              |
+| `/as/*`          | ar-auth       | Pushed Authorization Requests (PAR) |
+| `/token`         | ar-token      | Token endpoint                      |
+| `/userinfo`      | ar-userinfo   | UserInfo endpoint                   |
+| `/register`      | ar-management | Dynamic Client Registration         |
+| `/introspect`    | ar-management | Token Introspection                 |
+| `/revoke`        | ar-management | Token Revocation                    |
 
 ## When to Use
 
@@ -54,11 +54,11 @@ The Router Worker uses Service Bindings, which are automatically configured by `
 ```toml
 [[services]]
 binding = "OP_DISCOVERY"
-service = "authrim-op-discovery"
+service = "authrim-ar-discovery"
 
 [[services]]
 binding = "OP_AUTH"
-service = "authrim-op-auth"
+service = "authrim-ar-auth"
 
 # ... etc
 ```

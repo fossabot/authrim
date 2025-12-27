@@ -35,7 +35,7 @@ UI_URL=http://localhost:5173
 
 **Method 3: Cloudflare Dashboard**
 
-1. Navigate to Workers & Pages → authrim-op-auth → Settings → Variables
+1. Navigate to Workers & Pages → authrim-ar-auth → Settings → Variables
 2. Add environment variable: `UI_URL`
 3. Value: Your UI deployment URL
 
@@ -344,7 +344,7 @@ try {
 ### Running Tests
 
 ```bash
-cd packages/op-auth
+cd packages/ar-auth
 pnpm test
 ```
 

@@ -54,7 +54,7 @@ flowchart TB
         Edge["Cloudflare Edge"]
 
         subgraph Worker["Authrim Workers"]
-            W["op-auth / op-token / op-management"]
+            W["ar-auth / ar-token / ar-management"]
         end
 
         subgraph Storage["Storage Layer"]

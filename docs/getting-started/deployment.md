@@ -115,11 +115,7 @@ Creates `wrangler.{env}.toml` files for all packages.
 ./scripts/setup-kv.sh --env=prod
 ```
 
-Creates:
-
-- `{ENV}-CLIENTS` - Registered OAuth clients
-- `{ENV}-INITIAL_ACCESS_TOKENS` - DCR tokens
-- `{ENV}-SETTINGS` - System settings (auto-initialized)
+Creates 7 KV namespaces including `CLIENTS_CACHE`, `SETTINGS`, `AUTHRIM_CONFIG`, etc. Default settings are auto-initialized.
 
 ### 4. Create D1 Database
 
@@ -149,17 +145,18 @@ pnpm run deploy -- --env=prod
 
 Deployment order (automatic):
 
-1. `shared` - Durable Objects (deployed first)
-2. `op-discovery` - Discovery & JWKS
-3. `op-management` - Admin API & registration
-4. `op-auth` - Authorization endpoint
-5. `op-token` - Token endpoint
-6. `op-userinfo` - UserInfo endpoint
-7. `op-async` - Device Flow & CIBA
-8. `policy-service` - Policy evaluation
-9. `op-saml` - SAML IdP/SP
-10. `external-idp` - External IdP integration
-11. `router` - (Test mode only)
+1. `ar-lib-core` - Durable Objects (deployed first)
+2. `ar-discovery` - Discovery & JWKS
+3. `ar-management` - Admin API & registration
+4. `ar-auth` - Authorization endpoint
+5. `ar-token` - Token endpoint
+6. `ar-userinfo` - UserInfo endpoint
+7. `ar-async` - Device Flow & CIBA
+8. `ar-policy` - Policy evaluation (ReBAC)
+9. `ar-saml` - SAML IdP/SP
+10. `ar-bridge` - External IdP integration
+11. `ar-vc` - Verifiable Credentials
+12. `ar-router` - (Test mode only)
 
 Features:
 
@@ -222,7 +219,7 @@ curl "$ISSUER_URL/.well-known/jwks.json" | jq
 
 ```bash
 # Real-time logs
-cd packages/op-token
+cd packages/ar-token
 wrangler tail
 
 # View version status
@@ -239,7 +236,7 @@ curl "$ISSUER_URL/api/internal/version-manager/status" \
 The `setup-remote-wrangler.sh` script automatically configures routes when using production mode:
 
 ```toml
-# packages/op-discovery/wrangler.prod.toml
+# packages/ar-discovery/wrangler.prod.toml
 [[routes]]
 pattern = "auth.example.com/.well-known/*"
 zone_name = "example.com"
@@ -248,11 +245,11 @@ zone_name = "example.com"
 Routes configured automatically:
 | Pattern | Worker |
 |---------|--------|
-| `/.well-known/*` | op-discovery |
-| `/authorize`, `/as/*` | op-auth |
-| `/token` | op-token |
-| `/userinfo` | op-userinfo |
-| `/register`, `/introspect`, `/revoke` | op-management |
+| `/.well-known/*` | ar-discovery |
+| `/authorize`, `/as/*` | ar-auth |
+| `/token` | ar-token |
+| `/userinfo` | ar-userinfo |
+| `/register`, `/introspect`, `/revoke` | ar-management |
 
 ### DNS Configuration
 
@@ -308,7 +305,7 @@ Verify Durable Object bindings in wrangler.toml:
 [[durable_objects.bindings]]
 name = "SESSION_STORE"
 class_name = "SessionStore"
-script_name = "prod-authrim-shared"
+script_name = "prod-ar-lib-core"
 ```
 
 ---

@@ -125,20 +125,19 @@ pnpm run format:check   # Check formatting
 ```
 authrim/
 ├── packages/
-│   ├── shared/           # Shared utilities, types, Durable Objects
-│   ├── op-discovery/     # Discovery & JWKS endpoints
-│   ├── op-auth/          # Authorization & consent
-│   ├── op-token/         # Token endpoint
-│   ├── op-userinfo/      # UserInfo endpoint
-│   ├── op-management/    # Admin API & client registration
-│   ├── op-async/         # Device Flow & CIBA
-│   ├── op-saml/          # SAML IdP/SP
-│   ├── scim/             # SCIM 2.0 provisioning
-│   ├── policy-core/      # Policy engine core
-│   ├── policy-service/   # Policy evaluation service
-│   ├── external-idp/     # External IdP integration
-│   ├── router/           # Unified router (test/dev)
-│   └── ui/               # SvelteKit frontend
+│   ├── ar-lib-core/      # Shared utilities, types, Durable Objects
+│   ├── ar-discovery/     # Discovery & JWKS endpoints
+│   ├── ar-auth/          # Authorization & consent
+│   ├── ar-token/         # Token endpoint
+│   ├── ar-userinfo/      # UserInfo endpoint
+│   ├── ar-management/    # Admin API & client registration
+│   ├── ar-async/         # Device Flow & CIBA
+│   ├── ar-saml/          # SAML IdP/SP
+│   ├── ar-policy/        # Policy evaluation service (ReBAC)
+│   ├── ar-bridge/        # External IdP integration
+│   ├── ar-vc/            # Verifiable Credentials
+│   ├── ar-router/        # Unified router (test/dev)
+│   └── ar-ui/            # SvelteKit frontend
 ├── scripts/              # Setup & deployment scripts
 ├── migrations/           # D1 database migrations
 ├── load-testing/         # Performance benchmarks
@@ -149,14 +148,14 @@ authrim/
 
 | Worker            | Purpose           | Endpoints                                |
 | ----------------- | ----------------- | ---------------------------------------- |
-| **op-discovery**  | OIDC Discovery    | `/.well-known/*`                         |
-| **op-auth**       | Authorization     | `/authorize`, `/consent`                 |
-| **op-token**      | Token issuance    | `/token`, `/introspect`, `/revoke`       |
-| **op-userinfo**   | User info         | `/userinfo`                              |
-| **op-management** | Admin API         | `/api/admin/*`, `/register`              |
-| **op-async**      | Async flows       | `/device_authorization`, `/bc-authorize` |
-| **scim**          | User provisioning | `/scim/v2/*`                             |
-| **router**        | Request routing   | All (development only)                   |
+| **ar-discovery**  | OIDC Discovery    | `/.well-known/*`                         |
+| **ar-auth**       | Authorization     | `/authorize`, `/consent`, `/setup`       |
+| **ar-token**      | Token issuance    | `/token`                                 |
+| **ar-userinfo**   | User info         | `/userinfo`                              |
+| **ar-management** | Admin API         | `/api/admin/*`, `/register`, `/introspect`, `/revoke` |
+| **ar-async**      | Async flows       | `/device_authorization`, `/bc-authorize` |
+| **ar-policy**     | Policy (ReBAC)    | `/api/policy/*`                          |
+| **ar-router**     | Request routing   | All (test mode only)                     |
 
 ## Available Scripts
 

@@ -122,9 +122,9 @@ if [ -f "$SHARED_FILE" ]; then
     read -p "    Overwrite? This will reset Durable Objects configuration (y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "    ⊗ Skipping shared (keeping existing configuration)"
+        echo "    ⊗ Skipping ar-lib-core (keeping existing configuration)"
     else
-        echo "    ✓ Overwriting shared/wrangler.${DEPLOY_ENV}.toml"
+        echo "    ✓ Overwriting ar-lib-core/wrangler.${DEPLOY_ENV}.toml"
         cat > "packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml" << SHARED_TOML_EOF
 name = "${DEPLOY_ENV}-ar-lib-core"
 main = "src/durable-objects/index.ts"
@@ -191,10 +191,10 @@ new_sqlite_classes = ["RateLimiterCounter", "PARRequestStore", "DPoPJTIStore"]
 [vars]
 KEY_MANAGER_SECRET = "dev-secret-change-in-production"
 SHARED_TOML_EOF
-        echo "  ✅ shared/wrangler.${DEPLOY_ENV}.toml (Durable Objects)"
+        echo "  ✅ ar-lib-core/wrangler.${DEPLOY_ENV}.toml (Durable Objects)"
     fi
 else
-    echo "  ✅ shared/wrangler.${DEPLOY_ENV}.toml (Durable Objects)"
+    echo "  ✅ ar-lib-core/wrangler.${DEPLOY_ENV}.toml (Durable Objects)"
     cat > "packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml" << SHARED_TOML_EOF
 name = "${DEPLOY_ENV}-ar-lib-core"
 main = "src/durable-objects/index.ts"
@@ -265,7 +265,7 @@ fi
 
 echo ""
 
-# Generate wrangler.toml for op-discovery
+# Generate wrangler.toml for ar-discovery
 generate_wrangler_toml "ar-discovery" 8787 '' '[[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
@@ -276,7 +276,7 @@ name = "RATE_LIMITER"
 class_name = "RateLimiterCounter"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
-# Generate wrangler.toml for op-auth
+# Generate wrangler.toml for ar-auth
 generate_wrangler_toml "ar-auth" 8788 '[[kv_namespaces]]
 binding = "CLIENTS_CACHE"
 id = "placeholder"
@@ -321,7 +321,7 @@ name = "PAR_REQUEST_STORE"
 class_name = "PARRequestStore"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
-# Generate wrangler.toml for op-token
+# Generate wrangler.toml for ar-token
 generate_wrangler_toml "ar-token" 8789 '[[kv_namespaces]]
 binding = "CLIENTS_CACHE"
 id = "placeholder"
@@ -378,7 +378,7 @@ name = "DPOP_JTI_STORE"
 class_name = "DPoPJTIStore"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
-# Generate wrangler.toml for op-userinfo
+# Generate wrangler.toml for ar-userinfo
 generate_wrangler_toml "ar-userinfo" 8790 '[[kv_namespaces]]
 binding = "CLIENTS_CACHE"
 id = "placeholder"
@@ -408,7 +408,7 @@ name = "DPOP_JTI_STORE"
 class_name = "DPoPJTIStore"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
-# Generate wrangler.toml for op-management
+# Generate wrangler.toml for ar-management
 generate_wrangler_toml "ar-management" 8791 '[[kv_namespaces]]
 binding = "CLIENTS_CACHE"
 id = "placeholder"
@@ -450,7 +450,7 @@ name = "SESSION_STORE"
 class_name = "SessionStore"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
-# Generate wrangler.toml for policy-service (ReBAC)
+# Generate wrangler.toml for ar-policy (ReBAC)
 generate_wrangler_toml "ar-policy" 8792 '[[kv_namespaces]]
 binding = "REBAC_CACHE"
 id = "placeholder"
@@ -465,7 +465,7 @@ name = "VERSION_MANAGER"
 class_name = "VersionManager"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
-# Generate wrangler.toml for op-async (Device Flow / CIBA)
+# Generate wrangler.toml for ar-async (Device Flow / CIBA)
 generate_wrangler_toml "ar-async" 8793 '' '[[durable_objects.bindings]]
 name = "DEVICE_CODE_STORE"
 class_name = "DeviceCodeStore"
@@ -481,7 +481,7 @@ name = "USER_CODE_RATE_LIMITER"
 class_name = "RateLimiterCounter"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
-# Generate wrangler.toml for op-saml (SAML 2.0)
+# Generate wrangler.toml for ar-saml (SAML 2.0)
 generate_wrangler_toml "ar-saml" 8794 '' '[[durable_objects.bindings]]
 name = "KEY_MANAGER"
 class_name = "KeyManager"
@@ -502,7 +502,7 @@ name = "RATE_LIMITER"
 class_name = "RateLimiterCounter"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
-# Generate wrangler.toml for external-idp (Social Login)
+# Generate wrangler.toml for ar-bridge (Social Login / External IdP)
 generate_wrangler_toml "ar-bridge" 8795 '[[kv_namespaces]]
 binding = "SETTINGS"
 id = "placeholder"

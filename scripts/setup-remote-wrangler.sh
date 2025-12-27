@@ -551,9 +551,9 @@ zone_name = \"$ZONE_NAME\""
     fi
 }
 
-# Generate shared worker wrangler file
+# Generate ar-lib-core worker wrangler file
 if [ ! -f "packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml" ]; then
-    echo "  • Generating shared/wrangler.${DEPLOY_ENV}.toml (Durable Objects)..."
+    echo "  • Generating ar-lib-core/wrangler.${DEPLOY_ENV}.toml (Durable Objects)..."
     cat > "packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml" << EOF
 name = "${DEPLOY_ENV}-ar-lib-core"
 main = "src/durable-objects/index.ts"
@@ -680,9 +680,9 @@ ADMIN_API_SECRET = "$KEY_MANAGER_SECRET"
 EOF
 fi
 
-# Generate op-discovery wrangler file
+# Generate ar-discovery wrangler file
 if [ ! -f "packages/ar-discovery/wrangler.${DEPLOY_ENV}.toml" ]; then
-    echo "  • Generating op-discovery/wrangler.${DEPLOY_ENV}.toml..."
+    echo "  • Generating ar-discovery/wrangler.${DEPLOY_ENV}.toml..."
     generate_base_wrangler "ar-discovery" "[[kv_namespaces]]
 binding = \"SETTINGS\"
 id = \"placeholder\"
@@ -709,9 +709,9 @@ class_name = \"VersionManager\"
 script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
-# Generate op-auth wrangler file
+# Generate ar-auth wrangler file
 if [ ! -f "packages/ar-auth/wrangler.${DEPLOY_ENV}.toml" ]; then
-    echo "  • Generating op-auth/wrangler.${DEPLOY_ENV}.toml..."
+    echo "  • Generating ar-auth/wrangler.${DEPLOY_ENV}.toml..."
     generate_base_wrangler "ar-auth" "[[kv_namespaces]]
 binding = \"CLIENTS_CACHE\"
 id = \"placeholder\"
@@ -772,9 +772,9 @@ class_name = \"VersionManager\"
 script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
-# Generate op-token wrangler file
+# Generate ar-token wrangler file
 if [ ! -f "packages/ar-token/wrangler.${DEPLOY_ENV}.toml" ]; then
-    echo "  • Generating op-token/wrangler.${DEPLOY_ENV}.toml..."
+    echo "  • Generating ar-token/wrangler.${DEPLOY_ENV}.toml..."
     generate_base_wrangler "ar-token" "[[kv_namespaces]]
 binding = \"CLIENTS_CACHE\"
 id = \"placeholder\"
@@ -846,9 +846,9 @@ class_name = \"VersionManager\"
 script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
-# Generate op-userinfo wrangler file
+# Generate ar-userinfo wrangler file
 if [ ! -f "packages/ar-userinfo/wrangler.${DEPLOY_ENV}.toml" ]; then
-    echo "  • Generating op-userinfo/wrangler.${DEPLOY_ENV}.toml..."
+    echo "  • Generating ar-userinfo/wrangler.${DEPLOY_ENV}.toml..."
     generate_base_wrangler "ar-userinfo" "[[kv_namespaces]]
 binding = \"CLIENTS_CACHE\"
 id = \"placeholder\"
@@ -890,9 +890,9 @@ class_name = \"VersionManager\"
 script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
-# Generate op-async wrangler file
+# Generate ar-async wrangler file
 if [ ! -f "packages/ar-async/wrangler.${DEPLOY_ENV}.toml" ]; then
-    echo "  • Generating op-async/wrangler.${DEPLOY_ENV}.toml..."
+    echo "  • Generating ar-async/wrangler.${DEPLOY_ENV}.toml..."
     generate_base_wrangler "ar-async" "" "[[d1_databases]]
 binding = \"DB\"
 database_name = \"${DEPLOY_ENV}-authrim-users-db\"
@@ -919,9 +919,9 @@ class_name = \"VersionManager\"
 script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
-# Generate op-management wrangler file
+# Generate ar-management wrangler file
 if [ ! -f "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" ]; then
-    echo "  • Generating op-management/wrangler.${DEPLOY_ENV}.toml..."
+    echo "  • Generating ar-management/wrangler.${DEPLOY_ENV}.toml..."
     generate_base_wrangler "ar-management" "[[kv_namespaces]]
 binding = \"CLIENTS_CACHE\"
 id = \"placeholder\"
@@ -994,12 +994,17 @@ database_id = \"placeholder\"
 " "" "[[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
+
+[[durable_objects.bindings]]
+name = \"PERMISSION_CHANGE_HUB\"
+class_name = \"PermissionChangeHub\"
 script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
-# Generate op-saml wrangler file (SAML 2.0)
+# Generate ar-saml wrangler file (SAML 2.0)
 if [ ! -f "packages/ar-saml/wrangler.${DEPLOY_ENV}.toml" ]; then
-    echo "  • Generating op-saml/wrangler.${DEPLOY_ENV}.toml..."
+    echo "  • Generating ar-saml/wrangler.${DEPLOY_ENV}.toml..."
     generate_base_wrangler "ar-saml" "" "[[d1_databases]]
 binding = \"DB\"
 database_name = \"${DEPLOY_ENV}-authrim-users-db\"
@@ -1026,9 +1031,9 @@ class_name = \"VersionManager\"
 script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 
-# Generate external-idp wrangler file (External IdP / Social Login)
+# Generate ar-bridge wrangler file (External IdP / Social Login)
 if [ ! -f "packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml" ]; then
-    echo "  • Generating external-idp/wrangler.${DEPLOY_ENV}.toml..."
+    echo "  • Generating ar-bridge/wrangler.${DEPLOY_ENV}.toml..."
     generate_base_wrangler "ar-bridge" "[[kv_namespaces]]
 binding = \"SETTINGS\"
 id = \"placeholder\"
@@ -1059,7 +1064,7 @@ name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
 script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 
-    # Add external-idp specific vars
+    # Add ar-bridge specific vars
     cat >> "packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml" << EXTERNAL_IDP_VARS
 # Identity Stitching
 IDENTITY_STITCHING_ENABLED = "false"
