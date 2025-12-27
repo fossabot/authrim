@@ -48,10 +48,10 @@ packages/ar-lib-core/src/schemas/flow-ui/
 
 | File | Purpose | $id |
 |------|---------|-----|
-| `ui-contract.schema.json` | Main contract between Flow and UI | `https://authrim.io/schemas/flow-ui/ui-contract.schema.json` |
-| `capability.schema.json` | UI interaction pattern definitions | `https://authrim.io/schemas/flow-ui/capability.schema.json` |
-| `intent.schema.json` | Flow state purpose definitions | `https://authrim.io/schemas/flow-ui/intent.schema.json` |
-| `feature-profile.schema.json` | Pre-defined configuration bundles | `https://authrim.io/schemas/flow-ui/feature-profile.schema.json` |
+| `ui-contract.schema.json` | Main contract between Flow and UI | `https://authrim.com/schemas/flow-ui/ui-contract.schema.json` |
+| `capability.schema.json` | UI interaction pattern definitions | `https://authrim.com/schemas/flow-ui/capability.schema.json` |
+| `intent.schema.json` | Flow state purpose definitions | `https://authrim.com/schemas/flow-ui/intent.schema.json` |
+| `feature-profile.schema.json` | Pre-defined configuration bundles | `https://authrim.com/schemas/flow-ui/feature-profile.schema.json` |
 
 All schemas use JSON Schema Draft-07.
 

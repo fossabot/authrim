@@ -315,7 +315,7 @@ All errors follow the RFC 9457 Problem Details specification:
 
 ```json
 {
-  "type": "https://authrim.io/problems/flow/challenge-expired",
+  "type": "https://authrim.com/problems/flow/challenge-expired",
   "title": "Challenge Expired",
   "status": 410,
   "detail": "The authentication challenge has expired. Please start again.",

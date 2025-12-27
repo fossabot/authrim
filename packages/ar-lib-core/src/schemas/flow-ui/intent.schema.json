@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://authrim.io/schemas/flow-ui/intent.schema.json",
+  "$id": "https://authrim.com/schemas/flow-ui/intent.schema.json",
   "title": "Intent",
   "description": "Flow Intent definitions. Represents what a flow state aims to achieve.",
   "definitions": {

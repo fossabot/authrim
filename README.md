@@ -225,7 +225,7 @@ See [LICENSE](./LICENSE) for details.
 - **GitHub**: [sgrastar/authrim](https://github.com/sgrastar/authrim)
 - **Issues**: [Report bugs](https://github.com/sgrastar/authrim/issues)
 - **Discussions**: [Feature requests](https://github.com/sgrastar/authrim/discussions)
-- **Email**: yuta@authrim.com
+- **Email**: yuta@sgrastar.org
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://authrim.io/schemas/flow-ui/capability.schema.json",
+  "$id": "https://authrim.com/schemas/flow-ui/capability.schema.json",
   "title": "Capability",
   "description": "UI Capability definition for Flow x UI separation. Represents a distinct UI interaction pattern.",
   "type": "object",
