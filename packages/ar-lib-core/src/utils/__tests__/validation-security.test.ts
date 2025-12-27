@@ -392,10 +392,12 @@ describe('Input Validation Security Tests', () => {
         expect(result.valid).toBe(true); // Validation passes, authorization decides
       });
 
-      it('should handle wildcard-like scopes', () => {
+      it('should reject wildcard-like scopes for security', () => {
         const wildcardScopes = 'openid *';
         const result = validateScope(wildcardScopes);
-        expect(result.valid).toBe(true); // Validation passes, scope handling decides
+        // Wildcards are rejected - only alphanumeric, underscore, hyphen, colon, period allowed
+        expect(result.valid).toBe(false);
+        expect(result.error).toContain('Invalid scope format');
       });
     });
   });
