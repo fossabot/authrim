@@ -53,7 +53,9 @@ function getCacheTtlMs(env: Env): number {
   }
   // Overflow protection: cap at 24 hours to prevent integer overflow
   if (ttlSeconds > MAX_TTL_SECONDS) {
-    console.warn(`[SDK Compatibility] TTL ${ttlSeconds}s exceeds max ${MAX_TTL_SECONDS}s, using max`);
+    console.warn(
+      `[SDK Compatibility] TTL ${ttlSeconds}s exceeds max ${MAX_TTL_SECONDS}s, using max`
+    );
     return MAX_TTL_SECONDS * 1000;
   }
   return ttlSeconds * 1000;

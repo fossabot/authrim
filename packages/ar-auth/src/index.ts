@@ -52,6 +52,7 @@ import {
   didListHandler,
   didUnlinkHandler,
 } from './did-link';
+import { setupApp } from './setup';
 
 // Create Hono app with Cloudflare Workers types
 const app = new Hono<{ Bindings: Env }>();
@@ -69,10 +70,12 @@ app.use('*', pluginContextMiddleware());
 // Enhanced security headers
 // Skip for /session/check endpoint (OIDC Session Management iframe needs custom headers)
 // Skip for /logout endpoint (OIDC Front-Channel Logout needs to embed iframes to call RPs)
+// Skip for /setup endpoint (Initial admin setup needs external CDN for WebAuthn library)
 app.use('*', async (c, next) => {
   // Skip secure headers for /session/check - it returns custom headers for iframe embedding
   // Skip secure headers for /logout - frontchannel logout embeds iframes to notify RPs
-  if (c.req.path === '/session/check' || c.req.path === '/logout') {
+  // Skip secure headers for /setup - needs unpkg.com CDN for WebAuthn library
+  if (c.req.path === '/session/check' || c.req.path === '/logout' || c.req.path === '/setup') {
     return next();
   }
 
@@ -315,6 +318,11 @@ app.get('/logged-out', async (c) => {
   // No UI configured and conformance mode disabled
   return c.json(createConfigurationError(), 500);
 });
+
+// Initial Admin Setup routes
+// Mounted at /setup and /api/setup/*
+// Permanently disabled after first admin account is created
+app.route('/', setupApp);
 
 // Logout error page - displayed when logout validation fails
 // Per OIDC RP-Initiated Logout spec, OP SHOULD display an error page when:

@@ -93,6 +93,11 @@ export * from './utils/sdk-compatibility-config';
 // Native SSO (OIDC Native SSO 1.0)
 export * from './utils/native-sso-config';
 
+// Initial Setup (Admin Account Setup)
+export * from './utils/setup-token';
+export * from './utils/setup-session';
+export * from './utils/system-init';
+
 // Error System (Phase 10 - SDK public types)
 // Note: Exported with namespace to avoid conflicts with legacy error types
 // Types are also re-exported individually for convenience

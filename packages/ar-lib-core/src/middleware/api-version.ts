@@ -168,7 +168,7 @@ export function apiVersionMiddleware(): MiddlewareHandler<{ Bindings: Env }> {
       effectiveVersion = result.effectiveVersion;
       warnings.push(buildWarningMessage('invalid_format', requestedVersion, effectiveVersion));
     } else if (!config.supportedVersionsSet.has(requestedVersion)) {
-    // Security: Use Set.has() for O(1) lookup (prevents timing attacks)
+      // Security: Use Set.has() for O(1) lookup (prevents timing attacks)
       // Valid format but not supported
       isUnknownVersion = true;
       const result = handleUnknownVersion(

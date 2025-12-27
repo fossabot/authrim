@@ -16,27 +16,67 @@ This directory contains setup and deletion scripts for managing Cloudflare resou
 
 ### setup-keys.sh
 
-Generate RSA key pair for JWT signing and OpenID Connect operations.
+Generate RSA key pair for JWT signing and initial admin setup token.
 
 **Usage:**
 
 ```bash
-./scripts/setup-keys.sh [--kid=custom-key-id]
+./scripts/setup-keys.sh [--kid=custom-key-id] [--skip-setup-token] [--setup-url=URL] [--kv-namespace-id=ID]
 ```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--kid=KEY_ID` | Custom key ID for RSA key pair |
+| `--skip-setup-token` | Skip setup token generation |
+| `--setup-url=URL` | Base URL for setup page (e.g., `https://auth.example.com`) |
+| `--kv-namespace-id=ID` | AUTHRIM_CONFIG KV namespace ID to store token |
 
 **What it does:**
 
 - Generates RSA 2048-bit key pair
 - Saves private key as PEM (`.keys/private.pem`)
 - Saves public key as JWK (`.keys/public.jwk.json`)
+- Generates RP Token Encryption Key (`.keys/rp_token_encryption_key.txt`)
 - Creates metadata file with key information
+- **Generates Initial Admin Setup Token** (optional, see below)
 - Required for all environments (local and remote)
 
 **Output:**
 
 - `.keys/private.pem` - Private key for JWT signing
 - `.keys/public.jwk.json` - Public key in JWK format (for JWKS endpoint)
+- `.keys/rp_token_encryption_key.txt` - RP token encryption key (256-bit hex)
 - `.keys/metadata.json` - Key metadata including Key ID
+- `.keys/setup_token.txt` - Initial admin setup token (if not skipped)
+
+**Initial Admin Setup Token:**
+
+When deploying for the first time, the script generates a one-time setup token for creating the initial system administrator account. This token:
+
+- Expires in 1 hour
+- Can only be used once
+- Is permanently invalidated after the first admin is created
+
+**Examples:**
+
+```bash
+# Local development (keys only, no KV upload)
+./scripts/setup-keys.sh
+
+# Production deployment with automatic KV upload
+./scripts/setup-keys.sh --setup-url=https://auth.example.com --kv-namespace-id=abc123
+
+# Skip setup token (for subsequent key rotations)
+./scripts/setup-keys.sh --skip-setup-token
+```
+
+**Security Notes:**
+
+- The setup token is stored in KV with a 1-hour TTL
+- After the first admin is created, the setup feature is permanently disabled
+- The script checks for `setup:completed` flag and refuses to generate a new token if setup is already done
 
 ### setup-local-vars.sh
 
@@ -859,7 +899,7 @@ pnpm run dev
 ### Remote Environment Deployment
 
 ```
-setup-keys.sh
+setup-keys.sh --setup-url=https://... --kv-namespace-id=xxx
     ↓
 setup-remote-wrangler.sh
     ↓
@@ -871,10 +911,14 @@ setup-secrets.sh
     ↓
 pnpm run deploy:retry (API Workers)
     ↓
+Open setup URL in browser → Create initial admin with Passkey
+    ↓
 deploy-remote-ui.sh (UI + optional CORS)
     ↓
 setup-resend.sh --env=remote (optional)
 ```
+
+**Note:** The `setup-keys.sh` script generates an initial admin setup token (valid for 1 hour). After deployment, open the setup URL to create the first `system_admin` account using Passkey authentication. This is a one-time operation - after the first admin is created, the setup feature is permanently disabled.
 
 **Note:** The `setup-kv.sh` script now automatically initializes default system settings (FAPI, OIDC configuration) using the basic-op certification profile.
 

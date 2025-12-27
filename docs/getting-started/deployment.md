@@ -362,14 +362,94 @@ wrangler.*.toml  # Contains KV/D1 IDs
 
 ---
 
+## Initial Admin Setup
+
+After deploying for the first time, you need to create the initial system administrator account. Authrim uses **passwordless authentication** (Passkey/WebAuthn), so the setup process involves registering a Passkey.
+
+### Quick Setup
+
+```bash
+# Generate keys and setup token (with automatic KV upload)
+./scripts/setup-keys.sh \
+  --setup-url=https://auth.example.com \
+  --kv-namespace-id=YOUR_AUTHRIM_CONFIG_KV_ID
+```
+
+The script outputs a URL like:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔐 Initial Admin Setup
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Open this URL in your browser within 1 hour:
+
+  https://auth.example.com/setup?token=abc123...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Setup Flow
+
+1. **Open the setup URL** in a browser that supports Passkeys
+2. **Enter your email address** (this will be your admin account)
+3. **Register a Passkey** using your device's biometric or security key
+4. **Done!** You now have a `system_admin` account
+
+### Manual Token Upload
+
+If you didn't provide `--kv-namespace-id`, upload the token manually:
+
+```bash
+wrangler kv:key put "setup:token" "$(cat .keys/setup_token.txt)" \
+  --namespace-id=YOUR_AUTHRIM_CONFIG_KV_ID \
+  --expiration-ttl=3600
+```
+
+### Security Notes
+
+- ⏰ **Token expires in 1 hour** - Generate a new one if expired
+- 🔒 **One-time use** - Setup is permanently disabled after first admin is created
+- 🚫 **Cannot be re-run** - The `setup:completed` flag prevents reuse
+- 🔑 **Passkey required** - A WebAuthn-compatible device is required
+
+### API Endpoints (for automation)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/setup/status` | GET | Check if setup is available |
+| `/api/setup/initialize` | POST | Create user and get Passkey options |
+| `/api/setup/complete` | POST | Complete Passkey registration |
+
+### Troubleshooting
+
+**"Setup has already been completed"**
+
+The system already has an administrator. Use the normal login flow.
+
+**"Invalid setup token"**
+
+The token has expired or is incorrect. Generate a new one:
+
+```bash
+./scripts/setup-keys.sh --setup-url=https://auth.example.com --kv-namespace-id=xxx
+```
+
+**"Origin not allowed"**
+
+Ensure your `ALLOWED_ORIGINS` or `ISSUER_URL` environment variable includes your domain.
+
+---
+
 ## Next Steps
 
 After deployment:
 
-1. **Test OAuth Flow** - Register a client and test authorization
-2. **Configure Email** - `./scripts/setup-resend.sh --env=prod`
-3. **Set Up Monitoring** - Cloudflare Analytics dashboard
-4. **Run Conformance Tests** - `pnpm run conformance:all`
+1. **Create Initial Admin** - Follow the [Initial Admin Setup](#initial-admin-setup) above
+2. **Test OAuth Flow** - Register a client and test authorization
+3. **Configure Email** - `./scripts/setup-resend.sh --env=prod`
+4. **Set Up Monitoring** - Cloudflare Analytics dashboard
+5. **Run Conformance Tests** - `pnpm run conformance:all`
 
 ---
 
