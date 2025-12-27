@@ -8,58 +8,27 @@ A lightweight, serverless **Identity Hub** that combines authentication, authori
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange?logo=cloudflare)](https://workers.cloudflare.com/)
 
-## 🚧 Authrim is not production-ready (yet)
+## ⚠️ Pre-1.0 Software
 
-Authrim is in active development and undergoing major changes.
-We’re sharing the repository early so people can follow progress, test things, and participate —
-but it is not safe for production use.
-
-Key caveats:
-
-- Security hardening and audits not completed
-- Breaking changes happen without notice
-- Many features are experimental
-- No backward compatibility guarantees
-- 🚫 Do not use in production environments
+Authrim is functional but pre-1.0. APIs may change, and no formal security audit has been completed yet.
+Evaluate thoroughly before production use.
 
 ## Vision
 
-**Authrim** makes identity & access management as simple as deploying a website:
+**Authrim** is a unified Identity & Access Platform combining:
+
+- **Authentication** — OIDC Provider, Social Login, Passkey, SAML
+- **Authorization** — RBAC, ABAC, ReBAC policy engine built-in
+- **Identity Federation** — Multiple identity sources into one unified identity
+
+Built for edge deployment with <50ms latency worldwide.
 
 ```bash
-# Coming in 2026-Q1 (Phase 12)
+# Coming in 2026-Q1
 npx create-authrim my-identity-provider
 ```
 
-**Result:** A production-ready Identity & Access Platform with login screens, admin dashboard, policy engine, and global edge deployment—all in under 5 minutes.
-
----
-
-Authrim is a **Unified Identity & Access Platform** that integrates:
-
-- **Authentication (AuthN)** — OIDC Provider, Social Login, Passkey, SAML
-- **Authorization (AuthZ)** — RBAC, ABAC, ReBAC policy engine built-in
-- **Identity Federation** — Connect multiple identity sources into one unified identity
-
-The project aims to deliver:
-
-- Unified AuthN + AuthZ in a single platform (no separate policy service needed)
-- Identity Hub capabilities (Social Login, SAML, Wallet/VC as upstream sources)
-- Fast global performance via edge execution (<50ms worldwide)
-- Flexibility to evolve with new identity standards (OpenID4VP/CI, DID)
-
-Authrim is designed to be practical, adaptable, and straightforward for both users and developers.
-
 [Read the full vision](./docs/VISION.md)
-
-## What is Authrim?
-
-Authrim is an **enterprise-grade Identity & Access Platform** built for:
-
-- **Developers** - Simple integration, great DX, unified AuthN + AuthZ
-- **Enterprises** - Self-hosted, no vendor lock-in, full policy engine
-- **Global apps** - <50ms latency worldwide via edge deployment
-- **Startups** - Generous free tier, no hidden costs
 
 ## Performance
 
@@ -169,118 +138,63 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | **WebAuthn**   | SimpleWebAuthn Browser   | 13.x      | Client-side passkey support    |
 | **Testing**    | Vitest + Testing Library | 4.x       | Component & E2E tests          |
 
-### Packages (15 total)
-
-| Package          | Type      | Purpose                                                         |
-| ---------------- | --------- | --------------------------------------------------------------- |
-| `shared`         | Library   | Common utilities, types, Durable Objects                        |
-| `policy-core`    | Library   | RBAC/ABAC/ReBAC policy engine core                              |
-| `op-auth`        | Worker    | Authorization endpoint, login flows                             |
-| `op-token`       | Worker    | Token endpoint (all grant types)                                |
-| `op-userinfo`    | Worker    | UserInfo endpoint                                               |
-| `op-management`  | Worker    | Admin API, introspection, revocation                            |
-| `op-discovery`   | Worker    | Discovery & JWKS endpoints                                      |
-| `op-async`       | Worker    | Device Flow, CIBA polling                                       |
-| `op-saml`        | Worker    | SAML 2.0 IdP & SP                                               |
-| `external-idp`   | Worker    | Social login (Google, MS, GitHub, Apple, LinkedIn, Facebook, X) |
-| `policy-service` | Worker    | Policy evaluation API                                           |
-| `scim`           | Worker    | SCIM 2.0 user provisioning                                      |
-| `vc`             | Worker    | OpenID4VP/VCI, DID resolution                                   |
-| `router`         | Worker    | Request routing & load balancing                                |
-| `ui`             | SvelteKit | Authentication & admin UI                                       |
-
-### Durable Objects (17 total)
-
-| Durable Object         | Purpose                            |
-| ---------------------- | ---------------------------------- |
-| SessionStore           | User session management            |
-| AuthorizationCodeStore | OAuth code lifecycle               |
-| RefreshTokenRotator    | Token rotation & theft detection   |
-| KeyManager             | Cryptographic key management       |
-| DeviceCodeStore        | Device Flow code storage           |
-| CIBARequestStore       | CIBA request management            |
-| PARRequestStore        | Pushed Authorization Requests      |
-| DPoPJTIStore           | DPoP replay prevention             |
-| TokenRevocationStore   | Token revocation tracking          |
-| ChallengeStore         | WebAuthn challenge storage         |
-| SAMLRequestStore       | SAML request management            |
-| RateLimiterCounter     | Rate limiting                      |
-| UserCodeRateLimiter    | User code rate limiting            |
-| VersionManager         | Version management                 |
-| VPRequestStore         | OpenID4VP request management       |
-| CredentialOfferStore   | OpenID4VCI offer management        |
-| PermissionChangeHub    | Real-time permission notifications |
-
 ## Features
 
-### Implemented
+| Feature | Status |
+|---------|--------|
+| **Core OIDC** | |
+| OpenID Connect Core 1.0 | ✅ Done |
+| Authorization Code Flow + PKCE | ✅ Done |
+| Hybrid Flow | ✅ Done |
+| Discovery / JWKS | ✅ Done |
+| JWT Signing (RS256) + Key Rotation | ✅ Done |
+| **Advanced Security** | |
+| PAR (RFC 9126) | ✅ Done |
+| DPoP (RFC 9449) | ✅ Done |
+| JAR (RFC 9101) | ✅ Done |
+| JARM | ✅ Done |
+| JWE (RFC 7516) | ✅ Done |
+| Pairwise Subject Identifiers | ✅ Done |
+| **Token Management** | |
+| Refresh Token Rotation | ✅ Done |
+| Token Introspection (RFC 7662) | ✅ Done |
+| Token Revocation (RFC 7009) | ✅ Done |
+| Dynamic Client Registration (RFC 7591) | ✅ Done |
+| **Authentication** | |
+| WebAuthn / Passkey | ✅ Done |
+| Email OTP | ✅ Done |
+| Device Flow (RFC 8628) | ✅ Done |
+| CIBA | ✅ Done |
+| JWT Bearer (RFC 7523) | ✅ Done |
+| **Identity Hub** | |
+| Social Login (7 providers) | ✅ Done |
+| RP Module (OIDC/OAuth 2.0) | ✅ Done |
+| Identity Linking | ✅ Done |
+| PII/Non-PII Separation | ✅ Done |
+| **Authorization** | |
+| RBAC / ABAC / ReBAC | ✅ Done |
+| Real-time Check API | ✅ Done |
+| WebSocket Push | ✅ Done |
+| **Verifiable Credentials** | |
+| OpenID4VP | ✅ Done |
+| OpenID4VCI | ✅ Done |
+| DID (did:web, did:key) | ✅ Done |
+| **Enterprise** | |
+| SCIM 2.0 (RFC 7643/7644) | ✅ Done |
+| SAML 2.0 IdP/SP | ✅ Done |
+| Admin Dashboard | ✅ Done |
+| Multi-language (EN/JA) | ✅ Done |
+| **Roadmap** | |
+| WebSDK | Planned |
+| CLI (`create-authrim`) | Planned |
+| OpenID Certification | Planned |
+| **Not Supported** | |
+| MTLS (RFC 8705) | — |
+| AD / LDAP | — |
 
-**Core OIDC:**
-
-- OpenID Connect Core 1.0 compliance
-- Authorization Code Flow with PKCE (RFC 7636)
-- Hybrid Flow (code id_token, code token, code id_token token)
-- Discovery and JWKS endpoints
-- JWT signing (RS256) with key rotation
-
-**Advanced Security:**
-
-- PAR - Pushed Authorization Requests (RFC 9126)
-- DPoP - Demonstrating Proof of Possession (RFC 9449)
-- JAR - JWT-Secured Authorization Requests (RFC 9101)
-- JARM - JWT-Secured Authorization Response Mode
-- JWE - JSON Web Encryption (RFC 7516)
-- Pairwise Subject Identifiers
-
-**Token Management:**
-
-- Refresh Token with rotation
-- Token Introspection (RFC 7662)
-- Token Revocation (RFC 7009)
-- Dynamic Client Registration (RFC 7591)
-
-**Authentication Methods:**
-
-- WebAuthn/Passkey (passwordless)
-- Magic Link (email-based)
-- Device Flow (RFC 8628)
-- CIBA (Client Initiated Backchannel Authentication)
-- JWT Bearer Flow (RFC 7523)
-
-**Enterprise:**
-
-- SCIM 2.0 User Provisioning (RFC 7643/7644)
-- Admin Dashboard (7 pages)
-- Multi-language support (EN/JA)
-
-### Planned
-
-**Phase 7: Identity Hub Foundation** ✅ Complete
-
-- Social Login: Google, Microsoft, GitHub, Apple, LinkedIn, Facebook, Twitter/X (all 7 providers) ✅
-- RP Module (OIDC/OAuth 2.0 client for upstream IdPs) ✅
-- Identity Linking & Stitching (unified user identity across sources) ✅
-- PII/Non-PII Database Separation (GDPR/CCPA compliance) ✅
-
-**Phase 8: Unified Policy Integration** ✅ Complete
-
-- Token-embedded permissions (roles, permissions in tokens) ✅
-- Real-time Check API (`/api/check`, `/api/check/batch`) ✅
-- WebSocket Push (real-time permission change notifications) ✅
-- Policy Admin Console → Moved to Phase 10 (SDK & API)
-
-**Phase 9: Advanced Identity** ✅ Complete (227 tests)
-
-- OpenID4VP (Verifiable Presentations) ✅ - VP request, verification, HAIP compliance
-- OpenID4VCI (Credential Issuance) ✅ - Credential endpoint, offers, deferred issuance
-- DID Support ✅ - did:web, did:key resolver, document hosting
-- DID Authentication ✅ - Challenge-response, DID linking
-
-**Phase 10-12:**
-
-- WebSDK (@authrim/sdk-core, @authrim/sdk-web, @authrim/sdk-react)
-- CLI (`create-authrim`)
-- OpenID Certification
+> **Note:** All "Done" features are implemented and have unit tests. Integration testing and OpenID conformance certification are in progress.
+>
+> **Not Supported:** MTLS is not available due to Cloudflare Workers TLS termination at edge. AD/LDAP requires TCP sockets not supported in Workers runtime. Use SAML/OIDC federation or SCIM provisioning as alternatives.
 
 ---
 
