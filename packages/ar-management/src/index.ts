@@ -20,6 +20,7 @@ import {
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
   requireSystemAdmin,
+  requireAnyRole,
   // Native SSO device_secret cleanup
   DeviceSecretRepository,
   isNativeSSOEnabled,
@@ -92,6 +93,13 @@ import {
   adminUserRelationshipCreateHandler,
   adminUserRelationshipDeleteHandler,
 } from './admin-rbac';
+import {
+  adminAIGrantsListHandler,
+  adminAIGrantGetHandler,
+  adminAIGrantCreateHandler,
+  adminAIGrantUpdateHandler,
+  adminAIGrantRevokeHandler,
+} from './ai-grants';
 import { getCodeShards, updateCodeShards } from './routes/settings/code-shards';
 import {
   getRevocationShards,
@@ -255,6 +263,11 @@ import {
   updateLogoutConfig,
   resetLogoutConfig,
 } from './routes/settings/logout-config';
+import {
+  getLogoutWebhookConfig,
+  updateLogoutWebhookConfig,
+  resetLogoutWebhookConfig,
+} from './routes/settings/logout-webhook-config';
 import {
   listLogoutFailures,
   getLogoutFailure,
@@ -735,6 +748,32 @@ app.delete(
 );
 
 // =============================================================================
+// AI Grants (Human Auth / AI Ephemeral Auth Two-Layer Model)
+// =============================================================================
+// Manages grants that authorize AI principals (agents, tools, services) to act
+// on behalf of users or systems. Used for MCP integration and AI-to-AI delegation.
+// Rate limited with RateLimitProfiles.moderate.
+// RBAC: Requires system_admin or distributor_admin role.
+
+// Rate limiting for AI Grants endpoints
+app.use('/api/admin/ai-grants', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/admin/ai-grants'],
+  })(c, next);
+});
+
+// RBAC: Require system_admin or distributor_admin for AI Grant management
+app.use('/api/admin/ai-grants/*', requireAnyRole(['system_admin', 'distributor_admin']));
+
+app.get('/api/admin/ai-grants', adminAIGrantsListHandler);
+app.get('/api/admin/ai-grants/:id', adminAIGrantGetHandler);
+app.post('/api/admin/ai-grants', adminAIGrantCreateHandler);
+app.put('/api/admin/ai-grants/:id', adminAIGrantUpdateHandler);
+app.delete('/api/admin/ai-grants/:id', adminAIGrantRevokeHandler);
+
+// =============================================================================
 // Policy ↔ Identity Integration (Phase 8.1)
 // =============================================================================
 
@@ -808,6 +847,11 @@ app.get('/api/admin/settings/logout/failures', listLogoutFailures);
 app.get('/api/admin/settings/logout/failures/:clientId', getLogoutFailure);
 app.delete('/api/admin/settings/logout/failures/:clientId', clearLogoutFailure);
 app.delete('/api/admin/settings/logout/failures', clearAllLogoutFailures);
+
+// Logout Webhook Configuration (Simple Logout Webhook - Authrim Extension)
+app.get('/api/admin/settings/logout-webhook', getLogoutWebhookConfig);
+app.put('/api/admin/settings/logout-webhook', updateLogoutWebhookConfig);
+app.delete('/api/admin/settings/logout-webhook', resetLogoutWebhookConfig);
 
 // Check API Key Management endpoints (Phase 8.3)
 app.post('/api/admin/check-api-keys', createCheckApiKey);

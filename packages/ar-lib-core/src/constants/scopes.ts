@@ -44,11 +44,18 @@ export function isStandardScope(scope: string): scope is StandardScope {
  * Used for AI Ephemeral Auth profile tenants.
  * These scopes define what capabilities an AI agent can request.
  *
- * Hierarchy:
- * - ai:read  - Read-only access to resources
- * - ai:write - Read/write access to resources
- * - ai:execute - Can execute tools/actions
- * - ai:admin - Administrative operations (tenant admin approval required)
+ * IMPORTANT: Flat implementation (no implicit inheritance)
+ * Each scope must be explicitly requested. ai:admin does NOT implicitly grant
+ * ai:read, ai:write, or ai:execute. This follows the MCP "Just-Enough" principle
+ * and the OAuth 2.0 least privilege model.
+ *
+ * Scopes:
+ * - ai:read    - Read-only access to resources
+ * - ai:write   - Write access to resources (requires explicit request)
+ * - ai:execute - Can execute tools/actions (requires explicit request)
+ * - ai:admin   - Administrative operations (tenant admin approval required)
+ *
+ * Example: An agent needing read and write must request "ai:read ai:write"
  */
 export const AI_SCOPES = ['ai:read', 'ai:write', 'ai:execute', 'ai:admin'] as const;
 
@@ -65,14 +72,26 @@ export function isAIScope(scope: string): scope is AIScope {
 }
 
 /**
- * AI scope hierarchy (higher index = more privileges)
+ * AI scope privilege levels (for display/ordering purposes only)
+ *
+ * NOTE: This does NOT imply automatic inheritance.
+ * Higher levels do NOT automatically include lower level permissions.
+ * Each scope must be explicitly requested.
+ *
+ * This constant is provided for UI ordering and risk classification only.
  */
-export const AI_SCOPE_HIERARCHY: Record<AIScope, number> = {
+export const AI_SCOPE_PRIVILEGE_LEVEL: Record<AIScope, number> = {
   'ai:read': 1,
   'ai:write': 2,
   'ai:execute': 3,
   'ai:admin': 4,
 } as const;
+
+/**
+ * @deprecated Use AI_SCOPE_PRIVILEGE_LEVEL instead.
+ * Kept for backward compatibility.
+ */
+export const AI_SCOPE_HIERARCHY = AI_SCOPE_PRIVILEGE_LEVEL;
 
 // =============================================================================
 // Reserved Namespaces

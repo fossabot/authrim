@@ -349,6 +349,12 @@ export interface ScopeValidationOptions {
   requireOpenid?: boolean;
   /** Maximum scope length. Default: 256 */
   maxScopeLength?: number;
+  /**
+   * Require at least one AI capability scope (ai:read, ai:write, ai:execute, ai:admin).
+   * Used for AI Ephemeral Auth tenants with requires_capability_scope=true.
+   * Default: false
+   */
+  requiresCapabilityScope?: boolean;
 }
 
 /**
@@ -407,6 +413,7 @@ export function validateScope(
   const allowAIScopes = opts.allowAIScopes ?? false;
   const requireOpenid = opts.requireOpenid ?? true;
   const maxScopeLength = opts.maxScopeLength ?? 256;
+  const requiresCapabilityScope = opts.requiresCapabilityScope ?? false;
 
   if (!scope) {
     return {
@@ -501,6 +508,72 @@ export function validateScope(
         error: `Invalid scope format: "${s}". Scopes must contain only alphanumeric characters, underscores, hyphens, colons, and periods.`,
       };
     }
+  }
+
+  // Check if at least one AI capability scope is required (for AI Ephemeral Auth)
+  // This implements the "requires_capability_scope" profile setting
+  if (requiresCapabilityScope) {
+    const hasAICapabilityScope = scopes.some((s) =>
+      AI_SCOPES.includes(s as (typeof AI_SCOPES)[number])
+    );
+    if (!hasAICapabilityScope) {
+      return {
+        valid: false,
+        error: `At least one AI capability scope is required (${AI_SCOPES.join(', ')}). AI Ephemeral Auth requires explicit capability declaration.`,
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate requested AI scopes against granted scopes (flat model)
+ *
+ * This implements the flat scope model where each scope must be explicitly granted.
+ * ai:admin does NOT implicitly grant ai:read/ai:write/ai:execute.
+ *
+ * @param requestedScopes - Space-separated or array of requested scopes
+ * @param grantedScopes - Space-separated or array of granted scopes (from AI Grant)
+ * @returns ValidationResult with list of missing scopes if invalid
+ *
+ * @example
+ * // Grant has: "ai:read ai:write"
+ * // Request: "ai:read" -> valid
+ * // Request: "ai:read ai:execute" -> invalid (ai:execute not granted)
+ * // Request: "ai:admin" -> invalid (ai:admin does NOT include lower scopes)
+ */
+export function validateRequestedAIScopes(
+  requestedScopes: string | string[],
+  grantedScopes: string | string[]
+): ValidationResult & { missingScopes?: string[] } {
+  // Parse scopes into arrays
+  const requested = Array.isArray(requestedScopes)
+    ? requestedScopes
+    : requestedScopes
+        .split(/\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+  const granted = Array.isArray(grantedScopes)
+    ? grantedScopes
+    : grantedScopes
+        .split(/\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+  // Filter to only AI scopes for comparison
+  const requestedAIScopes = requested.filter((s) => s.startsWith('ai:'));
+
+  // Check each requested AI scope is in granted scopes (flat model - no inheritance)
+  const missingScopes = requestedAIScopes.filter((scope) => !granted.includes(scope));
+
+  if (missingScopes.length > 0) {
+    return {
+      valid: false,
+      error: `Requested scope(s) not granted: ${missingScopes.join(', ')}. Each AI scope must be explicitly granted (no implicit inheritance).`,
+      missingScopes,
+    };
   }
 
   return { valid: true };
