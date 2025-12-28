@@ -2249,3 +2249,50 @@ ALTER TABLE oauth_clients ADD COLUMN post_logout_redirect_uris TEXT;
 -- The column stores JSON array of strings (e.g., '["https://example.com/logout", "https://example.com/signout"]')
 -- Version: 022
 -- =============================================================================
+
+-- =============================================================================
+-- Source: 018_ai_grants.sql
+-- =============================================================================
+
+-- Migration: 018_ai_grants.sql
+-- Description: Create ai_grants table for AI Ephemeral Auth grant management
+-- Author: @authrim
+-- Date: 2025-12-28
+-- Issue: Human Auth / AI Ephemeral Auth Two-Layer Model Implementation
+
+-- =============================================================================
+-- 1. AI Grants Table
+-- =============================================================================
+-- Stores grants that authorize AI principals (agents, tools, services) to act
+-- on behalf of users or systems. Used for MCP (Model Context Protocol) integration
+-- and AI-to-AI delegation scenarios.
+
+CREATE TABLE ai_grants (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  client_id TEXT NOT NULL,
+  ai_principal TEXT NOT NULL,
+  scopes TEXT NOT NULL,
+  scope_targets TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  expires_at INTEGER,
+  created_by TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  revoked_at INTEGER,
+  revoked_by TEXT,
+  UNIQUE(tenant_id, client_id, ai_principal)
+);
+
+-- Indexes for performance
+CREATE INDEX idx_ai_grants_client ON ai_grants(client_id);
+CREATE INDEX idx_ai_grants_principal ON ai_grants(ai_principal);
+CREATE INDEX idx_ai_grants_tenant ON ai_grants(tenant_id);
+CREATE INDEX idx_ai_grants_active ON ai_grants(is_active) WHERE is_active = 1;
+CREATE INDEX idx_ai_grants_expires ON ai_grants(expires_at) WHERE expires_at IS NOT NULL;
+
+-- =============================================================================
+-- Migration Complete
+-- =============================================================================
+-- Version: 018
+-- =============================================================================

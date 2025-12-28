@@ -23,6 +23,8 @@ import {
   // Database Adapter
   D1Adapter,
   type DatabaseAdapter,
+  // Contract Loader (Human Auth / AI Ephemeral Auth two-layer model)
+  loadTenantProfile,
 } from '@authrim/ar-lib-core';
 import {
   revokeToken,
@@ -598,6 +600,10 @@ async function handleAuthorizationCodeGrant(
     return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
   }
 
+  // Load TenantProfile for TTL limits (Human Auth / AI Ephemeral Auth two-layer model)
+  const tenantId = (clientMetadata.tenant_id as string) || 'default';
+  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+
   // DPoP requirement (FAPI 2.0 / sender-constrained tokens)
   let requireDpop = false;
   try {
@@ -849,7 +855,10 @@ async function handleAuthorizationCodeGrant(
 
   // Token expiration (KV > env > default priority)
   const configManager = createOAuthConfigManager(c.env);
-  const expiresIn = await configManager.getTokenExpiry();
+  const baseExpiresIn = await configManager.getTokenExpiry();
+  // Apply Profile-based TTL limit (Human Auth / AI Ephemeral Auth two-layer model)
+  // RFC 6749 §4.2.2: Access token lifetime is controlled by the authorization server
+  const expiresIn = Math.min(baseExpiresIn, tenantProfile.max_token_ttl_seconds);
 
   // DPoP support (RFC 9449)
   // dpopJkt was already validated earlier for authorization code binding verification
@@ -1531,6 +1540,19 @@ async function handleRefreshTokenGrant(
   // Cast to ClientMetadata for type safety
   const typedClient = clientMetadata as unknown as ClientMetadata;
 
+  // Profile-based grant_type validation (Human Auth / AI Ephemeral Auth two-layer model)
+  // RFC 6749 §5.2: unauthorized_client - client not allowed to use this grant type
+  const tenantId = (clientMetadata.tenant_id as string) || 'default';
+  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  if (!tenantProfile.allows_refresh_token) {
+    return oauthError(
+      c,
+      'unauthorized_client',
+      'refresh_token grant is not allowed for this tenant profile',
+      403
+    );
+  }
+
   // Client authentication verification
   // Supports: client_secret_basic, client_secret_post, client_secret_jwt, private_key_jwt
   if (
@@ -1657,7 +1679,10 @@ async function handleRefreshTokenGrant(
 
   // Token expiration (KV > env > default priority)
   const configManager = createOAuthConfigManager(c.env);
-  const expiresIn = await configManager.getTokenExpiry();
+  const baseExpiresIn = await configManager.getTokenExpiry();
+  // Apply Profile-based TTL limit (Human Auth / AI Ephemeral Auth two-layer model)
+  // RFC 6749 §4.2.2: Access token lifetime is controlled by the authorization server
+  const expiresIn = Math.min(baseExpiresIn, tenantProfile.max_token_ttl_seconds);
 
   // Phase 2 RBAC: Fetch fresh RBAC claims for token refresh
   // User's roles/organization may have changed since the original token was issued
@@ -3222,6 +3247,19 @@ async function handleTokenExchangeGrant(
   // Cast to ClientMetadata for type safety
   const typedClient = clientMetadata as unknown as ClientMetadata;
 
+  // Profile-based grant_type validation (Human Auth / AI Ephemeral Auth two-layer model)
+  // RFC 6749 §5.2: unauthorized_client - client not allowed to use this grant type
+  const tenantId = (clientMetadata.tenant_id as string) || 'default';
+  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  if (!tenantProfile.allows_token_exchange) {
+    return oauthError(
+      c,
+      'unauthorized_client',
+      'token_exchange grant is not allowed for this tenant profile',
+      403
+    );
+  }
+
   // 3. Authenticate client
   if (
     client_assertion &&
@@ -3666,7 +3704,10 @@ async function handleTokenExchangeGrant(
   }
 
   const configManager = createOAuthConfigManager(c.env);
-  const expiresIn = await configManager.getTokenExpiry();
+  const baseExpiresIn = await configManager.getTokenExpiry();
+  // Apply Profile-based TTL limit (Human Auth / AI Ephemeral Auth two-layer model)
+  // RFC 6749 §4.2.2: Access token lifetime is controlled by the authorization server
+  const expiresIn = Math.min(baseExpiresIn, tenantProfile.max_token_ttl_seconds);
 
   // DPoP support
   let dpopJkt: string | undefined;
@@ -4409,6 +4450,19 @@ async function handleClientCredentialsGrant(
   // Cast to ClientMetadata for type safety
   const typedClient = clientMetadata as unknown as ClientMetadata;
 
+  // Profile-based grant_type validation (Human Auth / AI Ephemeral Auth two-layer model)
+  // RFC 6749 §5.2: unauthorized_client - client not allowed to use this grant type
+  const tenantId = (clientMetadata.tenant_id as string) || 'default';
+  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  if (!tenantProfile.allows_client_credentials) {
+    return oauthError(
+      c,
+      'unauthorized_client',
+      'client_credentials grant is not allowed for this tenant profile',
+      403
+    );
+  }
+
   // 2. Authenticate client (client_credentials REQUIRES authentication)
   if (
     client_assertion &&
@@ -4482,7 +4536,10 @@ async function handleClientCredentialsGrant(
   }
 
   const configManager = createOAuthConfigManager(c.env);
-  const expiresIn = await configManager.getTokenExpiry();
+  const baseExpiresIn = await configManager.getTokenExpiry();
+  // Apply Profile-based TTL limit (Human Auth / AI Ephemeral Auth two-layer model)
+  // RFC 6749 §4.2.2: Access token lifetime is controlled by the authorization server
+  const expiresIn = Math.min(baseExpiresIn, tenantProfile.max_token_ttl_seconds);
 
   // DPoP support
   let dpopJkt: string | undefined;

@@ -162,12 +162,33 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 
 | Feature | Status |
 |---------|--------|
-| **Core OIDC** | |
-| OpenID Connect Core 1.0 | ✅ Done |
+| **OpenID Provider** | |
+| Basic OP | ✅ Done |
+| Implicit OP | ✅ Done |
+| Hybrid OP | ✅ Done |
+| Config OP (Discovery / JWKS) | ✅ Done |
+| Dynamic OP | ✅ Done |
+| Form Post OP | ✅ Done |
+| 3rd Party-Init OP | ? |
 | Authorization Code Flow + PKCE | ✅ Done |
-| Hybrid Flow | ✅ Done |
-| Discovery / JWKS | ✅ Done |
-| JWT Signing (RS256) + Key Rotation | ✅ Done |
+| **OpenID Provider Logout Profiles** | |
+| RP-Initiated OP | ✅ Done |
+| Session OP | ✅ Done |
+| Front-Channel OP | ✅ Done |
+| Back-Channel OP | ✅ Done |
+| **OpenID Relying Parties** | |
+| Basic RP | ✅ Done |
+| Config RP (Discovery / JWKS) | ✅ Done |
+| Form Post RP | ✅ Done |
+| Front-Channel RP | Not Supported |
+| Hybrid RP | Not Supported |
+| Dynamic RP | Not Supported |
+| 3rd Party-Init RP | Not Supported |
+| **OpenID Relying Parties Logout Profiles** | |
+| Back-Channel RP | ✅ Done |
+| RP-Initiated RP | Not Supported |
+| Session RP | Not Supported |
+| Front-Channel RP | Not Supported |
 | **Advanced Security** | |
 | PAR (RFC 9126) | ✅ Done |
 | DPoP (RFC 9449) | ✅ Done |
@@ -176,6 +197,7 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | JWE (RFC 7516) | ✅ Done |
 | Pairwise Subject Identifiers | ✅ Done |
 | **Token Management** | |
+| JWT Signing (RS256) + Key Rotation | ✅ Done |
 | Refresh Token Rotation | ✅ Done |
 | Token Introspection (RFC 7662) | ✅ Done |
 | Token Revocation (RFC 7009) | ✅ Done |
@@ -188,7 +210,6 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | JWT Bearer (RFC 7523) | ✅ Done |
 | **Identity Hub** | |
 | Social Login (7 providers) | ✅ Done |
-| RP Module (OIDC/OAuth 2.0) | ✅ Done |
 | Identity Linking | ✅ Done |
 | PII/Non-PII Separation | ✅ Done |
 | **Authorization** | |
@@ -207,7 +228,6 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | **Roadmap** | |
 | WebSDK | Planned |
 | CLI (`create-authrim`) | Planned |
-| OpenID Certification | Planned |
 | **Not Supported** | |
 | MTLS (RFC 8705) | — |
 | AD / LDAP | — |

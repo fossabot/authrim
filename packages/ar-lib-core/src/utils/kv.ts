@@ -603,6 +603,8 @@ export async function getClient(
     allowed_scopes: string | null;
     default_scope: string | null;
     default_audience: string | null;
+    // Multi-tenant support
+    tenant_id: string;
     created_at: number;
     updated_at: number;
   }>('SELECT * FROM oauth_clients WHERE client_id = ?', [clientId]);
@@ -650,6 +652,8 @@ export async function getClient(
     allowed_scopes: result.allowed_scopes ? JSON.parse(result.allowed_scopes) : undefined,
     default_scope: result.default_scope,
     default_audience: result.default_audience,
+    // Multi-tenant support
+    tenant_id: result.tenant_id || 'default',
     created_at: result.created_at,
     updated_at: result.updated_at,
   };

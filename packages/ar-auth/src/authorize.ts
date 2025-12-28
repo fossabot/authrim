@@ -36,6 +36,9 @@ import {
   // Custom Redirect URIs (Authrim Extension)
   validateCustomRedirectParams,
   parseClientAllowedOrigins,
+  // Contract Loader (Human Auth / AI Ephemeral Auth two-layer model)
+  loadTenantProfile,
+  filterResponseTypesByProfile,
 } from '@authrim/ar-lib-core';
 import type { CachedUser, CachedConsent } from '@authrim/ar-lib-core';
 import type { Session, PARRequestData } from '@authrim/ar-lib-core';
@@ -1044,6 +1047,24 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         error_description: 'Client authentication failed',
       },
       401
+    );
+  }
+
+  // Profile-based response_type validation (Human Auth / AI Ephemeral Auth two-layer model)
+  // AI Ephemeral profile restricts implicit/hybrid flows to 'code' only for MCP User Delegation
+  const tenantId = (clientMetadata.tenant_id as string) || 'default';
+  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  const profileAllowedResponseTypes = filterResponseTypesByProfile(
+    ['code', 'id_token', 'id_token token', 'code id_token', 'code token', 'code id_token token'],
+    tenantProfile
+  );
+  if (!profileAllowedResponseTypes.includes(response_type!)) {
+    return c.json(
+      {
+        error: 'unauthorized_client',
+        error_description: `Response type '${response_type}' is not allowed for this tenant profile. Allowed: ${profileAllowedResponseTypes.join(', ')}`,
+      },
+      400
     );
   }
 
@@ -3414,40 +3435,53 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
     }
   }
 
-  // Create session using sharded SessionStore
-  const { stub: sessionStore, sessionId: newSessionId } = await getSessionStoreForNewSession(c.env);
-
   // Calculate auth_time BEFORE creating session to ensure consistency
   // This value will be used for both the session and the redirect parameter
   const loginAuthTime = Math.floor(Date.now() / 1000);
 
-  try {
-    await sessionStore.createSessionRpc(
-      newSessionId, // Required: Sharded session ID
-      userId,
-      3600, // 1 hour session
-      {
-        clientId: metadata.client_id as string,
-        authTime: loginAuthTime, // Store auth_time for OIDC conformance (prompt=none consistency)
-      }
+  // Profile-based session management (Human Auth / AI Ephemeral Auth two-layer model)
+  // For AI Ephemeral profile (uses_do_for_state=false), skip session creation.
+  // AI agents typically don't maintain browser sessions - they use tokens directly.
+  const sessionTenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+
+  if (sessionTenantProfile.uses_do_for_state) {
+    // Human profile: Create session using sharded SessionStore
+    const { stub: sessionStore, sessionId: newSessionId } = await getSessionStoreForNewSession(
+      c.env
     );
 
-    // Set session cookie with the pre-generated sharded session ID (HttpOnly for security)
-    c.header(
-      'Set-Cookie',
-      `authrim_session=${newSessionId}; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=3600`
-    );
+    try {
+      await sessionStore.createSessionRpc(
+        newSessionId, // Required: Sharded session ID
+        userId,
+        3600, // 1 hour session
+        {
+          clientId: metadata.client_id as string,
+          authTime: loginAuthTime, // Store auth_time for OIDC conformance (prompt=none consistency)
+        }
+      );
 
-    // Generate and set browser state cookie for OIDC Session Management
-    // This cookie is NOT HttpOnly so check_session_iframe can read it via JavaScript
-    const browserState = await generateBrowserState(newSessionId);
-    c.res.headers.append(
-      'Set-Cookie',
-      `${BROWSER_STATE_COOKIE_NAME}=${browserState}; Path=/; SameSite=None; Secure; Max-Age=3600`
-    );
-  } catch (error) {
-    console.error('Failed to create session:', error);
-    // Continue even if session creation fails - user can re-login
+      // Set session cookie with the pre-generated sharded session ID (HttpOnly for security)
+      c.header(
+        'Set-Cookie',
+        `authrim_session=${newSessionId}; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=3600`
+      );
+
+      // Generate and set browser state cookie for OIDC Session Management
+      // This cookie is NOT HttpOnly so check_session_iframe can read it via JavaScript
+      const browserState = await generateBrowserState(newSessionId);
+      c.res.headers.append(
+        'Set-Cookie',
+        `${BROWSER_STATE_COOKIE_NAME}=${browserState}; Path=/; SameSite=None; Secure; Max-Age=3600`
+      );
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      // Continue even if session creation fails - user can re-login
+    }
+  } else {
+    // AI Ephemeral profile: Skip session creation (stateless approach)
+    // AI agents will use the authorization code to obtain tokens directly
+    console.log('[LOGIN] AI Ephemeral profile - skipping session creation (stateless mode)');
   }
 
   // Build query string for internal redirect to /authorize
