@@ -160,77 +160,77 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 
 ## Features
 
-| Feature | Status |
-|---------|--------|
-| **OpenID Provider** | |
-| Basic OP | ✅ Done |
-| Implicit OP | ✅ Done |
-| Hybrid OP | ✅ Done |
-| Config OP (Discovery / JWKS) | ✅ Done |
-| Dynamic OP | ✅ Done |
-| Form Post OP | ✅ Done |
-| 3rd Party-Init OP | ? |
-| Authorization Code Flow + PKCE | ✅ Done |
-| **OpenID Provider Logout Profiles** | |
-| RP-Initiated OP | ✅ Done |
-| Session OP | ✅ Done |
-| Front-Channel OP | ✅ Done |
-| Back-Channel OP | ✅ Done |
-| **OpenID Relying Parties** | |
-| Basic RP | ✅ Done |
-| Config RP (Discovery / JWKS) | ✅ Done |
-| Form Post RP | ✅ Done |
-| Front-Channel RP | Not Supported |
-| Hybrid RP | Not Supported |
-| Dynamic RP | Not Supported |
-| 3rd Party-Init RP | Not Supported |
-| **OpenID Relying Parties Logout Profiles** | |
-| Back-Channel RP | ✅ Done |
-| RP-Initiated RP | Not Supported |
-| Session RP | Not Supported |
-| Front-Channel RP | Not Supported |
-| **Advanced Security** | |
-| PAR (RFC 9126) | ✅ Done |
-| DPoP (RFC 9449) | ✅ Done |
-| JAR (RFC 9101) | ✅ Done |
-| JARM | ✅ Done |
-| JWE (RFC 7516) | ✅ Done |
-| Pairwise Subject Identifiers | ✅ Done |
-| **Token Management** | |
-| JWT Signing (RS256) + Key Rotation | ✅ Done |
-| Refresh Token Rotation | ✅ Done |
-| Token Introspection (RFC 7662) | ✅ Done |
-| Token Revocation (RFC 7009) | ✅ Done |
-| Dynamic Client Registration (RFC 7591) | ✅ Done |
-| **Authentication** | |
-| WebAuthn / Passkey | ✅ Done |
-| Email OTP | ✅ Done |
-| Device Flow (RFC 8628) | ✅ Done |
-| CIBA | ✅ Done |
-| JWT Bearer (RFC 7523) | ✅ Done |
-| **Identity Hub** | |
-| Social Login (7 providers) | ✅ Done |
-| Identity Linking | ✅ Done |
-| PII/Non-PII Separation | ✅ Done |
-| **Authorization** | |
-| RBAC / ABAC / ReBAC | ✅ Done |
-| Real-time Check API | ✅ Done |
-| WebSocket Push | ✅ Done |
-| **Verifiable Credentials** | |
-| OpenID4VP | ✅ Done |
-| OpenID4VCI | ✅ Done |
-| DID (did:web, did:key) | ✅ Done |
-| **Enterprise** | |
-| SCIM 2.0 (RFC 7643/7644) | ✅ Done |
-| SAML 2.0 IdP/SP | ✅ Done |
-| Admin Dashboard | ✅ Done |
-| Multi-language (EN/JA) | ✅ Done |
-| **Roadmap** | |
-| WebSDK | Planned |
-| CLI (`create-authrim`) | Planned |
-| **Not Supported** | |
-| MTLS (RFC 8705) | — |
-| AD / LDAP | — |
+| Feature | Status | Note |
+|---------|--------|------|
+| **OpenID Provider** | | |
+| Basic OP | ✅ Done | [View Plan](https://www.certification.openid.net/plan-detail.html?plan=rC9mDif1jiuFD&public=true) |
+| Implicit OP | ✅ Done | |
+| Hybrid OP | ✅ Done | |
+| Config OP (Discovery / JWKS) | ✅ Done | [View Plan](https://www.certification.openid.net/log-detail.html?log=JdysXRN6r0joAm3&public=true) |
+| Dynamic OP | ✅ Done | |
+| Form Post OP | ✅ Done | |
+| 3rd Party-Init OP | ? | |
+| Authorization Code Flow + PKCE | ✅ Done | |
+| **OpenID Provider Logout Profiles** | | |
+| RP-Initiated OP | ✅ Done | |
+| Session OP | ✅ Done | |
+| Front-Channel OP | ✅ Done | |
+| Back-Channel OP | ✅ Done | |
+| **OpenID Relying Parties** | | |
+| Basic RP | ✅ Done | |
+| Config RP (Discovery / JWKS) | ✅ Done | |
+| Form Post RP | ✅ Done | |
+| Front-Channel RP | Not Supported | |
+| Hybrid RP | Not Supported | |
+| Dynamic RP | Not Supported | |
+| 3rd Party-Init RP | Not Supported | |
+| **OpenID Relying Parties Logout Profiles** | | |
+| Back-Channel RP | ✅ Done | |
+| RP-Initiated RP | Not Supported | |
+| Session RP | Not Supported | |
+| Front-Channel RP | Not Supported | |
+| **Advanced Security** | | |
+| PAR (RFC 9126) | ✅ Done | |
+| DPoP (RFC 9449) | ✅ Done | |
+| JAR (RFC 9101) | ✅ Done | |
+| JARM | ✅ Done | |
+| JWE (RFC 7516) | ✅ Done | |
+| Pairwise Subject Identifiers | ✅ Done | |
+| **Token Management** | | |
+| JWT Signing (RS256) + Key Rotation | ✅ Done | |
+| Refresh Token Rotation | ✅ Done | |
+| Token Introspection (RFC 7662) | ✅ Done | |
+| Token Revocation (RFC 7009) | ✅ Done | |
+| Dynamic Client Registration (RFC 7591) | ✅ Done | |
+| **Authentication** | | |
+| WebAuthn / Passkey | ✅ Done | |
+| Email OTP | ✅ Done | |
+| Device Flow (RFC 8628) | ✅ Done | |
+| CIBA | ✅ Done | |
+| JWT Bearer (RFC 7523) | ✅ Done | |
+| **Identity Hub** | | |
+| Social Login (7 providers) | ✅ Done | |
+| Identity Linking | ✅ Done | |
+| PII/Non-PII Separation | ✅ Done | |
+| **Authorization** | | |
+| RBAC / ABAC / ReBAC | ✅ Done | |
+| Real-time Check API | ✅ Done | |
+| WebSocket Push | ✅ Done | |
+| **Verifiable Credentials** | | |
+| OpenID4VP | ✅ Done | |
+| OpenID4VCI | ✅ Done | |
+| DID (did:web, did:key) | ✅ Done | |
+| **Enterprise** | | |
+| SCIM 2.0 (RFC 7643/7644) | ✅ Done | |
+| SAML 2.0 IdP/SP | ✅ Done | |
+| Admin Dashboard | ✅ Done | |
+| Multi-language (EN/JA) | ✅ Done | |
+| **Roadmap** | | |
+| WebSDK | Planned | |
+| CLI (`create-authrim`) | Planned | |
+| **Not Supported** | | |
+| MTLS (RFC 8705) | — | |
+| AD / LDAP | — | |
 
 > **Note:** All "Done" features are implemented and have unit tests. Integration testing and OpenID conformance certification are in progress.
 >
