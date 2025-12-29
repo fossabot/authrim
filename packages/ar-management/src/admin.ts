@@ -7,6 +7,8 @@ import { Context } from 'hono';
 import type { Env, Session } from '@authrim/ar-lib-core';
 import {
   invalidateUserCache,
+  invalidateConsentCache,
+  revokeToken,
   parseRefreshTokenJti,
   buildRefreshTokenRotatorInstanceName,
   getSessionStoreBySessionId,
@@ -25,6 +27,14 @@ import {
   RFC_ERROR_CODES,
   validateAllowedOrigins,
   escapeLikePattern,
+  // Event System
+  publishEvent,
+  USER_EVENTS,
+  CLIENT_EVENTS,
+  CONSENT_EVENTS,
+  type UserEventData,
+  type ClientEventData,
+  type ExtendedConsentEventData,
 } from '@authrim/ar-lib-core';
 import type { UserCore, UserPII } from '@authrim/ar-lib-core';
 
@@ -878,6 +888,17 @@ export async function adminUserCreateHandler(c: Context<{ Bindings: Env }>) {
       updated_at: toMilliseconds(userCore?.updated_at),
     };
 
+    // Publish user created event (non-blocking)
+    publishEvent(c, {
+      type: USER_EVENTS.CREATED,
+      tenantId,
+      data: {
+        userId,
+      } satisfies UserEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish user.created:', err);
+    });
+
     return c.json(
       {
         user: createdUser,
@@ -1034,6 +1055,17 @@ export async function adminUserUpdateHandler(c: Context<{ Bindings: Env }>) {
       last_login_at: toMilliseconds(updatedCore?.last_login_at),
     };
 
+    // Publish user updated event (non-blocking)
+    publishEvent(c, {
+      type: USER_EVENTS.UPDATED,
+      tenantId: getTenantIdFromContext(c),
+      data: {
+        userId,
+      } satisfies UserEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish user.updated:', err);
+    });
+
     return c.json({
       user: updatedUser,
     });
@@ -1116,6 +1148,17 @@ export async function adminUserDeleteHandler(c: Context<{ Bindings: Env }>) {
 
     // Invalidate user cache
     await invalidateUserCache(c.env, userId);
+
+    // Publish user deleted event (non-blocking)
+    publishEvent(c, {
+      type: USER_EVENTS.DELETED,
+      tenantId,
+      data: {
+        userId,
+      } satisfies UserEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish user.deleted:', err);
+    });
 
     return c.json({
       success: true,
@@ -1570,6 +1613,17 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       allowed_redirect_origins: validatedAllowedOrigins,
     });
 
+    // Publish client created event (non-blocking)
+    publishEvent(c, {
+      type: CLIENT_EVENTS.CREATED,
+      tenantId,
+      data: {
+        clientId: client.client_id,
+      } satisfies ClientEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish client.created:', err);
+    });
+
     // Return the created client (including client_secret only on creation)
     return c.json(
       {
@@ -1839,6 +1893,17 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       // Worst case: stale cache for up to 5 minutes (TTL)
     }
 
+    // Publish client updated event (non-blocking)
+    publishEvent(c, {
+      type: CLIENT_EVENTS.UPDATED,
+      tenantId,
+      data: {
+        clientId,
+      } satisfies ClientEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish client.updated:', err);
+    });
+
     return c.json({
       success: true,
       client: updatedClient,
@@ -1888,6 +1953,17 @@ export async function adminClientDeleteHandler(c: Context<{ Bindings: Env }>) {
       console.warn(`Failed to invalidate cache for ${clientId}:`, error);
       // Cache invalidation failure should not block the response
     }
+
+    // Publish client deleted event (non-blocking)
+    publishEvent(c, {
+      type: CLIENT_EVENTS.DELETED,
+      tenantId,
+      data: {
+        clientId,
+      } satisfies ClientEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish client.deleted:', err);
+    });
 
     return c.json({
       success: true,
@@ -3693,6 +3769,210 @@ export async function adminTestEmailCodeHandler(c: Context<{ Bindings: Env }>) {
         error: 'server_error',
         error_description: 'Failed to create test email code',
         ...getErrorDetailsForResponse(error, c.env),
+      },
+      500
+    );
+  }
+}
+
+// =============================================================================
+// Admin Consent Management
+// =============================================================================
+
+/**
+ * GET /api/admin/users/:userId/consents
+ * List consents for a specific user
+ */
+export async function adminUserConsentsListHandler(c: Context<{ Bindings: Env }>) {
+  try {
+    const userId = c.req.param('userId');
+    if (!userId) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'User ID is required',
+        },
+        400
+      );
+    }
+
+    const tenantId = getTenantIdFromContext(c);
+    const authCtx = createAuthContextFromHono(c, tenantId);
+
+    // Check if user exists
+    const userCore = await authCtx.repositories.userCore.findById(userId);
+    if (!userCore) {
+      return c.json(
+        {
+          error: 'not_found',
+          error_description: 'User not found',
+        },
+        404
+      );
+    }
+
+    // Query consents with client info
+    const consentsResult = await authCtx.coreAdapter.query<{
+      id: string;
+      client_id: string;
+      scope: string;
+      selected_scopes: string | null;
+      granted_at: number;
+      expires_at: number | null;
+      privacy_policy_version: string | null;
+      tos_version: string | null;
+      consent_version: number | null;
+      client_name: string | null;
+      logo_uri: string | null;
+    }>(
+      `SELECT c.id, c.client_id, c.scope, c.selected_scopes, c.granted_at, c.expires_at,
+              c.privacy_policy_version, c.tos_version, c.consent_version,
+              oc.client_name, oc.logo_uri
+       FROM oauth_client_consents c
+       LEFT JOIN oauth_clients oc ON c.client_id = oc.client_id
+       WHERE c.user_id = ? AND c.tenant_id = ?
+       ORDER BY c.granted_at DESC`,
+      [userId, tenantId]
+    );
+
+    const consents = consentsResult.map((row) => ({
+      id: row.id,
+      clientId: row.client_id,
+      clientName: row.client_name ?? undefined,
+      clientLogoUri: row.logo_uri ?? undefined,
+      scopes: row.scope.split(' '),
+      selectedScopes: row.selected_scopes ? JSON.parse(row.selected_scopes) : undefined,
+      grantedAt: row.granted_at,
+      expiresAt: row.expires_at ?? undefined,
+      policyVersions:
+        row.privacy_policy_version || row.tos_version
+          ? {
+              privacyPolicyVersion: row.privacy_policy_version ?? undefined,
+              tosVersion: row.tos_version ?? undefined,
+              consentVersion: row.consent_version ?? 1,
+            }
+          : undefined,
+    }));
+
+    return c.json({
+      userId,
+      consents,
+      total: consents.length,
+    });
+  } catch (error) {
+    logSanitizedError('Admin user consents list error', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to list user consents',
+      },
+      500
+    );
+  }
+}
+
+/**
+ * DELETE /api/admin/users/:userId/consents/:clientId
+ * Revoke consent for a specific user and client (admin action)
+ */
+export async function adminUserConsentRevokeHandler(c: Context<{ Bindings: Env }>) {
+  try {
+    const userId = c.req.param('userId');
+    const clientId = c.req.param('clientId');
+
+    if (!userId || !clientId) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'User ID and Client ID are required',
+        },
+        400
+      );
+    }
+
+    const tenantId = getTenantIdFromContext(c);
+    const authCtx = createAuthContextFromHono(c, tenantId);
+
+    // Check if consent exists
+    const existingConsent = await authCtx.coreAdapter.query<{
+      id: string;
+      scope: string;
+    }>(
+      `SELECT id, scope FROM oauth_client_consents
+       WHERE user_id = ? AND client_id = ? AND tenant_id = ?`,
+      [userId, clientId, tenantId]
+    );
+
+    if (existingConsent.length === 0) {
+      return c.json(
+        {
+          error: 'not_found',
+          error_description: 'Consent not found',
+        },
+        404
+      );
+    }
+
+    const consent = existingConsent[0];
+    const previousScopes = consent.scope.split(' ');
+    const now = Date.now();
+
+    // Delete consent
+    await authCtx.coreAdapter.execute(
+      `DELETE FROM oauth_client_consents WHERE user_id = ? AND client_id = ? AND tenant_id = ?`,
+      [userId, clientId, tenantId]
+    );
+
+    // Record in consent history
+    const historyId = crypto.randomUUID();
+    await authCtx.coreAdapter.execute(
+      `INSERT INTO consent_history (id, tenant_id, user_id, client_id, action, scopes_before, scopes_after, created_at)
+       VALUES (?, ?, ?, ?, 'revoked', ?, NULL, ?)`,
+      [historyId, tenantId, userId, clientId, JSON.stringify(previousScopes), now]
+    );
+
+    // Invalidate consent cache
+    await invalidateConsentCache(c.env, userId, clientId);
+
+    // Add to revocation list
+    try {
+      const revocationKey = `consent_revoked:${userId}:${clientId}`;
+      const revocationTTL = 86400 * 90;
+      await revokeToken(c.env, revocationKey, revocationTTL);
+    } catch (error) {
+      console.warn('[Admin] Token revocation warning:', error);
+    }
+
+    // Publish consent.revoked event
+    publishEvent(c, {
+      type: CONSENT_EVENTS.REVOKED,
+      tenantId,
+      data: {
+        userId,
+        clientId,
+        scopes: previousScopes,
+        previousScopes,
+        revocationReason: 'admin_action',
+        initiatedBy: 'admin',
+      } satisfies ExtendedConsentEventData,
+    }).catch((err) => {
+      console.error('[Event] Failed to publish consent.revoked:', err);
+    });
+
+    console.log(`[ADMIN] Revoked consent: user=${userId}, client=${clientId}`);
+
+    return c.json({
+      success: true,
+      userId,
+      clientId,
+      revokedAt: now,
+    });
+  } catch (error) {
+    logSanitizedError('Admin user consent revoke error', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to revoke consent',
       },
       500
     );

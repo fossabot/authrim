@@ -67,6 +67,8 @@ import {
   adminSigningKeyGetHandler,
   adminTokenRegisterHandler,
   adminTestEmailCodeHandler,
+  adminUserConsentsListHandler,
+  adminUserConsentRevokeHandler,
 } from './admin';
 import scimApp from './scim';
 import {
@@ -100,6 +102,12 @@ import {
   adminAIGrantUpdateHandler,
   adminAIGrantRevokeHandler,
 } from './ai-grants';
+import { userConsentsListHandler, userConsentRevokeHandler } from './user-consents';
+import {
+  dataExportRequestHandler,
+  dataExportStatusHandler,
+  dataExportDownloadHandler,
+} from './data-export';
 import { getCodeShards, updateCodeShards } from './routes/settings/code-shards';
 import {
   getRevocationShards,
@@ -307,6 +315,13 @@ import {
   revokeAllUserDeviceSecrets,
   cleanupExpiredDeviceSecrets,
 } from './routes/device-secrets';
+import {
+  createWebhook,
+  listWebhooks,
+  getWebhook,
+  updateWebhook,
+  deleteWebhook,
+} from './routes/settings/webhooks';
 
 // Create Hono app with Cloudflare Workers types
 const app = new Hono<{ Bindings: Env }>();
@@ -924,6 +939,111 @@ app.delete('/api/admin/users/:userId/device-secrets', revokeAllUserDeviceSecrets
 app.post('/api/admin/device-secrets/cleanup', cleanupExpiredDeviceSecrets); // Must be before :id
 app.get('/api/admin/device-secrets/:id', getDeviceSecret);
 app.delete('/api/admin/device-secrets/:id', revokeDeviceSecret);
+
+// =============================================================================
+// Webhook Management (Unified Event System)
+// =============================================================================
+// CRUD operations for webhook configurations.
+// Webhooks can be tenant-level (receive all events) or client-level (receive specific client events).
+// RBAC: Requires tenant_admin or higher role.
+// Rate limit: lenient profile.
+
+// Rate limiting for Webhook endpoints
+app.use('/api/admin/webhooks', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/admin/webhooks'],
+  })(c, next);
+});
+app.use('/api/admin/webhooks/*', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/admin/webhooks/*'],
+  })(c, next);
+});
+
+// RBAC: Require tenant_admin or higher for webhook management
+app.use(
+  '/api/admin/webhooks',
+  requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
+);
+app.use(
+  '/api/admin/webhooks/*',
+  requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
+);
+
+app.post('/api/admin/webhooks', createWebhook);
+app.get('/api/admin/webhooks', listWebhooks);
+app.get('/api/admin/webhooks/:id', getWebhook);
+app.put('/api/admin/webhooks/:id', updateWebhook);
+app.delete('/api/admin/webhooks/:id', deleteWebhook);
+
+// =============================================================================
+// User Consent Management API (GDPR Article 7 - User Rights)
+// =============================================================================
+// User-facing endpoints for viewing and revoking consents.
+// Supports both access token (Bearer) and session-based authentication.
+// Rate limit: moderate profile.
+
+// Rate limiting for User consent endpoints
+app.use('/api/user/consents', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/user/consents'],
+  })(c, next);
+});
+app.use('/api/user/consents/*', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/user/consents/*'],
+  })(c, next);
+});
+
+// User consent routes - authentication is handled inside handlers (token or session)
+app.get('/api/user/consents', userConsentsListHandler);
+app.delete('/api/user/consents/:clientId', userConsentRevokeHandler);
+
+// =============================================================================
+// Data Portability API (GDPR Article 20 - Right to Data Portability)
+// =============================================================================
+// User-facing endpoints for exporting personal data.
+// Supports both access token (Bearer) and session-based authentication.
+// Implements hybrid processing: sync for small data, async for large data.
+// Rate limit: lenient profile (export is expensive).
+
+// Rate limiting for Data export endpoints
+app.use('/api/user/data-export', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/user/data-export'],
+  })(c, next);
+});
+app.use('/api/user/data-export/*', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/user/data-export/*'],
+  })(c, next);
+});
+
+// Data export routes
+app.post('/api/user/data-export', dataExportRequestHandler);
+app.get('/api/user/data-export/:id', dataExportStatusHandler);
+app.get('/api/user/data-export/:id/download', dataExportDownloadHandler);
+
+// =============================================================================
+// Admin Consent Management API (GDPR Article 7 - Admin Oversight)
+// =============================================================================
+// Admin endpoints for viewing and managing user consents.
+// Protected by adminAuthMiddleware (from /api/admin/*).
+
+app.get('/api/admin/users/:userId/consents', adminUserConsentsListHandler);
+app.delete('/api/admin/users/:userId/consents/:clientId', adminUserConsentRevokeHandler);
 
 // SCIM 2.0 endpoints - RFC 7643, 7644
 app.route('/scim/v2', scimApp);

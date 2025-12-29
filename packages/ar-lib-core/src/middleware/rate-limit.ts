@@ -13,6 +13,9 @@
 
 import type { Context, Next } from 'hono';
 import type { Env } from '../types/env';
+import { publishEvent } from '../utils/event-dispatcher-factory';
+import { SECURITY_EVENTS, type SecurityEventData } from '../types/events';
+import { getTenantIdFromContext } from './request-context';
 
 /**
  * Rate limit configuration
@@ -434,6 +437,33 @@ export function rateLimitMiddleware(config: RateLimitConfig) {
         const retryAfter = resetAt - Math.floor(Date.now() / 1000);
 
         c.header('Retry-After', retryAfter.toString());
+
+        // Publish rate limit exceeded event (non-blocking)
+        // Hash client IP for privacy (simple hash, not cryptographically secure)
+        const ipHash = await crypto.subtle
+          .digest('SHA-256', new TextEncoder().encode(clientIP))
+          .then((buf) =>
+            Array.from(new Uint8Array(buf).slice(0, 8))
+              .map((b) => b.toString(16).padStart(2, '0'))
+              .join('')
+          )
+          .catch(() => 'unknown');
+
+        publishEvent(c, {
+          type: SECURITY_EVENTS.RATE_LIMIT_EXCEEDED,
+          tenantId: getTenantIdFromContext(c),
+          data: {
+            endpoint: c.req.path,
+            clientIpHash: ipHash,
+            rateLimit: {
+              maxRequests: config.maxRequests,
+              windowSeconds: config.windowSeconds,
+              retryAfter,
+            },
+          } satisfies SecurityEventData,
+        }).catch((err: unknown) => {
+          console.error('[Event] Failed to publish security.rate_limit.exceeded:', err);
+        });
 
         return c.json(
           {

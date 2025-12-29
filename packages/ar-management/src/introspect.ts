@@ -15,6 +15,10 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  // Event System
+  publishEvent,
+  TOKEN_EVENTS,
+  type TokenEventData,
 } from '@authrim/ar-lib-core';
 import { importJWK, decodeProtectedHeader, type CryptoKey, type JWK } from 'jose';
 import { getIntrospectionValidationSettings } from './routes/settings/introspection-validation';
@@ -512,6 +516,21 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
     });
   }
   // ========== Cache active=true Response END ==========
+
+  // Publish introspection event (non-blocking)
+  // Only for active tokens - inactive responses don't need events
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ACCESS_INTROSPECTED,
+    tenantId,
+    data: {
+      jti,
+      clientId: client_id, // Requesting client (not token's client_id)
+      userId: sub || undefined,
+      scopes: scope ? scope.split(' ') : undefined,
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.access.introspected:', err);
+  });
 
   return c.json(response);
 }

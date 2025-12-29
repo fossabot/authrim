@@ -16,6 +16,10 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  // Event System
+  publishEvent,
+  TOKEN_EVENTS,
+  type TokenEventData,
 } from '@authrim/ar-lib-core';
 import { importJWK, decodeProtectedHeader, type CryptoKey, type JWK } from 'jose';
 
@@ -327,14 +331,18 @@ export async function revokeHandler(c: Context<{ Bindings: Env }>) {
   };
 
   // Determine token type and revoke accordingly
+  let revokedTokenType: 'access_token' | 'refresh_token' = 'access_token';
+
   if (token_type_hint === 'refresh_token') {
     // Revoke refresh token
     await deleteRefreshToken(c.env, jti, tokenClientId);
     // P1: Cascade - also revoke related access tokens
     await performCascadeRevocation(jti);
+    revokedTokenType = 'refresh_token';
   } else if (token_type_hint === 'access_token') {
     // Revoke access token
     await revokeToken(c.env, jti, expiresIn);
+    revokedTokenType = 'access_token';
   } else {
     // No hint provided, try both types
     // First, check if it's a refresh token (V2 API)
@@ -347,11 +355,31 @@ export async function revokeHandler(c: Context<{ Bindings: Env }>) {
       // P1: Cascade - also revoke related access tokens
       const familyId = refreshTokenData.familyId;
       await performCascadeRevocation(jti, familyId);
+      revokedTokenType = 'refresh_token';
     } else {
       // Assume it's an access token
       await revokeToken(c.env, jti, expiresIn);
+      revokedTokenType = 'access_token';
     }
   }
+
+  // Publish token revocation event (non-blocking)
+  const eventType =
+    revokedTokenType === 'refresh_token'
+      ? TOKEN_EVENTS.REFRESH_REVOKED
+      : TOKEN_EVENTS.ACCESS_REVOKED;
+  publishEvent(c, {
+    type: eventType,
+    tenantId,
+    data: {
+      jti,
+      clientId: client_id,
+      userId: userId || undefined,
+      grantType: 'revocation', // RFC 7009 revocation
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error(`[Event] Failed to publish ${eventType}:`, err);
+  });
 
   // Audit log for security monitoring
   console.log(

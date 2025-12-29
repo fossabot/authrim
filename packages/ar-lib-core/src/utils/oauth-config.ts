@@ -606,6 +606,161 @@ export class OAuthConfigManager {
   clearCache(): void {
     this.cache.clear();
   }
+
+  // ==========================================================================
+  // Consent Settings (from separate settings system)
+  // These read from CONSENT_* environment variables with KV override
+  // ==========================================================================
+
+  /**
+   * Check if granular scopes is enabled
+   * Allows users to select individual scopes on consent screen
+   */
+  async getConsentGranularScopes(): Promise<boolean> {
+    // Try KV first
+    if (this.kv) {
+      try {
+        const kvValue = await this.kv.get('consent:granular_scopes');
+        if (kvValue !== null) {
+          return kvValue.toLowerCase() === 'true' || kvValue === '1';
+        }
+      } catch {
+        // Fall through to env
+      }
+    }
+    // Read from env (CONSENT_GRANULAR_SCOPES)
+    const envValue = (this.envConfig as unknown as Record<string, string>).CONSENT_GRANULAR_SCOPES;
+    return envValue?.toLowerCase() === 'true' || envValue === '1';
+  }
+
+  /**
+   * Check if consent expiration is enabled
+   */
+  async getConsentExpirationEnabled(): Promise<boolean> {
+    // Try KV first
+    if (this.kv) {
+      try {
+        const kvValue = await this.kv.get('consent:expiration_enabled');
+        if (kvValue !== null) {
+          return kvValue.toLowerCase() === 'true' || kvValue === '1';
+        }
+      } catch {
+        // Fall through to env
+      }
+    }
+    // Read from env (CONSENT_EXPIRATION_ENABLED)
+    const envValue = (this.envConfig as unknown as Record<string, string>)
+      .CONSENT_EXPIRATION_ENABLED;
+    return envValue?.toLowerCase() === 'true' || envValue === '1';
+  }
+
+  /**
+   * Get default consent expiration in days
+   * Returns 0 if expiration is disabled
+   */
+  async getConsentDefaultExpirationDays(): Promise<number> {
+    // Try KV first
+    if (this.kv) {
+      try {
+        const kvValue = await this.kv.get('consent:default_expiration_days');
+        if (kvValue !== null) {
+          const parsed = parseInt(kvValue, 10);
+          if (!isNaN(parsed) && parsed >= 0) {
+            return parsed;
+          }
+        }
+      } catch {
+        // Fall through to env
+      }
+    }
+    // Read from env (CONSENT_DEFAULT_EXPIRATION_DAYS)
+    const envValue = (this.envConfig as unknown as Record<string, string>)
+      .CONSENT_DEFAULT_EXPIRATION_DAYS;
+    if (envValue) {
+      const parsed = parseInt(envValue, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        return parsed;
+      }
+    }
+    return 0; // Default: no expiration
+  }
+
+  /**
+   * Check if policy versioning is enabled
+   */
+  async getConsentVersioningEnabled(): Promise<boolean> {
+    // Try KV first
+    if (this.kv) {
+      try {
+        const kvValue = await this.kv.get('consent:versioning_enabled');
+        if (kvValue !== null) {
+          return kvValue.toLowerCase() === 'true' || kvValue === '1';
+        }
+      } catch {
+        // Fall through to env
+      }
+    }
+    // Read from env (CONSENT_VERSIONING_ENABLED)
+    const envValue = (this.envConfig as unknown as Record<string, string>)
+      .CONSENT_VERSIONING_ENABLED;
+    return envValue?.toLowerCase() === 'true' || envValue === '1';
+  }
+
+  /**
+   * Check if data export is enabled
+   */
+  async getConsentDataExportEnabled(): Promise<boolean> {
+    // Try KV first
+    if (this.kv) {
+      try {
+        const kvValue = await this.kv.get('consent:data_export_enabled');
+        if (kvValue !== null) {
+          return kvValue.toLowerCase() === 'true' || kvValue === '1';
+        }
+      } catch {
+        // Fall through to env
+      }
+    }
+    // Read from env (CONSENT_DATA_EXPORT_ENABLED)
+    const envValue = (this.envConfig as unknown as Record<string, string>)
+      .CONSENT_DATA_EXPORT_ENABLED;
+    // Default true if not set
+    if (envValue === undefined || envValue === '') {
+      return true;
+    }
+    return envValue.toLowerCase() === 'true' || envValue === '1';
+  }
+
+  /**
+   * Get data export sync threshold in KB
+   * Exports smaller than this will be synchronous, larger will be async
+   */
+  async getConsentDataExportSyncThresholdKB(): Promise<number> {
+    // Try KV first
+    if (this.kv) {
+      try {
+        const kvValue = await this.kv.get('consent:data_export_sync_threshold_kb');
+        if (kvValue !== null) {
+          const parsed = parseInt(kvValue, 10);
+          if (!isNaN(parsed) && parsed >= 64) {
+            return parsed;
+          }
+        }
+      } catch {
+        // Fall through to env
+      }
+    }
+    // Read from env (CONSENT_DATA_EXPORT_SYNC_THRESHOLD_KB)
+    const envValue = (this.envConfig as unknown as Record<string, string>)
+      .CONSENT_DATA_EXPORT_SYNC_THRESHOLD_KB;
+    if (envValue) {
+      const parsed = parseInt(envValue, 10);
+      if (!isNaN(parsed) && parsed >= 64) {
+        return parsed;
+      }
+    }
+    return 512; // Default: 512 KB
+  }
 }
 
 /**

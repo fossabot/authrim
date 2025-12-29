@@ -84,6 +84,8 @@ import { importPKCS8, importJWK, type CryptoKey } from 'jose';
 import { extractDPoPProof, validateDPoPProof } from '@authrim/ar-lib-core';
 import { parseDeviceCodeId, getDeviceCodeStoreById } from '@authrim/ar-lib-core';
 import { parseCIBARequestId, getCIBARequestStoreById } from '@authrim/ar-lib-core';
+// Event System
+import { publishEvent, TOKEN_EVENTS, type TokenEventData } from '@authrim/ar-lib-core';
 
 // ===== RFC 6750 Compliant Error Response Helpers =====
 // RFC 6750 Section 3: WWW-Authenticate header MUST be included in 401 responses
@@ -1445,6 +1447,50 @@ async function handleAuthorizationCodeGrant(
     }
   }
 
+  // Publish token events (non-blocking)
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ACCESS_ISSUED,
+    tenantId,
+    data: {
+      jti: tokenJti,
+      clientId: client_id,
+      userId: authCodeData.sub,
+      scopes: authCodeData.scope.split(' '),
+      expiresAt: nowEpoch + expiresIn,
+      grantType: 'authorization_code',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.access.issued:', err);
+  });
+
+  publishEvent(c, {
+    type: TOKEN_EVENTS.REFRESH_ISSUED,
+    tenantId,
+    data: {
+      jti: refreshTokenJti,
+      clientId: client_id,
+      userId: authCodeData.sub,
+      scopes: authCodeData.scope.split(' '),
+      grantType: 'authorization_code',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.refresh.issued:', err);
+  });
+
+  // ID Token issued event (OIDC flows always include ID token)
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ID_ISSUED,
+    tenantId,
+    data: {
+      clientId: client_id,
+      userId: authCodeData.sub,
+      grantType: 'authorization_code',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.id.issued:', err);
+  });
+
   return c.json(tokenResponse);
 }
 
@@ -1754,6 +1800,7 @@ async function handleRefreshTokenGrant(
 
   // Generate new Access Token
   let accessToken: string;
+  let accessTokenJti: string = '';
   try {
     const accessTokenClaims: {
       iss: string;
@@ -1794,6 +1841,7 @@ async function handleRefreshTokenGrant(
       regionAwareJti
     );
     accessToken = result.token;
+    accessTokenJti = result.jti;
   } catch (err) {
     console.error('Failed to create access token:', err);
     return oauthError(c, 'server_error', 'Failed to create access token', 500);
@@ -1943,6 +1991,51 @@ async function handleRefreshTokenGrant(
     // WARNING: This is less secure and should only be used for testing!
     newRefreshToken = refreshTokenValue;
     console.log('[TOKEN] Refresh token rotation disabled - returning same token');
+  }
+
+  // Publish token events (non-blocking)
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ACCESS_ISSUED,
+    tenantId,
+    data: {
+      jti: accessTokenJti,
+      clientId: client_id,
+      userId: refreshTokenData.sub,
+      scopes: grantedScope.split(' '),
+      expiresAt: nowEpoch + expiresIn,
+      grantType: 'refresh_token',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.access.issued:', err);
+  });
+
+  publishEvent(c, {
+    type: TOKEN_EVENTS.REFRESH_ROTATED,
+    tenantId,
+    data: {
+      clientId: client_id,
+      userId: refreshTokenData.sub,
+      scopes: grantedScope.split(' '),
+      grantType: 'refresh_token',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.refresh.rotated:', err);
+  });
+
+  // ID Token issued event (refresh grant can also issue new ID token)
+  if (idToken) {
+    publishEvent(c, {
+      type: TOKEN_EVENTS.ID_ISSUED,
+      tenantId,
+      data: {
+        clientId: client_id,
+        userId: refreshTokenData.sub,
+        grantType: 'refresh_token',
+      } satisfies TokenEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish token.id.issued:', err);
+    });
   }
 
   // Return token response
@@ -2099,6 +2192,7 @@ async function handleJWTBearerGrant(
   };
 
   let accessToken: string;
+  let accessTokenJti: string = '';
   try {
     // Generate region-aware JTI for token revocation sharding
     const { jti: regionAwareJti } = await generateRegionAwareJti(c.env);
@@ -2110,6 +2204,7 @@ async function handleJWTBearerGrant(
       regionAwareJti
     );
     accessToken = result.token;
+    accessTokenJti = result.jti;
   } catch (error) {
     console.error('Failed to create access token:', error);
     return c.json(
@@ -2124,6 +2219,23 @@ async function handleJWTBearerGrant(
   // JWT Bearer flow typically does NOT issue ID tokens or refresh tokens
   // It's for service-to-service authentication, not user authentication
   // Only access token is returned
+
+  // Publish token event (non-blocking)
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ACCESS_ISSUED,
+    tenantId: 'default', // JWT Bearer is for service-to-service, no tenant context
+    data: {
+      jti: accessTokenJti,
+      clientId: claims.iss, // Issuer acts as client_id for service accounts
+      userId: claims.sub,
+      scopes: grantedScope.split(' '),
+      expiresAt: nowEpoch + expiresIn,
+      grantType: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.access.issued:', err);
+  });
 
   // Return token response
   c.header('Cache-Control', 'no-store');
@@ -2432,6 +2544,7 @@ async function handleDeviceCodeGrant(
   }
 
   let accessToken: string;
+  let accessTokenJti: string = '';
   try {
     // Generate region-aware JTI for token revocation sharding
     const { jti: regionAwareJti } = await generateRegionAwareJti(c.env);
@@ -2443,6 +2556,7 @@ async function handleDeviceCodeGrant(
       regionAwareJti
     );
     accessToken = result.token;
+    accessTokenJti = result.jti;
   } catch (error) {
     console.error('Failed to create access token:', error);
     return c.json(
@@ -2500,6 +2614,52 @@ async function handleDeviceCodeGrant(
       },
       500
     );
+  }
+
+  // Publish token events (non-blocking)
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ACCESS_ISSUED,
+    tenantId: 'default', // Device flow uses default tenant
+    data: {
+      jti: accessTokenJti,
+      clientId: client_id,
+      userId: metadata.sub,
+      scopes: metadata.scope?.split(' ') ?? [],
+      expiresAt: nowEpoch + expiresIn,
+      grantType: 'urn:ietf:params:oauth:grant-type:device_code',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.access.issued:', err);
+  });
+
+  publishEvent(c, {
+    type: TOKEN_EVENTS.REFRESH_ISSUED,
+    tenantId: 'default',
+    data: {
+      jti: refreshJti,
+      clientId: client_id,
+      userId: metadata.sub,
+      scopes: metadata.scope?.split(' ') ?? [],
+      grantType: 'urn:ietf:params:oauth:grant-type:device_code',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.refresh.issued:', err);
+  });
+
+  // ID Token issued event (device code grant)
+  if (idToken) {
+    publishEvent(c, {
+      type: TOKEN_EVENTS.ID_ISSUED,
+      tenantId: 'default',
+      data: {
+        clientId: client_id,
+        userId: metadata.sub,
+        grantType: 'urn:ietf:params:oauth:grant-type:device_code',
+      } satisfies TokenEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish token.id.issued:', err);
+    });
   }
 
   // Return token response
@@ -2938,6 +3098,52 @@ async function handleCIBAGrant(c: Context<{ Bindings: Env }>, formData: Record<s
       body: JSON.stringify({ auth_req_id: authReqId }),
     })
   );
+
+  // Publish token events (non-blocking)
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ACCESS_ISSUED,
+    tenantId: 'default', // CIBA uses default tenant
+    data: {
+      jti: tokenJti,
+      clientId: metadata.client_id,
+      userId: metadata.sub,
+      scopes: metadata.scope?.split(' ') ?? [],
+      expiresAt: nowEpoch + expiresIn,
+      grantType: 'urn:openid:params:grant-type:ciba',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.access.issued:', err);
+  });
+
+  publishEvent(c, {
+    type: TOKEN_EVENTS.REFRESH_ISSUED,
+    tenantId: 'default',
+    data: {
+      jti: refreshTokenJti,
+      clientId: metadata.client_id,
+      userId: metadata.sub,
+      scopes: metadata.scope?.split(' ') ?? [],
+      grantType: 'urn:openid:params:grant-type:ciba',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.refresh.issued:', err);
+  });
+
+  // ID Token issued event (CIBA grant)
+  if (idToken) {
+    publishEvent(c, {
+      type: TOKEN_EVENTS.ID_ISSUED,
+      tenantId: 'default',
+      data: {
+        clientId: metadata.client_id,
+        userId: metadata.sub,
+        grantType: 'urn:openid:params:grant-type:ciba',
+      } satisfies TokenEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish token.id.issued:', err);
+    });
+  }
 
   // Return token response
   c.header('Cache-Control', 'no-store');
@@ -3811,6 +4017,23 @@ async function handleTokenExchangeGrant(
     jti: accessTokenJti,
   });
 
+  // Publish token event (non-blocking)
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ACCESS_ISSUED,
+    tenantId,
+    data: {
+      jti: accessTokenJti,
+      clientId: client_id,
+      userId: subjectSub,
+      scopes: grantedScope.split(' '),
+      expiresAt: nowEpoch + expiresIn,
+      grantType: 'urn:ietf:params:oauth:grant-type:token-exchange',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.access.issued:', err);
+  });
+
   // Set cache control headers
   c.header('Cache-Control', 'no-store');
   c.header('Pragma', 'no-cache');
@@ -4317,6 +4540,36 @@ async function handleNativeSSOTokenExchange(
     access_token_jti: accessTokenJti,
   });
 
+  // Publish token event (non-blocking)
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ACCESS_ISSUED,
+    tenantId: 'default', // Native SSO uses default tenant
+    data: {
+      jti: accessTokenJti,
+      clientId,
+      userId: idTokenSub,
+      scopes: grantedScope.split(' '),
+      expiresAt: nowEpoch + expiresIn,
+      grantType: 'urn:ietf:params:oauth:grant-type:token-exchange', // Native SSO uses token-exchange
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.access.issued:', err);
+  });
+
+  // ID Token issued event (Native SSO token exchange)
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ID_ISSUED,
+    tenantId: 'default',
+    data: {
+      clientId,
+      userId: idTokenSub,
+      grantType: 'urn:ietf:params:oauth:grant-type:token-exchange',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.id.issued:', err);
+  });
+
   // Set cache control headers
   c.header('Cache-Control', 'no-store');
   c.header('Pragma', 'no-cache');
@@ -4577,6 +4830,7 @@ async function handleClientCredentialsGrant(
   };
 
   let accessToken: string;
+  let accessTokenJti: string = '';
   try {
     // Generate region-aware JTI for token revocation sharding
     const { jti: regionAwareJti } = await generateRegionAwareJti(c.env);
@@ -4588,12 +4842,31 @@ async function handleClientCredentialsGrant(
       regionAwareJti
     );
     accessToken = result.token;
+    accessTokenJti = result.jti;
   } catch (error) {
     console.error('Failed to create access token:', error);
     return oauthError(c, 'server_error', 'Failed to create access token', 500);
   }
 
   // Client Credentials does NOT issue refresh tokens (per RFC 6749)
+
+  // Publish token event (non-blocking)
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  publishEvent(c, {
+    type: TOKEN_EVENTS.ACCESS_ISSUED,
+    tenantId,
+    data: {
+      jti: accessTokenJti,
+      clientId: client_id!,
+      // Client Credentials is M2M - the client is the subject
+      userId: `client:${client_id}`,
+      scopes: grantedScope.split(' '),
+      expiresAt: nowEpoch + expiresIn,
+      grantType: 'client_credentials',
+    } satisfies TokenEventData,
+  }).catch((err: unknown) => {
+    console.error('[Event] Failed to publish token.access.issued:', err);
+  });
 
   // Set cache control headers
   c.header('Cache-Control', 'no-store');

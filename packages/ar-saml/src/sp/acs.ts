@@ -19,6 +19,12 @@ import {
   getUIConfig,
   getTenantIdFromContext,
   buildIssuerUrl,
+  // Event System
+  publishEvent,
+  AUTH_EVENTS,
+  SESSION_EVENTS,
+  type AuthEventData,
+  type SessionEventData,
 } from '@authrim/ar-lib-core';
 import {
   parseXml,
@@ -154,6 +160,34 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
     // Create session
     const sessionId = await createSession(env, userId);
 
+    // Publish SAML authentication success event (non-blocking)
+    const tenantId = getTenantIdFromContext(c);
+    publishEvent(c, {
+      type: AUTH_EVENTS.SAML_SUCCEEDED,
+      tenantId,
+      data: {
+        userId,
+        method: 'saml',
+        clientId: 'saml-sp', // SAML SP acts as the client
+        sessionId,
+      } satisfies AuthEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish auth.saml.succeeded:', err);
+    });
+
+    // Publish session created event (non-blocking)
+    publishEvent(c, {
+      type: SESSION_EVENTS.USER_CREATED,
+      tenantId,
+      data: {
+        sessionId,
+        userId,
+        ttlSeconds: 3600,
+      } satisfies SessionEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish session.user.created:', err);
+    });
+
     // Determine redirect URL
     let returnUrl = relayState;
     if (!returnUrl) {
@@ -172,6 +206,21 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
     });
   } catch (error) {
     console.error('ACS Error:', error);
+
+    // Publish SAML authentication failure event (non-blocking)
+    const failureTenantId = getTenantIdFromContext(c);
+    publishEvent(c, {
+      type: AUTH_EVENTS.SAML_FAILED,
+      tenantId: failureTenantId,
+      data: {
+        method: 'saml',
+        clientId: 'saml-sp',
+        errorCode: error instanceof Error ? error.message : 'unknown_error',
+      } satisfies AuthEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish auth.saml.failed:', err);
+    });
+
     return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

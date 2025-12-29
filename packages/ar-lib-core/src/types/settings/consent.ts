@@ -25,6 +25,18 @@ export interface ConsentSettings {
   // Consent Cache
   'consent.cache_ttl': number;
   'consent.skip_for_first_party': boolean;
+
+  // Policy Versioning
+  'consent.versioning_enabled': boolean;
+
+  // Consent Expiration
+  'consent.expiration_enabled': boolean;
+  'consent.default_expiration_days': number;
+
+  // Data Export (GDPR)
+  'consent.data_export_enabled': boolean;
+  'consent.data_export_retention_days': number;
+  'consent.data_export_sync_threshold_kb': number;
 }
 
 /**
@@ -109,6 +121,66 @@ export const CONSENT_SETTINGS_META: Record<keyof ConsentSettings, SettingMeta> =
     description: 'Skip consent screen for first-party applications',
     visibility: 'admin',
   },
+  'consent.versioning_enabled': {
+    key: 'consent.versioning_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'CONSENT_VERSIONING_ENABLED',
+    label: 'Policy Versioning',
+    description: 'Enable policy version tracking and re-consent on policy updates',
+    visibility: 'admin',
+  },
+  'consent.expiration_enabled': {
+    key: 'consent.expiration_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'CONSENT_EXPIRATION_ENABLED',
+    label: 'Consent Expiration',
+    description: 'Enable automatic consent expiration',
+    visibility: 'admin',
+  },
+  'consent.default_expiration_days': {
+    key: 'consent.default_expiration_days',
+    type: 'number',
+    default: 0,
+    envKey: 'CONSENT_DEFAULT_EXPIRATION_DAYS',
+    label: 'Default Expiration (Days)',
+    description: 'Default consent expiration in days (0 = no expiration)',
+    min: 0,
+    max: 3650,
+    visibility: 'admin',
+  },
+  'consent.data_export_enabled': {
+    key: 'consent.data_export_enabled',
+    type: 'boolean',
+    default: true,
+    envKey: 'CONSENT_DATA_EXPORT_ENABLED',
+    label: 'Data Export (GDPR)',
+    description: 'Allow users to export their personal data',
+    visibility: 'admin',
+  },
+  'consent.data_export_retention_days': {
+    key: 'consent.data_export_retention_days',
+    type: 'number',
+    default: 7,
+    envKey: 'CONSENT_DATA_EXPORT_RETENTION_DAYS',
+    label: 'Export Retention (Days)',
+    description: 'How long to keep generated export files',
+    min: 1,
+    max: 30,
+    visibility: 'admin',
+  },
+  'consent.data_export_sync_threshold_kb': {
+    key: 'consent.data_export_sync_threshold_kb',
+    type: 'number',
+    default: 512,
+    envKey: 'CONSENT_DATA_EXPORT_SYNC_THRESHOLD_KB',
+    label: 'Sync Export Threshold (KB)',
+    description: 'Maximum size for synchronous export (larger exports run async)',
+    min: 64,
+    max: 2048,
+    visibility: 'admin',
+  },
 };
 
 /**
@@ -133,4 +205,10 @@ export const CONSENT_DEFAULTS: ConsentSettings = {
   'consent.granular_scopes': false,
   'consent.cache_ttl': 86400,
   'consent.skip_for_first_party': false,
+  'consent.versioning_enabled': false,
+  'consent.expiration_enabled': false,
+  'consent.default_expiration_days': 0,
+  'consent.data_export_enabled': true,
+  'consent.data_export_retention_days': 7,
+  'consent.data_export_sync_threshold_kb': 512,
 };

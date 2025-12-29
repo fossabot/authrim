@@ -16,6 +16,12 @@ import {
   buildIssuerUrl,
   shouldUseBuiltinForms,
   getTenantIdFromContext,
+  // Event System
+  publishEvent,
+  AUTH_EVENTS,
+  SESSION_EVENTS,
+  type AuthEventData,
+  type SessionEventData,
 } from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
@@ -103,9 +109,12 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
     return redirectWithError(c, 'invalid_request', 'Missing code or state');
   }
 
+  // Declare provider outside try block so it's accessible in catch block for event logging
+  let provider: UpstreamProvider | null = null;
+
   try {
     // 1. Get provider configuration first (by slug or ID)
-    const provider = await getProviderByIdOrSlug(c.env, providerIdOrSlug, tenantId);
+    provider = await getProviderByIdOrSlug(c.env, providerIdOrSlug, tenantId);
     if (!provider) {
       return redirectWithError(c, 'unknown_provider', 'Provider not found');
     }
@@ -253,7 +262,33 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       acr: userInfo.acr, // Pass ACR if provider returned it
     });
 
-    // 9. Build redirect URL with success
+    // 9. Publish authentication success events (non-blocking)
+    publishEvent(c, {
+      type: AUTH_EVENTS.EXTERNAL_IDP_SUCCEEDED,
+      tenantId: authState.tenantId,
+      data: {
+        userId: result.userId,
+        method: 'external_idp',
+        clientId: provider.id,
+        sessionId,
+      } satisfies AuthEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish auth.external_idp.succeeded:', err);
+    });
+
+    publishEvent(c, {
+      type: SESSION_EVENTS.USER_CREATED,
+      tenantId: authState.tenantId,
+      data: {
+        sessionId,
+        userId: result.userId,
+        ttlSeconds: 3600,
+      } satisfies SessionEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish session.user.created:', err);
+    });
+
+    // 10. Build redirect URL with success
     const redirectUrl = new URL(authState.redirectUri);
 
     // Add success indicator
@@ -265,7 +300,7 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       redirectUrl.searchParams.set('external_auth', 'success');
     }
 
-    // 10. Return redirect with session cookie
+    // 11. Return redirect with session cookie
     return new Response(null, {
       status: 302,
       headers: {
@@ -275,6 +310,28 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
     });
   } catch (error) {
     console.error('Callback error:', error);
+
+    // Determine error code for event
+    let errorCode: string = ExternalIdPErrorCode.CALLBACK_FAILED;
+    if (error instanceof ExternalIdPError) {
+      errorCode = error.code;
+    } else if (error instanceof Error && error.message.includes('acr')) {
+      errorCode = ExternalIdPErrorCode.ACR_VALUES_NOT_SATISFIED;
+    }
+
+    // Publish authentication failure event (non-blocking)
+    // SECURITY: Use validated provider.id, fallback to 'invalid_provider' to prevent log injection
+    publishEvent(c, {
+      type: AUTH_EVENTS.EXTERNAL_IDP_FAILED,
+      tenantId,
+      data: {
+        method: 'external_idp',
+        clientId: provider?.id || 'invalid_provider',
+        errorCode,
+      } satisfies AuthEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish auth.external_idp.failed:', err);
+    });
 
     // Handle specific ExternalIdPError with appropriate error codes
     // SECURITY: Do not expose internal error details in redirect URL

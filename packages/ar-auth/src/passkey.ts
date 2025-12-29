@@ -19,6 +19,12 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  // Event System
+  publishEvent,
+  AUTH_EVENTS,
+  SESSION_EVENTS,
+  type AuthEventData,
+  type SessionEventData,
 } from '@authrim/ar-lib-core';
 import {
   generateRegistrationOptions,
@@ -651,6 +657,20 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
     }
 
     if (!passkey) {
+      // Publish auth.passkey.failed event (non-blocking)
+      // Security: Don't include userId to prevent enumeration
+      publishEvent(c, {
+        type: AUTH_EVENTS.PASSKEY_FAILED,
+        tenantId,
+        data: {
+          method: 'passkey',
+          clientId: 'passkey-auth',
+          errorCode: 'credential_not_found',
+        } satisfies AuthEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish auth.passkey.failed:', err);
+      });
+
       // Security: Generic message to prevent passkey enumeration
       return createErrorResponse(c, AR_ERROR_CODES.AUTH_PASSKEY_FAILED);
     }
@@ -699,6 +719,19 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
         },
       } as any);
     } catch (error) {
+      // Publish auth.passkey.failed event (non-blocking)
+      publishEvent(c, {
+        type: AUTH_EVENTS.PASSKEY_FAILED,
+        tenantId,
+        data: {
+          method: 'passkey',
+          clientId: 'passkey-auth',
+          errorCode: 'verification_exception',
+        } satisfies AuthEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish auth.passkey.failed:', err);
+      });
+
       // PII Protection: Don't log full error
       console.error(
         'Authentication verification failed:',
@@ -710,6 +743,19 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
     const { verified, authenticationInfo } = verification;
 
     if (!verified) {
+      // Publish auth.passkey.failed event (non-blocking)
+      publishEvent(c, {
+        type: AUTH_EVENTS.PASSKEY_FAILED,
+        tenantId,
+        data: {
+          method: 'passkey',
+          clientId: 'passkey-auth',
+          errorCode: 'verification_failed',
+        } satisfies AuthEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish auth.passkey.failed:', err);
+      });
+
       return createErrorResponse(c, AR_ERROR_CODES.AUTH_PASSKEY_FAILED);
     }
 
@@ -769,6 +815,34 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
 
     // Note: Challenge is already consumed by ChallengeStore DO (atomic operation)
     // No need to explicitly delete - consumed challenges are auto-cleaned by DO
+
+    // Publish auth.passkey.succeeded event (non-blocking)
+    publishEvent(c, {
+      type: AUTH_EVENTS.PASSKEY_SUCCEEDED,
+      tenantId,
+      data: {
+        userId: passkey.user_id,
+        method: 'passkey',
+        clientId: 'passkey-auth', // Direct passkey auth has no OAuth client
+        sessionId: sessionData.id,
+      } satisfies AuthEventData,
+    }).catch((err) => {
+      // Non-blocking: log error but don't fail the request
+      console.error('[Event] Failed to publish auth.passkey.succeeded:', err);
+    });
+
+    // Publish session.user.created event (non-blocking)
+    publishEvent(c, {
+      type: SESSION_EVENTS.USER_CREATED,
+      tenantId,
+      data: {
+        sessionId: sessionData.id,
+        userId: passkey.user_id,
+        ttlSeconds: 30 * 24 * 60 * 60, // 30 days
+      } satisfies SessionEventData,
+    }).catch((err) => {
+      console.error('[Event] Failed to publish session.user.created:', err);
+    });
 
     return c.json({
       verified: true,

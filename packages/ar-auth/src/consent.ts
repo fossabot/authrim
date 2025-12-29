@@ -21,6 +21,8 @@ import type {
   ConsentClientInfo,
   ConsentScopeInfo,
   ConsentChallengeMetadata,
+  ExtendedConsentScreenData,
+  ExtendedConsentEventData,
 } from '@authrim/ar-lib-core';
 import {
   getConsentRBACData,
@@ -32,6 +34,15 @@ import {
   getChallengeStoreByChallengeId,
   createAuthContextFromHono,
   getTenantIdFromContext,
+  createOAuthConfigManager,
+  // Event System
+  publishEvent,
+  CONSENT_EVENTS,
+  type ConsentEventData,
+  // Consent Versioning
+  getCurrentPolicyVersions,
+  checkRequiresReconsent,
+  recordConsentHistory,
 } from '@authrim/ar-lib-core';
 
 // Scope descriptions (human-readable)
@@ -276,8 +287,63 @@ async function handleJsonConsentGet(
     roles = await getRolesInOrganization(c.env.DB, userId, targetOrgId);
   }
 
-  // Build response
-  const responseData: ConsentScreenData = {
+  // Get consent settings
+  const tenantId = getTenantIdFromContext(c);
+  const authCtx = createAuthContextFromHono(c, tenantId);
+  const configManager = createOAuthConfigManager(c.env);
+
+  // Check versioning and re-consent requirements
+  const versioningEnabled = await configManager.getConsentVersioningEnabled();
+  const granularScopesEnabled = await configManager.getConsentGranularScopes();
+
+  let versioningInfo:
+    | {
+        requiresReconsent: boolean;
+        changedPolicies: string[];
+        currentVersions: {
+          privacyPolicy?: { version: string; policyUri?: string };
+          termsOfService?: { version: string; policyUri?: string };
+        };
+      }
+    | undefined;
+
+  if (versioningEnabled) {
+    // Get current policy versions
+    const currentVersions = await getCurrentPolicyVersions(authCtx.coreAdapter, tenantId);
+
+    // Check if re-consent is needed due to policy changes
+    const reconsentCheck = await checkRequiresReconsent(
+      authCtx.coreAdapter,
+      userId,
+      clientRow.client_id,
+      tenantId,
+      currentVersions
+    );
+
+    versioningInfo = {
+      requiresReconsent: reconsentCheck.requiresReconsent,
+      changedPolicies: reconsentCheck.changedPolicies,
+      currentVersions: currentVersions
+        ? {
+            privacyPolicy: currentVersions.privacyPolicy
+              ? {
+                  version: currentVersions.privacyPolicy.version,
+                  policyUri: currentVersions.privacyPolicy.policyUri,
+                }
+              : undefined,
+            termsOfService: currentVersions.termsOfService
+              ? {
+                  version: currentVersions.termsOfService.version,
+                  policyUri: currentVersions.termsOfService.policyUri,
+                }
+              : undefined,
+          }
+        : {},
+    };
+  }
+
+  // Build response with extended data
+  const responseData: ExtendedConsentScreenData = {
     challenge_id,
     client,
     scopes: scopeDetails,
@@ -288,6 +354,9 @@ async function handleJsonConsentGet(
     acting_as: actingAsInfo,
     target_org_id: targetOrgId,
     features,
+    // Extended consent features
+    granular_scopes_enabled: granularScopesEnabled,
+    versioning: versioningInfo,
   };
 
   return c.json(responseData);
@@ -449,6 +518,11 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
     let selected_org_id: string | undefined;
     let acting_as_user_id: string | undefined;
 
+    let selected_scopes: string[] | undefined;
+    let acknowledged_policy_versions:
+      | { privacy_policy?: string; terms_of_service?: string }
+      | undefined;
+
     if (contentType.includes('application/json')) {
       // Parse JSON body
       const jsonBody = await c.req.json<{
@@ -457,11 +531,14 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
         selected_org_id?: string;
         acting_as_user_id?: string;
         selected_scopes?: string[];
+        acknowledged_policy_versions?: { privacy_policy?: string; terms_of_service?: string };
       }>();
       challenge_id = jsonBody.challenge_id;
       approved = jsonBody.approved === true;
       selected_org_id = jsonBody.selected_org_id;
       acting_as_user_id = jsonBody.acting_as_user_id;
+      selected_scopes = jsonBody.selected_scopes;
+      acknowledged_policy_versions = jsonBody.acknowledged_policy_versions;
     } else {
       // Parse form data
       const body = await c.req.parseBody();
@@ -470,6 +547,7 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
       selected_org_id = typeof body.selected_org_id === 'string' ? body.selected_org_id : undefined;
       acting_as_user_id =
         typeof body.acting_as_user_id === 'string' ? body.acting_as_user_id : undefined;
+      // Form data doesn't support selected_scopes (use JSON for granular consent)
     }
 
     if (!challenge_id) {
@@ -513,6 +591,21 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
     // If denied, redirect with error
     // User cancellation uses cancel_uri (Authrim Extension) if available
     if (!approved) {
+      const tenantId = getTenantIdFromContext(c);
+
+      // Publish consent.denied event (non-blocking)
+      publishEvent(c, {
+        type: CONSENT_EVENTS.DENIED,
+        tenantId,
+        data: {
+          userId,
+          clientId: metadata.client_id as string,
+          scopes: (metadata.scope as string).split(' '),
+        } satisfies ConsentEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish consent.denied:', err);
+      });
+
       const redirectUri = metadata.redirect_uri as string;
       const cancelUri = metadata.cancel_uri as string | undefined;
 
@@ -534,11 +627,10 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // Save consent via Adapter (database-agnostic)
-    const scope = metadata.scope as string;
+    const requestedScope = metadata.scope as string;
     const client_id = metadata.client_id as string;
     const consentId = crypto.randomUUID();
     const now = Date.now();
-    const expiresAt = null; // No expiration (permanent consent)
 
     // Use selected_org_id if provided, otherwise use metadata.org_id
     const effectiveOrgId = selected_org_id || metadata.org_id || null;
@@ -547,25 +639,153 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
     const tenantId = getTenantIdFromContext(c);
     const authCtx = createAuthContextFromHono(c, tenantId);
 
+    // Get settings for granular scopes and expiration
+    const configManager = createOAuthConfigManager(c.env);
+    const granularScopesEnabled = await configManager.getConsentGranularScopes();
+    const expirationEnabled = await configManager.getConsentExpirationEnabled();
+    const defaultExpirationDays = await configManager.getConsentDefaultExpirationDays();
+
+    // Determine effective scope (granular scopes or all requested)
+    let effectiveScope = requestedScope;
+    let selectedScopesJson: string | null = null;
+
+    if (granularScopesEnabled && selected_scopes && selected_scopes.length > 0) {
+      // Validate: openid is required and cannot be deselected
+      if (!selected_scopes.includes('openid')) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'The openid scope is required and cannot be deselected',
+          },
+          400
+        );
+      }
+
+      // Filter to only include scopes that were originally requested
+      const requestedScopeList = requestedScope.split(' ');
+      const validSelectedScopes = selected_scopes.filter((s) => requestedScopeList.includes(s));
+
+      if (validSelectedScopes.length === 0) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'At least one valid scope must be selected',
+          },
+          400
+        );
+      }
+
+      effectiveScope = validSelectedScopes.join(' ');
+      selectedScopesJson = JSON.stringify(validSelectedScopes);
+    }
+
+    // Calculate expiration if enabled
+    let expiresAt: number | null = null;
+    if (expirationEnabled && defaultExpirationDays > 0) {
+      expiresAt = now + defaultExpirationDays * 24 * 60 * 60 * 1000;
+    }
+
+    // Get policy versions if versioning is enabled
+    const privacyPolicyVersion = acknowledged_policy_versions?.privacy_policy || null;
+    const tosVersion = acknowledged_policy_versions?.terms_of_service || null;
+
+    // Insert or update consent with new columns
     await authCtx.coreAdapter.execute(
       `INSERT OR REPLACE INTO oauth_client_consents
-       (id, user_id, client_id, scope, granted_at, expires_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [consentId, userId, client_id, scope, now, expiresAt, now, now]
+       (id, user_id, client_id, scope, selected_scopes, granted_at, expires_at,
+        privacy_policy_version, tos_version, consent_version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
+        COALESCE((SELECT consent_version + 1 FROM oauth_client_consents WHERE user_id = ? AND client_id = ?), 1),
+        COALESCE((SELECT created_at FROM oauth_client_consents WHERE user_id = ? AND client_id = ?), ?),
+        ?)`,
+      [
+        consentId,
+        userId,
+        client_id,
+        effectiveScope,
+        selectedScopesJson,
+        now,
+        expiresAt,
+        privacyPolicyVersion,
+        tosVersion,
+        userId,
+        client_id,
+        userId,
+        client_id,
+        now,
+        now,
+      ]
     );
 
     // Invalidate consent cache so next check reflects updated consent
     await invalidateConsentCache(c.env, userId, client_id);
 
+    // Check if versioning is enabled for history recording
+    const versioningEnabled = await configManager.getConsentVersioningEnabled();
+
+    // Determine if this is a new consent or update
+    // (We check by looking at consent_history or by the presence of policy versions)
+    const isVersionUpgrade = versioningEnabled && (privacyPolicyVersion || tosVersion);
+
+    // Record consent history for audit trail (GDPR compliance)
+    if (versioningEnabled) {
+      try {
+        await recordConsentHistory(authCtx.coreAdapter, {
+          tenantId,
+          userId,
+          clientId: client_id,
+          action: isVersionUpgrade ? 'version_upgraded' : 'granted',
+          scopesAfter: effectiveScope.split(' '),
+          privacyPolicyVersion: privacyPolicyVersion ?? undefined,
+          tosVersion: tosVersion ?? undefined,
+          userAgent: c.req.header('User-Agent'),
+        });
+      } catch (historyError) {
+        console.error('[Consent] Failed to record history:', historyError);
+        // Non-blocking - don't fail the consent flow
+      }
+    }
+
+    // Publish consent.granted event (non-blocking)
+    publishEvent(c, {
+      type: CONSENT_EVENTS.GRANTED,
+      tenantId,
+      data: {
+        userId,
+        clientId: client_id,
+        scopes: effectiveScope.split(' '),
+      } satisfies ConsentEventData,
+    }).catch((err) => {
+      console.error('[Event] Failed to publish consent.granted:', err);
+    });
+
+    // Publish VERSION_UPGRADED event if policy versions were acknowledged
+    if (isVersionUpgrade) {
+      publishEvent(c, {
+        type: CONSENT_EVENTS.VERSION_UPGRADED,
+        tenantId,
+        data: {
+          userId,
+          clientId: client_id,
+          scopes: effectiveScope.split(' '),
+          newPrivacyPolicyVersion: privacyPolicyVersion ?? undefined,
+          newTosVersion: tosVersion ?? undefined,
+        } satisfies ExtendedConsentEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish consent.version_upgraded:', err);
+      });
+    }
+
     // PII Protection: Don't log userId (can be used for user tracking)
-    console.log(`Consent granted: scope=${scope}`);
+    console.log(`Consent granted: scope=${effectiveScope}`);
 
     // Build query string for internal redirect to /authorize
     const params = new URLSearchParams();
     if (metadata.response_type) params.set('response_type', metadata.response_type as string);
     if (metadata.client_id) params.set('client_id', metadata.client_id as string);
     if (metadata.redirect_uri) params.set('redirect_uri', metadata.redirect_uri as string);
-    if (metadata.scope) params.set('scope', metadata.scope as string);
+    // Use effective scope (may be reduced if granular scopes is enabled)
+    params.set('scope', effectiveScope);
     if (metadata.state) params.set('state', metadata.state as string);
     if (metadata.nonce) params.set('nonce', metadata.nonce as string);
     if (metadata.code_challenge) params.set('code_challenge', metadata.code_challenge as string);

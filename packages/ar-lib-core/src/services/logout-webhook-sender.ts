@@ -31,6 +31,16 @@ import type {
 } from '../types/logout';
 import { LOGOUT_WEBHOOK_KV_PREFIXES, DEFAULT_LOGOUT_WEBHOOK_CONFIG } from '../types/logout';
 
+// Re-export common webhook utilities from webhook-sender
+import {
+  generateWebhookSignature as generateSig,
+  verifyWebhookSignature as verifySig,
+  sendWebhook,
+  isRetryableError,
+  calculateRetryDelay,
+  type WebhookRetryConfig,
+} from './webhook-sender';
+
 /**
  * Parameters for creating a webhook payload
  */
@@ -77,72 +87,25 @@ export function createWebhookPayload(params: CreateWebhookPayloadParams): Logout
 /**
  * Generate HMAC-SHA256 signature for webhook payload
  *
+ * Re-exported from webhook-sender for backwards compatibility.
+ *
  * @param payload - JSON payload to sign
  * @param secret - Webhook secret (decrypted)
- * @returns Base64-encoded signature
+ * @returns Hex-encoded signature
  */
-export async function generateWebhookSignature(payload: string, secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const data = encoder.encode(payload);
-
-  const key = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  const signature = await crypto.subtle.sign('HMAC', key, data);
-  const signatureArray = new Uint8Array(signature);
-
-  // Convert to hex string
-  return Array.from(signatureArray)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
+export const generateWebhookSignature = generateSig;
 
 /**
  * Verify HMAC-SHA256 signature (for testing/documentation)
+ *
+ * Re-exported from webhook-sender for backwards compatibility.
  *
  * @param payload - JSON payload that was signed
  * @param signature - Hex-encoded signature to verify
  * @param secret - Webhook secret
  * @returns Whether the signature is valid
  */
-export async function verifyWebhookSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): Promise<boolean> {
-  const expectedSignature = await generateWebhookSignature(payload, secret);
-  return timingSafeEqual(signature, expectedSignature);
-}
-
-/**
- * Timing-safe string comparison
- *
- * SECURITY: Avoids early return on length mismatch to prevent timing attacks.
- * Always performs comparison on the longer length to maintain constant time.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  // Track length mismatch without early return
-  const lengthMismatch = a.length !== b.length ? 1 : 0;
-
-  // Compare using the longer length to ensure constant-time execution
-  const maxLength = Math.max(a.length, b.length);
-  let result = lengthMismatch;
-
-  for (let i = 0; i < maxLength; i++) {
-    // Use 0 as fallback for out-of-bounds access (safe because we track length mismatch)
-    const charA = i < a.length ? a.charCodeAt(i) : 0;
-    const charB = i < b.length ? b.charCodeAt(i) : 0;
-    result |= charA ^ charB;
-  }
-
-  return result === 0;
-}
+export const verifyWebhookSignature = verifySig;
 
 /**
  * Parameters for sending a webhook
@@ -161,77 +124,51 @@ export interface SendWebhookParams {
 /**
  * Send a logout webhook notification
  *
+ * Uses the common sendWebhook function from webhook-sender.
+ *
  * @param params - Send parameters
  * @returns Result of the send attempt
  */
 export async function sendLogoutWebhook(
   params: SendWebhookParams
 ): Promise<{ success: boolean; statusCode?: number; error?: string }> {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const deliveryId = crypto.randomUUID();
+  const result = await sendWebhook({
+    url: params.webhookUri,
+    payload: params.payload,
+    signature: params.signature,
+    timeoutMs: params.timeoutMs,
+  });
 
-  try {
-    const response = await fetch(params.webhookUri, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Authrim-Signature-256': `sha256=${params.signature}`,
-        'X-Authrim-Timestamp': timestamp.toString(),
-        'X-Authrim-Delivery': deliveryId,
-        'Cache-Control': 'no-store',
-        'User-Agent': 'Authrim-Webhook/1.0',
-      },
-      body: params.payload,
-      signal: AbortSignal.timeout(params.timeoutMs),
-    });
-
-    // 200-299 = success
-    if (response.ok) {
-      return { success: true, statusCode: response.status };
-    }
-
-    // 400 Bad Request = receiver rejected the webhook (do not retry)
-    if (response.status === 400) {
-      const errorBody = await response.text().catch(() => '');
-      return {
-        success: false,
-        statusCode: response.status,
-        error: `rejected_by_receiver: ${errorBody.slice(0, 200)}`,
-      };
-    }
-
-    // Other errors may be transient (can retry)
-    return {
-      success: false,
-      statusCode: response.status,
-      error: `HTTP ${response.status}`,
-    };
-  } catch (error) {
-    // SECURITY: Do not expose network error details
-    console.error('[sendLogoutWebhook] Request error:', error);
-    return {
-      success: false,
-      error: 'Request failed',
-    };
-  }
+  return {
+    success: result.success,
+    statusCode: result.statusCode,
+    error: result.error,
+  };
 }
 
 /**
  * Determine if an error is retryable
+ *
+ * Uses the common isRetryableError function from webhook-sender.
  */
 export function isWebhookRetryableError(statusCode?: number, error?: string): boolean {
+  // rejected_by_receiver is never retryable (check first)
+  if (error?.startsWith('rejected_by_receiver')) {
+    return false;
+  }
+
   // 400 is never retryable (receiver rejected)
   if (statusCode === 400) {
     return false;
   }
 
-  // 5xx errors are retryable
-  if (statusCode && statusCode >= 500) {
+  // Check via common function for other status codes
+  if (isRetryableError(statusCode)) {
     return true;
   }
 
-  // Network/timeout errors are retryable
-  if (error && !error.startsWith('rejected_by_receiver')) {
+  // Network/timeout errors (no status code) are retryable
+  if (error && !statusCode) {
     return true;
   }
 
@@ -240,10 +177,17 @@ export function isWebhookRetryableError(statusCode?: number, error?: string): bo
 
 /**
  * Calculate retry delay with exponential backoff
+ *
+ * Uses the common calculateRetryDelay function from webhook-sender.
  */
 export function calculateWebhookRetryDelay(attempt: number, config: LogoutRetryConfig): number {
-  const delay = config.initial_delay_ms * Math.pow(config.backoff_multiplier, attempt);
-  return Math.min(delay, config.max_delay_ms);
+  const webhookConfig: WebhookRetryConfig = {
+    maxAttempts: config.max_attempts,
+    initialDelayMs: config.initial_delay_ms,
+    backoffMultiplier: config.backoff_multiplier,
+    maxDelayMs: config.max_delay_ms,
+  };
+  return calculateRetryDelay(attempt, webhookConfig);
 }
 
 /**

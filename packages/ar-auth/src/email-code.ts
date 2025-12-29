@@ -30,6 +30,12 @@ import {
   getPluginContext,
   generateBrowserState,
   BROWSER_STATE_COOKIE_NAME,
+  // Event System
+  publishEvent,
+  AUTH_EVENTS,
+  SESSION_EVENTS,
+  type AuthEventData,
+  type SessionEventData,
 } from '@authrim/ar-lib-core';
 import { getEmailCodeHtml, getEmailCodeText } from './utils/email/templates';
 import {
@@ -384,6 +390,20 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
         type: 'email_code',
       })) as typeof challengeData;
     } catch (error) {
+      // Publish auth.email_code.failed event (non-blocking)
+      const tenantIdForEvent = getTenantIdFromContext(c);
+      publishEvent(c, {
+        type: AUTH_EVENTS.EMAIL_CODE_FAILED,
+        tenantId: tenantIdForEvent,
+        data: {
+          method: 'email_code',
+          clientId: 'email-auth',
+          errorCode: 'challenge_error',
+        } satisfies AuthEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish auth.email_code.failed:', err);
+      });
+
       // Security: Return same generic error for all challenge-related failures
       // to prevent user enumeration via timing or error message differences.
       // Do NOT branch on error message content (e.g., 'not found', 'expired', 'already consumed')
@@ -428,10 +448,36 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
     ]);
 
     if (!isValidCode) {
+      // Publish auth.email_code.failed event (non-blocking)
+      publishEvent(c, {
+        type: AUTH_EVENTS.EMAIL_CODE_FAILED,
+        tenantId,
+        data: {
+          method: 'email_code',
+          clientId: 'email-auth',
+          errorCode: 'invalid_code',
+        } satisfies AuthEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish auth.email_code.failed:', err);
+      });
+
       return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
     }
 
     if (!userCore || !userCore.is_active) {
+      // Publish auth.email_code.failed event (non-blocking)
+      publishEvent(c, {
+        type: AUTH_EVENTS.EMAIL_CODE_FAILED,
+        tenantId,
+        data: {
+          method: 'email_code',
+          clientId: 'email-auth',
+          errorCode: 'user_inactive',
+        } satisfies AuthEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish auth.email_code.failed:', err);
+      });
+
       return createErrorResponse(c, AR_ERROR_CODES.USER_INVALID_CREDENTIALS);
     }
 
@@ -512,6 +558,33 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
       secure: true,
       sameSite: 'None', // Needs None for OIDC Session Management cross-site iframe
       maxAge: 24 * 60 * 60, // 24 hours (matches session TTL)
+    });
+
+    // Publish auth.email_code.succeeded event (non-blocking)
+    publishEvent(c, {
+      type: AUTH_EVENTS.EMAIL_CODE_SUCCEEDED,
+      tenantId,
+      data: {
+        userId: user.id as string,
+        method: 'email_code',
+        clientId: 'email-auth', // Direct email auth has no OAuth client
+        sessionId,
+      } satisfies AuthEventData,
+    }).catch((err) => {
+      console.error('[Event] Failed to publish auth.email_code.succeeded:', err);
+    });
+
+    // Publish session.user.created event (non-blocking)
+    publishEvent(c, {
+      type: SESSION_EVENTS.USER_CREATED,
+      tenantId,
+      data: {
+        sessionId,
+        userId: user.id as string,
+        ttlSeconds: 24 * 60 * 60, // 24 hours
+      } satisfies SessionEventData,
+    }).catch((err) => {
+      console.error('[Event] Failed to publish session.user.created:', err);
     });
 
     return c.json({

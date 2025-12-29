@@ -60,6 +60,10 @@ import {
   isInternalUrl,
   generateBrowserState,
   BROWSER_STATE_COOKIE_NAME,
+  // Event System
+  publishEvent,
+  CONSENT_EVENTS,
+  type ConsentEventData,
 } from '@authrim/ar-lib-core';
 import { SignJWT, importJWK, importPKCS8, compactDecrypt, type CryptoKey } from 'jose';
 
@@ -2066,6 +2070,28 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
           const expiresAt = existingConsent.expires_at;
           if (expiresAt && expiresAt < Date.now()) {
             consentRequired = true;
+
+            // Publish consent expired event
+            try {
+              const tenantId = getTenantIdFromContext(c);
+              const expiredEventData: ConsentEventData = {
+                userId: sub,
+                clientId: validClientId,
+                scopes: existingConsent.scope.split(' '),
+                timestamp: Date.now(),
+              };
+              await publishEvent(c, {
+                type: CONSENT_EVENTS.EXPIRED,
+                tenantId,
+                data: expiredEventData,
+              });
+              console.log(
+                `[CONSENT] Consent expired: client_id=${validClientId}, user_id=${sub}, expired_at=${new Date(expiresAt).toISOString()}`
+              );
+            } catch (eventError) {
+              // Log but don't fail the flow
+              console.error('[CONSENT] Failed to publish expired event:', eventError);
+            }
           } else {
             // Check if requested scopes are covered by existing consent
             const grantedScopes = existingConsent.scope.split(' ');

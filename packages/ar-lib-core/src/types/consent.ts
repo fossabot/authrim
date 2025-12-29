@@ -238,3 +238,365 @@ export interface ConsentDecisionResult {
   /** Error description (on failure) */
   error_description?: string;
 }
+
+// =============================================================================
+// Policy Versioning
+// =============================================================================
+
+/**
+ * Policy types that can be versioned
+ */
+export type PolicyType = 'privacy_policy' | 'terms_of_service' | 'cookie_policy';
+
+/**
+ * Policy version information
+ */
+export interface PolicyVersion {
+  /** Unique version identifier (e.g., "v1.0.0", "2024-01-15") */
+  version: string;
+  /** Policy type */
+  policyType: PolicyType;
+  /** URL to the policy document */
+  policyUri?: string;
+  /** SHA-256 hash of policy content for integrity verification */
+  policyHash?: string;
+  /** When this version became effective (Unix timestamp) */
+  effectiveAt: number;
+}
+
+/**
+ * Consent version information stored with consent record
+ */
+export interface ConsentVersionInfo {
+  /** Privacy policy version agreed to */
+  privacyPolicyVersion?: string;
+  /** Terms of service version agreed to */
+  tosVersion?: string;
+  /** Internal consent version number (auto-incremented on updates) */
+  consentVersion: number;
+}
+
+/**
+ * Current policy versions for a tenant
+ */
+export interface CurrentPolicyVersions {
+  /** Current privacy policy version */
+  privacyPolicy?: PolicyVersion;
+  /** Current terms of service version */
+  termsOfService?: PolicyVersion;
+  /** Current cookie policy version */
+  cookiePolicy?: PolicyVersion;
+}
+
+// =============================================================================
+// Granular Scope Selection
+// =============================================================================
+
+/**
+ * Granular scope selection in consent screen
+ */
+export interface GranularScopeSelection {
+  /** Scope name */
+  name: string;
+  /** Whether this scope is selected by the user */
+  selected: boolean;
+  /** Whether this scope is required (cannot be deselected) */
+  required: boolean;
+}
+
+// =============================================================================
+// Consent Revocation
+// =============================================================================
+
+/**
+ * Consent revoke request
+ */
+export interface ConsentRevokeRequest {
+  /** Client ID to revoke consent for */
+  clientId: string;
+  /** Reason for revocation (optional) */
+  reason?: 'user_request' | 'admin_action' | 'policy_violation';
+  /** Whether to also revoke all related tokens */
+  revokeTokens?: boolean;
+}
+
+/**
+ * Consent revoke result
+ */
+export interface ConsentRevokeResult {
+  /** Whether revocation was successful */
+  success: boolean;
+  /** Number of access tokens revoked */
+  accessTokensRevoked: number;
+  /** Number of refresh tokens revoked */
+  refreshTokensRevoked: number;
+  /** Timestamp of revocation */
+  revokedAt: number;
+}
+
+/**
+ * User consent record (for listing)
+ */
+export interface UserConsentRecord {
+  /** Consent ID */
+  id: string;
+  /** Client ID */
+  clientId: string;
+  /** Client name */
+  clientName?: string;
+  /** Client logo URI */
+  clientLogoUri?: string;
+  /** Granted scopes */
+  scopes: string[];
+  /** Selected scopes (if granular) */
+  selectedScopes?: string[];
+  /** When consent was granted (Unix timestamp) */
+  grantedAt: number;
+  /** When consent expires (null = no expiration) */
+  expiresAt?: number;
+  /** Policy versions agreed to */
+  policyVersions?: ConsentVersionInfo;
+}
+
+// =============================================================================
+// Data Export (GDPR Data Portability)
+// =============================================================================
+
+/**
+ * Data export status
+ */
+export type DataExportStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'expired';
+
+/**
+ * Data export format
+ */
+export type DataExportFormat = 'json' | 'csv';
+
+/**
+ * Data export sections
+ */
+export type DataExportSection = 'profile' | 'consents' | 'sessions' | 'audit_log' | 'passkeys';
+
+/**
+ * Data export request
+ */
+export interface DataExportRequest {
+  /** Request ID */
+  id: string;
+  /** User ID */
+  userId: string;
+  /** Export status */
+  status: DataExportStatus;
+  /** Output format */
+  format: DataExportFormat;
+  /** Sections to include */
+  includeSections: DataExportSection[];
+  /** When requested (Unix timestamp) */
+  requestedAt: number;
+  /** When processing started */
+  startedAt?: number;
+  /** When completed */
+  completedAt?: number;
+  /** Download link expiration */
+  expiresAt?: number;
+  /** File size in bytes */
+  fileSize?: number;
+  /** Error message if failed */
+  errorMessage?: string;
+}
+
+/**
+ * Exported user data structure (GDPR Article 20 compliant)
+ */
+export interface ExportedUserData {
+  /** Export metadata */
+  metadata: {
+    /** When the export was generated */
+    exportedAt: string;
+    /** Export format */
+    format: string;
+    /** Export schema version */
+    version: string;
+    /** User ID */
+    userId: string;
+    /** Tenant ID */
+    tenantId?: string;
+  };
+  /** User profile data */
+  profile?: {
+    id: string;
+    email: string;
+    emailVerified: boolean;
+    phoneNumber?: string;
+    phoneNumberVerified?: boolean;
+    name?: string;
+    givenName?: string;
+    familyName?: string;
+    middleName?: string;
+    nickname?: string;
+    preferredUsername?: string;
+    picture?: string;
+    website?: string;
+    gender?: string;
+    birthdate?: string;
+    zoneinfo?: string;
+    locale?: string;
+    address?: {
+      formatted?: string;
+      streetAddress?: string;
+      locality?: string;
+      region?: string;
+      postalCode?: string;
+      country?: string;
+    };
+    createdAt: string;
+    updatedAt: string;
+  };
+  /** Consent history */
+  consents?: Array<{
+    clientId: string;
+    clientName?: string;
+    scopes: string[];
+    selectedScopes?: string[];
+    grantedAt: string;
+    expiresAt?: string;
+    policyVersions?: {
+      privacyPolicy?: string;
+      termsOfService?: string;
+    };
+  }>;
+  /** Consent change history (audit log) */
+  consentHistory?: Array<{
+    action: string;
+    clientId: string;
+    scopesBefore?: string[];
+    scopesAfter?: string[];
+    timestamp: string;
+  }>;
+  /** Active sessions */
+  sessions?: Array<{
+    id: string;
+    createdAt: string;
+    expiresAt: string;
+    lastActiveAt?: string;
+  }>;
+  /** Registered passkeys */
+  passkeys?: Array<{
+    id: string;
+    deviceName?: string;
+    createdAt: string;
+    lastUsedAt?: string;
+  }>;
+}
+
+// =============================================================================
+// Consent Expiration
+// =============================================================================
+
+/**
+ * Consent expiration configuration
+ */
+export interface ConsentExpirationConfig {
+  /** Whether consent expiration is enabled */
+  enabled: boolean;
+  /** Default expiration in seconds (0 = no expiration) */
+  defaultExpirationSeconds: number;
+  /** Grace period in seconds before re-consent is required */
+  gracePeriodSeconds: number;
+}
+
+// =============================================================================
+// Consent History (Audit)
+// =============================================================================
+
+/**
+ * Consent history action types
+ */
+export type ConsentHistoryAction =
+  | 'granted'
+  | 'updated'
+  | 'revoked'
+  | 'version_upgraded'
+  | 'scopes_updated'
+  | 'expired';
+
+/**
+ * Consent history record
+ */
+export interface ConsentHistoryRecord {
+  /** Record ID */
+  id: string;
+  /** Tenant ID */
+  tenantId: string;
+  /** User ID */
+  userId: string;
+  /** Client ID */
+  clientId: string;
+  /** Action type */
+  action: ConsentHistoryAction;
+  /** Scopes before the change */
+  scopesBefore?: string[];
+  /** Scopes after the change */
+  scopesAfter?: string[];
+  /** Privacy policy version at time of action */
+  privacyPolicyVersion?: string;
+  /** TOS version at time of action */
+  tosVersion?: string;
+  /** Hashed IP address */
+  ipAddressHash?: string;
+  /** User agent string */
+  userAgent?: string;
+  /** When the action occurred */
+  createdAt: number;
+  /** Additional metadata */
+  metadata?: Record<string, unknown>;
+}
+
+// =============================================================================
+// Extended Consent Screen Data
+// =============================================================================
+
+/**
+ * Extended consent screen data with versioning and granular scopes
+ */
+export interface ExtendedConsentScreenData extends ConsentScreenData {
+  /** Whether granular scope selection is enabled */
+  granular_scopes_enabled?: boolean;
+
+  /** Current policy versions for this tenant */
+  current_policy_versions?: CurrentPolicyVersions;
+
+  /** Whether re-consent is required due to policy update */
+  requires_reconsent?: boolean;
+
+  /** Reason for requiring re-consent */
+  reconsent_reason?: 'policy_updated' | 'scopes_changed' | 'expired';
+
+  /** Previous consent info (if updating existing consent) */
+  previous_consent?: {
+    scopes: string[];
+    grantedAt: number;
+    policyVersions?: ConsentVersionInfo;
+  };
+
+  /** Versioning information (structured format for UI consumption) */
+  versioning?: {
+    requiresReconsent: boolean;
+    changedPolicies: string[];
+    currentVersions: {
+      privacyPolicy?: { version: string; policyUri?: string };
+      termsOfService?: { version: string; policyUri?: string };
+    };
+  };
+}
+
+/**
+ * Extended consent submission with policy acknowledgement
+ */
+export interface ExtendedConsentSubmission extends ConsentSubmission {
+  /** Acknowledged policy versions */
+  acknowledged_policy_versions?: {
+    privacy_policy?: string;
+    terms_of_service?: string;
+  };
+}

@@ -30,6 +30,12 @@ import {
   createRFCErrorResponse,
   AR_ERROR_CODES,
   RFC_ERROR_CODES,
+  // Event System
+  publishEvent,
+  AUTH_EVENTS,
+  SESSION_EVENTS,
+  type AuthEventData,
+  type SessionEventData,
 } from '@authrim/ar-lib-core';
 import { jwtVerify, importJWK, decodeProtectedHeader } from 'jose';
 
@@ -289,6 +295,19 @@ export async function didAuthVerifyHandler(c: Context<{ Bindings: Env }>): Promi
       });
       payload = result.payload;
     } catch {
+      // Publish DID authentication failure event (non-blocking)
+      publishEvent(c, {
+        type: AUTH_EVENTS.DID_FAILED,
+        tenantId: 'default',
+        data: {
+          method: 'did',
+          clientId: 'did-auth',
+          errorCode: 'signature_verification_failed',
+        } satisfies AuthEventData,
+      }).catch((err: unknown) => {
+        console.error('[Event] Failed to publish auth.did.failed:', err);
+      });
+
       return createRFCErrorResponse(
         c,
         RFC_ERROR_CODES.INVALID_REQUEST,
@@ -317,6 +336,19 @@ export async function didAuthVerifyHandler(c: Context<{ Bindings: Env }>): Promi
     const linkedIdentity = await linkedIdentityRepo.findByProviderUser('did', did);
 
     if (!linkedIdentity) {
+      // Publish DID authentication failure event (non-blocking)
+      publishEvent(c, {
+        type: AUTH_EVENTS.DID_FAILED,
+        tenantId: 'default',
+        data: {
+          method: 'did',
+          clientId: 'did-auth',
+          errorCode: 'identity_not_linked',
+        } satisfies AuthEventData,
+      }).catch((err: unknown) => {
+        console.error('[Event] Failed to publish auth.did.failed:', err);
+      });
+
       return createErrorResponse(c, AR_ERROR_CODES.BRIDGE_LINK_REQUIRED);
     }
 
@@ -330,6 +362,33 @@ export async function didAuthVerifyHandler(c: Context<{ Bindings: Env }>): Promi
       auth_time: Math.floor(Date.now() / 1000),
       did,
       verification_method: kid,
+    });
+
+    // Publish DID authentication success event (non-blocking)
+    publishEvent(c, {
+      type: AUTH_EVENTS.DID_SUCCEEDED,
+      tenantId: 'default',
+      data: {
+        userId: linkedIdentity.user_id,
+        method: 'did',
+        clientId: 'did-auth', // DID auth is direct, no client involved
+        sessionId,
+      } satisfies AuthEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish auth.did.succeeded:', err);
+    });
+
+    // Publish session created event (non-blocking)
+    publishEvent(c, {
+      type: SESSION_EVENTS.USER_CREATED,
+      tenantId: 'default',
+      data: {
+        sessionId,
+        userId: linkedIdentity.user_id,
+        ttlSeconds: sessionTtl,
+      } satisfies SessionEventData,
+    }).catch((err: unknown) => {
+      console.error('[Event] Failed to publish session.user.created:', err);
     });
 
     return c.json({

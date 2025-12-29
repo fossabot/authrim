@@ -116,3 +116,38 @@ export type {
   FlowEventEdgeMeta,
   IntentEventMapping,
 } from './hooks';
+
+// =============================================================================
+// Event Type Constants
+// =============================================================================
+
+export {
+  AUTH_EVENTS,
+  SESSION_EVENTS,
+  TOKEN_EVENTS,
+  CONSENT_EVENTS,
+  USER_EVENTS,
+  CLIENT_EVENTS,
+  SECURITY_EVENTS,
+  EVENT_TYPES,
+} from './event-types';
+
+export type {
+  AuthEventType,
+  SessionEventType,
+  TokenEventType,
+  ConsentEventType,
+  UserEventType,
+  ClientEventType,
+  SecurityEventType,
+  EventType,
+  BaseEventData,
+  AuthEventData,
+  SessionEventData,
+  TokenEventData,
+  ConsentEventData,
+  ExtendedConsentEventData,
+  UserEventData,
+  ClientEventData,
+  SecurityEventData,
+} from './event-types';

@@ -44,6 +44,12 @@ import {
   createLogoutWebhookOrchestrator,
   getLogoutWebhookConfig,
   decryptValue,
+  // Event System
+  publishEvent,
+  USER_EVENTS,
+  SESSION_EVENTS,
+  type SessionEventData,
+  type UserEventData,
 } from '@authrim/ar-lib-core';
 import type {
   BackchannelLogoutConfig,
@@ -382,6 +388,41 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
           console.error('[LOGOUT] Failed to revoke device secrets:', error);
         }
       }
+    }
+
+    // ========================================
+    // Step 2.4.1: Publish user.logout and session.user.destroyed events
+    // ========================================
+    // Publish events for each deleted session (non-blocking)
+    for (const deletedSessionId of deletedSessions) {
+      const sessionInfo = sessionsToNotify.find((s) => s.sessionId === deletedSessionId);
+      const effectiveUserId = sessionInfo?.userId || userId || '';
+
+      // Publish user.logout event
+      publishEvent(c, {
+        type: USER_EVENTS.LOGOUT,
+        tenantId,
+        data: {
+          sessionId: deletedSessionId,
+          userId: effectiveUserId,
+          reason: 'logout',
+        } satisfies UserEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish user.logout:', err);
+      });
+
+      // Publish session.user.destroyed event
+      publishEvent(c, {
+        type: SESSION_EVENTS.USER_DESTROYED,
+        tenantId,
+        data: {
+          sessionId: deletedSessionId,
+          userId: effectiveUserId,
+          reason: 'logout',
+        } satisfies SessionEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish session.user.destroyed:', err);
+      });
     }
 
     // ========================================
@@ -1036,6 +1077,37 @@ export async function backChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
           console.error('[BACKCHANNEL_LOGOUT] Failed to revoke device secrets:', error);
         }
       }
+    }
+
+    // Publish events for backchannel logout (non-blocking)
+    if (sessionDeleted && sessionId) {
+      const tenantIdForEvent = getTenantIdFromContext(c);
+
+      // Publish user.logout event
+      publishEvent(c, {
+        type: USER_EVENTS.LOGOUT,
+        tenantId: tenantIdForEvent,
+        data: {
+          sessionId,
+          userId,
+          reason: 'logout',
+        } satisfies UserEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish user.logout (backchannel):', err);
+      });
+
+      // Publish session.user.destroyed event
+      publishEvent(c, {
+        type: SESSION_EVENTS.USER_DESTROYED,
+        tenantId: tenantIdForEvent,
+        data: {
+          sessionId,
+          userId,
+          reason: 'logout',
+        } satisfies SessionEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish session.user.destroyed (backchannel):', err);
+      });
     }
 
     // Log the logout event

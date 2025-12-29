@@ -97,6 +97,9 @@ export * from './utils/rar-validation';
 // Native SSO (OIDC Native SSO 1.0)
 export * from './utils/native-sso-config';
 
+// Consent Versioning (GDPR Article 7 - Informed Consent)
+export * from './utils/consent-versioning';
+
 // Initial Setup (Admin Account Setup)
 export * from './utils/setup-token';
 export * from './utils/setup-session';
@@ -162,6 +165,56 @@ export * from './services/backchannel-logout-sender';
 export * from './services/frontchannel-logout';
 export * from './services/logout-webhook-sender';
 export * from './services/policy-resolver';
+
+// Event System (Unified Event System)
+// Note: types/events exports are namespaced to avoid conflicts with types/contracts
+export * as Events from './types/events';
+// Re-export commonly needed types directly for convenience
+export type {
+  UnifiedEvent,
+  EventPublishPayload,
+  EventPublishOptions,
+  EventPublishResult as EventResult,
+  EventDispatcher,
+  EventHandlerConfig,
+  EventHandlerRegistry,
+  EventHookRegistry,
+  BeforeHookConfig,
+  AfterHookConfig,
+  CreateWebhookInput,
+  UpdateWebhookInput,
+  WebhookConfig,
+  // Event data types for type-safe event publishing
+  AuthEventData,
+  SessionEventData,
+  TokenEventData,
+  ConsentEventData,
+  ExtendedConsentEventData,
+  UserEventData,
+  ClientEventData,
+  SecurityEventData,
+} from './types/events';
+export {
+  createUnifiedEvent,
+  matchEventPattern,
+  // Event type constants for easy access
+  AUTH_EVENTS,
+  SESSION_EVENTS,
+  TOKEN_EVENTS,
+  CONSENT_EVENTS,
+  USER_EVENTS,
+  CLIENT_EVENTS,
+  SECURITY_EVENTS,
+  EVENT_TYPES,
+} from './types/events';
+export * from './services/event-handler-registry';
+export * from './services/event-hook-registry';
+export * from './services/webhook-registry';
+export * from './services/event-dispatcher';
+// Note: webhook-sender exports are namespaced to avoid conflicts with logout-webhook-sender
+export * as WebhookSender from './services/webhook-sender';
+// Event dispatcher factory for easy use in handlers
+export * from './utils/event-dispatcher-factory';
 
 // Middleware
 export * from './middleware/admin-auth';
