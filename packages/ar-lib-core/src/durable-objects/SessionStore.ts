@@ -48,6 +48,15 @@ export interface SessionData {
   deviceName?: string;
   ipAddress?: string;
   userAgent?: string;
+
+  // Anonymous authentication (architecture-decisions.md §17)
+  /** Whether this session belongs to an anonymous user */
+  is_anonymous?: boolean;
+  /** Whether the anonymous user can upgrade to registered */
+  upgrade_eligible?: boolean;
+  /** Device ID hash for anonymous sessions (for re-identification) */
+  device_id_hash?: string;
+
   [key: string]: unknown;
 }
 
@@ -172,6 +181,25 @@ export class SessionStore extends DurableObject<Env> {
    */
   async extendSessionRpc(sessionId: string, additionalSeconds: number): Promise<Session | null> {
     return this.extendSession(sessionId, additionalSeconds);
+  }
+
+  /**
+   * RPC: Update session data (merge with existing data)
+   * Used for updating session metadata without changing userId or expiration
+   */
+  async updateSessionDataRpc(
+    sessionId: string,
+    dataUpdates: Partial<SessionData>
+  ): Promise<Session | null> {
+    return this.updateSessionData(sessionId, dataUpdates);
+  }
+
+  /**
+   * RPC: Update session user ID
+   * Used when anonymous user sub changes during upgrade (preserve_sub=false)
+   */
+  async updateSessionUserIdRpc(sessionId: string, newUserId: string): Promise<Session | null> {
+    return this.updateSessionUserId(sessionId, newUserId);
   }
 
   /**
@@ -746,6 +774,71 @@ export class SessionStore extends DurableObject<Env> {
     this.saveToD1(session).catch((error) => {
       console.error('SessionStore: Failed to extend session in D1:', error);
     });
+
+    return session;
+  }
+
+  /**
+   * Update session data (merge with existing data)
+   * Used for updating session metadata without changing userId or expiration
+   */
+  async updateSessionData(
+    sessionId: string,
+    dataUpdates: Partial<SessionData>
+  ): Promise<Session | null> {
+    const session = await this.getSession(sessionId);
+    if (!session) {
+      return null;
+    }
+
+    // Merge new data with existing data
+    session.data = {
+      ...session.data,
+      ...dataUpdates,
+    };
+
+    // Update in memory cache
+    this.sessionCache.set(sessionId, session);
+
+    // Persist to Durable Storage
+    await this.actorCtx.storage.put(this.buildSessionKey(sessionId), session);
+
+    return session;
+  }
+
+  /**
+   * Update session user ID
+   * Used when anonymous user sub changes during upgrade (preserve_sub=false)
+   * NOTE: D1 does not store full session data, only basic fields
+   */
+  async updateSessionUserId(sessionId: string, newUserId: string): Promise<Session | null> {
+    const session = await this.getSession(sessionId);
+    if (!session) {
+      return null;
+    }
+
+    const oldUserId = session.userId;
+    session.userId = newUserId;
+
+    // Update in memory cache
+    this.sessionCache.set(sessionId, session);
+
+    // Persist to Durable Storage
+    await this.actorCtx.storage.put(this.buildSessionKey(sessionId), session);
+
+    // Update in D1 - async
+    if (this.env.DB) {
+      this.env.DB.prepare('UPDATE sessions SET user_id = ? WHERE id = ?')
+        .bind(newUserId, sessionId)
+        .run()
+        .catch((error) => {
+          console.error('SessionStore: Failed to update user_id in D1:', error);
+        });
+    }
+
+    console.log(
+      `SessionStore: Updated session ${sessionId} user from ${oldUserId} to ${newUserId}`
+    );
 
     return session;
   }

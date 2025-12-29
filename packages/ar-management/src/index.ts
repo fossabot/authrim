@@ -24,6 +24,8 @@ import {
   // Native SSO device_secret cleanup
   DeviceSecretRepository,
   isNativeSSOEnabled,
+  // Health Check
+  createHealthCheckHandlers,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -34,7 +36,7 @@ import {
   adminSigningKeysEmergencyRotateHandler,
 } from './signing-keys';
 import { introspectHandler } from './introspect';
-import { revokeHandler } from './revoke';
+import { revokeHandler, batchRevokeHandler } from './revoke';
 import {
   serveAvatarHandler,
   adminStatsHandler,
@@ -141,6 +143,15 @@ import {
   clearOAuthConfig,
   clearAllOAuthConfig,
 } from './routes/settings/oauth-config';
+import {
+  getAnonymousAuthConfig,
+  updateAnonymousAuthConfig,
+  listAnonymousUsers,
+  getAnonymousUser,
+  getAnonymousUserUpgrades,
+  deleteAnonymousUser,
+  cleanupExpiredAnonymousUsers,
+} from './routes/settings/anonymous-auth';
 import { getPolicyFlags, updatePolicyFlag, clearPolicyFlag } from './routes/settings/policy-flags';
 import {
   getRateLimitSettings,
@@ -225,6 +236,7 @@ import {
   deleteOrgDomainMapping,
   listOrgDomainMappingsByOrg,
   verifyDomainOwnership,
+  confirmDomainVerification,
 } from './routes/settings/org-domain-mappings';
 import {
   getJITProvisioningConfig,
@@ -453,7 +465,23 @@ app.use('/revoke', async (c, next) => {
   c.header('Pragma', 'no-cache');
 });
 
-// Health check endpoint
+// Rate limiting for batch revoke endpoint (more restrictive due to batch nature)
+app.use('/revoke/batch', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'strict');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/revoke/batch'],
+  })(c, next);
+});
+
+// Batch revocation responses should not be cached
+app.use('/revoke/batch', async (c, next) => {
+  await next();
+  c.header('Cache-Control', 'no-store');
+  c.header('Pragma', 'no-cache');
+});
+
+// Health check endpoints
 app.get('/api/health', (c) => {
   return c.json({
     status: 'ok',
@@ -463,6 +491,17 @@ app.get('/api/health', (c) => {
   });
 });
 
+// Kubernetes health probes
+const healthHandlers = createHealthCheckHandlers({
+  serviceName: 'ar-management',
+  version: '0.1.0',
+  checkDatabase: true,
+  checkKV: true,
+  checkKeyManager: true,
+});
+app.get('/health/live', healthHandlers.liveness);
+app.get('/health/ready', healthHandlers.readiness);
+
 // Dynamic Client Registration endpoint - RFC 7591
 app.post('/register', registerHandler);
 
@@ -471,6 +510,9 @@ app.post('/introspect', introspectHandler);
 
 // Token Revocation endpoint - RFC 7009
 app.post('/revoke', revokeHandler);
+
+// Batch Token Revocation endpoint (RFC 7009 extension)
+app.post('/revoke/batch', batchRevokeHandler);
 
 // Admin authentication middleware - applies to ALL /api/admin/* routes
 // Supports both Bearer token (for headless/API usage) and session-based auth (for UI)
@@ -622,6 +664,17 @@ app.get('/api/admin/settings/oauth-config', getOAuthConfig);
 app.put('/api/admin/settings/oauth-config/:name', updateOAuthConfig);
 app.delete('/api/admin/settings/oauth-config/:name', clearOAuthConfig);
 app.delete('/api/admin/settings/oauth-config', clearAllOAuthConfig);
+
+// Anonymous Authentication Admin API (architecture-decisions.md §17)
+// Configuration
+app.get('/api/admin/settings/anonymous-auth', getAnonymousAuthConfig);
+app.put('/api/admin/settings/anonymous-auth', updateAnonymousAuthConfig);
+// User Management
+app.get('/api/admin/anonymous-users', listAnonymousUsers);
+app.get('/api/admin/anonymous-users/:id', getAnonymousUser);
+app.get('/api/admin/anonymous-users/:id/upgrades', getAnonymousUserUpgrades);
+app.delete('/api/admin/anonymous-users/:id', deleteAnonymousUser);
+app.post('/api/admin/anonymous-users/cleanup', cleanupExpiredAnonymousUsers);
 
 // [DEPRECATED] Admin PII Encryption Configuration
 // → Migrate to: /api/admin/platform/settings/encryption
@@ -805,6 +858,7 @@ app.post('/api/admin/role-assignment-rules/:id/test', testRoleAssignmentRule);
 app.post('/api/admin/org-domain-mappings', createOrgDomainMapping);
 app.get('/api/admin/org-domain-mappings', listOrgDomainMappings);
 app.post('/api/admin/org-domain-mappings/verify', verifyDomainOwnership);
+app.post('/api/admin/org-domain-mappings/verify/confirm', confirmDomainVerification);
 app.get('/api/admin/org-domain-mappings/:id', getOrgDomainMapping);
 app.put('/api/admin/org-domain-mappings/:id', updateOrgDomainMapping);
 app.delete('/api/admin/org-domain-mappings/:id', deleteOrgDomainMapping);

@@ -102,3 +102,18 @@ export async function isMockAuthEnabled(env: Env): Promise<boolean> {
 export function clearFeatureFlagCache(): void {
   flagCache.clear();
 }
+
+/**
+ * Check if Anonymous Authentication is enabled
+ *
+ * Anonymous auth allows device-based login without email/password,
+ * with the ability to upgrade to a full account later.
+ *
+ * @see architecture-decisions.md §17
+ *
+ * @param env - Worker environment bindings
+ * @returns true if anonymous auth is enabled, false otherwise (secure default)
+ */
+export async function isAnonymousAuthEnabled(env: Env): Promise<boolean> {
+  return getFeatureFlag('ENABLE_ANONYMOUS_AUTH', env, false);
+}

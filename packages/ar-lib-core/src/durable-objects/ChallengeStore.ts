@@ -45,7 +45,8 @@ export type ChallengeType =
   | 'login'
   | 'consent'
   | 'did_authentication' // DID-based authentication
-  | 'did_registration'; // DID linking to existing account
+  | 'did_registration' // DID linking to existing account
+  | 'anon_login'; // Anonymous device-based login (§17)
 
 /**
  * Challenge metadata

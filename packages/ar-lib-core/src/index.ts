@@ -82,6 +82,7 @@ export * from './utils/url-security';
 export * from './utils/email-domain-hash';
 export * from './utils/claim-normalizer';
 export * from './utils/feature-flags';
+export * from './utils/device-fingerprint';
 export * from './utils/ssrf-protection';
 export * from './utils/ui-config';
 export * from './utils/conformance-config';
@@ -105,6 +106,11 @@ export * from './utils/setup-token';
 export * from './utils/setup-session';
 export * from './utils/system-init';
 export * from './utils/contract-loader';
+export * from './utils/health-check';
+export * from './utils/dns-verification';
+
+// Settings History (Configuration Rollback)
+export * from './services/settings-history';
 
 // Error System (Phase 10 - SDK public types)
 // Note: Exported with namespace to avoid conflicts with legacy error types
@@ -188,11 +194,14 @@ export type {
   AuthEventData,
   SessionEventData,
   TokenEventData,
+  BatchRevokeEventData,
   ConsentEventData,
   ExtendedConsentEventData,
   UserEventData,
   ClientEventData,
   SecurityEventData,
+  DomainEventData,
+  SettingsEventData,
 } from './types/events';
 export {
   createUnifiedEvent,
@@ -205,6 +214,8 @@ export {
   USER_EVENTS,
   CLIENT_EVENTS,
   SECURITY_EVENTS,
+  DOMAIN_EVENTS,
+  SETTINGS_EVENTS,
   EVENT_TYPES,
 } from './types/events';
 export * from './services/event-handler-registry';

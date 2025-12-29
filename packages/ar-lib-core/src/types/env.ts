@@ -96,6 +96,10 @@ export interface Env {
   // Email OTP HMAC secret for code hashing
   OTP_HMAC_SECRET?: string;
 
+  // Device ID HMAC secret for anonymous authentication (architecture-decisions.md §17)
+  // Used to hash device identifiers for privacy
+  DEVICE_HMAC_SECRET?: string;
+
   // Admin secrets for Durable Objects management
   KEY_MANAGER_SECRET?: string;
   ADMIN_API_SECRET?: string; // Admin API authentication secret (Bearer token)
@@ -308,6 +312,11 @@ export interface Env {
   // When "true", allows device/CIBA flows to use mock users without real authentication
   // Default: disabled (secure by default)
   ENABLE_MOCK_AUTH?: string;
+
+  // Anonymous Authentication Feature Flag (architecture-decisions.md §17)
+  // When "true", enables device-based anonymous login and upgrade flows
+  // Default: disabled (requires explicit enablement per tenant/client)
+  ENABLE_ANONYMOUS_AUTH?: string;
 
   // Check API KV Cache
   CHECK_CACHE_KV?: KVNamespace; // Cache for permission check results

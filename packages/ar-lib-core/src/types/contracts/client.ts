@@ -71,6 +71,9 @@ export interface ClientContract {
   // ========== Token Customization ==========
   tokens: ClientTokenConfig;
 
+  // ========== Anonymous Authentication (architecture-decisions.md §17) ==========
+  anonymousAuth?: AnonymousAuthConfig;
+
   // ========== Metadata ==========
   metadata: ContractMetadata;
 }
@@ -440,3 +443,67 @@ export type ClientValidationErrorCode =
   | 'invalid_format' // Invalid format
   | 'missing_required' // Required field missing
   | 'invalid_combination'; // Invalid combination of settings
+
+// =============================================================================
+// Anonymous Authentication Configuration (architecture-decisions.md §17)
+// =============================================================================
+
+/**
+ * Device ID stability level.
+ * Defines how stable the device identifier is expected to be.
+ *
+ * - session: Valid only within browser session (most ephemeral)
+ * - installation: Changes on app reinstall or browser cache clear (default)
+ * - device: Device-specific ID like IDFV (platform-dependent, most stable)
+ */
+export type DeviceStability = 'session' | 'installation' | 'device';
+
+/**
+ * Anonymous authentication configuration.
+ * Controls device-based anonymous login and upgrade behavior.
+ */
+export interface AnonymousAuthConfig {
+  /** Whether anonymous authentication is enabled for this client */
+  enabled: boolean;
+
+  /**
+   * Anonymous user expiration in days.
+   * After this period of inactivity, the user may be cleaned up.
+   * null = never expires (must be manually deleted)
+   */
+  expiresInDays?: number | null;
+
+  /**
+   * Allowed scopes for anonymous users.
+   * Must include 'openid'. Additional scopes can be added as needed.
+   * @example ['openid'] or ['openid', 'anonymous:basic']
+   */
+  allowedScopes: string[];
+
+  /**
+   * Whether to preserve the user ID (sub) when upgrading to registered user.
+   * - true (default): Same ID is used, app data associations remain intact
+   * - false: New ID is generated, original ID stored in upgraded_from
+   */
+  preserveSubOnUpgrade: boolean;
+
+  /**
+   * Device ID stability level.
+   * Used to set expectations about how long the device ID will persist.
+   * This affects user experience and data retention decisions.
+   */
+  deviceStability: DeviceStability;
+
+  /**
+   * Whether to allow prompt=none for anonymous sessions.
+   * When false, anonymous users must always go through login UI.
+   * IMPORTANT: This must be explicitly set; no implicit permission.
+   */
+  allowPromptNone: boolean;
+
+  /**
+   * Allowed upgrade methods.
+   * Defines which authentication methods can be used to upgrade.
+   */
+  allowedUpgradeMethods?: ('email' | 'passkey' | 'social' | 'phone')[];
+}

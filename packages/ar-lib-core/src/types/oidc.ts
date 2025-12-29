@@ -3,6 +3,7 @@
  */
 
 import type { OrganizationType, PlanType, UserType } from './rbac';
+import type { AuthorizationDetails } from './rar';
 
 /**
  * OpenID Provider Metadata (Discovery Document)
@@ -111,6 +112,7 @@ export interface TokenRequest {
 /**
  * Token Response
  * https://tools.ietf.org/html/rfc6749#section-5.1
+ * Extended for RFC 9396 (RAR)
  */
 export interface TokenResponse {
   access_token: string;
@@ -119,6 +121,8 @@ export interface TokenResponse {
   expires_in: number;
   scope?: string;
   refresh_token?: string;
+  // RFC 9396: Rich Authorization Requests
+  authorization_details?: AuthorizationDetails[];
 }
 
 /**
@@ -188,6 +192,15 @@ export interface IDTokenClaims {
   authrim_plan?: PlanType;
   /** Organization type */
   authrim_org_type?: OrganizationType;
+
+  // ==========================================================================
+  // Anonymous Authentication Claims (architecture-decisions.md §17)
+  // ==========================================================================
+  /**
+   * Whether this user can upgrade from anonymous to registered.
+   * Always true for anonymous users, undefined for others.
+   */
+  upgrade_eligible?: boolean;
 }
 
 /**
@@ -457,6 +470,7 @@ export interface IntrospectionRequest {
  * Token Introspection Response
  * https://tools.ietf.org/html/rfc7662#section-2.2
  * Extended for RFC 8693 Token Exchange (act claim)
+ * Extended for RFC 9396 Rich Authorization Requests
  */
 export interface IntrospectionResponse {
   active: boolean;
@@ -483,6 +497,8 @@ export interface IntrospectionResponse {
   };
   // Resource server URI (if token was issued via Token Exchange)
   resource?: string;
+  // RFC 9396: Rich Authorization Requests
+  authorization_details?: AuthorizationDetails[];
 }
 
 /**

@@ -33,8 +33,14 @@ import {
  * Core user type enumeration
  *
  * Note: Named CoreUserType to avoid conflict with UserType in types/rbac.ts
+ *
+ * Types:
+ * - end_user: Regular authenticated user
+ * - admin: Administrative user
+ * - m2m: Machine-to-machine (service account)
+ * - anonymous: Device-based anonymous user (can be upgraded to end_user)
  */
-export type CoreUserType = 'end_user' | 'admin' | 'm2m';
+export type CoreUserType = 'end_user' | 'admin' | 'm2m' | 'anonymous';
 
 /**
  * User Core entity (Non-PII)

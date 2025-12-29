@@ -935,6 +935,21 @@ async function handleAuthorizationCodeGrant(
     console.warn('Failed to evaluate ID-level permissions:', idLevelError);
   }
 
+  // Anonymous user claims (architecture-decisions.md §17)
+  let anonymousClaims: { user_type?: string; upgrade_eligible?: boolean } = {};
+  try {
+    const userCore = await getCachedUserCore(c.env, authCodeData.sub);
+    if (userCore?.user_type === 'anonymous') {
+      anonymousClaims = {
+        user_type: 'anonymous',
+        upgrade_eligible: true, // Anonymous users can always upgrade
+      };
+    }
+  } catch (anonError) {
+    // Log but don't fail - anonymous claims are optional
+    console.warn('Failed to fetch anonymous user claims:', anonError);
+  }
+
   // Phase 8.2: Custom Claims Evaluation
   let customClaims: Record<string, unknown> = {};
   try {
@@ -1002,6 +1017,8 @@ async function handleAuthorizationCodeGrant(
     ...accessTokenRBACClaims,
     // Phase 8.2: Add custom claims from rule evaluation
     ...customClaims,
+    // Anonymous user claims (architecture-decisions.md §17)
+    ...anonymousClaims,
   };
 
   // Phase 2 Policy Embedding: Add evaluated permissions
@@ -1022,6 +1039,15 @@ async function handleAuthorizationCodeGrant(
   // Add DPoP confirmation (cnf) claim if DPoP is used
   if (dpopJkt) {
     accessTokenClaims.cnf = { jkt: dpopJkt };
+  }
+
+  // RFC 9396: Add authorization_details to access token if present
+  if (authCodeData.authorizationDetails) {
+    try {
+      accessTokenClaims.authorization_details = JSON.parse(authCodeData.authorizationDetails);
+    } catch {
+      console.warn('[RAR] Failed to parse authorization_details for access token');
+    }
   }
 
   let accessToken: string;
@@ -1164,6 +1190,8 @@ async function handleAuthorizationCodeGrant(
     ...(dsHash && { ds_hash: dsHash }), // OIDC Native SSO 1.0: Device Secret Hash
     // Phase 1 RBAC: Add RBAC claims to ID token
     ...idTokenRBACClaims,
+    // Anonymous user claims (architecture-decisions.md §17)
+    ...anonymousClaims,
   };
 
   let idToken: string;
@@ -1767,6 +1795,20 @@ async function handleRefreshTokenGrant(
     console.warn('Failed to evaluate policy permissions for refresh token:', policyError);
   }
 
+  // Anonymous user claims for refresh token flow (architecture-decisions.md §17)
+  let anonymousClaimsRefresh: { user_type?: string; upgrade_eligible?: boolean } = {};
+  try {
+    const userCore = await getCachedUserCore(c.env, refreshTokenData.sub);
+    if (userCore?.user_type === 'anonymous') {
+      anonymousClaimsRefresh = {
+        user_type: 'anonymous',
+        upgrade_eligible: true,
+      };
+    }
+  } catch (anonError) {
+    console.warn('Failed to fetch anonymous user claims for refresh token:', anonError);
+  }
+
   // DPoP support (RFC 9449)
   // Extract and validate DPoP proof if present
   const dpopProof = extractDPoPProof(c.req.raw.headers);
@@ -1819,6 +1861,8 @@ async function handleRefreshTokenGrant(
       client_id: client_id,
       // Phase 2 RBAC: Add RBAC claims to access token
       ...accessTokenRBACClaims,
+      // Anonymous user claims (architecture-decisions.md §17)
+      ...anonymousClaimsRefresh,
     };
 
     // Phase 2 Policy Embedding: Add evaluated permissions
@@ -1858,6 +1902,8 @@ async function handleRefreshTokenGrant(
       at_hash: atHash,
       // Phase 2 RBAC: Add RBAC claims to ID token
       ...idTokenRBACClaims,
+      // Anonymous user claims (architecture-decisions.md §17)
+      ...anonymousClaimsRefresh,
     };
 
     // Check if client requests SD-JWT ID Token (RFC 9901)

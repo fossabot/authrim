@@ -52,6 +52,8 @@ import {
   didListHandler,
   didUnlinkHandler,
 } from './did-link';
+import { anonLoginChallengeHandler, anonLoginVerifyHandler } from './anon-login';
+import { upgradeHandler, upgradeCompleteHandler, upgradeStatusHandler } from './upgrade';
 import { setupApp } from './setup';
 
 // Create Hono app with Cloudflare Workers types
@@ -153,6 +155,33 @@ app.use('/par', async (c, next) => {
   })(c, next);
 });
 
+// Rate limiting for anonymous login endpoints (architecture-decisions.md §17)
+// Strict profile: prevent brute-force attacks on device authentication
+app.use('/api/auth/anon-login/*', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'strict');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/auth/anon-login/challenge', '/api/auth/anon-login/verify'],
+  })(c, next);
+});
+
+// Rate limiting for upgrade endpoints (architecture-decisions.md §17)
+// Moderate profile: balance security and usability for account upgrade
+app.use('/api/auth/upgrade', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/auth/upgrade'],
+  })(c, next);
+});
+app.use('/api/auth/upgrade/*', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/auth/upgrade/complete', '/api/auth/upgrade/status'],
+  })(c, next);
+});
+
 // Health check endpoint (accessible via /api/auth/health due to route pattern)
 app.get('/api/auth/health', (c) => {
   return c.json({
@@ -222,6 +251,17 @@ app.post('/api/auth/dids/register/verify', didRegisterVerifyHandler);
 app.get('/api/auth/dids', didListHandler);
 // Unlink a DID (DELETE /api/auth/dids/:did)
 app.delete('/api/auth/dids/:did', didUnlinkHandler);
+
+// Anonymous Login endpoints (architecture-decisions.md §17)
+// Device-based anonymous authentication with upgrade capability
+app.post('/api/auth/anon-login/challenge', anonLoginChallengeHandler);
+app.post('/api/auth/anon-login/verify', anonLoginVerifyHandler);
+
+// Anonymous User Upgrade endpoints (architecture-decisions.md §17)
+// Upgrade anonymous users to full accounts
+app.post('/api/auth/upgrade', upgradeHandler);
+app.post('/api/auth/upgrade/complete', upgradeCompleteHandler);
+app.get('/api/auth/upgrade/status', upgradeStatusHandler);
 
 // OAuth Consent endpoints
 app.get('/api/auth/consents', consentGetHandler);

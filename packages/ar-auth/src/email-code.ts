@@ -18,6 +18,7 @@ import { setCookie, getCookie } from 'hono/cookie';
 import type { Env, Session } from '@authrim/ar-lib-core';
 import {
   getSessionStoreForNewSession,
+  getSessionStoreBySessionId,
   getChallengeStoreByChallengeId,
   getTenantIdFromContext,
   generateId,
@@ -335,275 +336,351 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
 /**
  * Verify Email Code (OTP)
  * POST /api/auth/email-code/verify
+ *
+ * Security: Uses constant-time wrapper to prevent timing-based user enumeration.
  */
 export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
-  try {
-    const body = await c.req.json<{
-      code: string;
-      email: string;
-    }>();
+  return constantTimeWrapper(async () => {
+    try {
+      const body = await c.req.json<{
+        code: string;
+        email: string;
+      }>();
 
-    const { code, email } = body;
+      const { code, email } = body;
 
-    if (!code || !email) {
-      return createRFCErrorResponse(
-        c,
-        RFC_ERROR_CODES.INVALID_REQUEST,
-        400,
-        'Code and email are required'
-      );
-    }
+      if (!code || !email) {
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'Code and email are required'
+        );
+      }
 
-    // Validate code format (6 digits)
-    if (!/^\d{6}$/.test(code)) {
-      return createRFCErrorResponse(c, RFC_ERROR_CODES.INVALID_REQUEST, 400, 'Invalid code format');
-    }
+      // Validate code format (6 digits)
+      if (!/^\d{6}$/.test(code)) {
+        return createRFCErrorResponse(
+          c,
+          RFC_ERROR_CODES.INVALID_REQUEST,
+          400,
+          'Invalid code format'
+        );
+      }
 
-    // Get OTP session ID from cookie
-    const otpSessionId = getCookie(c, OTP_SESSION_COOKIE);
+      // Get OTP session ID from cookie
+      const otpSessionId = getCookie(c, OTP_SESSION_COOKIE);
 
-    if (!otpSessionId) {
-      return createErrorResponse(c, AR_ERROR_CODES.AUTH_SESSION_EXPIRED);
-    }
+      if (!otpSessionId) {
+        return createErrorResponse(c, AR_ERROR_CODES.AUTH_SESSION_EXPIRED);
+      }
 
-    // Get challenge from ChallengeStore (RPC)
-    // Use otpSessionId-based sharding - same UUID always routes to same shard
-    const challengeStore = await getChallengeStoreByChallengeId(c.env, otpSessionId);
+      // Get challenge from ChallengeStore (RPC)
+      // Use otpSessionId-based sharding - same UUID always routes to same shard
+      const challengeStore = await getChallengeStoreByChallengeId(c.env, otpSessionId);
 
-    let challengeData: {
-      challenge: string;
-      userId: string;
-      email?: string;
-      metadata?: {
-        email_hash: string;
-        otp_session_id: string;
-        issued_at: number;
-        purpose: string;
+      let challengeData: {
+        challenge: string;
+        userId: string;
+        email?: string;
+        metadata?: {
+          email_hash: string;
+          otp_session_id: string;
+          issued_at: number;
+          purpose: string;
+        };
       };
-    };
 
-    try {
-      // Consume challenge atomically (includes existence, expiry, and consumed checks)
-      // This replaces the previous getChallengeRpc + consumeChallengeRpc pattern
-      challengeData = (await challengeStore.consumeChallengeRpc({
-        id: `email_code:${otpSessionId}`,
-        type: 'email_code',
-      })) as typeof challengeData;
-    } catch (error) {
-      // Publish auth.email_code.failed event (non-blocking)
-      const tenantIdForEvent = getTenantIdFromContext(c);
-      publishEvent(c, {
-        type: AUTH_EVENTS.EMAIL_CODE_FAILED,
-        tenantId: tenantIdForEvent,
-        data: {
-          method: 'email_code',
-          clientId: 'email-auth',
-          errorCode: 'challenge_error',
-        } satisfies AuthEventData,
-      }).catch((err) => {
-        console.error('[Event] Failed to publish auth.email_code.failed:', err);
-      });
+      try {
+        // Consume challenge atomically (includes existence, expiry, and consumed checks)
+        // This replaces the previous getChallengeRpc + consumeChallengeRpc pattern
+        challengeData = (await challengeStore.consumeChallengeRpc({
+          id: `email_code:${otpSessionId}`,
+          type: 'email_code',
+        })) as typeof challengeData;
+      } catch (error) {
+        // Publish auth.email_code.failed event (non-blocking)
+        const tenantIdForEvent = getTenantIdFromContext(c);
+        publishEvent(c, {
+          type: AUTH_EVENTS.EMAIL_CODE_FAILED,
+          tenantId: tenantIdForEvent,
+          data: {
+            method: 'email_code',
+            clientId: 'email-auth',
+            errorCode: 'challenge_error',
+          } satisfies AuthEventData,
+        }).catch((err) => {
+          console.error('[Event] Failed to publish auth.email_code.failed:', err);
+        });
 
-      // Security: Return same generic error for all challenge-related failures
-      // to prevent user enumeration via timing or error message differences.
-      // Do NOT branch on error message content (e.g., 'not found', 'expired', 'already consumed')
-      // as this can leak information about challenge state to attackers.
-      // PII Protection: Don't log full error
-      console.error(
-        'Challenge store error:',
-        error instanceof Error ? error.name : 'Unknown error'
-      );
-      return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
-    }
-
-    // Verify session binding and email match
-    if (challengeData.metadata?.otp_session_id !== otpSessionId) {
-      return createErrorResponse(c, AR_ERROR_CODES.SESSION_INVALID_STATE);
-    }
-    if (challengeData.email?.toLowerCase() !== email.toLowerCase()) {
-      return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
-    }
-
-    // Parallel: Verify code hash AND fetch user details from both DBs (independent operations)
-    const tenantId = getTenantIdFromContext(c);
-    const authCtx = createAuthContextFromHono(c, tenantId);
-    const hmacSecret = c.env.OTP_HMAC_SECRET || c.env.ISSUER_URL;
-
-    // Create PII context only if DB_PII is configured
-    const piiCtx = c.env.DB_PII ? createPIIContextFromHono(c, tenantId) : null;
-
-    const [isValidCode, userCore, userPII] = await Promise.all([
-      verifyEmailCodeHash(
-        code,
-        email.toLowerCase(),
-        otpSessionId,
-        challengeData.metadata?.issued_at || 0,
-        challengeData.challenge,
-        hmacSecret
-      ),
-      authCtx.repositories.userCore.findById(challengeData.userId),
-      piiCtx
-        ? piiCtx.piiRepositories.userPII.findById(challengeData.userId)
-        : Promise.resolve(null),
-    ]);
-
-    if (!isValidCode) {
-      // Publish auth.email_code.failed event (non-blocking)
-      publishEvent(c, {
-        type: AUTH_EVENTS.EMAIL_CODE_FAILED,
-        tenantId,
-        data: {
-          method: 'email_code',
-          clientId: 'email-auth',
-          errorCode: 'invalid_code',
-        } satisfies AuthEventData,
-      }).catch((err) => {
-        console.error('[Event] Failed to publish auth.email_code.failed:', err);
-      });
-
-      return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
-    }
-
-    if (!userCore || !userCore.is_active) {
-      // Publish auth.email_code.failed event (non-blocking)
-      publishEvent(c, {
-        type: AUTH_EVENTS.EMAIL_CODE_FAILED,
-        tenantId,
-        data: {
-          method: 'email_code',
-          clientId: 'email-auth',
-          errorCode: 'user_inactive',
-        } satisfies AuthEventData,
-      }).catch((err) => {
-        console.error('[Event] Failed to publish auth.email_code.failed:', err);
-      });
-
-      return createErrorResponse(c, AR_ERROR_CODES.USER_INVALID_CREDENTIALS);
-    }
-
-    // Merge Core and PII data
-    const user = {
-      id: userCore.id,
-      email: userPII?.email || email.toLowerCase(),
-      name: userPII?.name || null,
-    };
-
-    const now = Date.now();
-
-    // Create session using SessionStore Durable Object (sharded) via RPC
-    let sessionId: string;
-    try {
-      const { stub: sessionStore, sessionId: newSessionId } = await getSessionStoreForNewSession(
-        c.env
-      );
-      sessionId = newSessionId;
-
-      await sessionStore.createSessionRpc(
-        newSessionId,
-        user.id as string,
-        24 * 60 * 60, // 24 hours in seconds
-        {
-          email: user.email,
-          name: user.name,
-          amr: ['otp'],
-          acr: 'urn:mace:incommon:iap:bronze',
-        }
-      );
-    } catch (error) {
-      // PII Protection: Don't log full error
-      console.error(
-        'Failed to create session:',
-        error instanceof Error ? error.name : 'Unknown error'
-      );
-      return createErrorResponse(c, AR_ERROR_CODES.SESSION_STORE_ERROR);
-    }
-
-    // Update user's email_verified and last_login_at in Core DB (fire-and-forget)
-    // This is non-critical for the login flow - session is already created
-    authCtx.coreAdapter
-      .execute(
-        'UPDATE users_core SET email_verified = 1, last_login_at = ?, updated_at = ? WHERE id = ?',
-        [now, now, challengeData.userId]
-      )
-      .catch((error) => {
+        // Security: Return same generic error for all challenge-related failures
+        // to prevent user enumeration via timing or error message differences.
+        // Do NOT branch on error message content (e.g., 'not found', 'expired', 'already consumed')
+        // as this can leak information about challenge state to attackers.
         // PII Protection: Don't log full error
         console.error(
-          'Failed to update user login timestamp:',
+          'Challenge store error:',
           error instanceof Error ? error.name : 'Unknown error'
         );
+        return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
+      }
+
+      // Verify session binding and email match
+      if (challengeData.metadata?.otp_session_id !== otpSessionId) {
+        return createErrorResponse(c, AR_ERROR_CODES.SESSION_INVALID_STATE);
+      }
+      if (challengeData.email?.toLowerCase() !== email.toLowerCase()) {
+        return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
+      }
+
+      // Parallel: Verify code hash AND fetch user details from both DBs (independent operations)
+      const tenantId = getTenantIdFromContext(c);
+      const authCtx = createAuthContextFromHono(c, tenantId);
+      const hmacSecret = c.env.OTP_HMAC_SECRET || c.env.ISSUER_URL;
+
+      // Create PII context only if DB_PII is configured
+      const piiCtx = c.env.DB_PII ? createPIIContextFromHono(c, tenantId) : null;
+
+      const [isValidCode, userCore, userPII] = await Promise.all([
+        verifyEmailCodeHash(
+          code,
+          email.toLowerCase(),
+          otpSessionId,
+          challengeData.metadata?.issued_at || 0,
+          challengeData.challenge,
+          hmacSecret
+        ),
+        authCtx.repositories.userCore.findById(challengeData.userId),
+        piiCtx
+          ? piiCtx.piiRepositories.userPII.findById(challengeData.userId)
+          : Promise.resolve(null),
+      ]);
+
+      if (!isValidCode) {
+        // Publish auth.email_code.failed event (non-blocking)
+        publishEvent(c, {
+          type: AUTH_EVENTS.EMAIL_CODE_FAILED,
+          tenantId,
+          data: {
+            method: 'email_code',
+            clientId: 'email-auth',
+            errorCode: 'invalid_code',
+          } satisfies AuthEventData,
+        }).catch((err) => {
+          console.error('[Event] Failed to publish auth.email_code.failed:', err);
+        });
+
+        return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
+      }
+
+      if (!userCore || !userCore.is_active) {
+        // Publish auth.email_code.failed event (non-blocking)
+        publishEvent(c, {
+          type: AUTH_EVENTS.EMAIL_CODE_FAILED,
+          tenantId,
+          data: {
+            method: 'email_code',
+            clientId: 'email-auth',
+            errorCode: 'user_inactive',
+          } satisfies AuthEventData,
+        }).catch((err) => {
+          console.error('[Event] Failed to publish auth.email_code.failed:', err);
+        });
+
+        return createErrorResponse(c, AR_ERROR_CODES.USER_INVALID_CREDENTIALS);
+      }
+
+      // Merge Core and PII data
+      const user = {
+        id: userCore.id,
+        email: userPII?.email || email.toLowerCase(),
+        name: userPII?.name || null,
+      };
+
+      const now = Date.now();
+
+      // Check for existing anonymous session (for upgrade flow)
+      // If the user is upgrading from anonymous, update the existing session
+      // instead of creating a new one
+      const existingSessionId = getCookie(c, 'authrim_session');
+      let sessionId: string | undefined;
+      let isAnonymousUpgrade = false;
+
+      if (existingSessionId) {
+        try {
+          const { stub: existingSessionStore } = getSessionStoreBySessionId(
+            c.env,
+            existingSessionId
+          );
+          const existingSession = (await existingSessionStore.getSessionRpc(
+            existingSessionId
+          )) as Session | null;
+
+          // Check if this is an anonymous session for the same tenant
+          if (existingSession?.data?.is_anonymous === true) {
+            // SECURITY FIX: Prevent email takeover attack
+            // For anonymous upgrade, only allow emails that:
+            // 1. Are NOT already verified by another user, OR
+            // 2. Belong to a user that was just created (email_verified=false)
+            //
+            // Attack scenario prevented:
+            // 1. Attacker has anonymous session
+            // 2. Attacker sends OTP to victim@example.com (existing user)
+            // 3. Attacker obtains OTP via social engineering
+            // 4. Without this check, attacker could claim victim's email
+            if (userCore.email_verified) {
+              // Email is already verified by an existing user
+              // Anonymous user cannot claim this email - they should login instead
+              console.warn(
+                '[EMAIL-CODE] Anonymous upgrade blocked: email already verified by existing user'
+              );
+              // Don't set isAnonymousUpgrade - create new session for the existing user instead
+            } else {
+              // Email is new or unverified - safe to use for anonymous upgrade
+              // Generate upgrade nonce for TOCTOU protection
+              // This nonce must be consumed atomically during upgrade/complete
+              const upgradeNonce = crypto.randomUUID();
+              await existingSessionStore.updateSessionDataRpc(existingSessionId, {
+                verified_email: user.email,
+                verified_email_at: now,
+                // Store the OTP user ID to verify consistency in upgrade/complete
+                verified_email_user_id: user.id,
+                // TOCTOU protection: nonce prevents double-upgrade via concurrent requests
+                upgrade_nonce: upgradeNonce,
+                // Keep anonymous status until upgrade/complete is called
+              });
+              sessionId = existingSessionId;
+              isAnonymousUpgrade = true;
+            }
+          }
+        } catch {
+          // If session lookup fails, proceed with new session creation
+        }
+      }
+
+      // Create new session if not an anonymous upgrade
+      if (!isAnonymousUpgrade) {
+        try {
+          const { stub: sessionStore, sessionId: newSessionId } =
+            await getSessionStoreForNewSession(c.env);
+          sessionId = newSessionId;
+
+          await sessionStore.createSessionRpc(
+            newSessionId,
+            user.id as string,
+            24 * 60 * 60, // 24 hours in seconds
+            {
+              email: user.email,
+              name: user.name,
+              amr: ['otp'],
+              acr: 'urn:mace:incommon:iap:bronze',
+            }
+          );
+        } catch (error) {
+          // PII Protection: Don't log full error
+          console.error(
+            'Failed to create session:',
+            error instanceof Error ? error.name : 'Unknown error'
+          );
+          return createErrorResponse(c, AR_ERROR_CODES.SESSION_STORE_ERROR);
+        }
+      }
+
+      // Safety check - sessionId should always be assigned at this point
+      if (!sessionId) {
+        console.error('[EMAIL-CODE] Unexpected state: sessionId not assigned');
+        return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+      }
+
+      // Update user's email_verified and last_login_at in Core DB (fire-and-forget)
+      // This is non-critical for the login flow - session is already created
+      authCtx.coreAdapter
+        .execute(
+          'UPDATE users_core SET email_verified = 1, last_login_at = ?, updated_at = ? WHERE id = ?',
+          [now, now, challengeData.userId]
+        )
+        .catch((error) => {
+          // PII Protection: Don't log full error
+          console.error(
+            'Failed to update user login timestamp:',
+            error instanceof Error ? error.name : 'Unknown error'
+          );
+        });
+
+      // Clear OTP session cookie
+      setCookie(c, OTP_SESSION_COOKIE, '', {
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax',
+        maxAge: 0,
       });
 
-    // Clear OTP session cookie
-    setCookie(c, OTP_SESSION_COOKIE, '', {
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-      maxAge: 0,
-    });
+      // Set authentication session cookie (only for new sessions, not anonymous upgrade)
+      if (!isAnonymousUpgrade) {
+        setCookie(c, 'authrim_session', sessionId, {
+          path: '/',
+          httpOnly: true,
+          secure: true,
+          sameSite: 'None', // Needs None for OIDC Session Management cross-site iframe
+          maxAge: 24 * 60 * 60, // 24 hours (matches session TTL)
+        });
 
-    // Set authentication session cookie (HttpOnly for security)
-    setCookie(c, 'authrim_session', sessionId, {
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'None', // Needs None for OIDC Session Management cross-site iframe
-      maxAge: 24 * 60 * 60, // 24 hours (matches session TTL)
-    });
+        // Set browser state cookie for OIDC Session Management (NOT HttpOnly so JS can read it)
+        const browserState = await generateBrowserState(sessionId);
+        setCookie(c, BROWSER_STATE_COOKIE_NAME, browserState, {
+          path: '/',
+          secure: true,
+          sameSite: 'None', // Needs None for OIDC Session Management cross-site iframe
+          maxAge: 24 * 60 * 60, // 24 hours (matches session TTL)
+        });
+      }
 
-    // Set browser state cookie for OIDC Session Management (NOT HttpOnly so JS can read it)
-    const browserState = await generateBrowserState(sessionId);
-    setCookie(c, BROWSER_STATE_COOKIE_NAME, browserState, {
-      path: '/',
-      secure: true,
-      sameSite: 'None', // Needs None for OIDC Session Management cross-site iframe
-      maxAge: 24 * 60 * 60, // 24 hours (matches session TTL)
-    });
+      // Publish auth.email_code.succeeded event (non-blocking)
+      publishEvent(c, {
+        type: AUTH_EVENTS.EMAIL_CODE_SUCCEEDED,
+        tenantId,
+        data: {
+          userId: user.id as string,
+          method: 'email_code',
+          clientId: 'email-auth', // Direct email auth has no OAuth client
+          sessionId,
+        } satisfies AuthEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish auth.email_code.succeeded:', err);
+      });
 
-    // Publish auth.email_code.succeeded event (non-blocking)
-    publishEvent(c, {
-      type: AUTH_EVENTS.EMAIL_CODE_SUCCEEDED,
-      tenantId,
-      data: {
-        userId: user.id as string,
-        method: 'email_code',
-        clientId: 'email-auth', // Direct email auth has no OAuth client
+      // Publish session.user.created event (non-blocking)
+      publishEvent(c, {
+        type: SESSION_EVENTS.USER_CREATED,
+        tenantId,
+        data: {
+          sessionId,
+          userId: user.id as string,
+          ttlSeconds: 24 * 60 * 60, // 24 hours
+        } satisfies SessionEventData,
+      }).catch((err) => {
+        console.error('[Event] Failed to publish session.user.created:', err);
+      });
+
+      return c.json({
+        success: true,
         sessionId,
-      } satisfies AuthEventData,
-    }).catch((err) => {
-      console.error('[Event] Failed to publish auth.email_code.succeeded:', err);
-    });
-
-    // Publish session.user.created event (non-blocking)
-    publishEvent(c, {
-      type: SESSION_EVENTS.USER_CREATED,
-      tenantId,
-      data: {
-        sessionId,
         userId: user.id as string,
-        ttlSeconds: 24 * 60 * 60, // 24 hours
-      } satisfies SessionEventData,
-    }).catch((err) => {
-      console.error('[Event] Failed to publish session.user.created:', err);
-    });
-
-    return c.json({
-      success: true,
-      sessionId,
-      userId: user.id as string,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        email_verified: 1,
-      },
-    });
-  } catch (error) {
-    // PII Protection: Don't log full error (may contain email/code data)
-    console.error(
-      'Email code verify error:',
-      error instanceof Error ? error.name : 'Unknown error'
-    );
-    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
-  }
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          email_verified: 1,
+        },
+      });
+    } catch (error) {
+      // PII Protection: Don't log full error (may contain email/code data)
+      console.error(
+        'Email code verify error:',
+        error instanceof Error ? error.name : 'Unknown error'
+      );
+      return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+    }
+  });
 }

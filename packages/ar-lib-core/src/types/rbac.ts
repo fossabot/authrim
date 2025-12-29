@@ -278,8 +278,20 @@ export interface RelationshipRow
  *
  * IMPORTANT: This is a coarse classification for display purposes.
  * Actual authorization should use role_assignments, NOT user_type.
+ *
+ * Types:
+ * - end_user: Regular authenticated user
+ * - anonymous: Device-based anonymous user (can be upgraded)
+ * - distributor_admin: Distributor administrator
+ * - enterprise_admin: Enterprise administrator
+ * - system_admin: System administrator
  */
-export type UserType = 'end_user' | 'distributor_admin' | 'enterprise_admin' | 'system_admin';
+export type UserType =
+  | 'end_user'
+  | 'anonymous'
+  | 'distributor_admin'
+  | 'enterprise_admin'
+  | 'system_admin';
 
 // =============================================================================
 // Token Claims Extensions (Namespaced)
