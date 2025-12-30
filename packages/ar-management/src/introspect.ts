@@ -277,6 +277,10 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
   // P2: RFC 7662 recommends including username for human-readable identifier
   // Use preferred_username from token if available, otherwise use sub
   const username = (tokenPayload.preferred_username as string) || sub;
+  // RFC 9396: Rich Authorization Requests
+  const authorizationDetails = tokenPayload.authorization_details as
+    | IntrospectionResponse['authorization_details']
+    | undefined;
 
   // ========== Introspection Response Cache Check ==========
   // Cache lookup is performed early to skip expensive operations (JWKS, signature verification)
@@ -502,6 +506,8 @@ export async function introspectHandler(c: Context<{ Bindings: Env }>) {
     ...(act && { act }),
     // RFC 8693: Include resource if present (for Token Exchange with resource parameter)
     ...(resource && { resource }),
+    // RFC 9396: Include authorization_details if present (RAR)
+    ...(authorizationDetails && { authorization_details: authorizationDetails }),
   };
 
   // ========== Cache active=true Response ==========

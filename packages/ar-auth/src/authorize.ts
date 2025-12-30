@@ -38,7 +38,11 @@ import {
   parseClientAllowedOrigins,
   // Contract Loader (Human Auth / AI Ephemeral Auth two-layer model)
   loadTenantProfile,
+  loadClientContract,
   filterResponseTypesByProfile,
+  // Database Adapter and Session-Client Repository (for implicit/hybrid logout support)
+  D1Adapter,
+  SessionClientRepository,
 } from '@authrim/ar-lib-core';
 import type { CachedUser, CachedConsent } from '@authrim/ar-lib-core';
 import type { Session, PARRequestData } from '@authrim/ar-lib-core';
@@ -1677,6 +1681,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   let sessionUserId: string | undefined;
   let authTime: number | undefined;
   let sessionAcr: string | undefined;
+  let isAnonymousSession: boolean = false;
 
   // Check for existing session (cookie)
   // This is required for prompt=none to work correctly
@@ -1693,6 +1698,8 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         // Check if session is not expired
         if (session.expiresAt > Date.now()) {
           sessionUserId = session.userId;
+          // Check if this is an anonymous session (architecture-decisions.md §17)
+          isAnonymousSession = session.data?.is_anonymous === true;
           // Don't set authTime from session if this is a confirmed re-authentication
           // (it will be set later based on prompt parameter)
           if (_confirmed !== 'true') {
@@ -1837,6 +1844,35 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       // If not authenticated, return login_required error
       if (!sessionUserId) {
         return sendError('login_required', 'User authentication is required');
+      }
+
+      // Anonymous session check (architecture-decisions.md §17)
+      // For anonymous users, prompt=none requires explicit client permission
+      if (isAnonymousSession) {
+        // client_id is validated earlier via validateClientId()
+        const clientContract = await loadClientContract(
+          c.env.AUTHRIM_CONFIG,
+          c.env,
+          tenantId,
+          client_id!
+        );
+
+        // Check if client allows prompt=none for anonymous users
+        // Default to false for security (require explicit opt-in)
+        const allowPromptNone = clientContract?.anonymousAuth?.allowPromptNone ?? false;
+
+        if (!allowPromptNone) {
+          console.log(
+            '[AUTH] Anonymous session denied prompt=none - client does not allow it:',
+            client_id
+          );
+          return sendError(
+            'login_required',
+            'Anonymous users cannot use prompt=none for this client'
+          );
+        }
+
+        console.log('[AUTH] Anonymous session allowed for prompt=none:', client_id);
       }
 
       // Check max_age if provided
@@ -2572,6 +2608,29 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
     } catch (error) {
       console.error('Failed to generate ID token:', error);
       return sendError('server_error', 'Failed to generate ID token');
+    }
+  }
+
+  // OIDC Session Management: Register session-client association for logout (Implicit/Hybrid flows)
+  // This enables frontchannel/backchannel logout to notify the correct RPs
+  // For code flow, this is done in the token endpoint; for implicit/hybrid, we do it here
+  if ((includesIdToken || includesToken) && sessionId && c.env.DB) {
+    try {
+      console.log(
+        `[IMPLICIT/HYBRID Logout] Registering session-client: sid=${sessionId.substring(0, 25)}..., client_id=${validClientId.substring(0, 25)}...`
+      );
+      const coreAdapter = new D1Adapter({ db: c.env.DB });
+      const sessionClientRepo = new SessionClientRepository(coreAdapter);
+      const result = await sessionClientRepo.createOrUpdate({
+        session_id: sessionId,
+        client_id: validClientId,
+      });
+      console.log(
+        `[IMPLICIT/HYBRID Logout] Successfully registered session-client: id=${result.id}`
+      );
+    } catch (error) {
+      // Log error but don't fail the authorization - logout tracking is non-critical
+      console.error('[IMPLICIT/HYBRID Logout] Failed to register session-client:', error);
     }
   }
 

@@ -341,3 +341,86 @@ export interface GroupToScimContext {
   baseUrl: string;
   includeMembers?: boolean;
 }
+
+// =============================================================================
+// Bulk Operations (RFC 7644 Section 3.7)
+// =============================================================================
+
+/**
+ * SCIM Bulk Request Schema URN
+ */
+export const SCIM_BULK_SCHEMAS = {
+  BULK_REQUEST: 'urn:ietf:params:scim:api:messages:2.0:BulkRequest',
+  BULK_RESPONSE: 'urn:ietf:params:scim:api:messages:2.0:BulkResponse',
+} as const;
+
+/**
+ * SCIM Bulk Operation Method
+ */
+export type ScimBulkMethod = 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+/**
+ * SCIM Bulk Operation (RFC 7644 Section 3.7.2)
+ *
+ * Represents a single operation within a bulk request.
+ */
+export interface ScimBulkOperation {
+  /** HTTP method for this operation */
+  method: ScimBulkMethod;
+  /** Temporary identifier for referencing newly created resources */
+  bulkId?: string;
+  /** Resource version for optimistic locking (If-Match header value) */
+  version?: string;
+  /** Resource path (e.g., "/Users" or "/Users/123") */
+  path: string;
+  /** Request body data for POST, PUT, PATCH operations */
+  data?: Record<string, unknown>;
+}
+
+/**
+ * SCIM Bulk Request (RFC 7644 Section 3.7.2)
+ */
+export interface ScimBulkRequest {
+  schemas: string[];
+  /** Number of errors before processing stops (default: 0 = fail fast) */
+  failOnErrors?: number;
+  Operations: ScimBulkOperation[];
+}
+
+/**
+ * SCIM Bulk Operation Response (RFC 7644 Section 3.7.3)
+ *
+ * Represents the result of a single operation.
+ */
+export interface ScimBulkOperationResponse {
+  /** HTTP method that was performed */
+  method: ScimBulkMethod;
+  /** bulkId from the request (for POST operations) */
+  bulkId?: string;
+  /** Version of the resource after operation (ETag) */
+  version?: string;
+  /** Resource location URI after operation */
+  location?: string;
+  /** HTTP status code string (e.g., "201", "404") */
+  status: string;
+  /** Response body (for successful operations) */
+  response?: Record<string, unknown>;
+}
+
+/**
+ * SCIM Bulk Response (RFC 7644 Section 3.7.3)
+ */
+export interface ScimBulkResponse {
+  schemas: string[];
+  Operations: ScimBulkOperationResponse[];
+}
+
+/**
+ * Bulk operation configuration limits
+ */
+export interface BulkOperationConfig {
+  /** Maximum number of operations per bulk request (default: 100) */
+  maxOperations: number;
+  /** Maximum payload size in bytes (default: 1048576 = 1MB) */
+  maxPayloadSize: number;
+}

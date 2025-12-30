@@ -232,6 +232,57 @@ describe('AuthorizationCodeStore', () => {
       expect(body.error_description).toContain('Authorization code');
     });
 
+    it('should return token JTIs for revocation on replay attack (RFC 6749 Section 4.1.2)', async () => {
+      // Store code
+      const storeRequest = new Request('http://localhost/code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: 'auth_code_replay_with_jti',
+          clientId: 'client_1',
+          redirectUri: 'https://app.example.com/callback',
+          userId: 'user_123',
+          scope: 'openid',
+        }),
+      });
+      await codeStore.fetch(storeRequest);
+
+      // First consumption with token JTI registration (simulating token issuance)
+      const consume1 = new Request('http://localhost/code/consume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: 'auth_code_replay_with_jti',
+          clientId: 'client_1',
+          accessTokenJti: 'at_jti_12345',
+          refreshTokenJti: 'rt_jti_67890',
+        }),
+      });
+      const response1 = await codeStore.fetch(consume1);
+      expect(response1.status).toBe(200);
+
+      // Second consumption attempt (replay attack)
+      const consume2 = new Request('http://localhost/code/consume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: 'auth_code_replay_with_jti',
+          clientId: 'client_1',
+        }),
+      });
+      const response2 = await codeStore.fetch(consume2);
+      expect(response2.status).toBe(400);
+
+      const body = (await response2.json()) as any;
+      expect(body.error).toBe('invalid_grant');
+
+      // RFC 6749 Section 4.1.2: Token JTIs should be returned for revocation
+      // The _replayAttack field contains JTIs of tokens issued during first use
+      expect(body._replayAttack).toBeDefined();
+      expect(body._replayAttack.accessTokenJti).toBe('at_jti_12345');
+      expect(body._replayAttack.refreshTokenJti).toBe('rt_jti_67890');
+    });
+
     it('should fail on non-existent code', async () => {
       const request = new Request('http://localhost/code/consume', {
         method: 'POST',

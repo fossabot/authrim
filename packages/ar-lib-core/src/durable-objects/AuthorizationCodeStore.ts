@@ -585,18 +585,34 @@ export class AuthorizationCodeStore extends DurableObject<Env> {
       //  MUST deny the request and SHOULD revoke (when possible) all tokens
       //  previously issued based on that authorization code."
       //
-      // Log the JTIs for revocation (to be handled by the caller or a background job)
+      // Return replayAttack field with token JTIs for the caller to revoke
+      // This allows the token endpoint to revoke tokens before returning the error
       if (stored.issuedAccessTokenJti || stored.issuedRefreshTokenJti) {
         console.warn(
           `SECURITY: Tokens to revoke - AccessToken JTI: ${stored.issuedAccessTokenJti}, RefreshToken JTI: ${stored.issuedRefreshTokenJti}`
         );
       }
 
-      // Throw error to deny the request per RFC 6749
-      // Note: Generic message to avoid leaking security information to attackers
-      throw new Error(
-        'invalid_grant: The provided authorization grant is invalid, expired, or revoked'
-      );
+      // Return response with replayAttack field containing JTIs to revoke
+      // The caller is responsible for revoking these tokens and returning an error
+      return {
+        userId: stored.userId,
+        scope: stored.scope,
+        redirectUri: stored.redirectUri,
+        nonce: stored.nonce,
+        state: stored.state,
+        claims: stored.claims,
+        authTime: stored.authTime,
+        acr: stored.acr,
+        cHash: stored.cHash,
+        dpopJkt: stored.dpopJkt,
+        sid: stored.sid,
+        authorizationDetails: stored.authorizationDetails,
+        replayAttack: {
+          accessTokenJti: stored.issuedAccessTokenJti,
+          refreshTokenJti: stored.issuedRefreshTokenJti,
+        },
+      };
     }
 
     // Validate client ID
@@ -766,6 +782,29 @@ export class AuthorizationCodeStore extends DurableObject<Env> {
 
         try {
           const result = await this.consumeCode(body as ConsumeCodeRequest);
+
+          // RFC 6749 Section 4.1.2: If replay attack detected, return error
+          // The replayAttack field contains JTIs for caller to revoke tokens
+          // HTTP handler returns error; RPC callers handle revocation themselves
+          if (result.replayAttack) {
+            console.warn(
+              '[AuthorizationCodeStore] Replay attack detected, returning error. ' +
+                `JTIs to revoke: AT=${result.replayAttack.accessTokenJti}, RT=${result.replayAttack.refreshTokenJti}`
+            );
+            return new Response(
+              JSON.stringify({
+                error: 'invalid_grant',
+                error_description: 'Authorization code has already been used',
+                // Note: replayAttack field is included for RPC callers that need to revoke tokens
+                // HTTP callers typically don't have access to TokenRevocationStore
+                _replayAttack: result.replayAttack,
+              }),
+              {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+              }
+            );
+          }
 
           return new Response(JSON.stringify(result), {
             headers: { 'Content-Type': 'application/json' },

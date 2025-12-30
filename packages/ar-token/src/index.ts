@@ -10,6 +10,8 @@ import {
   requestContextMiddleware,
   // Plugin Context (Phase 9 - Plugin Architecture)
   pluginContextMiddleware,
+  // Health Check
+  createHealthCheckHandlers,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -74,7 +76,7 @@ app.use('/token', async (c, next) => {
   })(c, next);
 });
 
-// Health check endpoint
+// Health check endpoints
 app.get('/api/health', (c) => {
   return c.json({
     status: 'ok',
@@ -83,6 +85,17 @@ app.get('/api/health', (c) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Kubernetes health probes
+const healthHandlers = createHealthCheckHandlers({
+  serviceName: 'op-token',
+  version: '0.1.0',
+  checkDatabase: true,
+  checkKV: true,
+  checkKeyManager: true,
+});
+app.get('/health/live', healthHandlers.liveness);
+app.get('/health/ready', healthHandlers.readiness);
 
 // Token endpoint
 app.post('/token', tokenHandler);

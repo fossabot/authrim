@@ -1410,10 +1410,23 @@ async function handleAuthorizationCodeGrant(
   // Per RFC 6749 Section 4.1.2: Authorization codes are single-use
   // The DO guarantees atomic consumption and replay attack detection
   //
-  // Note: Token JTI registration for replay attack revocation has been removed
-  // as a DO hop optimization. The consume() call now handles code invalidation
-  // atomically, which is the primary security guarantee. Token revocation on
-  // replay is a secondary feature that adds latency for rare attack scenarios.
+  // RFC 6749 Section 4.1.2: Register issued token JTIs for replay attack revocation
+  // "If an authorization code is used more than once, the authorization server
+  //  MUST deny the request and SHOULD revoke (when possible) all tokens
+  //  previously issued based on that authorization code."
+  //
+  // This registration enables token revocation when a replay attack is detected.
+  // The additional DO hop is acceptable as it's required for OIDC Conformance.
+  try {
+    await authCodeStore.registerIssuedTokensRpc(validCode, tokenJti, refreshTokenJti);
+  } catch (error) {
+    // Log but don't fail the request - token issuance succeeded
+    // This is a "SHOULD" requirement, not a "MUST"
+    console.warn(
+      '[RFC6749-4.1.2] Failed to register token JTIs for replay attack revocation:',
+      error
+    );
+  }
 
   // OIDC Session Management: Register session-client association for logout
   // This enables frontchannel/backchannel logout to notify the correct RPs

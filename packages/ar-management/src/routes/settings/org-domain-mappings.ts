@@ -25,6 +25,18 @@ import {
   updateDomainMapping,
   deleteDomainMapping,
   getDomainMappingById,
+  // DNS Verification
+  generateVerificationToken,
+  getVerificationRecordName,
+  getExpectedRecordValue,
+  verifyDomainDnsTxt,
+  calculateVerificationExpiry,
+  isVerificationExpired,
+  type VerificationStatus,
+  // Event System
+  publishEvent,
+  DOMAIN_EVENTS,
+  type DomainEventData,
 } from '@authrim/ar-lib-core';
 
 // =============================================================================
@@ -33,6 +45,62 @@ import {
 
 const DEFAULT_TENANT_ID = 'default';
 const MAX_MAPPINGS_PER_PAGE = 100;
+
+/**
+ * Domain format validation regex (RFC 1035 compliant)
+ *
+ * Validates domain names with the following rules:
+ * - Labels contain only lowercase letters, numbers, and hyphens
+ * - Labels cannot start or end with a hyphen
+ * - Each label is 1-63 characters
+ * - TLD is at least 2 letters (no numbers only)
+ * - Total length is max 253 characters (checked separately)
+ *
+ * Examples:
+ * - Valid: example.com, sub.example.co.jp, a-b.example.org
+ * - Invalid: -example.com, example-.com, .example.com, example..com
+ */
+const DOMAIN_REGEX = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/;
+
+/**
+ * Maximum domain length per RFC 1035
+ */
+const MAX_DOMAIN_LENGTH = 253;
+
+/**
+ * Validate domain format
+ * @param domain Domain string to validate
+ * @returns Object with valid flag and optional error message
+ */
+function validateDomainFormat(domain: string): { valid: boolean; error?: string } {
+  // Check for empty or whitespace-only
+  if (!domain || domain.trim().length === 0) {
+    return { valid: false, error: 'domain is required' };
+  }
+
+  // Normalize to lowercase and trim
+  const normalized = domain.toLowerCase().trim();
+
+  // Check maximum length
+  if (normalized.length > MAX_DOMAIN_LENGTH) {
+    return {
+      valid: false,
+      error: `domain exceeds maximum length of ${MAX_DOMAIN_LENGTH} characters`,
+    };
+  }
+
+  // Check format against regex
+  if (!DOMAIN_REGEX.test(normalized)) {
+    return {
+      valid: false,
+      error:
+        'invalid domain format. Domain must contain only lowercase letters, numbers, hyphens, and dots. ' +
+        'Labels cannot start or end with hyphens. TLD must be at least 2 letters.',
+    };
+  }
+
+  return { valid: true };
+}
 
 // =============================================================================
 // Handlers
@@ -46,12 +114,13 @@ export async function createOrgDomainMapping(c: Context) {
   const body = await c.req.json<OrgDomainMappingInput>();
   const tenantId = DEFAULT_TENANT_ID;
 
-  // Validate input
-  if (!body.domain || body.domain.trim().length === 0) {
+  // Validate domain format (RFC 1035 compliant)
+  const domainValidation = validateDomainFormat(body.domain);
+  if (!domainValidation.valid) {
     return c.json(
       {
         error: 'invalid_request',
-        error_description: 'domain is required',
+        error_description: domainValidation.error,
       },
       400
     );
@@ -349,21 +418,74 @@ export async function listOrgDomainMappingsByOrg(c: Context) {
 
 /**
  * POST /api/admin/org-domain-mappings/verify
- * Verify domain ownership (placeholder for future implementation)
+ * Initiate domain ownership verification via DNS TXT record.
+ *
+ * Request body:
+ * {
+ *   "mapping_id": "dm_xxx",
+ *   "domain": "example.com",  // Required for generating DNS instructions
+ *   "verification_method": "dns_txt"
+ * }
+ *
+ * Response:
+ * {
+ *   "record_name": "_authrim-verify.example.com",
+ *   "record_value": "authrim-domain-verify=<token>",
+ *   "expires_at": 1703894400,
+ *   "instructions": "..."
+ * }
  */
 export async function verifyDomainOwnership(c: Context) {
-  const body = await c.req.json<{ mapping_id: string; verification_method: string }>();
+  const body = await c.req.json<{
+    mapping_id: string;
+    domain: string;
+    verification_method?: string;
+  }>();
   const tenantId = DEFAULT_TENANT_ID;
 
-  // TODO: Implement domain verification (DNS TXT record, email, etc.)
-  // For now, just mark as verified
+  // Validate input
+  if (!body.mapping_id) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'mapping_id is required',
+      },
+      400
+    );
+  }
+
+  // Validate domain format (RFC 1035 compliant)
+  const domainValidation = validateDomainFormat(body.domain);
+  if (!domainValidation.valid) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: domainValidation.error,
+      },
+      400
+    );
+  }
+
+  // Only dns_txt method is supported
+  const method = body.verification_method || 'dns_txt';
+  if (method !== 'dns_txt') {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'Only dns_txt verification method is supported',
+      },
+      400
+    );
+  }
+
+  const domain = body.domain.toLowerCase().trim();
 
   try {
-    const updated = await updateDomainMapping(c.env.DB, body.mapping_id, tenantId, {
-      verified: true,
-    });
+    // Get existing mapping
+    const coreAdapter: DatabaseAdapter = new D1Adapter({ db: c.env.DB });
+    const mapping = await getDomainMappingById(c.env.DB, body.mapping_id, tenantId);
 
-    if (!updated) {
+    if (!mapping) {
       return c.json(
         {
           error: 'not_found',
@@ -373,17 +495,272 @@ export async function verifyDomainOwnership(c: Context) {
       );
     }
 
+    // Generate verification token and expiry
+    const token = await generateVerificationToken();
+    const expiresAt = calculateVerificationExpiry();
+
+    // Update mapping with verification details
+    await coreAdapter.execute(
+      `UPDATE org_domain_mappings SET
+        verification_token = ?,
+        verification_status = ?,
+        verification_expires_at = ?,
+        verification_method = ?,
+        updated_at = ?
+       WHERE id = ? AND tenant_id = ?`,
+      [
+        token,
+        'pending' as VerificationStatus,
+        expiresAt,
+        method,
+        Math.floor(Date.now() / 1000),
+        body.mapping_id,
+        tenantId,
+      ]
+    );
+
+    // Generate DNS record instructions
+    const recordName = getVerificationRecordName(domain);
+    const recordValue = getExpectedRecordValue(token);
+
+    // Publish verification started event
+    publishEvent(c, {
+      type: DOMAIN_EVENTS.VERIFICATION_STARTED,
+      tenantId,
+      data: {
+        mappingId: body.mapping_id,
+        domain: domain.substring(0, 3) + '***', // Mask domain for privacy
+        orgId: mapping.org_id,
+        verificationMethod: method,
+      } satisfies DomainEventData,
+    }).catch((err: unknown) => {
+      console.error(`[Event] Failed to publish ${DOMAIN_EVENTS.VERIFICATION_STARTED}:`, err);
+    });
+
     return c.json({
-      success: true,
-      mapping: updated,
-      message: 'Domain marked as verified. Full verification support coming soon.',
+      mapping_id: body.mapping_id,
+      record_name: recordName,
+      record_value: recordValue,
+      expires_at: expiresAt,
+      expires_in_seconds: expiresAt - Math.floor(Date.now() / 1000),
+      instructions: `Add a TXT record to your DNS configuration:\n\nName: ${recordName}\nValue: ${recordValue}\n\nAfter adding the record, call POST /api/admin/org-domain-mappings/verify/confirm with mapping_id to complete verification.`,
     });
   } catch (error) {
-    console.error('[Org Domain Mappings API] Verify error:', error);
+    console.error('[Org Domain Mappings API] Verify initiate error:', error);
     return c.json(
       {
         error: 'server_error',
-        error_description: 'Failed to verify domain',
+        error_description: 'Failed to initiate domain verification',
+      },
+      500
+    );
+  }
+}
+
+/**
+ * POST /api/admin/org-domain-mappings/verify/confirm
+ * Confirm domain ownership by checking DNS TXT record.
+ *
+ * Request body:
+ * {
+ *   "mapping_id": "dm_xxx",
+ *   "domain": "example.com"
+ * }
+ *
+ * Response:
+ * {
+ *   "verified": true,
+ *   "mapping": { ... }
+ * }
+ */
+export async function confirmDomainVerification(c: Context) {
+  const body = await c.req.json<{ mapping_id: string; domain: string }>();
+  const tenantId = DEFAULT_TENANT_ID;
+
+  // Validate input
+  if (!body.mapping_id) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'mapping_id is required',
+      },
+      400
+    );
+  }
+
+  // Validate domain format (RFC 1035 compliant)
+  const domainValidation = validateDomainFormat(body.domain);
+  if (!domainValidation.valid) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: domainValidation.error,
+      },
+      400
+    );
+  }
+
+  const domain = body.domain.toLowerCase().trim();
+
+  try {
+    const coreAdapter: DatabaseAdapter = new D1Adapter({ db: c.env.DB });
+
+    // Get mapping with verification details
+    const row = await coreAdapter.queryOne<{
+      id: string;
+      org_id: string;
+      verification_token: string | null;
+      verification_status: string | null;
+      verification_expires_at: number | null;
+      verification_method: string | null;
+    }>(
+      `SELECT id, org_id, verification_token, verification_status, verification_expires_at, verification_method
+       FROM org_domain_mappings
+       WHERE id = ? AND tenant_id = ?`,
+      [body.mapping_id, tenantId]
+    );
+
+    if (!row) {
+      return c.json(
+        {
+          error: 'not_found',
+          error_description: `Domain mapping ${body.mapping_id} not found`,
+        },
+        404
+      );
+    }
+
+    // Check if verification is pending
+    if (row.verification_status !== 'pending') {
+      if (row.verification_status === 'verified') {
+        return c.json({
+          verified: true,
+          message: 'Domain is already verified',
+        });
+      }
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'Verification not initiated. Call POST /verify first.',
+        },
+        400
+      );
+    }
+
+    // Check if token has expired
+    if (!row.verification_token || !row.verification_expires_at) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'Verification token not found. Call POST /verify first.',
+        },
+        400
+      );
+    }
+
+    if (isVerificationExpired(row.verification_expires_at)) {
+      // Update status to expired
+      await coreAdapter.execute(
+        `UPDATE org_domain_mappings SET verification_status = ?, updated_at = ? WHERE id = ? AND tenant_id = ?`,
+        ['expired' as VerificationStatus, Math.floor(Date.now() / 1000), body.mapping_id, tenantId]
+      );
+
+      // Publish failed event
+      publishEvent(c, {
+        type: DOMAIN_EVENTS.VERIFICATION_FAILED,
+        tenantId,
+        data: {
+          mappingId: body.mapping_id,
+          orgId: row.org_id,
+          verificationMethod: row.verification_method || 'dns_txt',
+          errorMessage: 'Verification token has expired',
+        } satisfies DomainEventData,
+      }).catch((err: unknown) => {
+        console.error(`[Event] Failed to publish ${DOMAIN_EVENTS.VERIFICATION_FAILED}:`, err);
+      });
+
+      return c.json(
+        {
+          error: 'verification_expired',
+          error_description: 'Verification token has expired. Initiate a new verification.',
+        },
+        400
+      );
+    }
+
+    // Perform DNS TXT record lookup
+    const result = await verifyDomainDnsTxt(domain, row.verification_token);
+
+    if (result.verified) {
+      // Update mapping as verified
+      const updated = await updateDomainMapping(c.env.DB, body.mapping_id, tenantId, {
+        verified: true,
+      });
+
+      // Also update verification_status
+      await coreAdapter.execute(
+        `UPDATE org_domain_mappings SET verification_status = ?, updated_at = ? WHERE id = ? AND tenant_id = ?`,
+        ['verified' as VerificationStatus, Math.floor(Date.now() / 1000), body.mapping_id, tenantId]
+      );
+
+      // Publish success event
+      publishEvent(c, {
+        type: DOMAIN_EVENTS.VERIFICATION_SUCCEEDED,
+        tenantId,
+        data: {
+          mappingId: body.mapping_id,
+          domain: domain.substring(0, 3) + '***',
+          orgId: row.org_id,
+          verificationMethod: row.verification_method || 'dns_txt',
+        } satisfies DomainEventData,
+      }).catch((err: unknown) => {
+        console.error(`[Event] Failed to publish ${DOMAIN_EVENTS.VERIFICATION_SUCCEEDED}:`, err);
+      });
+
+      console.log(
+        `[Domain Verification] Domain verified: mapping=${body.mapping_id}, domain=${domain}`
+      );
+
+      return c.json({
+        verified: true,
+        mapping: updated,
+      });
+    } else {
+      // Verification failed
+      const errorMessage = result.error || 'DNS TXT record not found or does not match';
+
+      // Publish failed event
+      publishEvent(c, {
+        type: DOMAIN_EVENTS.VERIFICATION_FAILED,
+        tenantId,
+        data: {
+          mappingId: body.mapping_id,
+          orgId: row.org_id,
+          verificationMethod: row.verification_method || 'dns_txt',
+          errorMessage,
+        } satisfies DomainEventData,
+      }).catch((err: unknown) => {
+        console.error(`[Event] Failed to publish ${DOMAIN_EVENTS.VERIFICATION_FAILED}:`, err);
+      });
+
+      return c.json(
+        {
+          verified: false,
+          record_found: result.recordFound,
+          expected_value: result.expectedValue,
+          actual_values: result.actualValues,
+          error: errorMessage,
+          instructions: `Ensure the DNS TXT record is correctly configured:\n\nName: ${getVerificationRecordName(domain)}\nExpected Value: ${result.expectedValue}\n\nDNS changes can take up to 24-48 hours to propagate.`,
+        },
+        400
+      );
+    }
+  } catch (error) {
+    console.error('[Org Domain Mappings API] Verify confirm error:', error);
+    return c.json(
+      {
+        error: 'server_error',
+        error_description: 'Failed to confirm domain verification',
       },
       500
     );

@@ -849,4 +849,202 @@ describe('SCIM 2.0 Endpoints', () => {
       expect(body.detail).toBeDefined();
     });
   });
+
+  describe('SCIM Bulk Operations (RFC 7644 Section 3.7)', () => {
+    it('should process bulk POST operations', async () => {
+      const bulkRequest = {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:BulkRequest'],
+        Operations: [
+          {
+            method: 'POST',
+            path: '/Users',
+            bulkId: 'user1',
+            data: {
+              schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+              userName: 'newuser1@example.com',
+              name: { givenName: 'New', familyName: 'User1' },
+              emails: [{ value: 'newuser1@example.com', primary: true }],
+            },
+          },
+        ],
+      };
+
+      const req = createRequest('/scim/v2/Bulk', {
+        method: 'POST',
+        body: JSON.stringify(bulkRequest),
+      });
+      const res = await app.fetch(req, mockEnv as Env);
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      expect(body.schemas).toContain('urn:ietf:params:scim:api:messages:2.0:BulkResponse');
+      expect(body.Operations).toBeDefined();
+      expect(body.Operations.length).toBe(1);
+      expect(body.Operations[0].status).toBe('201');
+      expect(body.Operations[0].bulkId).toBe('user1');
+      expect(body.Operations[0].location).toBeDefined();
+    });
+
+    it('should reject bulk request with too many operations', async () => {
+      // Generate more than 100 operations (default max)
+      const operations = Array.from({ length: 101 }, (_, i) => ({
+        method: 'POST',
+        path: '/Users',
+        bulkId: `user${i}`,
+        data: {
+          schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+          userName: `user${i}@example.com`,
+          emails: [{ value: `user${i}@example.com`, primary: true }],
+        },
+      }));
+
+      const bulkRequest = {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:BulkRequest'],
+        Operations: operations,
+      };
+
+      const req = createRequest('/scim/v2/Bulk', {
+        method: 'POST',
+        body: JSON.stringify(bulkRequest),
+      });
+      const res = await app.fetch(req, mockEnv as Env);
+
+      expect(res.status).toBe(413);
+      const body = (await res.json()) as any;
+      expect(body.scimType).toBe('tooMany');
+    });
+
+    it('should require BulkRequest schema', async () => {
+      const bulkRequest = {
+        schemas: ['wrong:schema'],
+        Operations: [],
+      };
+
+      const req = createRequest('/scim/v2/Bulk', {
+        method: 'POST',
+        body: JSON.stringify(bulkRequest),
+      });
+      const res = await app.fetch(req, mockEnv as Env);
+
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as any;
+      expect(body.scimType).toBe('invalidSyntax');
+    });
+
+    it('should handle DELETE operations', async () => {
+      const bulkRequest = {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:BulkRequest'],
+        Operations: [
+          {
+            method: 'DELETE',
+            path: '/Users/user-001',
+          },
+        ],
+      };
+
+      const req = createRequest('/scim/v2/Bulk', {
+        method: 'POST',
+        body: JSON.stringify(bulkRequest),
+      });
+      const res = await app.fetch(req, mockEnv as Env);
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      expect(body.Operations.length).toBe(1);
+      expect(body.Operations[0].status).toBe('204');
+    });
+
+    it('should return 404 for non-existent resources', async () => {
+      const bulkRequest = {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:BulkRequest'],
+        Operations: [
+          {
+            method: 'DELETE',
+            path: '/Users/non-existent-user',
+          },
+        ],
+      };
+
+      const req = createRequest('/scim/v2/Bulk', {
+        method: 'POST',
+        body: JSON.stringify(bulkRequest),
+      });
+      const res = await app.fetch(req, mockEnv as Env);
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      expect(body.Operations[0].status).toBe('404');
+    });
+
+    it('should include Content-Type in response', async () => {
+      const bulkRequest = {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:BulkRequest'],
+        Operations: [],
+      };
+
+      const req = createRequest('/scim/v2/Bulk', {
+        method: 'POST',
+        body: JSON.stringify(bulkRequest),
+      });
+      const res = await app.fetch(req, mockEnv as Env);
+
+      expect(res.headers.get('Content-Type')).toContain('application/scim+json');
+    });
+
+    it('should handle Group operations', async () => {
+      const bulkRequest = {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:BulkRequest'],
+        Operations: [
+          {
+            method: 'POST',
+            path: '/Groups',
+            bulkId: 'group1',
+            data: {
+              schemas: ['urn:ietf:params:scim:schemas:core:2.0:Group'],
+              displayName: 'New Test Group',
+            },
+          },
+        ],
+      };
+
+      const req = createRequest('/scim/v2/Bulk', {
+        method: 'POST',
+        body: JSON.stringify(bulkRequest),
+      });
+      const res = await app.fetch(req, mockEnv as Env);
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      expect(body.Operations[0].status).toBe('201');
+      expect(body.Operations[0].bulkId).toBe('group1');
+    });
+
+    it('should reject invalid path', async () => {
+      const bulkRequest = {
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:BulkRequest'],
+        Operations: [
+          {
+            method: 'POST',
+            path: '/InvalidResource',
+            data: {},
+          },
+        ],
+      };
+
+      const req = createRequest('/scim/v2/Bulk', {
+        method: 'POST',
+        body: JSON.stringify(bulkRequest),
+      });
+      const res = await app.fetch(req, mockEnv as Env);
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      expect(body.Operations[0].status).toBe('400');
+    });
+  });
 });

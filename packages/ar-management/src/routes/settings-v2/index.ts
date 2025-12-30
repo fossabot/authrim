@@ -6,6 +6,7 @@
  * - PATCH for partial updates with optimistic locking
  * - env > KV > default priority
  * - Audit logging
+ * - Version history and rollback support
  *
  * Routes:
  * - GET/PATCH /api/admin/tenants/:tenantId/settings/:category
@@ -15,11 +16,25 @@
  * - POST /api/admin/settings/migrate (v1 → v2 migration)
  * - GET /api/admin/settings/migrate/status
  * - DELETE /api/admin/settings/migrate/lock
+ *
+ * History (Configuration Rollback):
+ * - GET /api/admin/settings/:category/history - List version history
+ * - GET /api/admin/settings/:category/history/:version - Get specific version
+ * - POST /api/admin/settings/:category/rollback - Rollback to previous version
+ * - GET /api/admin/settings/:category/current - Get current settings
+ * - GET /api/admin/settings/:category/compare - Compare two versions
  */
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
 import migrateRouter from './migrate';
+import {
+  listSettingsHistory,
+  getSettingsVersion,
+  rollbackSettings,
+  getCurrentSettings,
+  compareSettingsVersions,
+} from './history';
 import {
   createSettingsManager,
   SettingsManager,
@@ -28,6 +43,9 @@ import {
   type CategoryMeta,
   ConflictError,
   ALL_CATEGORY_META,
+  // Rate limiting
+  rateLimitMiddleware,
+  getRateLimitProfileAsync,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -401,5 +419,87 @@ settingsV2.get('/settings/meta', (c) => {
 
 // Mount migration routes under /settings
 settingsV2.route('/settings', migrateRouter);
+
+// =============================================================================
+// Settings History Routes (Configuration Rollback)
+// =============================================================================
+
+// Rate limiting for Settings History endpoints
+// Read operations (history, current, compare) use lenient profile
+// Write operations (rollback) use moderate profile for stricter control
+// Note: Use type assertion to bridge settingsV2's extended context type with rateLimitMiddleware's expected type
+type RateLimitContext = Context<{ Bindings: Env }>;
+
+settingsV2.use('/settings/:category/history', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/settings/:category/history'],
+  })(c as unknown as RateLimitContext, next);
+});
+
+settingsV2.use('/settings/:category/history/:version', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/settings/:category/history/:version'],
+  })(c as unknown as RateLimitContext, next);
+});
+
+settingsV2.use('/settings/:category/rollback', async (c, next) => {
+  // Rollback is a sensitive operation that modifies system state
+  // Use moderate profile for stricter rate limiting
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/settings/:category/rollback'],
+  })(c as unknown as RateLimitContext, next);
+});
+
+settingsV2.use('/settings/:category/current', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/settings/:category/current'],
+  })(c as unknown as RateLimitContext, next);
+});
+
+settingsV2.use('/settings/:category/compare', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/settings/:category/compare'],
+  })(c as unknown as RateLimitContext, next);
+});
+
+/**
+ * GET /api/admin/settings/:category/history
+ * List version history for a settings category
+ */
+settingsV2.get('/settings/:category/history', listSettingsHistory);
+
+/**
+ * GET /api/admin/settings/:category/history/:version
+ * Get a specific version's snapshot
+ */
+settingsV2.get('/settings/:category/history/:version', getSettingsVersion);
+
+/**
+ * POST /api/admin/settings/:category/rollback
+ * Rollback to a previous version
+ */
+settingsV2.post('/settings/:category/rollback', rollbackSettings);
+
+/**
+ * GET /api/admin/settings/:category/current
+ * Get current settings for a category (for comparison with history)
+ */
+settingsV2.get('/settings/:category/current', getCurrentSettings);
+
+/**
+ * GET /api/admin/settings/:category/compare
+ * Compare two versions of settings
+ */
+settingsV2.get('/settings/:category/compare', compareSettingsVersions);
 
 export default settingsV2;

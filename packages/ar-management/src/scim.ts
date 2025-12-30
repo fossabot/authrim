@@ -265,12 +265,18 @@ async function fetchGroupMembersWithPII(
 import {
   // Types
   SCIM_SCHEMAS,
+  SCIM_BULK_SCHEMAS,
   type ScimUser,
   type ScimGroup,
   type ScimListResponse,
   type ScimError,
   type ScimPatchOp,
   type ScimQueryParams,
+  type ScimBulkRequest,
+  type ScimBulkResponse,
+  type ScimBulkOperation,
+  type ScimBulkOperationResponse,
+  type BulkOperationConfig,
   // Mapper utilities
   userToScim,
   scimToUser,
@@ -463,9 +469,9 @@ app.get('/ServiceProviderConfig', (c) => {
       supported: true,
     },
     bulk: {
-      supported: false,
-      maxOperations: 0,
-      maxPayloadSize: 0,
+      supported: true,
+      maxOperations: 100, // Configurable via KV: SCIM_BULK_MAX_OPERATIONS
+      maxPayloadSize: 1048576, // 1MB, configurable via KV: SCIM_BULK_MAX_PAYLOAD_SIZE
     },
     filter: {
       supported: true,
@@ -2013,5 +2019,1173 @@ app.delete('/Groups/:id', async (c) => {
     return scimError(c, 500, 'Internal server error');
   }
 });
+
+// ============================================================================
+// SCIM Bulk Operations (RFC 7644 Section 3.7)
+// ============================================================================
+
+/**
+ * Default bulk operation limits
+ */
+const DEFAULT_BULK_MAX_OPERATIONS = 100;
+const DEFAULT_BULK_MAX_PAYLOAD_SIZE = 1048576; // 1MB
+
+/**
+ * Get bulk operation config from KV with defaults
+ */
+async function getBulkConfig(env: Env): Promise<BulkOperationConfig> {
+  let maxOperations = DEFAULT_BULK_MAX_OPERATIONS;
+  let maxPayloadSize = DEFAULT_BULK_MAX_PAYLOAD_SIZE;
+
+  if (env.KV) {
+    try {
+      const maxOpsStr = await env.KV.get('SCIM_BULK_MAX_OPERATIONS');
+      if (maxOpsStr) {
+        const parsed = parseInt(maxOpsStr, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          maxOperations = parsed;
+        }
+      }
+      const maxSizeStr = await env.KV.get('SCIM_BULK_MAX_PAYLOAD_SIZE');
+      if (maxSizeStr) {
+        const parsed = parseInt(maxSizeStr, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          maxPayloadSize = parsed;
+        }
+      }
+    } catch {
+      // Use defaults on error
+    }
+  }
+
+  return { maxOperations, maxPayloadSize };
+}
+
+/**
+ * Resolve bulkId references in request data
+ *
+ * Replaces "bulkId:xyz" references with actual created resource IDs
+ */
+function resolveBulkIdReferences(
+  data: Record<string, unknown>,
+  bulkIdMap: Map<string, string>
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === 'string' && value.startsWith('bulkId:')) {
+      const bulkId = value.substring(7); // Remove "bulkId:" prefix
+      const resolvedId = bulkIdMap.get(bulkId);
+      if (resolvedId) {
+        result[key] = resolvedId;
+      } else {
+        // Keep original if not yet resolved (will fail later)
+        result[key] = value;
+      }
+    } else if (Array.isArray(value)) {
+      result[key] = value.map((item) => {
+        if (typeof item === 'object' && item !== null) {
+          return resolveBulkIdReferences(item as Record<string, unknown>, bulkIdMap);
+        }
+        if (typeof item === 'string' && item.startsWith('bulkId:')) {
+          const bulkId = item.substring(7);
+          return bulkIdMap.get(bulkId) || item;
+        }
+        return item;
+      });
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = resolveBulkIdReferences(value as Record<string, unknown>, bulkIdMap);
+    } else {
+      result[key] = value;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * POST /scim/v2/Bulk - Bulk Operations
+ *
+ * RFC 7644 Section 3.7 - Bulk operations allow clients to perform
+ * multiple operations in a single request.
+ */
+app.post('/Bulk', async (c) => {
+  try {
+    const tenantId = getTenantIdFromContext(c);
+    const baseUrl = getBaseUrl(c);
+    const { coreAdapter, piiAdapter } = createAdaptersFromContext(c);
+
+    // Get bulk config from KV
+    const bulkConfig = await getBulkConfig(c.env);
+
+    // Check Content-Length if available
+    const contentLength = c.req.header('Content-Length');
+    if (contentLength) {
+      const size = parseInt(contentLength, 10);
+      if (size > bulkConfig.maxPayloadSize) {
+        return scimError(
+          c,
+          413,
+          `Request payload exceeds maximum size of ${bulkConfig.maxPayloadSize} bytes`,
+          'tooMany'
+        );
+      }
+    }
+
+    // Parse request body
+    let bulkRequest: ScimBulkRequest;
+    try {
+      bulkRequest = await c.req.json<ScimBulkRequest>();
+    } catch {
+      return scimError(c, 400, 'Invalid JSON request body', 'invalidSyntax');
+    }
+
+    // Validate schema
+    if (!bulkRequest.schemas || !bulkRequest.schemas.includes(SCIM_BULK_SCHEMAS.BULK_REQUEST)) {
+      return scimError(
+        c,
+        400,
+        `Request must include schema: ${SCIM_BULK_SCHEMAS.BULK_REQUEST}`,
+        'invalidSyntax'
+      );
+    }
+
+    // Validate operations array
+    if (!Array.isArray(bulkRequest.Operations)) {
+      return scimError(c, 400, 'Operations must be an array', 'invalidSyntax');
+    }
+
+    // Check operation count limit
+    if (bulkRequest.Operations.length > bulkConfig.maxOperations) {
+      return scimError(
+        c,
+        413,
+        `Number of operations (${bulkRequest.Operations.length}) exceeds maximum of ${bulkConfig.maxOperations}`,
+        'tooMany'
+      );
+    }
+
+    // Process operations
+    const failOnErrors = bulkRequest.failOnErrors ?? 0;
+    let errorCount = 0;
+    const results: ScimBulkOperationResponse[] = [];
+    const bulkIdMap = new Map<string, string>(); // bulkId -> created resource ID
+
+    for (const operation of bulkRequest.Operations) {
+      // Check if we should stop processing
+      if (failOnErrors > 0 && errorCount >= failOnErrors) {
+        break;
+      }
+
+      const result = await processOperation(
+        operation,
+        bulkIdMap,
+        tenantId,
+        baseUrl,
+        coreAdapter,
+        piiAdapter,
+        c
+      );
+
+      results.push(result);
+
+      // Track errors
+      const statusCode = parseInt(result.status, 10);
+      if (statusCode >= 400) {
+        errorCount++;
+      }
+    }
+
+    // Build response
+    const response: ScimBulkResponse = {
+      schemas: [SCIM_BULK_SCHEMAS.BULK_RESPONSE],
+      Operations: results,
+    };
+
+    return c.json(response, 200);
+  } catch (error) {
+    console.error('SCIM bulk operation error:', error);
+    return scimError(c, 500, 'Internal server error');
+  }
+});
+
+/**
+ * Process a single bulk operation
+ */
+async function processOperation(
+  operation: ScimBulkOperation,
+  bulkIdMap: Map<string, string>,
+  tenantId: string,
+  baseUrl: string,
+  coreAdapter: DatabaseAdapter,
+  piiAdapter: DatabaseAdapter | null,
+  c: Context<{ Bindings: Env }>
+): Promise<ScimBulkOperationResponse> {
+  const { method, path, bulkId, version, data } = operation;
+
+  // Validate path
+  const pathMatch = path.match(/^\/(Users|Groups)(\/(.+))?$/);
+  if (!pathMatch) {
+    return {
+      method,
+      bulkId,
+      status: '400',
+      response: {
+        schemas: [SCIM_SCHEMAS.ERROR],
+        status: '400',
+        detail: `Invalid path: ${path}. Must be /Users, /Users/{id}, /Groups, or /Groups/{id}`,
+      },
+    };
+  }
+
+  const resourceType = pathMatch[1] as 'Users' | 'Groups';
+  const resourceId = pathMatch[3]; // May be undefined for POST
+
+  // Validate method requirements
+  if (method === 'POST' && resourceId) {
+    return {
+      method,
+      bulkId,
+      status: '400',
+      response: {
+        schemas: [SCIM_SCHEMAS.ERROR],
+        status: '400',
+        detail: 'POST operations must not include resource ID in path',
+      },
+    };
+  }
+
+  if (['PUT', 'PATCH', 'DELETE'].includes(method) && !resourceId) {
+    return {
+      method,
+      bulkId,
+      status: '400',
+      response: {
+        schemas: [SCIM_SCHEMAS.ERROR],
+        status: '400',
+        detail: `${method} operations require resource ID in path`,
+      },
+    };
+  }
+
+  if (['POST', 'PUT', 'PATCH'].includes(method) && !data) {
+    return {
+      method,
+      bulkId,
+      status: '400',
+      response: {
+        schemas: [SCIM_SCHEMAS.ERROR],
+        status: '400',
+        detail: `${method} operations require request body`,
+      },
+    };
+  }
+
+  // Resolve bulkId references in data
+  const resolvedData = data ? resolveBulkIdReferences(data, bulkIdMap) : undefined;
+
+  try {
+    if (resourceType === 'Users') {
+      return await processUserOperation(
+        method,
+        resourceId,
+        resolvedData,
+        bulkId,
+        version,
+        tenantId,
+        baseUrl,
+        coreAdapter,
+        piiAdapter,
+        bulkIdMap,
+        c
+      );
+    } else {
+      return await processGroupOperation(
+        method,
+        resourceId,
+        resolvedData,
+        bulkId,
+        version,
+        tenantId,
+        baseUrl,
+        coreAdapter,
+        piiAdapter,
+        bulkIdMap
+      );
+    }
+  } catch (error) {
+    console.error(`SCIM bulk operation error (${method} ${path}):`, error);
+    return {
+      method,
+      bulkId,
+      status: '500',
+      response: {
+        schemas: [SCIM_SCHEMAS.ERROR],
+        status: '500',
+        detail: 'Internal server error processing operation',
+      },
+    };
+  }
+}
+
+/**
+ * Process a user bulk operation
+ */
+async function processUserOperation(
+  method: string,
+  resourceId: string | undefined,
+  data: Record<string, unknown> | undefined,
+  bulkId: string | undefined,
+  version: string | undefined,
+  tenantId: string,
+  baseUrl: string,
+  coreAdapter: DatabaseAdapter,
+  piiAdapter: DatabaseAdapter | null,
+  bulkIdMap: Map<string, string>,
+  c: Context<{ Bindings: Env }>
+): Promise<ScimBulkOperationResponse> {
+  switch (method) {
+    case 'POST': {
+      // Create user
+      const scimUser = data as Partial<ScimUser>;
+      const validation = validateScimUser(scimUser);
+      if (!validation.valid) {
+        return {
+          method: 'POST',
+          bulkId,
+          status: '400',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '400',
+            detail: validation.errors.join(', '),
+            scimType: 'invalidValue',
+          },
+        };
+      }
+
+      // Check for duplicate email
+      const primaryEmail =
+        scimUser.emails?.find((e) => e.primary)?.value || scimUser.emails?.[0]?.value;
+      if (primaryEmail && piiAdapter) {
+        const existing = await piiAdapter.queryOne<{ id: string }>(
+          'SELECT id FROM users_pii WHERE tenant_id = ? AND email = ?',
+          [tenantId, primaryEmail]
+        );
+        if (existing) {
+          return {
+            method: 'POST',
+            bulkId,
+            status: '409',
+            response: {
+              schemas: [SCIM_SCHEMAS.ERROR],
+              status: '409',
+              detail: 'User with this email already exists',
+              scimType: 'uniqueness',
+            },
+          };
+        }
+      }
+
+      // Convert and create
+      const internalUser = scimToUser(scimUser);
+      const userId = generateId();
+      const now = new Date().toISOString();
+      const nowUnix = Math.floor(Date.now() / 1000);
+      internalUser.created_at = now;
+      internalUser.updated_at = now;
+      if (!internalUser.email_verified) internalUser.email_verified = 0;
+      if (internalUser.active === undefined) internalUser.active = 1;
+
+      // Hash password if provided
+      if (scimUser.password) {
+        internalUser.password_hash = await hashPassword(scimUser.password);
+      }
+
+      // Parse address JSON if provided
+      let addressParts: Record<string, string | null> = {};
+      if (internalUser.address_json) {
+        try {
+          addressParts = JSON.parse(internalUser.address_json);
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
+      // Insert into Core DB
+      await coreAdapter.execute(
+        `INSERT INTO users_core (
+          id, tenant_id, email_verified, phone_number_verified, password_hash,
+          is_active, user_type, external_id, pii_partition, pii_status,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'end_user', ?, 'default', 'pending', ?, ?)`,
+        [
+          userId,
+          tenantId,
+          internalUser.email_verified,
+          0,
+          internalUser.password_hash,
+          internalUser.active,
+          internalUser.external_id,
+          nowUnix,
+          nowUnix,
+        ]
+      );
+
+      // Insert into PII DB
+      if (piiAdapter) {
+        await piiAdapter.execute(
+          `INSERT INTO users_pii (
+            id, tenant_id, email, name, given_name, family_name, middle_name,
+            nickname, preferred_username, profile, picture, website, gender,
+            birthdate, zoneinfo, locale, phone_number,
+            address_formatted, address_street_address, address_locality,
+            address_region, address_postal_code, address_country,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            userId,
+            tenantId,
+            internalUser.email,
+            internalUser.name,
+            internalUser.given_name,
+            internalUser.family_name,
+            internalUser.middle_name,
+            internalUser.nickname,
+            internalUser.preferred_username,
+            internalUser.profile,
+            internalUser.picture,
+            internalUser.website,
+            null,
+            null,
+            internalUser.zoneinfo,
+            internalUser.locale,
+            internalUser.phone_number,
+            addressParts.formatted || null,
+            addressParts.street_address || null,
+            addressParts.locality || null,
+            addressParts.region || null,
+            addressParts.postal_code || null,
+            addressParts.country || null,
+            nowUnix,
+            nowUnix,
+          ]
+        );
+        await coreAdapter.execute('UPDATE users_core SET pii_status = ? WHERE id = ?', [
+          'active',
+          userId,
+        ]);
+      }
+
+      // Store bulkId mapping for cross-references
+      if (bulkId) {
+        bulkIdMap.set(bulkId, userId);
+      }
+
+      // Fetch created user
+      const createdUser = await fetchUserWithPII(coreAdapter, piiAdapter, userId);
+      const responseUser = createdUser
+        ? userToScim(createdUser, { baseUrl, includeGroups: false })
+        : null;
+
+      return {
+        method: 'POST',
+        bulkId,
+        version: responseUser?.meta.version,
+        location: `${baseUrl}/scim/v2/Users/${userId}`,
+        status: '201',
+        response: responseUser ? (responseUser as unknown as Record<string, unknown>) : undefined,
+      };
+    }
+
+    case 'PUT': {
+      // Replace user
+      const existingUser = await fetchUserWithPII(coreAdapter, piiAdapter, resourceId!);
+      if (!existingUser) {
+        return {
+          method: 'PUT',
+          status: '404',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '404',
+            detail: 'Resource not found',
+          },
+        };
+      }
+
+      // Check ETag if version provided
+      if (version) {
+        const currentEtag = generateEtag(existingUser);
+        if (version !== currentEtag.replace(/^W\/"|"$/g, '')) {
+          return {
+            method: 'PUT',
+            status: '412',
+            response: {
+              schemas: [SCIM_SCHEMAS.ERROR],
+              status: '412',
+              detail: 'Precondition failed - resource was modified',
+              scimType: 'invalidVers',
+            },
+          };
+        }
+      }
+
+      const scimUser = data as Partial<ScimUser>;
+      const validation = validateScimUser(scimUser);
+      if (!validation.valid) {
+        return {
+          method: 'PUT',
+          status: '400',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '400',
+            detail: validation.errors.join(', '),
+            scimType: 'invalidValue',
+          },
+        };
+      }
+
+      const internalUser = scimToUser(scimUser);
+      const nowUnix = Math.floor(Date.now() / 1000);
+      internalUser.updated_at = new Date().toISOString();
+
+      if (scimUser.password) {
+        internalUser.password_hash = await hashPassword(scimUser.password);
+      }
+
+      let addressParts: Record<string, string | null> = {};
+      if (internalUser.address_json) {
+        try {
+          addressParts = JSON.parse(internalUser.address_json);
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
+      // Update Core DB
+      await coreAdapter.execute(
+        `UPDATE users_core SET
+          is_active = ?, external_id = ?, updated_at = ?,
+          password_hash = COALESCE(?, password_hash)
+         WHERE id = ?`,
+        [
+          internalUser.active,
+          internalUser.external_id,
+          nowUnix,
+          internalUser.password_hash,
+          resourceId,
+        ]
+      );
+
+      // Update PII DB
+      if (piiAdapter) {
+        await piiAdapter.execute(
+          `UPDATE users_pii SET
+            email = ?, name = ?, given_name = ?, family_name = ?, middle_name = ?,
+            nickname = ?, preferred_username = ?, profile = ?, picture = ?, website = ?,
+            zoneinfo = ?, locale = ?, phone_number = ?,
+            address_formatted = ?, address_street_address = ?, address_locality = ?,
+            address_region = ?, address_postal_code = ?, address_country = ?,
+            updated_at = ?
+           WHERE id = ?`,
+          [
+            internalUser.email,
+            internalUser.name,
+            internalUser.given_name,
+            internalUser.family_name,
+            internalUser.middle_name,
+            internalUser.nickname,
+            internalUser.preferred_username,
+            internalUser.profile,
+            internalUser.picture,
+            internalUser.website,
+            internalUser.zoneinfo,
+            internalUser.locale,
+            internalUser.phone_number,
+            addressParts.formatted || null,
+            addressParts.street_address || null,
+            addressParts.locality || null,
+            addressParts.region || null,
+            addressParts.postal_code || null,
+            addressParts.country || null,
+            nowUnix,
+            resourceId,
+          ]
+        );
+      }
+
+      await invalidateUserCache(c.env, resourceId!);
+
+      const updatedUser = await fetchUserWithPII(coreAdapter, piiAdapter, resourceId!);
+      const responseUser = updatedUser
+        ? userToScim(updatedUser, { baseUrl, includeGroups: false })
+        : null;
+
+      return {
+        method: 'PUT',
+        version: responseUser?.meta.version,
+        location: `${baseUrl}/scim/v2/Users/${resourceId}`,
+        status: '200',
+        response: responseUser ? (responseUser as unknown as Record<string, unknown>) : undefined,
+      };
+    }
+
+    case 'PATCH': {
+      // Partial update user
+      const existingUser = await fetchUserWithPII(coreAdapter, piiAdapter, resourceId!);
+      if (!existingUser) {
+        return {
+          method: 'PATCH',
+          status: '404',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '404',
+            detail: 'Resource not found',
+          },
+        };
+      }
+
+      // Check ETag if version provided
+      if (version) {
+        const currentEtag = generateEtag(existingUser);
+        if (version !== currentEtag.replace(/^W\/"|"$/g, '')) {
+          return {
+            method: 'PATCH',
+            status: '412',
+            response: {
+              schemas: [SCIM_SCHEMAS.ERROR],
+              status: '412',
+              detail: 'Precondition failed - resource was modified',
+              scimType: 'invalidVers',
+            },
+          };
+        }
+      }
+
+      const patchOp = data as unknown as ScimPatchOp;
+      let scimUser = userToScim(existingUser, { baseUrl, includeGroups: false });
+      scimUser = applyPatchOperations(scimUser, patchOp.Operations);
+
+      const validation = validateScimUser(scimUser);
+      if (!validation.valid) {
+        return {
+          method: 'PATCH',
+          status: '400',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '400',
+            detail: validation.errors.join(', '),
+            scimType: 'invalidValue',
+          },
+        };
+      }
+
+      const internalUser = scimToUser(scimUser);
+      const nowUnix = Math.floor(Date.now() / 1000);
+      internalUser.updated_at = new Date().toISOString();
+
+      if (scimUser.password) {
+        internalUser.password_hash = await hashPassword(scimUser.password);
+      }
+
+      let addressParts: Record<string, string | null> = {};
+      if (internalUser.address_json) {
+        try {
+          addressParts = JSON.parse(internalUser.address_json);
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
+      // Update Core DB
+      await coreAdapter.execute(
+        `UPDATE users_core SET
+          is_active = ?, external_id = ?, updated_at = ?,
+          password_hash = COALESCE(?, password_hash)
+         WHERE id = ?`,
+        [
+          internalUser.active,
+          internalUser.external_id,
+          nowUnix,
+          internalUser.password_hash,
+          resourceId,
+        ]
+      );
+
+      // Update PII DB
+      if (piiAdapter) {
+        await piiAdapter.execute(
+          `UPDATE users_pii SET
+            email = ?, name = ?, given_name = ?, family_name = ?, middle_name = ?,
+            nickname = ?, preferred_username = ?, profile = ?, picture = ?, website = ?,
+            zoneinfo = ?, locale = ?, phone_number = ?,
+            address_formatted = ?, address_street_address = ?, address_locality = ?,
+            address_region = ?, address_postal_code = ?, address_country = ?,
+            updated_at = ?
+           WHERE id = ?`,
+          [
+            internalUser.email,
+            internalUser.name,
+            internalUser.given_name,
+            internalUser.family_name,
+            internalUser.middle_name,
+            internalUser.nickname,
+            internalUser.preferred_username,
+            internalUser.profile,
+            internalUser.picture,
+            internalUser.website,
+            internalUser.zoneinfo,
+            internalUser.locale,
+            internalUser.phone_number,
+            addressParts.formatted || null,
+            addressParts.street_address || null,
+            addressParts.locality || null,
+            addressParts.region || null,
+            addressParts.postal_code || null,
+            addressParts.country || null,
+            nowUnix,
+            resourceId,
+          ]
+        );
+      }
+
+      await invalidateUserCache(c.env, resourceId!);
+
+      const updatedUser = await fetchUserWithPII(coreAdapter, piiAdapter, resourceId!);
+      const responseUser = updatedUser
+        ? userToScim(updatedUser, { baseUrl, includeGroups: false })
+        : null;
+
+      return {
+        method: 'PATCH',
+        version: responseUser?.meta.version,
+        location: `${baseUrl}/scim/v2/Users/${resourceId}`,
+        status: '200',
+        response: responseUser ? (responseUser as unknown as Record<string, unknown>) : undefined,
+      };
+    }
+
+    case 'DELETE': {
+      // Delete user
+      const existingUser = await fetchUserWithPII(coreAdapter, piiAdapter, resourceId!);
+      if (!existingUser) {
+        return {
+          method: 'DELETE',
+          status: '404',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '404',
+            detail: 'Resource not found',
+          },
+        };
+      }
+
+      // Check ETag if version provided
+      if (version) {
+        const currentEtag = generateEtag(existingUser);
+        if (version !== currentEtag.replace(/^W\/"|"$/g, '')) {
+          return {
+            method: 'DELETE',
+            status: '412',
+            response: {
+              schemas: [SCIM_SCHEMAS.ERROR],
+              status: '412',
+              detail: 'Precondition failed - resource was modified',
+              scimType: 'invalidVers',
+            },
+          };
+        }
+      }
+
+      const now = Date.now();
+
+      // Hard delete from PII DB
+      if (piiAdapter) {
+        await piiAdapter.execute('DELETE FROM users_pii WHERE id = ?', [resourceId]);
+      }
+
+      // Soft delete in Core DB
+      await coreAdapter.execute(
+        `UPDATE users_core SET is_active = 0, pii_status = 'deleted', updated_at = ? WHERE id = ?`,
+        [Math.floor(now / 1000), resourceId]
+      );
+
+      return {
+        method: 'DELETE',
+        status: '204',
+      };
+    }
+
+    default:
+      return {
+        method: method as any,
+        status: '400',
+        response: {
+          schemas: [SCIM_SCHEMAS.ERROR],
+          status: '400',
+          detail: `Unsupported method: ${method}`,
+        },
+      };
+  }
+}
+
+/**
+ * Process a group bulk operation
+ */
+async function processGroupOperation(
+  method: string,
+  resourceId: string | undefined,
+  data: Record<string, unknown> | undefined,
+  bulkId: string | undefined,
+  version: string | undefined,
+  tenantId: string,
+  baseUrl: string,
+  coreAdapter: DatabaseAdapter,
+  piiAdapter: DatabaseAdapter | null,
+  bulkIdMap: Map<string, string>
+): Promise<ScimBulkOperationResponse> {
+  switch (method) {
+    case 'POST': {
+      // Create group
+      const scimGroup = data as Partial<ScimGroup>;
+      const validation = validateScimGroup(scimGroup);
+      if (!validation.valid) {
+        return {
+          method: 'POST',
+          bulkId,
+          status: '400',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '400',
+            detail: validation.errors.join(', '),
+            scimType: 'invalidValue',
+          },
+        };
+      }
+
+      // Check for duplicate
+      const existing = await coreAdapter.queryOne<{ id: string }>(
+        'SELECT id FROM roles WHERE name = ?',
+        [scimGroup.displayName]
+      );
+      if (existing) {
+        return {
+          method: 'POST',
+          bulkId,
+          status: '409',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '409',
+            detail: 'Group with this name already exists',
+            scimType: 'uniqueness',
+          },
+        };
+      }
+
+      const internalGroup = scimToGroup(scimGroup);
+      const groupId = generateId();
+      const now = new Date().toISOString();
+
+      await coreAdapter.execute(
+        `INSERT INTO roles (id, name, description, permissions_json, external_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          groupId,
+          internalGroup.name,
+          internalGroup.description || null,
+          JSON.stringify([]),
+          internalGroup.external_id,
+          now,
+        ]
+      );
+
+      // Add members
+      if (scimGroup.members && scimGroup.members.length > 0) {
+        for (const member of scimGroup.members) {
+          // Resolve bulkId references in member values
+          let memberId = member.value;
+          if (memberId.startsWith('bulkId:')) {
+            const resolvedId = bulkIdMap.get(memberId.substring(7));
+            if (resolvedId) {
+              memberId = resolvedId;
+            }
+          }
+          await coreAdapter.execute(
+            `INSERT INTO user_roles (user_id, role_id, created_at) VALUES (?, ?, ?)`,
+            [memberId, groupId, now]
+          );
+        }
+      }
+
+      // Store bulkId mapping
+      if (bulkId) {
+        bulkIdMap.set(bulkId, groupId);
+      }
+
+      const createdGroup = await coreAdapter.queryOne<InternalGroup>(
+        'SELECT * FROM roles WHERE id = ?',
+        [groupId]
+      );
+      const members = await fetchGroupMembersWithPII(coreAdapter, piiAdapter, groupId);
+      const responseGroup = createdGroup
+        ? groupToScim(createdGroup, { baseUrl, includeMembers: true }, members)
+        : null;
+
+      return {
+        method: 'POST',
+        bulkId,
+        version: responseGroup?.meta.version,
+        location: `${baseUrl}/scim/v2/Groups/${groupId}`,
+        status: '201',
+        response: responseGroup ? (responseGroup as unknown as Record<string, unknown>) : undefined,
+      };
+    }
+
+    case 'PUT': {
+      // Replace group
+      const existingGroup = await coreAdapter.queryOne<InternalGroup>(
+        'SELECT * FROM roles WHERE id = ?',
+        [resourceId]
+      );
+      if (!existingGroup) {
+        return {
+          method: 'PUT',
+          status: '404',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '404',
+            detail: 'Resource not found',
+          },
+        };
+      }
+
+      if (version) {
+        const currentEtag = generateEtag(existingGroup);
+        if (version !== currentEtag.replace(/^W\/"|"$/g, '')) {
+          return {
+            method: 'PUT',
+            status: '412',
+            response: {
+              schemas: [SCIM_SCHEMAS.ERROR],
+              status: '412',
+              detail: 'Precondition failed - resource was modified',
+              scimType: 'invalidVers',
+            },
+          };
+        }
+      }
+
+      const scimGroup = data as Partial<ScimGroup>;
+      const validation = validateScimGroup(scimGroup);
+      if (!validation.valid) {
+        return {
+          method: 'PUT',
+          status: '400',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '400',
+            detail: validation.errors.join(', '),
+            scimType: 'invalidValue',
+          },
+        };
+      }
+
+      const internalGroup = scimToGroup(scimGroup);
+
+      await coreAdapter.execute(
+        `UPDATE roles SET name = ?, description = ?, external_id = ? WHERE id = ?`,
+        [internalGroup.name, internalGroup.description, internalGroup.external_id, resourceId]
+      );
+
+      // Update members
+      await coreAdapter.execute('DELETE FROM user_roles WHERE role_id = ?', [resourceId]);
+      if (scimGroup.members && scimGroup.members.length > 0) {
+        const now = new Date().toISOString();
+        for (const member of scimGroup.members) {
+          let memberId = member.value;
+          if (memberId.startsWith('bulkId:')) {
+            const resolvedId = bulkIdMap.get(memberId.substring(7));
+            if (resolvedId) {
+              memberId = resolvedId;
+            }
+          }
+          await coreAdapter.execute(
+            `INSERT INTO user_roles (user_id, role_id, created_at) VALUES (?, ?, ?)`,
+            [memberId, resourceId, now]
+          );
+        }
+      }
+
+      const updatedGroup = await coreAdapter.queryOne<InternalGroup>(
+        'SELECT * FROM roles WHERE id = ?',
+        [resourceId]
+      );
+      const members = await fetchGroupMembersWithPII(coreAdapter, piiAdapter, resourceId!);
+      const responseGroup = updatedGroup
+        ? groupToScim(updatedGroup, { baseUrl, includeMembers: true }, members)
+        : null;
+
+      return {
+        method: 'PUT',
+        version: responseGroup?.meta.version,
+        location: `${baseUrl}/scim/v2/Groups/${resourceId}`,
+        status: '200',
+        response: responseGroup ? (responseGroup as unknown as Record<string, unknown>) : undefined,
+      };
+    }
+
+    case 'PATCH': {
+      // Partial update group
+      const existingGroup = await coreAdapter.queryOne<InternalGroup>(
+        'SELECT * FROM roles WHERE id = ?',
+        [resourceId]
+      );
+      if (!existingGroup) {
+        return {
+          method: 'PATCH',
+          status: '404',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '404',
+            detail: 'Resource not found',
+          },
+        };
+      }
+
+      if (version) {
+        const currentEtag = generateEtag(existingGroup);
+        if (version !== currentEtag.replace(/^W\/"|"$/g, '')) {
+          return {
+            method: 'PATCH',
+            status: '412',
+            response: {
+              schemas: [SCIM_SCHEMAS.ERROR],
+              status: '412',
+              detail: 'Precondition failed - resource was modified',
+              scimType: 'invalidVers',
+            },
+          };
+        }
+      }
+
+      const currentMembers = await fetchGroupMembersWithPII(coreAdapter, piiAdapter, resourceId!);
+      let scimGroup = groupToScim(existingGroup, { baseUrl, includeMembers: true }, currentMembers);
+
+      const patchOp = data as unknown as ScimPatchOp;
+      scimGroup = applyPatchOperations(scimGroup, patchOp.Operations);
+
+      const validation = validateScimGroup(scimGroup);
+      if (!validation.valid) {
+        return {
+          method: 'PATCH',
+          status: '400',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '400',
+            detail: validation.errors.join(', '),
+            scimType: 'invalidValue',
+          },
+        };
+      }
+
+      const internalGroup = scimToGroup(scimGroup);
+
+      await coreAdapter.execute(
+        `UPDATE roles SET name = ?, description = ?, external_id = ? WHERE id = ?`,
+        [internalGroup.name, internalGroup.description, internalGroup.external_id, resourceId]
+      );
+
+      // Update members if changed
+      if (scimGroup.members !== undefined) {
+        await coreAdapter.execute('DELETE FROM user_roles WHERE role_id = ?', [resourceId]);
+        if (scimGroup.members.length > 0) {
+          const now = new Date().toISOString();
+          for (const member of scimGroup.members) {
+            let memberId = member.value;
+            if (memberId.startsWith('bulkId:')) {
+              const resolvedId = bulkIdMap.get(memberId.substring(7));
+              if (resolvedId) {
+                memberId = resolvedId;
+              }
+            }
+            await coreAdapter.execute(
+              `INSERT INTO user_roles (user_id, role_id, created_at) VALUES (?, ?, ?)`,
+              [memberId, resourceId, now]
+            );
+          }
+        }
+      }
+
+      const updatedGroup = await coreAdapter.queryOne<InternalGroup>(
+        'SELECT * FROM roles WHERE id = ?',
+        [resourceId]
+      );
+      const members = await fetchGroupMembersWithPII(coreAdapter, piiAdapter, resourceId!);
+      const responseGroup = updatedGroup
+        ? groupToScim(updatedGroup, { baseUrl, includeMembers: true }, members)
+        : null;
+
+      return {
+        method: 'PATCH',
+        version: responseGroup?.meta.version,
+        location: `${baseUrl}/scim/v2/Groups/${resourceId}`,
+        status: '200',
+        response: responseGroup ? (responseGroup as unknown as Record<string, unknown>) : undefined,
+      };
+    }
+
+    case 'DELETE': {
+      // Delete group
+      const existingGroup = await coreAdapter.queryOne<InternalGroup>(
+        'SELECT * FROM roles WHERE id = ?',
+        [resourceId]
+      );
+      if (!existingGroup) {
+        return {
+          method: 'DELETE',
+          status: '404',
+          response: {
+            schemas: [SCIM_SCHEMAS.ERROR],
+            status: '404',
+            detail: 'Resource not found',
+          },
+        };
+      }
+
+      if (version) {
+        const currentEtag = generateEtag(existingGroup);
+        if (version !== currentEtag.replace(/^W\/"|"$/g, '')) {
+          return {
+            method: 'DELETE',
+            status: '412',
+            response: {
+              schemas: [SCIM_SCHEMAS.ERROR],
+              status: '412',
+              detail: 'Precondition failed - resource was modified',
+              scimType: 'invalidVers',
+            },
+          };
+        }
+      }
+
+      await coreAdapter.execute('DELETE FROM roles WHERE id = ?', [resourceId]);
+
+      return {
+        method: 'DELETE',
+        status: '204',
+      };
+    }
+
+    default:
+      return {
+        method: method as any,
+        status: '400',
+        response: {
+          schemas: [SCIM_SCHEMAS.ERROR],
+          status: '400',
+          detail: `Unsupported method: ${method}`,
+        },
+      };
+  }
+}
 
 export default app;

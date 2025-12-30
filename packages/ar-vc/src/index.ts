@@ -25,6 +25,8 @@ import {
   pluginContextMiddleware,
   createErrorResponse,
   AR_ERROR_CODES,
+  // Health Check
+  createHealthCheckHandlers,
 } from '@authrim/ar-lib-core';
 import type { Env } from './types';
 
@@ -70,6 +72,16 @@ app.get('/api/health', (c) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Kubernetes health probes
+const healthHandlers = createHealthCheckHandlers({
+  serviceName: 'ar-vc',
+  version: '0.1.0',
+  checkDatabase: true,
+  checkKV: true,
+});
+app.get('/health/live', healthHandlers.liveness);
+app.get('/health/ready', healthHandlers.readiness);
 
 // =============================================================================
 // OpenID4VP Verifier Endpoints

@@ -20,6 +20,7 @@ import {
   publishEvent,
   TOKEN_EVENTS,
   type TokenEventData,
+  type BatchRevokeEventData,
 } from '@authrim/ar-lib-core';
 import { importJWK, decodeProtectedHeader, type CryptoKey, type JWK } from 'jose';
 
@@ -390,4 +391,343 @@ export async function revokeHandler(c: Context<{ Bindings: Env }>) {
   // Per RFC 7009 Section 2.2: The authorization server responds with HTTP status code 200
   // The content of the response body is ignored by the client
   return c.body(null, 200);
+}
+
+// =============================================================================
+// Batch Revocation Types
+// =============================================================================
+
+interface BatchRevokeTokenItem {
+  token: string;
+  token_type_hint?: 'access_token' | 'refresh_token';
+}
+
+interface BatchRevokeRequest {
+  tokens: BatchRevokeTokenItem[];
+}
+
+interface BatchRevokeResultItem {
+  token_hint: string;
+  status: 'revoked' | 'invalid';
+}
+
+interface BatchRevokeResponse {
+  results: BatchRevokeResultItem[];
+  summary: {
+    total: number;
+    revoked: number;
+    invalid: number;
+  };
+}
+
+// Default maximum tokens per batch request (KV configurable)
+const DEFAULT_BATCH_REVOKE_MAX_TOKENS = 100;
+
+/**
+ * Batch Token Revocation Handler
+ *
+ * Extension of RFC 7009 for batch operations.
+ * Allows revoking multiple tokens in a single request.
+ *
+ * Security:
+ * - Client authentication required (same as single revoke)
+ * - Only tokens owned by the authenticated client can be revoked
+ * - Invalid/forged tokens return "invalid" status (no information disclosure)
+ */
+export async function batchRevokeHandler(c: Context<{ Bindings: Env }>) {
+  // Verify Content-Type is application/json
+  const contentType = c.req.header('Content-Type');
+  if (!contentType || !contentType.includes('application/json')) {
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Content-Type must be application/json'
+    );
+  }
+
+  // Parse JSON body
+  let body: BatchRevokeRequest;
+  try {
+    body = (await c.req.json()) as BatchRevokeRequest;
+  } catch {
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Failed to parse request body as JSON'
+    );
+  }
+
+  // Validate tokens array
+  if (!body.tokens || !Array.isArray(body.tokens) || body.tokens.length === 0) {
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'tokens array is required and must not be empty'
+    );
+  }
+
+  // Get max tokens limit from KV (with fallback to default)
+  // KV key: batch_revoke_max_tokens
+  let maxTokens = DEFAULT_BATCH_REVOKE_MAX_TOKENS;
+  try {
+    const kvValue = await c.env.KV?.get('batch_revoke_max_tokens');
+    if (kvValue) {
+      const parsed = parseInt(kvValue, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        maxTokens = parsed;
+      }
+    }
+  } catch {
+    // Use default if KV fails
+  }
+
+  if (body.tokens.length > maxTokens) {
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      `Too many tokens. Maximum ${maxTokens} tokens per request`
+    );
+  }
+
+  // Validate each token item
+  for (let i = 0; i < body.tokens.length; i++) {
+    const item = body.tokens[i];
+    if (!item.token || typeof item.token !== 'string') {
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `Invalid token at index ${i}: token string is required`
+      );
+    }
+    if (
+      item.token_type_hint &&
+      item.token_type_hint !== 'access_token' &&
+      item.token_type_hint !== 'refresh_token'
+    ) {
+      return createRFCErrorResponse(
+        c,
+        RFC_ERROR_CODES.INVALID_REQUEST,
+        400,
+        `Invalid token_type_hint at index ${i}: must be 'access_token' or 'refresh_token'`
+      );
+    }
+  }
+
+  // =========================================================================
+  // Client Authentication (same as single revoke)
+  // =========================================================================
+
+  // Extract client credentials from Authorization header
+  let client_id: string | undefined;
+  let client_secret: string | undefined;
+
+  const authHeader = c.req.header('Authorization');
+  if (authHeader && authHeader.startsWith('Basic ')) {
+    try {
+      const base64Credentials = authHeader.substring(6);
+      const credentials = atob(base64Credentials);
+      const colonIndex = credentials.indexOf(':');
+
+      if (colonIndex === -1) {
+        return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
+      }
+
+      client_id = decodeURIComponent(credentials.substring(0, colonIndex));
+      client_secret = decodeURIComponent(credentials.substring(colonIndex + 1));
+    } catch {
+      return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
+    }
+  } else if (authHeader && authHeader.startsWith('Bearer ')) {
+    // Support Bearer token for admin API access (not RFC 7009 standard)
+    return createRFCErrorResponse(
+      c,
+      RFC_ERROR_CODES.INVALID_REQUEST,
+      400,
+      'Batch revocation requires client authentication via Basic auth'
+    );
+  }
+
+  // Validate client_id
+  if (!client_id) {
+    return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
+  }
+
+  const clientIdValidation = validateClientId(client_id);
+  if (!clientIdValidation.valid) {
+    return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
+  }
+
+  // Fetch and verify client
+  const tenantId = getTenantIdFromContext(c);
+  const authCtx = createAuthContextFromHono(c, tenantId);
+  const clientRecord = await authCtx.repositories.client.findByClientId(client_id);
+
+  if (!clientRecord) {
+    return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
+  }
+
+  const clientMetadata = clientRecord as unknown as ClientMetadata;
+
+  // Verify client_secret for confidential clients
+  if (clientMetadata.client_secret) {
+    if (!client_secret || !timingSafeEqual(clientMetadata.client_secret, client_secret)) {
+      return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
+    }
+  }
+
+  // =========================================================================
+  // Batch Revocation Processing
+  // =========================================================================
+
+  const configManager = createOAuthConfigManager(c.env);
+  const expiresIn = await configManager.getNumber('TOKEN_EXPIRY');
+
+  // Process all tokens in parallel
+  const results = await Promise.allSettled(
+    body.tokens.map(async (item): Promise<BatchRevokeResultItem> => {
+      const tokenHint =
+        item.token.length > 16
+          ? `${item.token.substring(0, 8)}...${item.token.substring(item.token.length - 4)}`
+          : '***';
+
+      try {
+        // Parse token to extract claims
+        const tokenPayload = parseToken(item.token);
+        const jti = tokenPayload.jti as string;
+        const tokenClientId = tokenPayload.client_id as string;
+        const userId = tokenPayload.sub as string;
+        const version = typeof tokenPayload.rtv === 'number' ? tokenPayload.rtv : 1;
+        const aud = tokenPayload.aud as string;
+
+        if (!jti) {
+          return { token_hint: tokenHint, status: 'invalid' };
+        }
+
+        // Verify token belongs to requesting client
+        if (tokenClientId !== client_id) {
+          // Cannot revoke other client's tokens
+          return { token_hint: tokenHint, status: 'invalid' };
+        }
+
+        // Get public key for signature verification
+        let publicKey: CryptoKey | undefined;
+        let tokenKid: string | undefined;
+
+        try {
+          const header = decodeProtectedHeader(item.token);
+          tokenKid = header.kid;
+        } catch {
+          return { token_hint: tokenHint, status: 'invalid' };
+        }
+
+        if (tokenKid) {
+          try {
+            const jwksKeys = await getJwksFromKeyManager(c.env);
+            const matchingKey = jwksKeys.find((k) => k.kid === tokenKid);
+            if (matchingKey) {
+              publicKey = (await importJWK(matchingKey, 'RS256')) as CryptoKey;
+            }
+          } catch {
+            // Fall through to PUBLIC_JWK_JSON
+          }
+        }
+
+        if (!publicKey) {
+          const publicJwkJson = c.env.PUBLIC_JWK_JSON;
+          if (!publicJwkJson) {
+            return { token_hint: tokenHint, status: 'invalid' };
+          }
+          try {
+            const jwk = JSON.parse(publicJwkJson) as Parameters<typeof importJWK>[0];
+            publicKey = (await importJWK(jwk, 'RS256')) as CryptoKey;
+          } catch {
+            return { token_hint: tokenHint, status: 'invalid' };
+          }
+        }
+
+        // Verify token signature
+        try {
+          const expectedIssuer = c.env.ISSUER_URL;
+          if (!expectedIssuer) {
+            return { token_hint: tokenHint, status: 'invalid' };
+          }
+          await verifyToken(item.token, publicKey, expectedIssuer, { audience: aud });
+        } catch {
+          return { token_hint: tokenHint, status: 'invalid' };
+        }
+
+        // Revoke the token
+        if (item.token_type_hint === 'refresh_token') {
+          await deleteRefreshToken(c.env, jti, tokenClientId);
+          await revokeToken(c.env, jti, expiresIn); // Cascade
+        } else if (item.token_type_hint === 'access_token') {
+          await revokeToken(c.env, jti, expiresIn);
+        } else {
+          // No hint - check if refresh token first
+          const refreshTokenData = userId
+            ? await getRefreshToken(c.env, userId, version, tokenClientId, jti)
+            : null;
+          if (refreshTokenData) {
+            await deleteRefreshToken(c.env, jti, tokenClientId);
+            await revokeToken(c.env, jti, expiresIn); // Cascade
+          } else {
+            await revokeToken(c.env, jti, expiresIn);
+          }
+        }
+
+        return { token_hint: tokenHint, status: 'revoked' };
+      } catch (error) {
+        console.warn(`[BATCH_REVOKE] Failed to process token: ${error}`);
+        return { token_hint: tokenHint, status: 'invalid' };
+      }
+    })
+  );
+
+  // Aggregate results
+  const aggregatedResults: BatchRevokeResultItem[] = results.map((result) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+    // Promise.allSettled rejected - treat as invalid
+    return { token_hint: '***', status: 'invalid' as const };
+  });
+
+  const revokedCount = aggregatedResults.filter((r) => r.status === 'revoked').length;
+  const invalidCount = aggregatedResults.filter((r) => r.status === 'invalid').length;
+
+  const response: BatchRevokeResponse = {
+    results: aggregatedResults,
+    summary: {
+      total: body.tokens.length,
+      revoked: revokedCount,
+      invalid: invalidCount,
+    },
+  };
+
+  // Publish batch revocation event
+  publishEvent(c, {
+    type: TOKEN_EVENTS.BATCH_REVOKED,
+    tenantId,
+    data: {
+      clientId: client_id,
+      total: body.tokens.length,
+      revoked: revokedCount,
+      invalid: invalidCount,
+    } satisfies BatchRevokeEventData,
+  }).catch((err: unknown) => {
+    console.error(`[Event] Failed to publish ${TOKEN_EVENTS.BATCH_REVOKED}:`, err);
+  });
+
+  // Audit log
+  console.log(
+    `[BATCH_REVOKE] Batch revocation completed: client=${client_id}, ` +
+      `total=${body.tokens.length}, revoked=${revokedCount}, invalid=${invalidCount}`
+  );
+
+  return c.json(response, 200);
 }

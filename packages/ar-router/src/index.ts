@@ -116,12 +116,28 @@ app.use('*', async (c, next) => {
   })(c, next);
 });
 
-// Health check endpoint
+// Health check endpoints
 app.get('/api/health', (c) => {
   return c.json({
     status: 'ok',
     service: 'authrim-router',
     version: '0.1.0',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Kubernetes health probes (router has no DB/KV, just routes to other services)
+app.get('/health/live', (c) => {
+  return c.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/health/ready', (c) => {
+  return c.json({
+    status: 'ready',
+    checks: {},
     timestamp: new Date().toISOString(),
   });
 });
@@ -319,6 +335,12 @@ app.post('/introspect', async (c) => {
 });
 
 app.post('/revoke', async (c) => {
+  const request = new Request(c.req.url, c.req.raw);
+  return c.env.OP_MANAGEMENT.fetch(request);
+});
+
+// Batch Token Revocation endpoint (RFC 7009 extension)
+app.post('/revoke/batch', async (c) => {
   const request = new Request(c.req.url, c.req.raw);
   return c.env.OP_MANAGEMENT.fetch(request);
 });
