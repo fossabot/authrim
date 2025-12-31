@@ -160,22 +160,22 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 
 ## Features
 
-| Feature | Status | Note |
+| Feature | Status | Test Result / Note |
 |---------|--------|------|
 | **OpenID Provider** | | |
-| Basic OP | ✅ Done | [View Plan](https://www.certification.openid.net/plan-detail.html?plan=rC9mDif1jiuFD&public=true) |
-| Implicit OP | ✅ Done | |
-| Hybrid OP | ✅ Done | |
-| Config OP (Discovery / JWKS) | ✅ Done | [View Plan](https://www.certification.openid.net/log-detail.html?log=JdysXRN6r0joAm3&public=true) |
-| Dynamic OP | ✅ Done | |
-| Form Post OP | ✅ Done | |
-| 3rd Party-Init OP | ? | |
+| Basic OP | ✅ Done | [View Result](https://www.certification.openid.net/plan-detail.html?plan=rC9mDif1jiuFD&public=true) |
+| Implicit OP | ✅ Done | [View Result](https://www.certification.openid.net/plan-detail.html?plan=aZHmoBP9mzeH0&public=true) |
+| Hybrid OP | ✅ Done | [View Result](https://www.certification.openid.net/plan-detail.html?plan=LKV8BKyTZZbl9&public=true) |
+| Config OP (Discovery / JWKS) | ✅ Done | [View Result](https://www.certification.openid.net/plan-detail.html?plan=YVvNf5mprr0Ks&public=true) |
+| Dynamic OP | ✅ Done | [`code`](https://www.certification.openid.net/plan-detail.html?plan=dCoXptjFq1VoP&public=true), [`id_token`](https://www.certification.openid.net/plan-detail.html?plan=uogVbOOQsKOur&public=true)<br>[`id_token token`](https://www.certification.openid.net/plan-detail.html?plan=szzLvB2IsMRy7&public=true), [`code id_token`](https://www.certification.openid.net/plan-detail.html?plan=MgbxkrOkg4kVG&public=true)<br>[`code token`](https://www.certification.openid.net/plan-detail.html?plan=WOHqvMoO6XjTG&public=true), [`code id_token token`](https://www.certification.openid.net/plan-detail.html?plan=U04s3T2zYOHCu&public=true) |
+| Form Post OP | ✅ Done | [Basic](https://www.certification.openid.net/plan-detail.html?plan=bSTOLyFujxs3m&public=true), [Implicit](https://www.certification.openid.net/plan-detail.html?plan=c31kQmt39zuT0&public=true), [Hybrid](https://www.certification.openid.net/plan-detail.html?plan=cQ3itsQtPgZdP&public=true) |
+| 3rd Party-Init OP | ✅ Done | [`code`](https://www.certification.openid.net/plan-detail.html?plan=K6OtyPJ2plwuX&public=true), [`id_token`](https://www.certification.openid.net/plan-detail.html?plan=PlXsATTbxvoUu&public=true)<br>[`id_token token`](https://www.certification.openid.net/plan-detail.html?plan=F4137vXl2vQsU&public=true), [`code id_token`](https://www.certification.openid.net/plan-detail.html?plan=fW9JtNjtIf5Vh&public=true)<br>[`code token`](https://www.certification.openid.net/plan-detail.html?plan=KoOGvJwua3Mix&public=true), [`code id_token token`](https://www.certification.openid.net/plan-detail.html?plan=TXWQFGNUlQ7jD&public=true) |
 | Authorization Code Flow + PKCE | ✅ Done | |
 | **OpenID Provider Logout Profiles** | | |
-| RP-Initiated OP | ✅ Done | |
-| Session OP | ✅ Done | |
-| Front-Channel OP | ✅ Done | |
-| Back-Channel OP | ✅ Done | |
+| RP-Initiated OP | ✅ Done | [`code`](https://www.certification.openid.net/plan-detail.html?plan=ms8UmTwCsVMg3&public=true), [`id_token`](https://www.certification.openid.net/plan-detail.html?plan=RETZUmMlazyYD&public=true)<br>[`id_token token`](https://www.certification.openid.net/plan-detail.html?plan=9hVLKioECp2aI&public=true), [`code id_token`](https://www.certification.openid.net/plan-detail.html?plan=gtaa7IZIhLdsR&public=true)<br>[`code token`](https://www.certification.openid.net/plan-detail.html?plan=2cDNqDsp9Dbl5&public=true), [`code id_token token`](https://www.certification.openid.net/plan-detail.html?plan=STPR0zraLS31P&public=true) |
+| Session OP | ✅ Done | [`code`](https://www.certification.openid.net/plan-detail.html?plan=ULOYyV8BOyoJm&public=true), [`id_token`](https://www.certification.openid.net/plan-detail.html?plan=tF5HaTejrTebE&public=true)<br>[`id_token token`](https://www.certification.openid.net/plan-detail.html?plan=YNhqAS1StLy9o&public=true), [`code id_token`](https://www.certification.openid.net/plan-detail.html?plan=idSiUuXR82ZoR&public=true)<br>[`code token`](https://www.certification.openid.net/plan-detail.html?plan=8n0n6NXFolp3j&public=true), [`code id_token token`](https://www.certification.openid.net/plan-detail.html?plan=JLzoFbwarUXKe&public=true) |
+| Front-Channel OP | ✅ Done | [`code`](https://www.certification.openid.net/plan-detail.html?plan=8NmrgZhWbOUAi&public=true), [`id_token`](https://www.certification.openid.net/plan-detail.html?plan=xSEsIAFEPcuUD&public=true)<br>[`id_token token`](https://www.certification.openid.net/plan-detail.html?plan=NxOP0F237Ox26&public=true), [`code id_token`](https://www.certification.openid.net/plan-detail.html?plan=KqcoCop3Dlqmm&public=true)<br>[`code token`](https://www.certification.openid.net/plan-detail.html?plan=0CBRXtKgDBEWn&public=true), [`code id_token token`](https://www.certification.openid.net/plan-detail.html?plan=zTXc1bRXG3fdd&public=true) |
+| Back-Channel OP | ✅ Done | [`code`](https://www.certification.openid.net/plan-detail.html?plan=oWIJMYozUYuF6&public=true), [`id_token`](https://www.certification.openid.net/plan-detail.html?plan=62tXUxHRhA569&public=true)<br>[`id_token token`](https://www.certification.openid.net/plan-detail.html?plan=IkAwZzpjQPmaH&public=true), [`code id_token`](https://www.certification.openid.net/plan-detail.html?plan=3cuS6wB3lu8ac&public=true)<br>[`code token`](https://www.certification.openid.net/plan-detail.html?plan=mqyJda2Vz5AeB&public=true), [`code id_token token`](https://www.certification.openid.net/plan-detail.html?plan=RysSDebbnj9UV&public=true) |
 | **OpenID Relying Parties** | | |
 | Basic RP | ✅ Done | |
 | Config RP (Discovery / JWKS) | ✅ Done | |
