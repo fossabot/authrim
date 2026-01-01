@@ -20,7 +20,6 @@ export * from './tokens';
 export * from './external-idp';
 export * from './credentials';
 export * from './federation';
-export * from './scim';
 export * from './client';
 export * from './encryption';
 
@@ -60,7 +59,6 @@ import { TOKENS_CATEGORY_META } from './tokens';
 import { EXTERNAL_IDP_CATEGORY_META } from './external-idp';
 import { CREDENTIALS_CATEGORY_META } from './credentials';
 import { FEDERATION_CATEGORY_META } from './federation';
-import { SCIM_CATEGORY_META } from './scim';
 import { CLIENT_CATEGORY_META } from './client';
 import { ENCRYPTION_CATEGORY_META } from './encryption';
 
@@ -80,7 +78,6 @@ export const ALL_CATEGORY_META = {
   'external-idp': EXTERNAL_IDP_CATEGORY_META,
   credentials: CREDENTIALS_CATEGORY_META,
   federation: FEDERATION_CATEGORY_META,
-  scim: SCIM_CATEGORY_META,
   // Client Settings
   client: CLIENT_CATEGORY_META,
   // Platform Settings (read-only)

@@ -151,6 +151,14 @@ export interface Env {
   // Set to "true" to completely disable rate limiting (benchmark mode)
   RATE_LIMIT_DISABLED?: string;
 
+  // SCIM Authentication Rate Limiting (RFC 7644)
+  // Configurable rate limits for SCIM Bearer token authentication
+  SCIM_AUTH_MAX_FAILED_ATTEMPTS?: string; // Max failures before lockout (default: 5)
+  SCIM_AUTH_WINDOW_SECONDS?: string; // Time window for counting failures (default: 300)
+  SCIM_AUTH_LOCKOUT_SECONDS?: string; // Lockout duration after exceeding limit (default: 900)
+  SCIM_AUTH_FAILURE_DELAY_MS?: string; // Base delay on failure in ms (default: 200)
+  SCIM_AUTH_RATE_LIMIT_DISABLED?: string; // "true" to disable rate limiting (for testing only)
+
   // Test Endpoints Control (for load testing / conformance testing)
   // Set to "true" to enable /api/admin/test/* endpoints
   // Default: disabled (returns 404) for security in production

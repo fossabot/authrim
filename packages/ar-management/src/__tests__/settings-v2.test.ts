@@ -490,7 +490,6 @@ describe('Settings API v2', () => {
       'external-idp',
       'credentials',
       'federation',
-      'scim',
       'infrastructure',
       'encryption',
     ];
