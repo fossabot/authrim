@@ -877,10 +877,12 @@ export function normalizeRedirectUri(uri: string): string | null {
     }
 
     // Reconstruct normalized URL
-    // Note: We intentionally exclude query strings and fragments from comparison
-    // as they should not be part of the registered redirect_uri
+    // RFC 6749 Section 3.1.2.3: redirect_uri comparison MUST use simple string comparison
+    // Query strings MUST be included in the comparison (but fragments are stripped)
     const normalizedPort = port ? `:${port}` : '';
-    return `${url.protocol}//${hostname}${normalizedPort}${path}`;
+    const query = url.search || ''; // Include query string (e.g., ?foo=bar)
+    // Note: Fragments are intentionally excluded as they are never sent to the server
+    return `${url.protocol}//${hostname}${normalizedPort}${path}${query}`;
   } catch {
     // Invalid URL
     return null;

@@ -147,23 +147,28 @@ app.get('/health/live', healthHandlers.liveness);
 app.get('/health/ready', healthHandlers.readiness);
 
 // =============================================================================
-// Public Endpoints
+// Public Endpoints (both /api/external and /auth/external paths for compatibility)
 // =============================================================================
 
 // List available providers for login UI
 app.get('/api/external/providers', handleListProviders);
+app.get('/auth/external/providers', handleListProviders);
 
 // Start external IdP login flow
 app.get('/api/external/:provider/start', handleExternalStart);
+app.get('/auth/external/:provider/start', handleExternalStart);
 
 // Handle OAuth callback from external IdP
 // GET: Standard OAuth callback (most providers)
 // POST: Apple Sign In with response_mode=form_post (required for name/email scope)
 app.get('/api/external/:provider/callback', handleExternalCallback);
 app.post('/api/external/:provider/callback', handleExternalCallback);
+app.get('/auth/external/:provider/callback', handleExternalCallback);
+app.post('/auth/external/:provider/callback', handleExternalCallback);
 
 // Handle backchannel logout from external IdP (OpenID Connect Back-Channel Logout 1.0)
 app.post('/api/external/:provider/backchannel-logout', handleBackchannelLogout);
+app.post('/auth/external/:provider/backchannel-logout', handleBackchannelLogout);
 
 // =============================================================================
 // Authenticated Endpoints (require session)
@@ -171,12 +176,15 @@ app.post('/api/external/:provider/backchannel-logout', handleBackchannelLogout);
 
 // List linked identities for current user
 app.get('/api/external/links', handleListLinkedIdentities);
+app.get('/auth/external/links', handleListLinkedIdentities);
 
 // Start linking flow for existing account
 app.post('/api/external/links', handleLinkIdentity);
+app.post('/auth/external/links', handleLinkIdentity);
 
 // Unlink identity from account
 app.delete('/api/external/links/:id', handleUnlinkIdentity);
+app.delete('/auth/external/links/:id', handleUnlinkIdentity);
 
 // =============================================================================
 // Admin API

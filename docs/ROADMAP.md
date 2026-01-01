@@ -121,7 +121,7 @@ timeline
 | **M8: Policy Integration** | 2025-12-19 | ✅ Complete | Unified AuthN + AuthZ, Token embedding, Check API                     |
 | **M9: Advanced Identity**  | 2025-12-20 | ✅ Complete | OpenID4VP/CI, DID Resolver, DID Auth, 227 tests                       |
 | **M10: SDK & API**         | 2025-Q4    | 🔜 Planned  | WebSDK, CLI, API Documentation                                        |
-| **M11: Security & QA**     | 2025-Q4    | ⏳ ~20%     | Load Testing ✅, Security Tests ✅, Audit pending                     |
+| **M11: Security & QA**     | 2025-Q4    | ⏳ ~30%     | Load Testing ✅, Client Credentials ✅, Security Tests ✅, Audit pending |
 | **M12: Release**           | 2026-Q1    | 🔜 Final    | OpenID Certification, Public Release                                  |
 
 ---
@@ -442,12 +442,13 @@ Error code implementation completed (2024-12-23). The following documentation mu
 
 ### Key Features
 
-| Feature             | Description                        | Status      |
-| ------------------- | ---------------------------------- | ----------- |
-| Load Testing        | Performance benchmarks             | ✅ Complete |
-| Security Audit      | External security review           | 🔜 Planned  |
-| Penetration Testing | Third-party security assessment    | 🔜 Planned  |
-| Conformance Tests   | Hybrid OP, Dynamic OP, RP profiles | 🔜 Planned  |
+| Feature               | Description                        | Status      |
+| --------------------- | ---------------------------------- | ----------- |
+| Client Credentials    | RFC 6749 §4.4 server-to-server     | ✅ Complete |
+| Load Testing          | Performance benchmarks             | ✅ Complete |
+| Security Audit        | External security review           | 🔜 Planned  |
+| Penetration Testing   | Third-party security assessment    | 🔜 Planned  |
+| Conformance Tests     | Hybrid OP, Dynamic OP, RP profiles | 🔜 Planned  |
 
 ### API Deprecation Plan
 
@@ -538,7 +539,7 @@ With the introduction of **Contract-based Presets** (FAPI 2.0, regulated-finance
 | VC/DID tests             | 100+        | ✅ 227 tests                                      | P9 ✅ |
 | SDK downloads            | 1000+       | -                                                 | P10   |
 | Load test RPS            | 10,000+     | ✅ 3,500 (Silent Auth)                            | P11   |
-| Security hardening       | 100%        | ⏳ ~20%                                           | P11   |
+| Security hardening       | 100%        | ⏳ ~30%                                           | P11   |
 | OpenID Certification     | ✅ Obtained | -                                                 | P12   |
 
 ---
@@ -593,6 +594,8 @@ By 2026-Q1, Authrim will be:
 | 2025-12-20 | **Phase 9 ✅ Complete**: OpenID4VP/VCI, DID Support (did:web, did:key, DID Auth), 227 tests                                                                                                                |
 | 2025-12-21 | **Phase 11 Security Hardening**: DPoP `ath` timing-safe comparison (RFC 9449), JWT algorithm consistency (`ALLOWED_ASYMMETRIC_ALGS`), Policy Flags Admin API (CLAUDE.md compliant)                         |
 | 2025-12-26 | **FAPI 2.0 Contract Presets**: Added `fapi2-security-profile` and `fapi2-message-signing` presets based on OIDF FAPI 2.0 Final specs. Deprecation plan for legacy `fapi-security` API added to roadmap. |
+| 2026-01-01 | **Client Credentials Flow ✅ Complete** (RFC 6749 §4.4): `client_secret_basic`, `client_secret_post`, `private_key_jwt` authentication methods implemented with 382 lines of tests. |
+| 2026-01-01 | **Documentation Alignment**: Updated PII Separation (✅ Complete), RAR Phase 1 (✅ Complete), Flow×UI Types (✅ Complete) documentation to reflect actual implementation status. |
 
 ---
 
@@ -607,8 +610,8 @@ The following features are intentionally **not supported** due to architectural 
 
 ---
 
-> **Last Update:** 2025-12-26
+> **Last Update:** 2026-01-01
 >
-> **Current Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 11 ~20%
+> **Current Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 11 ~30%
 >
 > **Authrim** - The Identity & Access Platform for the modern web.

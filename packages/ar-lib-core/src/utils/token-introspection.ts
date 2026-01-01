@@ -99,6 +99,15 @@ async function getPublicKey(publicJWKJson: string, keyId: string): Promise<Crypt
 }
 
 /**
+ * Invalidate the KeyManager key cache
+ * Called when a key is not found in the cache to force a refresh
+ */
+function invalidateKeyManagerCache(): void {
+  cachedKeyManagerKeys = null;
+  cachedKeyManagerTimestamp = 0;
+}
+
+/**
  * Get public keys from KeyManager DO with caching
  *
  * Performance optimization: Caches all public keys from KeyManager DO to avoid
@@ -106,17 +115,25 @@ async function getPublicKey(publicJWKJson: string, keyId: string): Promise<Crypt
  * with 24-hour key rotation (keys have 48h overlap period).
  *
  * @param env - Environment bindings with KEY_MANAGER DO
+ * @param forceRefresh - Force cache refresh (used when kid not found in cache)
  * @returns Array of JWK public keys, or null if unavailable
  */
-async function getKeysFromKeyManager(env: Env): Promise<Array<JWK & { kid?: string }> | null> {
+async function getKeysFromKeyManager(
+  env: Env,
+  forceRefresh = false
+): Promise<Array<JWK & { kid?: string }> | null> {
   const now = Date.now();
 
-  // Check cache first
-  if (cachedKeyManagerKeys && now - cachedKeyManagerTimestamp < KEY_MANAGER_CACHE_TTL) {
+  // Check cache first (unless force refresh)
+  if (
+    !forceRefresh &&
+    cachedKeyManagerKeys &&
+    now - cachedKeyManagerTimestamp < KEY_MANAGER_CACHE_TTL
+  ) {
     return cachedKeyManagerKeys;
   }
 
-  // Cache miss: fetch from KeyManager DO
+  // Cache miss or force refresh: fetch from KeyManager DO
   if (!env.KEY_MANAGER) {
     return null;
   }
@@ -311,10 +328,21 @@ export async function introspectToken(
 
   // Try to fetch JWKS from KeyManager DO with caching (30-minute TTL)
   // This dramatically reduces DO calls under high load while maintaining security
-  const keys = await getKeysFromKeyManager(request.env);
+  let keys = await getKeysFromKeyManager(request.env);
   if (keys && keys.length > 0) {
     // Find key by kid (key ID from JWT header)
-    const jwk = kid ? keys.find((k) => k.kid === kid) : keys[0];
+    let jwk = kid ? keys.find((k) => k.kid === kid) : keys[0];
+
+    // Key rotation handling: If kid not found in cache, refresh and retry once
+    // This handles the case where a new key was added after the cache was populated
+    if (!jwk && kid) {
+      invalidateKeyManagerCache();
+      keys = await getKeysFromKeyManager(request.env, true);
+      if (keys && keys.length > 0) {
+        jwk = keys.find((k) => k.kid === kid);
+      }
+    }
+
     if (jwk) {
       try {
         publicKey = (await importJWK(jwk, 'RS256')) as CryptoKey;

@@ -123,7 +123,7 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | 8     | **Unified Policy Integration** | 2025-12  | ✅ Complete |
 | 9     | **Advanced Identity (VC/DID)** | 2025-12  | ✅ Complete |
 | 10    | SDK & API                      | 2025-Q4  | 🔜 Planned  |
-| 11    | Security & QA                  | 2025-Q4  | ⏳ ~20%     |
+| 11    | Security & QA                  | 2025-Q4  | ⏳ ~30%     |
 | 12    | Certification & Release        | 2026-Q1  | 🔜 Final    |
 
 [View detailed roadmap](./docs/ROADMAP.md)
@@ -201,6 +201,7 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | Refresh Token Rotation | ✅ Done | |
 | Token Introspection (RFC 7662) | ✅ Done | |
 | Token Revocation (RFC 7009) | ✅ Done | |
+| Client Credentials (RFC 6749 §4.4) | ✅ Done | |
 | Dynamic Client Registration (RFC 7591) | ✅ Done | |
 | **Authentication** | | |
 | WebAuthn / Passkey | ✅ Done | |
@@ -267,6 +268,6 @@ See [LICENSE](./LICENSE) for details.
 
 > **Authrim** — _Identity & Access at the edge of everywhere_
 >
-> **Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 11 ~20%
+> **Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 11 ~30%
 >
 > _From zero to production-ready Identity & Access Platform in under 5 minutes._ (Goal: 2026-Q1)

@@ -415,18 +415,62 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         // Fetch the Request Object from the URL with security controls
+        // Allow redirects but validate final URL (OIDF Conformance Suite uses redirects)
         const requestObjectResponse = await fetch(request_uri, {
           method: 'GET',
           headers: {
             Accept: 'application/oauth-authz-req+jwt, application/jwt',
           },
           signal: controller.signal,
-          redirect: 'error', // Prevent redirect-based SSRF
+          redirect: 'follow', // Follow redirects (OIDF uses 302)
         });
 
         clearTimeout(timeoutId);
 
+        // Security: Validate redirected URL domain is still in allowed list
+        if (requestObjectResponse.url && requestObjectResponse.url !== request_uri) {
+          try {
+            const finalUrl = new URL(requestObjectResponse.url);
+            const finalDomain = finalUrl.hostname.toLowerCase();
+            if (allowedDomains.length > 0) {
+              const isFinalDomainAllowed = allowedDomains.some(
+                (allowed) => finalDomain === allowed || finalDomain.endsWith('.' + allowed)
+              );
+              if (!isFinalDomainAllowed) {
+                console.warn(
+                  `SSRF prevention: Rejected redirect to ${finalDomain}. Allowed: ${allowedDomains.join(', ')}`
+                );
+                return c.json(
+                  {
+                    error: 'invalid_request_uri',
+                    error_description: 'Redirected request_uri domain is not in the allowed list',
+                  },
+                  400
+                );
+              }
+            }
+            // Also check if redirected to internal URL
+            if (isInternalUrl(finalUrl)) {
+              console.warn(
+                `SSRF prevention: Blocked redirect to internal address ${finalUrl.hostname}`
+              );
+              return c.json(
+                {
+                  error: 'invalid_request_uri',
+                  error_description: 'request_uri cannot redirect to internal addresses',
+                },
+                400
+              );
+            }
+          } catch {
+            // URL parsing failed - should not happen for valid redirect
+          }
+        }
+
         if (!requestObjectResponse.ok) {
+          console.error(
+            `Failed to fetch request_uri: HTTP ${requestObjectResponse.status} ${requestObjectResponse.statusText}`
+          );
           return c.json(
             {
               error: 'invalid_request_uri',
@@ -899,8 +943,11 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
           }
 
           // Verify the signature
-          const verified = await verifyToken(jwtRequest, publicKey, c.env.ISSUER_URL, {
-            audience: client_id,
+          // OIDC Core 6.1: For client-signed request objects:
+          // - iss = client_id (the client is the issuer)
+          // - aud = OP's issuer URL (the OP is the audience)
+          const verified = await verifyToken(jwtRequest, publicKey, client_id, {
+            audience: c.env.ISSUER_URL,
           });
           requestObjectClaims = verified as Record<string, unknown>;
         }
@@ -3228,6 +3275,53 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
 
   // GET request: Show login form (stub implementation with username/password fields)
   if (c.req.method === 'GET') {
+    // Fetch challenge data to display client logo and info (OIDC Dynamic OP conformance)
+    let logoUri: string | undefined;
+    let clientName: string | undefined;
+    let policyUri: string | undefined;
+    let tosUri: string | undefined;
+
+    try {
+      const challengeStore = await getChallengeStoreByChallengeId(c.env, challenge_id);
+      const challengeData = (await challengeStore.getChallengeRpc(challenge_id)) as {
+        id: string;
+        type: string;
+        metadata?: {
+          logo_uri?: string;
+          client_name?: string;
+          policy_uri?: string;
+          tos_uri?: string;
+          [key: string]: unknown;
+        };
+      } | null;
+      if (challengeData?.metadata) {
+        logoUri = challengeData.metadata.logo_uri;
+        clientName = challengeData.metadata.client_name;
+        policyUri = challengeData.metadata.policy_uri;
+        tosUri = challengeData.metadata.tos_uri;
+      }
+    } catch (e) {
+      console.warn('[LOGIN] Failed to fetch challenge data for client info:', e);
+    }
+
+    // Build client info section HTML
+    const clientInfoHtml =
+      logoUri || clientName
+        ? `
+    <div class="client-info">
+      ${logoUri ? `<img src="${escapeHtml(logoUri)}" alt="${escapeHtml(clientName || 'Client')} logo" class="client-logo" onerror="this.style.display='none'">` : ''}
+      ${clientName ? `<p class="client-name">Signing in to <strong>${escapeHtml(clientName)}</strong></p>` : ''}
+      ${
+        policyUri || tosUri
+          ? `<div class="client-links">
+        ${policyUri ? `<a href="${escapeHtml(policyUri)}" target="_blank" rel="noopener noreferrer">Privacy Policy</a>` : ''}
+        ${tosUri ? `<a href="${escapeHtml(tosUri)}" target="_blank" rel="noopener noreferrer">Terms of Service</a>` : ''}
+      </div>`
+          : ''
+      }
+    </div>`
+        : '';
+
     return c.html(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3251,6 +3345,35 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
       max-width: 400px;
       width: 100%;
+    }
+    .client-info {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid #eee;
+    }
+    .client-logo {
+      max-width: 120px;
+      max-height: 80px;
+      object-fit: contain;
+      margin-bottom: 0.5rem;
+    }
+    .client-name {
+      margin: 0.5rem 0;
+      color: #666;
+      font-size: 0.9rem;
+    }
+    .client-links {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+    }
+    .client-links a {
+      color: #667eea;
+      text-decoration: none;
+      margin: 0 0.5rem;
+    }
+    .client-links a:hover {
+      text-decoration: underline;
     }
     h1 {
       margin: 0 0 1rem 0;
@@ -3290,6 +3413,7 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
 </head>
 <body>
   <div class="container">
+    ${clientInfoHtml}
     <h1>Login Required</h1>
     <p>Please enter your credentials to continue.</p>
     <form method="POST" action="/flow/login">

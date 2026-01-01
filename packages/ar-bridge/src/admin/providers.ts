@@ -115,6 +115,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       auto_link_email?: boolean;
       jit_provisioning?: boolean;
       require_email_verified?: boolean;
+      always_fetch_userinfo?: boolean;
       icon_url?: string;
       button_color?: string;
       button_text?: string;
@@ -122,10 +123,16 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       token_endpoint?: string;
       userinfo_endpoint?: string;
       jwks_uri?: string;
+      token_endpoint_auth_method?: 'client_secret_basic' | 'client_secret_post';
       attribute_mapping?: Record<string, string>;
       provider_quirks?: Record<string, unknown>;
       tenant_id?: string;
       template?: 'google' | 'github' | 'microsoft' | 'linkedin' | 'facebook' | 'twitter' | 'apple';
+      // Request Object (JAR - RFC 9101) settings
+      use_request_object?: boolean;
+      request_object_signing_alg?: string;
+      private_key_jwk?: Record<string, unknown>;
+      public_key_jwk?: Record<string, unknown>;
     }>();
 
     // Validate required fields
@@ -304,6 +311,12 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
     const encryptionKey = getEncryptionKey(c.env);
     const clientSecretEncrypted = await encrypt(body.client_secret, encryptionKey);
 
+    // Encrypt private key JWK if provided (for request object signing)
+    let privateKeyJwkEncrypted: string | undefined;
+    if (body.private_key_jwk) {
+      privateKeyJwkEncrypted = await encrypt(JSON.stringify(body.private_key_jwk), encryptionKey);
+    }
+
     // Merge defaults with explicit body values (body values take precedence)
     const defaultIssuer = (defaults.issuer as string | undefined) || undefined;
     const defaultScopes = (defaults.scopes as string | undefined) || 'openid email profile';
@@ -330,14 +343,21 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       userinfoEndpoint: body.userinfo_endpoint,
       jwksUri: body.jwks_uri,
       scopes: body.scopes || defaultScopes,
+      tokenEndpointAuthMethod: body.token_endpoint_auth_method,
       attributeMapping: body.attribute_mapping || defaultAttributeMapping,
       autoLinkEmail: body.auto_link_email !== false,
       jitProvisioning: body.jit_provisioning !== false,
       requireEmailVerified: body.require_email_verified !== false,
+      alwaysFetchUserinfo: body.always_fetch_userinfo === true,
       providerQuirks: body.provider_quirks || defaultProviderQuirks,
       iconUrl: body.icon_url || defaultIconUrl,
       buttonColor: body.button_color || defaultButtonColor,
       buttonText: body.button_text || defaultButtonText,
+      // Request Object (JAR - RFC 9101) settings
+      useRequestObject: body.use_request_object,
+      requestObjectSigningAlg: body.request_object_signing_alg,
+      privateKeyJwkEncrypted,
+      publicKeyJwk: body.public_key_jwk,
     });
 
     // Remove secret from response
@@ -410,6 +430,7 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
       auto_link_email?: boolean;
       jit_provisioning?: boolean;
       require_email_verified?: boolean;
+      always_fetch_userinfo?: boolean;
       icon_url?: string;
       button_color?: string;
       button_text?: string;
@@ -417,8 +438,14 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
       token_endpoint?: string;
       userinfo_endpoint?: string;
       jwks_uri?: string;
+      token_endpoint_auth_method?: 'client_secret_basic' | 'client_secret_post';
       attribute_mapping?: Record<string, string>;
       provider_quirks?: Record<string, unknown>;
+      // Request Object (JAR - RFC 9101) settings
+      use_request_object?: boolean;
+      request_object_signing_alg?: string;
+      private_key_jwk?: Record<string, unknown>;
+      public_key_jwk?: Record<string, unknown>;
     }>();
 
     // Build updates object
@@ -441,6 +468,8 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
     if (body.jit_provisioning !== undefined) updates.jitProvisioning = body.jit_provisioning;
     if (body.require_email_verified !== undefined)
       updates.requireEmailVerified = body.require_email_verified;
+    if (body.always_fetch_userinfo !== undefined)
+      updates.alwaysFetchUserinfo = body.always_fetch_userinfo;
     if (body.icon_url !== undefined) updates.iconUrl = body.icon_url;
     if (body.button_color !== undefined) updates.buttonColor = body.button_color;
     if (body.button_text !== undefined) updates.buttonText = body.button_text;
@@ -449,6 +478,8 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
     if (body.token_endpoint !== undefined) updates.tokenEndpoint = body.token_endpoint;
     if (body.userinfo_endpoint !== undefined) updates.userinfoEndpoint = body.userinfo_endpoint;
     if (body.jwks_uri !== undefined) updates.jwksUri = body.jwks_uri;
+    if (body.token_endpoint_auth_method !== undefined)
+      updates.tokenEndpointAuthMethod = body.token_endpoint_auth_method;
     if (body.attribute_mapping !== undefined) updates.attributeMapping = body.attribute_mapping;
     if (body.provider_quirks !== undefined) {
       // Validate Microsoft tenant type if present
@@ -472,6 +503,19 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
       }
       updates.providerQuirks = body.provider_quirks;
     }
+
+    // Request Object (JAR - RFC 9101) settings
+    if (body.use_request_object !== undefined) updates.useRequestObject = body.use_request_object;
+    if (body.request_object_signing_alg !== undefined)
+      updates.requestObjectSigningAlg = body.request_object_signing_alg;
+    if (body.private_key_jwk !== undefined) {
+      const encryptionKey = getEncryptionKey(c.env);
+      updates.privateKeyJwkEncrypted = await encrypt(
+        JSON.stringify(body.private_key_jwk),
+        encryptionKey
+      );
+    }
+    if (body.public_key_jwk !== undefined) updates.publicKeyJwk = body.public_key_jwk;
 
     const provider = await updateProvider(c.env, id, updates);
     if (!provider) {

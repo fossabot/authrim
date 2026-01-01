@@ -160,7 +160,7 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
     const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret);
     const tokens = await client.handleCallback(code, authState.codeVerifier || '');
 
-    // 6. Validate ID token or fetch user info
+    // 6. Validate ID token and/or fetch user info
     let userInfo;
     if (provider.providerType === 'oidc' && tokens.id_token && authState.nonce) {
       // Use the new options-based signature for comprehensive OIDC validation
@@ -170,6 +170,19 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
         maxAge: authState.maxAge, // For auth_time validation if max_age was requested
         acrValues: authState.acrValues, // For acr validation if acr_values was requested
       });
+
+      // Optionally fetch userinfo even when id_token is present
+      // Enable this for OIDC RP certification testing or when userinfo has additional claims
+      if (provider.alwaysFetchUserinfo) {
+        try {
+          const userinfoData = await client.fetchUserInfo(tokens.access_token);
+          // Merge userinfo data (userinfo may have additional claims not in id_token)
+          userInfo = { ...userInfo, ...userinfoData };
+        } catch {
+          // Userinfo fetch failure is not fatal - we already have claims from id_token
+          console.warn('Userinfo fetch failed, using id_token claims only');
+        }
+      }
     } else {
       userInfo = await client.fetchUserInfo(tokens.access_token);
     }

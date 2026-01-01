@@ -26,6 +26,15 @@ export interface OIDCRPClientConfig {
   jwksUri?: string;
   // Provider-specific quirks
   providerQuirks?: Record<string, unknown>;
+  // Request Object (JAR - RFC 9101) settings
+  /** Whether to use request objects */
+  useRequestObject?: boolean;
+  /** Algorithm for signing request objects (e.g., RS256) */
+  requestObjectSigningAlg?: string;
+  /** Private key JWK for signing request objects */
+  privateKeyJwk?: jose.JWK;
+  /** Key ID for the signing key */
+  keyId?: string;
 }
 
 /**
@@ -63,11 +72,17 @@ export class OIDCRPClient {
 
   /**
    * Create client from UpstreamProvider configuration
+   *
+   * @param provider - Upstream provider configuration
+   * @param redirectUri - Callback URI for this flow
+   * @param clientSecret - Decrypted client secret
+   * @param privateKeyJwk - Optional decrypted private key JWK for request object signing
    */
   static fromProvider(
     provider: UpstreamProvider,
     redirectUri: string,
-    clientSecret: string
+    clientSecret: string,
+    privateKeyJwk?: jose.JWK
   ): OIDCRPClient {
     return new OIDCRPClient({
       issuer: provider.issuer || '',
@@ -80,11 +95,17 @@ export class OIDCRPClient {
       userinfoEndpoint: provider.userinfoEndpoint,
       jwksUri: provider.jwksUri,
       providerQuirks: provider.providerQuirks,
+      // Request Object settings
+      useRequestObject: provider.useRequestObject,
+      requestObjectSigningAlg: provider.requestObjectSigningAlg,
+      privateKeyJwk,
+      keyId: privateKeyJwk?.kid as string | undefined,
     });
   }
 
   /**
    * Discover provider metadata from .well-known endpoint
+   * Implements OIDC Discovery 1.0 Section 4.3 validation requirements
    */
   async discover(): Promise<ProviderMetadata> {
     if (this.metadata) {
@@ -99,6 +120,29 @@ export class OIDCRPClient {
     }
 
     const metadata: ProviderMetadata = await response.json();
+
+    // OIDC Discovery 1.0 Section 4.3: Validate issuer
+    // The issuer value returned MUST be identical to the Issuer URL used to retrieve the configuration
+    if (metadata.issuer !== this.config.issuer) {
+      throw new Error(
+        `Discovery document issuer mismatch: expected ${this.config.issuer}, got ${metadata.issuer}`
+      );
+    }
+
+    // Validate required fields (OIDC Discovery 1.0 Section 3)
+    if (!metadata.authorization_endpoint) {
+      throw new Error('Discovery document missing required authorization_endpoint');
+    }
+    if (!metadata.token_endpoint) {
+      throw new Error('Discovery document missing required token_endpoint');
+    }
+    if (!metadata.jwks_uri) {
+      throw new Error('Discovery document missing required jwks_uri');
+    }
+    if (!metadata.response_types_supported || metadata.response_types_supported.length === 0) {
+      throw new Error('Discovery document missing required response_types_supported');
+    }
+
     this.metadata = metadata;
     return this.metadata;
   }
@@ -149,6 +193,7 @@ export class OIDCRPClient {
 
   /**
    * Create authorization URL with PKCE
+   * Supports both plain query parameters and signed request objects (JAR - RFC 9101)
    */
   async createAuthorizationUrl(params: {
     state: string;
@@ -163,34 +208,98 @@ export class OIDCRPClient {
     const authEndpoint = await this.getAuthorizationEndpoint();
     const codeChallenge = await generateCodeChallenge(params.codeVerifier);
 
-    const url = new URL(authEndpoint);
-    url.searchParams.set('response_type', 'code');
-    url.searchParams.set('client_id', this.config.clientId);
-    url.searchParams.set('redirect_uri', this.config.redirectUri);
-    url.searchParams.set('scope', this.config.scopes.join(' '));
-    url.searchParams.set('state', params.state);
-    url.searchParams.set('nonce', params.nonce);
-    url.searchParams.set('code_challenge', codeChallenge);
-    url.searchParams.set('code_challenge_method', 'S256');
+    // Build authorization parameters
+    const authParams: Record<string, string> = {
+      response_type: 'code',
+      client_id: this.config.clientId,
+      redirect_uri: this.config.redirectUri,
+      scope: this.config.scopes.join(' '),
+      state: params.state,
+      nonce: params.nonce,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    };
 
     if (params.prompt) {
-      url.searchParams.set('prompt', params.prompt);
+      authParams.prompt = params.prompt;
     }
     if (params.loginHint) {
-      url.searchParams.set('login_hint', params.loginHint);
+      authParams.login_hint = params.loginHint;
     }
     if (params.maxAge !== undefined) {
-      url.searchParams.set('max_age', params.maxAge.toString());
+      authParams.max_age = params.maxAge.toString();
     }
     if (params.acrValues) {
-      url.searchParams.set('acr_values', params.acrValues);
+      authParams.acr_values = params.acrValues;
     }
-    // response_mode: Required for Apple Sign In with name/email scope
     if (params.responseMode) {
-      url.searchParams.set('response_mode', params.responseMode);
+      authParams.response_mode = params.responseMode;
     }
 
+    // If request object is enabled, create a signed JWT
+    if (this.config.useRequestObject && this.config.privateKeyJwk) {
+      const requestObject = await this.createRequestObject(authParams);
+      const url = new URL(authEndpoint);
+      // RFC 9101: When using request parameter, client_id is still required in URL
+      url.searchParams.set('client_id', this.config.clientId);
+      url.searchParams.set('request', requestObject);
+      return url.toString();
+    }
+
+    // Standard: Use query parameters
+    const url = new URL(authEndpoint);
+    for (const [key, value] of Object.entries(authParams)) {
+      url.searchParams.set(key, value);
+    }
     return url.toString();
+  }
+
+  /**
+   * Create a signed Request Object JWT (RFC 9101 - JAR)
+   *
+   * The request object contains all authorization request parameters
+   * as JWT claims, signed by the client's private key.
+   *
+   * @param params - Authorization request parameters to include in the JWT
+   * @returns Signed JWT string
+   */
+  private async createRequestObject(params: Record<string, string>): Promise<string> {
+    if (!this.config.privateKeyJwk) {
+      throw new Error('Private key required for request object signing');
+    }
+
+    const alg = this.config.requestObjectSigningAlg || 'RS256';
+    const privateKey = await jose.importJWK(this.config.privateKeyJwk, alg);
+
+    // Build JWT payload from authorization parameters
+    const payload: Record<string, unknown> = {
+      ...params,
+      // RFC 9101 Section 4: iss MUST be the client_id
+      iss: this.config.clientId,
+      // RFC 9101 Section 4: aud MUST be the OP's issuer
+      aud: this.config.issuer,
+      // Add timestamps for security
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 300, // 5 minutes validity
+      // Optional: Add jti for replay protection
+      jti: crypto.randomUUID(),
+    };
+
+    // Build protected header
+    const header: jose.JWTHeaderParameters = {
+      alg,
+      typ: 'oauth-authz-req+jwt', // RFC 9101 Section 5.1
+    };
+
+    // Add kid if available
+    if (this.config.keyId) {
+      header.kid = this.config.keyId;
+    }
+
+    // Sign the JWT
+    const jwt = await new jose.SignJWT(payload).setProtectedHeader(header).sign(privateKey);
+
+    return jwt;
   }
 
   /**
@@ -223,12 +332,15 @@ export class OIDCRPClient {
     };
 
     if (useBasicAuth) {
-      // Twitter/X: Use Basic authentication
-      // Credentials are Base64-encoded as "client_id:client_secret"
-      const credentials = btoa(`${this.config.clientId}:${this.config.clientSecret}`);
+      // RFC 6749 Section 2.3.1: HTTP Basic authentication
+      // The client_id and client_secret MUST be URL-encoded BEFORE Base64 encoding
+      // (per RFC 6749 Appendix B: application/x-www-form-urlencoded encoding)
+      // IMPORTANT: Do NOT include client_id in body when using Basic auth
+      // (RFC 6749 Section 2.3: "The client MUST NOT use more than one authentication method")
+      const encodedClientId = encodeURIComponent(this.config.clientId);
+      const encodedClientSecret = encodeURIComponent(this.config.clientSecret);
+      const credentials = btoa(`${encodedClientId}:${encodedClientSecret}`);
       headers['Authorization'] = `Basic ${credentials}`;
-      // Still need to include client_id in body for some OAuth2 implementations
-      body.set('client_id', this.config.clientId);
     } else {
       // Standard: Include credentials in request body
       body.set('client_id', this.config.clientId);
@@ -354,6 +466,16 @@ export class OIDCRPClient {
       this.validateMicrosoftIssuer(payload.iss);
     }
 
+    // Explicit validation of REQUIRED claims (OIDC Core Section 2)
+    // Note: jose.jwtVerify validates iss/aud match, but we add explicit presence checks
+    // for defense in depth and clearer error messages
+    if (!payload.iss || typeof payload.iss !== 'string') {
+      throw new Error('ID token missing required iss claim');
+    }
+    if (!payload.aud) {
+      throw new Error('ID token missing required aud claim');
+    }
+
     // 1. Validate nonce (OIDC Core 3.1.3.7 step 11)
     if (payload.nonce !== options.nonce) {
       throw new Error('ID token nonce mismatch');
@@ -361,13 +483,21 @@ export class OIDCRPClient {
 
     const now = Math.floor(Date.now() / 1000);
 
-    // 2. Validate expiration (OIDC Core 3.1.3.7 step 9)
-    if (payload.exp && payload.exp < now) {
+    // 2. Validate expiration - REQUIRED claim (OIDC Core Section 2)
+    if (payload.exp === undefined || payload.exp === null) {
+      throw new Error('ID token missing required exp claim');
+    }
+    // Token must not be expired (OIDC Core 3.1.3.7 step 9)
+    if (payload.exp < now) {
       throw new Error('ID token expired');
     }
 
-    // 3. Validate iat (issued at) - should not be in the future (OIDC Core 3.1.3.7 step 10)
-    if (payload.iat && payload.iat > now + OIDCRPClient.CLOCK_SKEW_SECONDS) {
+    // 3. Validate iat (issued at) - REQUIRED claim (OIDC Core Section 2)
+    if (payload.iat === undefined || payload.iat === null) {
+      throw new Error('ID token missing required iat claim');
+    }
+    // Should not be in the future (OIDC Core 3.1.3.7 step 10)
+    if (payload.iat > now + OIDCRPClient.CLOCK_SKEW_SECONDS) {
       throw new Error('ID token issued in the future');
     }
 
@@ -404,8 +534,13 @@ export class OIDCRPClient {
       this.validateAcr(payload, options.acrValues);
     }
 
+    // 9. Validate sub claim is present (OIDC Core Section 2 - REQUIRED)
+    if (!payload.sub || typeof payload.sub !== 'string' || payload.sub.trim() === '') {
+      throw new Error('ID token missing required sub claim');
+    }
+
     return {
-      sub: payload.sub as string,
+      sub: payload.sub,
       email: payload.email as string | undefined,
       email_verified: payload.email_verified as boolean | undefined,
       name: payload.name as string | undefined,
@@ -643,6 +778,15 @@ export class OIDCRPClient {
     }
 
     const userInfo: Record<string, unknown> = await response.json();
+
+    // Validate sub claim is present (OIDC Core Section 5.3.2 - REQUIRED)
+    if (
+      !userInfo.sub ||
+      typeof userInfo.sub !== 'string' ||
+      (userInfo.sub as string).trim() === ''
+    ) {
+      throw new Error('Userinfo response missing required sub claim');
+    }
 
     return {
       sub: userInfo.sub as string,

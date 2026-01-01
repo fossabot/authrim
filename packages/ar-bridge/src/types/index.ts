@@ -9,6 +9,13 @@
 
 export type ProviderType = 'oidc' | 'oauth2';
 
+/**
+ * Token endpoint authentication method
+ * - client_secret_basic: Credentials in Authorization header (RFC 6749 Section 2.3.1)
+ * - client_secret_post: Credentials in request body (RFC 6749 Section 2.3.1)
+ */
+export type TokenEndpointAuthMethod = 'client_secret_basic' | 'client_secret_post';
+
 export interface UpstreamProvider {
   id: string;
   tenantId: string;
@@ -27,15 +34,45 @@ export interface UpstreamProvider {
   userinfoEndpoint?: string;
   jwksUri?: string;
   scopes: string;
+  /** Token endpoint authentication method (default: client_secret_post) */
+  tokenEndpointAuthMethod?: TokenEndpointAuthMethod;
 
   // Configuration
   attributeMapping: Record<string, string>;
   autoLinkEmail: boolean;
   jitProvisioning: boolean;
   requireEmailVerified: boolean;
+  /**
+   * Always fetch userinfo even when id_token contains claims.
+   * Enable this for OIDC RP certification testing or when userinfo
+   * returns additional claims not present in id_token.
+   * Default: false
+   */
+  alwaysFetchUserinfo?: boolean;
 
   // Provider-specific settings
   providerQuirks: Record<string, unknown>;
+
+  // Request Object (JAR - RFC 9101) settings for RP conformance testing
+  /**
+   * Whether to use request objects (JAR - RFC 9101)
+   * When enabled, authorization parameters are sent as a signed JWT
+   */
+  useRequestObject?: boolean;
+  /**
+   * Algorithm for signing request objects (e.g., RS256, ES256)
+   * Required when useRequestObject is true
+   */
+  requestObjectSigningAlg?: string;
+  /**
+   * JWK containing the private key for signing request objects
+   * Stored encrypted in the database
+   */
+  privateKeyJwkEncrypted?: string;
+  /**
+   * JWK containing the public key (for JWKS endpoint registration with the OP)
+   */
+  publicKeyJwk?: Record<string, unknown>;
 
   // UI customization
   iconUrl?: string;

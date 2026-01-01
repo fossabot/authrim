@@ -393,8 +393,8 @@ describe('HTTPS Request URI Security', () => {
     });
   });
 
-  describe('Redirect Prevention', () => {
-    it('should use redirect: error option in fetch', async () => {
+  describe('Redirect Handling', () => {
+    it('should use redirect: follow option in fetch (OIDF Conformance Suite uses redirects)', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         headers: new Headers({ 'content-length': '100' }),
@@ -423,11 +423,11 @@ describe('HTTPS Request URI Security', () => {
         envWithFeature
       );
 
-      // Verify fetch was called with redirect: 'error'
+      // Verify fetch was called with redirect: 'follow' (OIDF uses 302 redirects)
       expect(mockFetch).toHaveBeenCalledWith(
         'https://external.com/request.jwt',
         expect.objectContaining({
-          redirect: 'error',
+          redirect: 'follow',
         })
       );
     });

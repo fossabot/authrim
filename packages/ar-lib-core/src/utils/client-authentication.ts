@@ -35,6 +35,19 @@ export interface ClientAssertionValidationResult {
 }
 
 /**
+ * Options for client assertion validation
+ */
+export interface ClientAssertionValidationOptions {
+  /**
+   * Whether to accept Issuer ID as a valid audience value (in addition to token endpoint URL).
+   * RFC 7523 Section 3 recommends the token endpoint URL, but OIDC Core and industry practice
+   * also accept the Issuer ID for interoperability (Google, Microsoft, Okta, Auth0, Keycloak).
+   * Default: true (industry standard)
+   */
+  acceptIssuerIdAsAudience?: boolean;
+}
+
+/**
  * Validate Client Assertion JWT
  *
  * Validates private_key_jwt or client_secret_jwt authentication
@@ -43,13 +56,18 @@ export interface ClientAssertionValidationResult {
  * @param assertion - JWT assertion string
  * @param tokenEndpoint - Token endpoint URL (expected audience)
  * @param client - Client metadata (must include jwks or jwks_uri for private_key_jwt)
+ * @param options - Validation options
  * @returns Validation result
  */
 export async function validateClientAssertion(
   assertion: string,
   tokenEndpoint: string,
-  client: ClientMetadata
+  client: ClientMetadata,
+  options: ClientAssertionValidationOptions = {}
 ): Promise<ClientAssertionValidationResult> {
+  // Default: Accept Issuer ID as audience (industry standard for interoperability)
+  const { acceptIssuerIdAsAudience = true } = options;
+
   try {
     // Step 1: Parse JWT to get claims (without verification first)
     const parts = assertion.split('.');
@@ -130,16 +148,32 @@ export async function validateClientAssertion(
       };
     }
 
-    // Step 4: Verify audience matches token endpoint
+    // Step 4: Verify audience matches token endpoint or issuer ID
     // URL normalization: remove trailing slashes for comparison
     const normalizeUrl = (url: string): string => url.replace(/\/+$/, '');
     const normalizedEndpoint = normalizeUrl(tokenEndpoint);
 
+    // RFC 7523 Section 3 recommends token endpoint URL, but OIDC Core and industry practice
+    // also accept the Issuer ID (token endpoint without /token suffix)
+    // See: https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
+    const issuerUrl = tokenEndpoint.replace(/\/token$/, '');
+    const normalizedIssuer = normalizeUrl(issuerUrl);
+
     const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+
     // SECURITY: Use timing-safe comparison to prevent timing attacks on audience values
-    const audienceMatches = audiences.some((aud) =>
-      timingSafeEqual(normalizeUrl(aud), normalizedEndpoint)
-    );
+    const audienceMatches = audiences.some((aud) => {
+      const normalizedAud = normalizeUrl(aud);
+      // Check if audience matches token endpoint URL (RFC 7523 recommended)
+      if (timingSafeEqual(normalizedAud, normalizedEndpoint)) {
+        return true;
+      }
+      // Also accept Issuer ID if option is enabled (industry standard for interoperability)
+      if (acceptIssuerIdAsAudience && timingSafeEqual(normalizedAud, normalizedIssuer)) {
+        return true;
+      }
+      return false;
+    });
 
     if (!audienceMatches) {
       return {
@@ -270,9 +304,17 @@ export async function validateClientAssertion(
     // Step 8: Verify JWT signature
     // SECURITY: Use algorithm whitelist to prevent algorithm confusion attacks
     const cryptoKey = await importJWK(publicKey, publicKey.alg || 'RS256');
+
+    // Build acceptable audiences array based on options
+    // - Token endpoint URL (RFC 7523 recommended)
+    // - Issuer ID (if acceptIssuerIdAsAudience is enabled - industry standard)
+    const acceptableAudiences = acceptIssuerIdAsAudience
+      ? [normalizedEndpoint, normalizedIssuer]
+      : [normalizedEndpoint];
+
     await jwtVerify(assertion, cryptoKey, {
       issuer: client.client_id,
-      audience: tokenEndpoint,
+      audience: acceptableAudiences,
       algorithms: [...ALLOWED_ASYMMETRIC_ALGS],
     });
 

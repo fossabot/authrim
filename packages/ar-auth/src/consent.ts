@@ -363,7 +363,20 @@ async function handleJsonConsentGet(
 }
 
 /**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
  * Render HTML consent page (legacy fallback)
+ * OIDC Dynamic OP conformance: displays logo_uri, policy_uri, tos_uri
  */
 function renderHtmlConsent(
   c: Context<{ Bindings: Env }>,
@@ -372,12 +385,31 @@ function renderHtmlConsent(
     clientRow: {
       client_id: string;
       client_name: string | null;
+      logo_uri: string | null;
+      policy_uri: string | null;
+      tos_uri: string | null;
     };
     scopeDetails: ConsentScopeInfo[];
     client_id: string;
   }
 ): Response {
   const { challenge_id, clientRow, scopeDetails, client_id } = params;
+
+  // Build client info section with logo (OIDC Dynamic OP conformance)
+  const clientInfoHtml = clientRow.logo_uri
+    ? `<div class="client-logo-container">
+        <img src="${escapeHtml(clientRow.logo_uri)}" alt="${escapeHtml(clientRow.client_name || 'Client')} logo" class="client-logo" onerror="this.style.display='none'">
+      </div>`
+    : '';
+
+  // Build links section for policy and ToS
+  const linksHtml =
+    clientRow.policy_uri || clientRow.tos_uri
+      ? `<div class="client-links">
+        ${clientRow.policy_uri ? `<a href="${escapeHtml(clientRow.policy_uri)}" target="_blank" rel="noopener noreferrer">Privacy Policy</a>` : ''}
+        ${clientRow.tos_uri ? `<a href="${escapeHtml(clientRow.tos_uri)}" target="_blank" rel="noopener noreferrer">Terms of Service</a>` : ''}
+      </div>`
+      : '';
 
   return c.html(`<!DOCTYPE html>
 <html lang="en">
@@ -403,15 +435,36 @@ function renderHtmlConsent(
       max-width: 500px;
       width: 100%;
     }
+    .client-logo-container {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .client-logo {
+      max-width: 120px;
+      max-height: 80px;
+      object-fit: contain;
+    }
     h1 {
       margin: 0 0 0.5rem 0;
       font-size: 1.5rem;
       color: #333;
     }
     .client-name {
-      margin: 0 0 1.5rem 0;
+      margin: 0 0 1rem 0;
       color: #667eea;
       font-weight: 600;
+    }
+    .client-links {
+      margin-bottom: 1.5rem;
+      font-size: 0.8rem;
+    }
+    .client-links a {
+      color: #667eea;
+      text-decoration: none;
+      margin-right: 1rem;
+    }
+    .client-links a:hover {
+      text-decoration: underline;
     }
     p {
       margin: 0 0 1.5rem 0;
@@ -469,16 +522,18 @@ function renderHtmlConsent(
 </head>
 <body>
   <div class="container">
+    ${clientInfoHtml}
     <h1>Consent Required</h1>
-    <p class="client-name">${clientRow.client_name || client_id}</p>
+    <p class="client-name">${escapeHtml(clientRow.client_name || client_id)}</p>
+    ${linksHtml}
     <p>This application is requesting access to:</p>
     <ul class="scopes">
       ${scopeDetails
         .map(
           (s) => `
         <li class="scope-item">
-          <div class="scope-title">${s.title}</div>
-          <div class="scope-desc">${s.description}</div>
+          <div class="scope-title">${escapeHtml(s.title)}</div>
+          <div class="scope-desc">${escapeHtml(s.description)}</div>
         </li>
       `
         )
@@ -486,12 +541,12 @@ function renderHtmlConsent(
     </ul>
     <div class="button-group">
       <form method="POST" action="/auth/consent" style="flex: 1;">
-        <input type="hidden" name="challenge_id" value="${challenge_id}">
+        <input type="hidden" name="challenge_id" value="${escapeHtml(challenge_id)}">
         <input type="hidden" name="approved" value="false">
         <button type="submit" class="deny">Deny</button>
       </form>
       <form method="POST" action="/auth/consent" style="flex: 1;">
-        <input type="hidden" name="challenge_id" value="${challenge_id}">
+        <input type="hidden" name="challenge_id" value="${escapeHtml(challenge_id)}">
         <input type="hidden" name="approved" value="true">
         <button type="submit" class="approve">Approve</button>
       </form>

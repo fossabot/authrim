@@ -263,9 +263,14 @@ app.post('/api/auth/upgrade', upgradeHandler);
 app.post('/api/auth/upgrade/complete', upgradeCompleteHandler);
 app.get('/api/auth/upgrade/status', upgradeStatusHandler);
 
-// OAuth Consent endpoints
+// OAuth Consent endpoints (API)
 app.get('/api/auth/consents', consentGetHandler);
 app.post('/api/auth/consents', consentPostHandler);
+
+// OAuth Consent endpoints (Builtin Forms - for OIDC conformance testing)
+// These routes are used when shouldUseBuiltinForms() returns true
+app.get('/auth/consent', consentGetHandler);
+app.post('/auth/consent', consentPostHandler);
 
 // Login Challenge endpoints (for OIDC Dynamic OP conformance - logo_uri, policy_uri, tos_uri display)
 app.get('/api/auth/login-challenges', loginChallengeGetHandler);

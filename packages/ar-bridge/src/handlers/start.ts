@@ -138,6 +138,13 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     // 4. Decrypt client secret
     const clientSecret = await decryptClientSecret(c.env, provider.clientSecretEncrypted);
 
+    // 4b. Decrypt private key for request object signing (if configured)
+    let privateKeyJwk: Record<string, unknown> | undefined;
+    if (provider.useRequestObject && provider.privateKeyJwkEncrypted) {
+      const decryptedPrivateKey = await decryptClientSecret(c.env, provider.privateKeyJwkEncrypted);
+      privateKeyJwk = JSON.parse(decryptedPrivateKey);
+    }
+
     // 5. Build callback URL (use slug if available for cleaner URLs)
     const providerIdentifier = provider.slug || provider.id;
     const callbackUri = `${c.env.ISSUER_URL}/auth/external/${providerIdentifier}/callback`;
@@ -158,7 +165,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     });
 
     // 7. Create OIDC client and generate authorization URL
-    const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret);
+    const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret, privateKeyJwk);
 
     // Apple Sign In requires response_mode=form_post when requesting name or email scope
     let responseMode: string | undefined;

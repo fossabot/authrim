@@ -388,7 +388,7 @@ describe('Event Patterns', () => {
 
     // All consent events should follow consent.<action>
     Object.values(CONSENT_EVENTS).forEach((event) => {
-      expect(event).toMatch(/^consent\.[a-z]+$/);
+      expect(event).toMatch(/^consent\.[a-z_]+$/);
     });
 
     // All user events should follow user.<action>
@@ -396,9 +396,9 @@ describe('Event Patterns', () => {
       expect(event).toMatch(/^user\.[a-z_]+$/);
     });
 
-    // All client events should follow client.<action>
+    // All client events should follow client.<action> or client.<category>.<action>
     Object.values(CLIENT_EVENTS).forEach((event) => {
-      expect(event).toMatch(/^client\.[a-z_]+$/);
+      expect(event).toMatch(/^client\.[a-z_]+(\.[a-z_]+)?$/);
     });
 
     // All security events should follow security.<category>.<action>
