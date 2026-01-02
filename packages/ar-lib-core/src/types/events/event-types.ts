@@ -238,6 +238,36 @@ export const SETTINGS_EVENTS = {
 export type SettingsEventType = (typeof SETTINGS_EVENTS)[keyof typeof SETTINGS_EVENTS];
 
 // =============================================================================
+// SCIM Provisioning Events
+// =============================================================================
+
+/**
+ * SCIM provisioning event types.
+ *
+ * Pattern: scim.<resource>.<action>
+ */
+export const SCIM_EVENTS = {
+  // User provisioning
+  USER_CREATED: 'scim.user.created',
+  USER_UPDATED: 'scim.user.updated',
+  USER_DELETED: 'scim.user.deleted',
+
+  // Group provisioning
+  GROUP_CREATED: 'scim.group.created',
+  GROUP_UPDATED: 'scim.group.updated',
+  GROUP_DELETED: 'scim.group.deleted',
+
+  // Bulk operations
+  BULK_COMPLETED: 'scim.bulk.completed',
+
+  // Token management
+  TOKEN_CREATED: 'scim.token.created',
+  TOKEN_REVOKED: 'scim.token.revoked',
+} as const;
+
+export type ScimEventType = (typeof SCIM_EVENTS)[keyof typeof SCIM_EVENTS];
+
+// =============================================================================
 // Combined Event Types
 // =============================================================================
 
@@ -254,6 +284,7 @@ export const EVENT_TYPES = {
   ...SECURITY_EVENTS,
   ...DOMAIN_EVENTS,
   ...SETTINGS_EVENTS,
+  ...SCIM_EVENTS,
 } as const;
 
 export type EventType =
@@ -265,7 +296,8 @@ export type EventType =
   | ClientEventType
   | SecurityEventType
   | DomainEventType
-  | SettingsEventType;
+  | SettingsEventType
+  | ScimEventType;
 
 // =============================================================================
 // Event Data Types
@@ -462,4 +494,28 @@ export interface SettingsEventData extends BaseEventData {
   changeSource?: string;
   /** Error message (for failed events) */
   errorMessage?: string;
+}
+
+/**
+ * SCIM provisioning event data.
+ */
+export interface ScimEventData extends BaseEventData {
+  /** Resource type */
+  resourceType: 'User' | 'Group' | 'Token';
+  /** Resource ID (user ID, group ID, or token hash) */
+  resourceId: string;
+  /** External ID (from IdP) */
+  externalId?: string;
+  /** SCIM token hash used for this operation (masked, first 8 chars) */
+  tokenHash?: string;
+  /** IP address of the client (hashed for privacy) */
+  ipHash?: string;
+  /** User agent */
+  userAgent?: string;
+  /** For bulk operations */
+  bulk?: {
+    total: number;
+    succeeded: number;
+    failed: number;
+  };
 }

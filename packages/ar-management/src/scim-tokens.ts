@@ -7,7 +7,11 @@
 import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core/types/env';
 import { generateScimToken, revokeScimToken, listScimTokens } from '@authrim/ar-lib-scim';
-import { createErrorResponse, AR_ERROR_CODES } from '@authrim/ar-lib-core';
+import {
+  createErrorResponse,
+  AR_ERROR_CODES,
+  createAuditLogFromContext,
+} from '@authrim/ar-lib-core';
 
 /**
  * Validation constraints for SCIM token creation
@@ -135,6 +139,12 @@ export async function adminScimTokenCreateHandler(c: Context<{ Bindings: Env }>)
       enabled: true,
     });
 
+    // Audit log (non-blocking)
+    createAuditLogFromContext(c, 'scim.token.create', 'scim_token', tokenHash.slice(0, 8), {
+      description,
+      expiresInDays,
+    }).catch(() => {});
+
     // Return the token only once (it won't be shown again)
     return c.json(
       {
@@ -171,6 +181,16 @@ export async function adminScimTokenRevokeHandler(c: Context<{ Bindings: Env }>)
     if (!success) {
       return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
+
+    // Audit log (non-blocking) - severity: warning for revocation
+    createAuditLogFromContext(
+      c,
+      'scim.token.revoke',
+      'scim_token',
+      tokenHash.slice(0, 8),
+      {},
+      'warning'
+    ).catch(() => {});
 
     return c.json({
       message: 'Token revoked successfully',

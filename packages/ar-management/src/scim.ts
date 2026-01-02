@@ -30,6 +30,7 @@ import {
   createPIIContextFromHono,
 } from '@authrim/ar-lib-core';
 import { D1Adapter, type DatabaseAdapter, generateId, hashPassword } from '@authrim/ar-lib-core';
+import { logScimAudit } from '@authrim/ar-lib-scim';
 
 /**
  * Create database adapters from Hono context
@@ -1263,6 +1264,11 @@ app.post('/Users', async (c) => {
     // Set Location header
     c.header('Location', responseUser.meta.location);
 
+    // Audit log (non-blocking)
+    logScimAudit(c, 'scim.user.create', 'scim_user', userId, {
+      externalId: scimUser.externalId,
+    });
+
     return c.json(responseUser, 201);
   } catch (error) {
     console.error('SCIM create user error:', error);
@@ -1384,6 +1390,11 @@ app.put('/Users/:id', async (c) => {
 
     // Set ETag header
     c.header('ETag', responseUser.meta.version || '');
+
+    // Audit log (non-blocking)
+    logScimAudit(c, 'scim.user.replace', 'scim_user', userId, {
+      externalId: scimUser.externalId,
+    });
 
     return c.json(responseUser);
   } catch (error) {
@@ -1514,6 +1525,11 @@ app.patch('/Users/:id', async (c) => {
     // Set ETag header
     c.header('ETag', responseUser.meta.version || '');
 
+    // Audit log (non-blocking)
+    logScimAudit(c, 'scim.user.patch', 'scim_user', userId, {
+      operations: patchOp.Operations?.length || 0,
+    });
+
     return c.json(responseUser);
   } catch (error) {
     console.error('SCIM patch user error:', error);
@@ -1576,6 +1592,18 @@ app.delete('/Users/:id', async (c) => {
     await coreAdapter.execute(
       `UPDATE users_core SET is_active = 0, pii_status = 'deleted', updated_at = ? WHERE id = ?`,
       [Math.floor(now / 1000), userId]
+    );
+
+    // Audit log (non-blocking) - severity: warning for deletion
+    logScimAudit(
+      c,
+      'scim.user.delete',
+      'scim_user',
+      userId,
+      {
+        externalId: existingUser.external_id,
+      },
+      'warning'
     );
 
     return c.body(null, 204); // No Content
@@ -1794,6 +1822,13 @@ app.post('/Groups', async (c) => {
     // Set Location header
     c.header('Location', responseGroup.meta.location);
 
+    // Audit log (non-blocking)
+    logScimAudit(c, 'scim.group.create', 'scim_group', groupId, {
+      displayName: scimGroup.displayName,
+      externalId: scimGroup.externalId,
+      memberCount: scimGroup.members?.length || 0,
+    });
+
     return c.json(responseGroup, 201);
   } catch (error) {
     console.error('SCIM create group error:', error);
@@ -1876,6 +1911,13 @@ app.put('/Groups/:id', async (c) => {
 
     // Set ETag header
     c.header('ETag', responseGroup.meta.version || '');
+
+    // Audit log (non-blocking)
+    logScimAudit(c, 'scim.group.replace', 'scim_group', groupId, {
+      displayName: scimGroup.displayName,
+      externalId: scimGroup.externalId,
+      memberCount: scimGroup.members?.length || 0,
+    });
 
     return c.json(responseGroup);
   } catch (error) {
@@ -1975,6 +2017,11 @@ app.patch('/Groups/:id', async (c) => {
     // Set ETag header
     c.header('ETag', responseGroup.meta.version || '');
 
+    // Audit log (non-blocking)
+    logScimAudit(c, 'scim.group.patch', 'scim_group', groupId, {
+      operations: patchOp.Operations?.length || 0,
+    });
+
     return c.json(responseGroup);
   } catch (error) {
     console.error('SCIM patch group error:', error);
@@ -2012,6 +2059,19 @@ app.delete('/Groups/:id', async (c) => {
 
     // Delete group (cascade will handle user_roles)
     await coreAdapter.execute('DELETE FROM roles WHERE id = ?', [groupId]);
+
+    // Audit log (non-blocking) - severity: warning for deletion
+    logScimAudit(
+      c,
+      'scim.group.delete',
+      'scim_group',
+      groupId,
+      {
+        displayName: existingGroup.name,
+        externalId: existingGroup.external_id,
+      },
+      'warning'
+    );
 
     return c.body(null, 204); // No Content
   } catch (error) {
@@ -2201,6 +2261,13 @@ app.post('/Bulk', async (c) => {
       schemas: [SCIM_BULK_SCHEMAS.BULK_RESPONSE],
       Operations: results,
     };
+
+    // Audit log (non-blocking)
+    logScimAudit(c, 'scim.bulk.execute', 'scim_user', 'bulk', {
+      total: results.length,
+      succeeded: results.length - errorCount,
+      failed: errorCount,
+    });
 
     return c.json(response, 200);
   } catch (error) {
