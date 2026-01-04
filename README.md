@@ -196,11 +196,14 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | JARM | ✅ Done | |
 | JWE (RFC 7516) | ✅ Done | |
 | Pairwise Subject Identifiers | ✅ Done | |
+| NIST SP 800-63-4 (AAL/FAL/IAL) | ✅ Done | Assurance Levels |
 | **Token Management** | | |
 | JWT Signing (RS256) + Key Rotation | ✅ Done | |
 | Refresh Token Rotation | ✅ Done | |
 | Token Introspection (RFC 7662) | ✅ Done | |
 | Token Revocation (RFC 7009) | ✅ Done | |
+| Token Exchange (RFC 8693) | ✅ Done | |
+| ID-JAG (draft-ietf-oauth-identity-assertion-authz-grant) | ✅ Done | AI Agent認可 |
 | Client Credentials (RFC 6749 §4.4) | ✅ Done | |
 | Dynamic Client Registration (RFC 7591) | ✅ Done | |
 | **Authentication** | | |
