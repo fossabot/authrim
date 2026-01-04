@@ -3719,11 +3719,23 @@ async function handleTokenExchangeGrant(
       return oauthError(c, 'invalid_grant', 'Subject token is missing issuer (iss) claim', 400);
     }
 
+    // SECURITY: Require explicit allowedIssuers configuration for ID-JAG
+    // Empty allowedIssuers means no external IdPs are trusted (fail-secure)
+    if (idJagConfig.allowedIssuers.length === 0) {
+      log.warn('ID-JAG: No allowed issuers configured - rejecting request', {
+        subjectIssuer,
+        action: 'TokenExchange',
+      });
+      return oauthError(
+        c,
+        'invalid_grant',
+        'ID-JAG is enabled but no allowed issuers are configured. Configure allowedIssuers via Admin API.',
+        400
+      );
+    }
+
     // Check if issuer is in the allowed list
-    if (
-      idJagConfig.allowedIssuers.length > 0 &&
-      !idJagConfig.allowedIssuers.includes(subjectIssuer)
-    ) {
+    if (!idJagConfig.allowedIssuers.includes(subjectIssuer)) {
       log.warn('ID-JAG: Subject token issuer not in allowed list', {
         subjectIssuer,
         allowedIssuers: idJagConfig.allowedIssuers,

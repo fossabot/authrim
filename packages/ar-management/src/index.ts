@@ -899,6 +899,14 @@ app.delete('/api/admin/settings/error-id-mode', resetErrorIdMode);
 
 // [DEPRECATED] Admin Token Exchange Configuration (RFC 8693)
 // → Migrate to: /api/admin/tenants/:tenantId/settings/tokens
+// Rate limiting: moderate profile (60 req/min) - sensitive configuration endpoint
+app.use('/api/admin/settings/token-exchange', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/admin/settings/token-exchange'],
+  })(c, next);
+});
 app.get('/api/admin/settings/token-exchange', getTokenExchangeConfig);
 app.put('/api/admin/settings/token-exchange', updateTokenExchangeConfig);
 app.delete('/api/admin/settings/token-exchange', clearTokenExchangeConfig);
@@ -923,6 +931,14 @@ app.delete('/api/admin/settings/fapi-security', clearFapiSecurityConfig);
 
 // NIST SP 800-63-4 Assurance Levels Configuration
 // → Migrate to: /api/admin/tenants/:tenantId/settings/security
+// Rate limiting: moderate profile (60 req/min) - security-sensitive configuration
+app.use('/api/admin/settings/assurance-levels', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/admin/settings/assurance-levels'],
+  })(c, next);
+});
 app.get('/api/admin/settings/assurance-levels', getAssuranceLevelsConfig);
 app.put('/api/admin/settings/assurance-levels', updateAssuranceLevelsConfig);
 app.delete('/api/admin/settings/assurance-levels', deleteAssuranceLevelsConfig);
