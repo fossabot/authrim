@@ -19,14 +19,34 @@ import {
   isWranglerInstalled,
   checkAuth,
   provisionResources,
+  detectEnvironments,
+  deleteEnvironment,
+  getWorkersSubdomain,
   type CloudflareAuth,
+  type EnvironmentInfo,
 } from '../core/cloudflare.js';
-import { AuthrimConfigSchema, createDefaultConfig, type AuthrimConfig } from '../core/config.js';
-import { generateAllSecrets, saveKeysToDirectory } from '../core/keys.js';
+import {
+  AuthrimConfigSchema,
+  createDefaultConfig,
+  D1LocationSchema,
+  D1JurisdictionSchema,
+  type AuthrimConfig,
+} from '../core/config.js';
+import { generateAllSecrets, saveKeysToDirectory, keysExistForEnvironment } from '../core/keys.js';
 import { createLockFile, saveLockFile, loadLockFile } from '../core/lock.js';
 import { generateWranglerConfig, toToml } from '../core/wrangler.js';
-import { deployAll, uploadSecrets, type DeployResult } from '../core/deploy.js';
-import { CORE_WORKER_COMPONENTS, type WorkerComponent } from '../core/naming.js';
+import {
+  deployAll,
+  uploadSecrets,
+  buildApiPackages,
+  deployPages,
+  type DeployResult,
+} from '../core/deploy.js';
+import {
+  CORE_WORKER_COMPONENTS,
+  getEnabledComponents,
+  type WorkerComponent,
+} from '../core/naming.js';
 import { completeInitialSetup } from '../core/admin.js';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -162,12 +182,15 @@ export function createApiRoutes(): Hono {
   api.get('/prerequisites', async (c) => {
     const wranglerInstalled = await isWranglerInstalled();
     const auth = await checkAuth();
+    const workersSubdomain = auth.isLoggedIn ? await getWorkersSubdomain() : null;
 
     state.auth = auth;
 
     return c.json({
       wranglerInstalled,
       auth,
+      workersSubdomain,
+      cwd: process.cwd(),
     });
   });
 
@@ -214,16 +237,41 @@ export function createApiRoutes(): Hono {
     return withLock(async () => {
       try {
         const body = await c.req.json();
-        const { env = 'prod', domain } = body;
+        const { env = 'prod', apiDomain, loginUiDomain, adminUiDomain, tenant, components } = body;
 
         const config = createDefaultConfig(env);
 
-        // Update URLs if domain is provided
-        if (domain) {
-          config.urls = {
-            api: { custom: domain, auto: `https://${env}-ar-router.workers.dev` },
-            loginUi: { custom: null, auto: `https://${env}-ar-ui.pages.dev` },
-            adminUi: { custom: null, auto: `https://${env}-ar-ui.pages.dev/admin` },
+        // Update tenant configuration
+        if (tenant) {
+          config.tenant = {
+            name: tenant.name || 'default',
+            displayName: tenant.displayName || 'Default Tenant',
+            multiTenant: tenant.multiTenant || false,
+            baseDomain: tenant.baseDomain,
+          };
+        }
+
+        // Update URLs with domain configuration
+        config.urls = {
+          api: {
+            custom: apiDomain || null,
+            auto: `https://${env}-ar-router.workers.dev`,
+          },
+          loginUi: {
+            custom: loginUiDomain || null,
+            auto: `https://${env}-ar-ui.pages.dev`,
+          },
+          adminUi: {
+            custom: adminUiDomain || null,
+            auto: `https://${env}-ar-ui.pages.dev/admin`,
+          },
+        };
+
+        // Update components if provided
+        if (components) {
+          config.components = {
+            ...config.components,
+            ...components,
           };
         }
 
@@ -236,18 +284,29 @@ export function createApiRoutes(): Hono {
     });
   });
 
+  // Check if keys exist for an environment
+  api.get('/keys/check/:env', async (c) => {
+    try {
+      const env = c.req.param('env');
+      const exists = keysExistForEnvironment(process.cwd(), env);
+      return c.json({ exists, env });
+    } catch (error) {
+      return c.json({ exists: false, error: sanitizeError(error) });
+    }
+  });
+
   // Generate keys (with lock)
   api.post('/keys/generate', async (c) => {
     return withLock(async () => {
       try {
         const body = await c.req.json();
-        const { keyId, keysDir = '.keys' } = body;
+        const { keyId, keysDir = '.keys', env } = body;
 
         addProgress('Generating cryptographic keys...');
         const secrets = generateAllSecrets(keyId);
 
-        addProgress('Saving keys to directory...');
-        await saveKeysToDirectory(secrets, keysDir);
+        addProgress(`Saving keys to directory: .keys/${env || 'default'}/`);
+        await saveKeysToDirectory(secrets, keysDir, env);
 
         addProgress('Keys generated successfully');
 
@@ -264,12 +323,130 @@ export function createApiRoutes(): Hono {
     });
   });
 
+  // Save email provider configuration (with lock)
+  const EmailConfigSchema = z.object({
+    env: z.string().min(1).max(32),
+    provider: z.enum(['resend', 'sendgrid', 'ses']),
+    apiKey: z.string().min(1),
+    fromAddress: z.string().email(),
+    fromName: z.string().optional(),
+  });
+
+  api.post('/email/configure', async (c) => {
+    return withLock(async () => {
+      try {
+        const body = await c.req.json();
+
+        // Validate request body
+        const parseResult = EmailConfigSchema.safeParse(body);
+        if (!parseResult.success) {
+          return c.json(
+            {
+              success: false,
+              error:
+                'Invalid request: ' + parseResult.error.issues.map((i) => i.message).join(', '),
+            },
+            400
+          );
+        }
+
+        const { env, provider, apiKey, fromAddress, fromName } = parseResult.data;
+
+        // Validate Resend API key format
+        if (provider === 'resend' && !apiKey.startsWith('re_')) {
+          // Warning but not an error - just log it
+          addProgress('Warning: Resend API key should start with "re_"');
+        }
+
+        // Save secrets to keys directory
+        const keysDir = `.keys/${env}`;
+
+        // Ensure directory exists
+        const { mkdir } = await import('node:fs/promises');
+        await mkdir(keysDir, { recursive: true });
+
+        // Save API key
+        const apiKeyFile = join(keysDir, 'resend_api_key.txt');
+        await writeFile(apiKeyFile, apiKey.trim());
+        addProgress(`Saved ${provider} API key to ${apiKeyFile}`);
+
+        // Save from address
+        const fromAddressFile = join(keysDir, 'email_from.txt');
+        await writeFile(fromAddressFile, fromAddress.trim());
+        addProgress(`Saved email from address to ${fromAddressFile}`);
+
+        // Save from name if provided
+        if (fromName) {
+          const fromNameFile = join(keysDir, 'email_from_name.txt');
+          await writeFile(fromNameFile, fromName.trim());
+          addProgress(`Saved email from name to ${fromNameFile}`);
+        }
+
+        addProgress('Email configuration saved successfully');
+
+        return c.json({
+          success: true,
+          provider,
+          fromAddress,
+          message: 'Email configuration saved. Secrets will be uploaded during deployment.',
+        });
+      } catch (error) {
+        state.error = sanitizeError(error);
+        return c.json({ success: false, error: sanitizeError(error) }, 500);
+      }
+    });
+  });
+
+  // Provision request schema (with database config validation)
+  const ProvisionRequestSchema = z.object({
+    env: z
+      .string()
+      .min(1)
+      .max(32)
+      .regex(
+        /^[a-z][a-z0-9-]*$/,
+        'Environment name must start with lowercase letter and contain only lowercase alphanumeric and hyphens'
+      ),
+    databaseConfig: z
+      .object({
+        core: z
+          .object({
+            location: D1LocationSchema.optional(),
+            jurisdiction: D1JurisdictionSchema.optional(),
+          })
+          .optional(),
+        pii: z
+          .object({
+            location: D1LocationSchema.optional(),
+            jurisdiction: D1JurisdictionSchema.optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    createQueues: z.boolean().optional(),
+    createR2: z.boolean().optional(),
+  });
+
   // Provision Cloudflare resources (with lock)
   api.post('/provision', async (c) => {
     return withLock(async () => {
       try {
         const body = await c.req.json();
-        const { env } = body;
+
+        // Validate request body
+        const parseResult = ProvisionRequestSchema.safeParse(body);
+        if (!parseResult.success) {
+          return c.json(
+            {
+              success: false,
+              error:
+                'Invalid request: ' + parseResult.error.issues.map((i) => i.message).join(', '),
+            },
+            400
+          );
+        }
+
+        const { env, databaseConfig, createQueues, createR2 } = parseResult.data;
 
         state.status = 'provisioning';
         clearProgress();
@@ -278,11 +455,14 @@ export function createApiRoutes(): Hono {
 
         const resources = await provisionResources({
           env,
+          rootDir: process.cwd(),
           createD1: true,
           createKV: true,
-          createQueues: body.createQueues || false,
-          createR2: body.createR2 || false,
+          createQueues: createQueues || false,
+          createR2: createR2 || false,
+          runMigrations: true,
           onProgress: addProgress,
+          databaseConfig,
         });
 
         addProgress('Creating lock file...');
@@ -339,8 +519,17 @@ export function createApiRoutes(): Hono {
         };
 
         // Generate and save wrangler configs for each component
+        // Include optional components (ar-policy, ar-bridge, etc.) based on config
+        const enabledComponents = getEnabledComponents({
+          saml: config.components?.saml,
+          async: config.components?.async,
+          vc: config.components?.vc,
+          bridge: config.components?.bridge,
+          policy: config.components?.policy,
+        });
+
         const generatedComponents: string[] = [];
-        for (const component of CORE_WORKER_COMPONENTS) {
+        for (const component of enabledComponents) {
           const componentDir = join(rootDir, 'packages', component);
           if (!existsSync(componentDir)) {
             continue;
@@ -370,21 +559,47 @@ export function createApiRoutes(): Hono {
     return withLock(async () => {
       try {
         const body = await c.req.json();
-        const { env, rootDir = '.', dryRun = false, components } = body;
+        const { env, rootDir = '.', dryRun = false, components, skipBuild = false } = body;
 
         state.status = 'deploying';
         clearProgress();
 
+        // Build packages first (unless dry-run or skipped)
+        if (!dryRun && !skipBuild) {
+          const buildResult = await buildApiPackages({
+            rootDir: resolve(rootDir),
+            onProgress: addProgress,
+          });
+
+          if (!buildResult.success) {
+            state.status = 'error';
+            state.error = `Build failed: ${buildResult.error}`;
+            return c.json(
+              {
+                success: false,
+                error: `Build failed: ${sanitizeError(new Error(buildResult.error))}`,
+              },
+              500
+            );
+          }
+          addProgress('Packages built successfully');
+        }
+
         // Upload secrets first (secrets are read but not stored in state)
-        if (!dryRun && existsSync('.keys')) {
-          addProgress('Uploading secrets...');
+        // Keys are stored in .keys/{env}/ directory
+        const keysDir = `.keys/${env}`;
+        if (!dryRun && existsSync(keysDir)) {
+          addProgress(`Uploading secrets from ${keysDir}...`);
 
           const secrets: Record<string, string> = {};
           const secretFiles = [
-            { file: '.keys/private.pem', name: 'PRIVATE_KEY_PEM' },
-            { file: '.keys/rp_token_encryption_key.txt', name: 'RP_TOKEN_ENCRYPTION_KEY' },
-            { file: '.keys/admin_api_secret.txt', name: 'ADMIN_API_SECRET' },
-            { file: '.keys/key_manager_secret.txt', name: 'KEY_MANAGER_SECRET' },
+            { file: `${keysDir}/private.pem`, name: 'PRIVATE_KEY_PEM' },
+            { file: `${keysDir}/rp_token_encryption_key.txt`, name: 'RP_TOKEN_ENCRYPTION_KEY' },
+            { file: `${keysDir}/admin_api_secret.txt`, name: 'ADMIN_API_SECRET' },
+            { file: `${keysDir}/key_manager_secret.txt`, name: 'KEY_MANAGER_SECRET' },
+            // Email provider secrets (optional)
+            { file: `${keysDir}/resend_api_key.txt`, name: 'RESEND_API_KEY' },
+            { file: `${keysDir}/email_from.txt`, name: 'EMAIL_FROM' },
           ];
 
           for (const { file, name } of secretFiles) {
@@ -401,11 +616,33 @@ export function createApiRoutes(): Hono {
             });
             // Note: secrets object goes out of scope here and will be garbage collected
           }
+        } else if (!dryRun) {
+          addProgress(`Warning: Keys directory not found at ${keysDir}`);
         }
 
         addProgress('Deploying workers...');
 
-        const enabledComponents: WorkerComponent[] | undefined = components;
+        // Determine enabled components from config (same logic as CLI)
+        let enabledComponents: WorkerComponent[] | undefined = components;
+        if (!enabledComponents && state.config) {
+          const cfg = state.config;
+          enabledComponents = [
+            'ar-lib-core',
+            'ar-discovery',
+            'ar-auth',
+            'ar-token',
+            'ar-userinfo',
+            'ar-management',
+          ];
+          // Add optional components based on config
+          if (cfg.components?.saml) enabledComponents.push('ar-saml');
+          if (cfg.components?.async) enabledComponents.push('ar-async');
+          if (cfg.components?.vc) enabledComponents.push('ar-vc');
+          if (cfg.components?.bridge) enabledComponents.push('ar-bridge');
+          if (cfg.components?.policy) enabledComponents.push('ar-policy');
+          // Router is always last
+          enabledComponents.push('ar-router');
+        }
 
         const summary = await deployAll(
           {
@@ -422,17 +659,45 @@ export function createApiRoutes(): Hono {
 
         state.deployResults = summary.results;
 
-        if (summary.failedCount === 0) {
+        // Deploy Pages (ar-ui) if loginUi or adminUi is enabled
+        let pagesDeployResult = null;
+        const cfg = state.config;
+        if (cfg?.components?.loginUi || cfg?.components?.adminUi) {
+          addProgress('Deploying Login/Admin UI to Cloudflare Pages...');
+          pagesDeployResult = await deployPages({
+            env,
+            rootDir: resolve(rootDir),
+            dryRun,
+            onProgress: addProgress,
+            projectName: `${env}-ar-ui`,
+          });
+
+          if (pagesDeployResult.success) {
+            addProgress(`✓ UI deployed to Pages: ${pagesDeployResult.projectName}`);
+          } else {
+            addProgress(`✗ Pages deployment failed: ${pagesDeployResult.error}`);
+          }
+        }
+
+        const workersSuccess = summary.failedCount === 0;
+        const pagesSuccess = pagesDeployResult ? pagesDeployResult.success : true;
+
+        if (workersSuccess && pagesSuccess) {
           state.status = 'complete';
           addProgress('Deployment complete!');
         } else {
           state.status = 'error';
-          state.error = `${summary.failedCount} components failed to deploy`;
+          if (!workersSuccess) {
+            state.error = `${summary.failedCount} components failed to deploy`;
+          } else if (!pagesSuccess) {
+            state.error = `Pages deployment failed: ${pagesDeployResult?.error}`;
+          }
         }
 
         return c.json({
-          success: summary.failedCount === 0,
+          success: workersSuccess && pagesSuccess,
           summary,
+          pagesResult: pagesDeployResult,
         });
       } catch (error) {
         state.status = 'error';
@@ -472,11 +737,15 @@ export function createApiRoutes(): Hono {
         const body = await c.req.json();
         const { env, baseUrl, keysDir = '.keys' } = body;
 
+        addProgress(`Admin setup request: env=${env}, baseUrl=${baseUrl}, keysDir=${keysDir}`);
+
         if (!env || !baseUrl) {
+          addProgress('Error: env and baseUrl are required');
           return c.json({ success: false, error: 'env and baseUrl are required' }, 400);
         }
 
         addProgress('Setting up initial admin...');
+        addProgress(`Looking for setup token at: ${keysDir}/${env}/setup_token.txt`);
 
         const result = await completeInitialSetup({
           env,
@@ -484,6 +753,8 @@ export function createApiRoutes(): Hono {
           keysDir,
           onProgress: addProgress,
         });
+
+        addProgress(`completeInitialSetup result: ${JSON.stringify(result)}`);
 
         if (result.alreadyCompleted) {
           addProgress('Initial admin setup already completed');
@@ -495,7 +766,7 @@ export function createApiRoutes(): Hono {
         }
 
         if (result.success && result.setupUrl) {
-          addProgress('Setup token stored successfully');
+          addProgress(`Setup token stored successfully. URL: ${result.setupUrl}`);
           return c.json({
             success: true,
             setupUrl: result.setupUrl,
@@ -503,11 +774,110 @@ export function createApiRoutes(): Hono {
           });
         }
 
+        addProgress(`Admin setup failed: ${result.error}`);
         return c.json({ success: false, error: result.error }, 500);
       } catch (error) {
+        addProgress(`Admin setup exception: ${sanitizeError(error)}`);
         return c.json({ success: false, error: sanitizeError(error) }, 500);
       }
     });
+  });
+
+  // =============================================================================
+  // Environment Management
+  // =============================================================================
+
+  // List all detected Authrim environments (no auth required - read-only)
+  api.get('/environments', async (c) => {
+    try {
+      clearProgress();
+      addProgress('Scanning Cloudflare account for Authrim environments...');
+
+      const environments = await detectEnvironments(addProgress);
+
+      return c.json({
+        success: true,
+        environments,
+        progress: state.progress,
+      });
+    } catch (error) {
+      return c.json({ success: false, error: sanitizeError(error) }, 500);
+    }
+  });
+
+  // Apply session validation to environment delete
+  api.use('/environments/*/delete', validateSession);
+
+  // Delete an environment (with lock)
+  api.post('/environments/:env/delete', async (c) => {
+    return withLock(async () => {
+      try {
+        const env = c.req.param('env');
+        const body = await c.req.json();
+        const {
+          deleteWorkers = true,
+          deleteD1 = true,
+          deleteKV = true,
+          deleteQueues = true,
+          deleteR2 = true,
+          deletePages = true,
+        } = body;
+
+        state.status = 'provisioning'; // Reuse provisioning status
+        clearProgress();
+
+        const result = await deleteEnvironment({
+          env,
+          deleteWorkers,
+          deleteD1,
+          deleteKV,
+          deleteQueues,
+          deleteR2,
+          deletePages,
+          onProgress: addProgress,
+        });
+
+        state.status = result.success ? 'complete' : 'error';
+        if (!result.success) {
+          state.error = result.errors.join(', ');
+        }
+
+        return c.json({
+          success: result.success,
+          deleted: result.deleted,
+          errors: result.errors,
+          progress: state.progress,
+        });
+      } catch (error) {
+        state.status = 'error';
+        state.error = sanitizeError(error);
+        return c.json({ success: false, error: sanitizeError(error) }, 500);
+      }
+    });
+  });
+
+  // Get D1 database details (no auth required - read-only)
+  api.get('/d1/:name/info', async (c) => {
+    try {
+      const name = c.req.param('name');
+      const { getD1Info } = await import('../core/cloudflare.js');
+      const info = await getD1Info(name);
+      return c.json({ success: true, info });
+    } catch (error) {
+      return c.json({ success: false, error: sanitizeError(error) }, 500);
+    }
+  });
+
+  // Get Worker deployment info (no auth required - read-only)
+  api.get('/worker/:name/deployments', async (c) => {
+    try {
+      const name = c.req.param('name');
+      const { getWorkerDeployments } = await import('../core/cloudflare.js');
+      const deployments = await getWorkerDeployments(name);
+      return c.json({ success: true, deployments });
+    } catch (error) {
+      return c.json({ success: false, error: sanitizeError(error) }, 500);
+    }
   });
 
   return api;

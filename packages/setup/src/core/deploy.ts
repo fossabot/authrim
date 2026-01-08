@@ -72,6 +72,69 @@ export interface DeploymentSummary {
   duration: number;
 }
 
+export interface BuildOptions {
+  rootDir: string;
+  onProgress?: (message: string) => void;
+}
+
+export interface BuildResult {
+  success: boolean;
+  error?: string;
+}
+
+// =============================================================================
+// Build Helper
+// =============================================================================
+
+/**
+ * Build API packages with proper dependency handling
+ *
+ * This function:
+ * 1. Checks if node_modules exists, runs pnpm install if missing
+ * 2. Clears turbo cache for fresh builds
+ * 3. Uses pnpm exec turbo (works even if turbo isn't globally installed)
+ */
+export async function buildApiPackages(options: BuildOptions): Promise<BuildResult> {
+  const { rootDir, onProgress } = options;
+
+  try {
+    // Check if node_modules exists
+    const nodeModulesPath = join(rootDir, 'node_modules');
+    if (!existsSync(nodeModulesPath)) {
+      onProgress?.('Installing dependencies (node_modules not found)...');
+      await execa('pnpm', ['install'], {
+        cwd: rootDir,
+        stdio: 'pipe',
+      });
+      onProgress?.('Dependencies installed');
+    }
+
+    // Clear turbo cache to ensure fresh builds
+    onProgress?.('Clearing build cache...');
+    await execa('rm', ['-rf', '.turbo', 'node_modules/.cache'], {
+      cwd: rootDir,
+      reject: false, // Don't fail if directories don't exist
+    });
+
+    // Use pnpm exec turbo instead of relying on global turbo
+    // This works because turbo is in devDependencies
+    onProgress?.('Building packages...');
+    await execa(
+      'pnpm',
+      ['exec', 'turbo', 'run', 'build', '--filter=!@authrim/ui-*', '--filter=!@authrim/setup'],
+      {
+        cwd: rootDir,
+        stdio: 'pipe',
+      }
+    );
+
+    return { success: true };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return { success: false, error: errorMsg };
+  }
+}
+
 // =============================================================================
 // Deployment Order
 // =============================================================================
@@ -169,23 +232,12 @@ export async function deployWorker(
         };
       }
 
-      // Use deploy script if available for version management
-      const deployScript = join(rootDir, 'scripts', 'deploy-with-retry.sh');
-      let result: { stdout: string; stderr: string };
-
-      if (existsSync(deployScript)) {
-        // Use deploy script (handles version management)
-        result = await execa(deployScript, [component, env], {
-          cwd: rootDir,
-          reject: true,
-        });
-      } else {
-        // Fall back to direct wrangler deploy
-        result = await execa('wrangler', ['deploy', '--config', wranglerConfig], {
-          cwd: packageDir,
-          reject: true,
-        });
-      }
+      // Use wrangler deploy directly
+      // Note: deploy-with-retry.sh is for full deployments, not individual components
+      const result = await execa('wrangler', ['deploy', '--config', wranglerConfig], {
+        cwd: packageDir,
+        reject: true,
+      });
 
       // Extract version from output if available
       const versionMatch = result.stdout.match(/Deployed.*version[:\s]+([a-f0-9-]+)/i);
@@ -276,34 +328,18 @@ export async function deployAll(
     const level = levels[levelIndex];
     onProgress?.(`\n━━━ Level ${levelIndex} ━━━`);
 
-    // Level 0 and 4 are sequential (single component)
-    // Levels 1-3 can be parallel
-    const isParallel = level.length > 1;
+    // Always deploy sequentially to avoid race conditions and dependency issues
+    for (const component of level) {
+      const result = await deployWorker(component, options);
+      allResults.push(result);
 
-    if (isParallel) {
-      const results = await deployParallel(level, options);
-      allResults.push(...results);
+      if (!result.success) {
+        onError?.(component, new Error(result.error));
 
-      // Check for failures
-      const failures = results.filter((r) => !r.success);
-      if (failures.length > 0) {
-        for (const failure of failures) {
-          onError?.(failure.component, new Error(failure.error));
-        }
-      }
-    } else {
-      for (const component of level) {
-        const result = await deployWorker(component, options);
-        allResults.push(result);
-
-        if (!result.success) {
-          onError?.(component, new Error(result.error));
-
-          // Stop deployment if critical component fails
-          if (['ar-lib-core', 'ar-discovery'].includes(component)) {
-            onProgress?.(`\n⚠️  Critical component ${component} failed. Stopping deployment.`);
-            break;
-          }
+        // Stop deployment if critical component fails
+        if (['ar-lib-core', 'ar-discovery'].includes(component)) {
+          onProgress?.(`\n⚠️  Critical component ${component} failed. Stopping deployment.`);
+          break;
         }
       }
     }
@@ -467,7 +503,8 @@ export async function deployPages(
   }
 
   const uiDir = join(rootDir, 'packages', 'ar-ui');
-  const distDir = join(uiDir, 'dist');
+  // SvelteKit with adapter-cloudflare outputs to .svelte-kit/cloudflare
+  const distDir = join(uiDir, '.svelte-kit', 'cloudflare');
   const startTime = Date.now();
 
   if (!existsSync(uiDir)) {
@@ -505,9 +542,39 @@ export async function deployPages(
 
     const pagesProjectName = projectName || `${env}-ar-ui`;
 
-    await execa('wrangler', ['pages', 'deploy', distDir, '--project-name', pagesProjectName], {
-      cwd: uiDir,
-    });
+    // First, try to create the project (will fail silently if already exists)
+    onProgress?.(`Ensuring Pages project exists: ${pagesProjectName}...`);
+    await execa(
+      'wrangler',
+      ['pages', 'project', 'create', pagesProjectName, '--production-branch', 'main'],
+      {
+        cwd: uiDir,
+        reject: false, // Ignore error if project already exists
+      }
+    );
+
+    // Deploy to Pages
+    const result = await execa(
+      'wrangler',
+      ['pages', 'deploy', distDir, '--project-name', pagesProjectName],
+      {
+        cwd: uiDir,
+        reject: false, // Don't throw on non-zero exit
+      }
+    );
+
+    if (result.exitCode !== 0) {
+      // Get meaningful error from stderr or stdout
+      const errorOutput = result.stderr || result.stdout || 'Unknown error';
+      onProgress?.(`Pages deploy error: ${errorOutput}`);
+      return {
+        component: 'ar-ui',
+        projectName: pagesProjectName,
+        success: false,
+        error: errorOutput,
+        duration: Date.now() - startTime,
+      };
+    }
 
     onProgress?.(`✓ ar-ui deployed to Pages: ${pagesProjectName}`);
 

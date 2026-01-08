@@ -347,6 +347,111 @@ export async function downloadSource(options: DownloadOptions): Promise<SourceIn
 }
 
 /**
+ * Get local version from package.json
+ */
+export async function getLocalVersion(sourceDir: string): Promise<string | null> {
+  try {
+    const packageJsonPath = join(sourceDir, 'package.json');
+    if (!existsSync(packageJsonPath)) {
+      return null;
+    }
+    const { readFile } = await import('node:fs/promises');
+    const content = await readFile(packageJsonPath, 'utf-8');
+    const pkg = JSON.parse(content) as { version?: string };
+    return pkg.version || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get latest version from GitHub releases or package.json
+ */
+export async function getRemoteVersion(
+  repository: string = DEFAULT_REPOSITORY
+): Promise<{ version: string; gitRef: string } | null> {
+  try {
+    // First try to get latest release
+    const latestRelease = await getLatestRelease(repository);
+    if (latestRelease) {
+      // Extract version number from tag (e.g., "v1.0.0" -> "1.0.0")
+      const version = latestRelease.replace(/^v/, '');
+      return { version, gitRef: latestRelease };
+    }
+
+    // Fall back to main branch package.json
+    const response = await fetch(
+      `https://raw.githubusercontent.com/${repository}/main/package.json`
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const pkg = (await response.json()) as { version?: string };
+    return pkg.version ? { version: pkg.version, gitRef: 'main' } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compare two version strings
+ * Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
+ */
+export function compareVersions(v1: string, v2: string): number {
+  const parts1 = v1
+    .replace(/^v/, '')
+    .split('.')
+    .map((n) => parseInt(n, 10) || 0);
+  const parts2 = v2
+    .replace(/^v/, '')
+    .split('.')
+    .map((n) => parseInt(n, 10) || 0);
+
+  const maxLen = Math.max(parts1.length, parts2.length);
+  for (let i = 0; i < maxLen; i++) {
+    const p1 = parts1[i] || 0;
+    const p2 = parts2[i] || 0;
+    if (p1 < p2) return -1;
+    if (p1 > p2) return 1;
+  }
+  return 0;
+}
+
+/**
+ * Check if an update is available
+ */
+export async function checkForUpdate(
+  sourceDir: string,
+  repository: string = DEFAULT_REPOSITORY
+): Promise<{
+  updateAvailable: boolean;
+  localVersion: string | null;
+  remoteVersion: string | null;
+  gitRef: string | null;
+}> {
+  const localVersion = await getLocalVersion(sourceDir);
+  const remoteInfo = await getRemoteVersion(repository);
+
+  if (!localVersion || !remoteInfo) {
+    return {
+      updateAvailable: false,
+      localVersion,
+      remoteVersion: remoteInfo?.version || null,
+      gitRef: remoteInfo?.gitRef || null,
+    };
+  }
+
+  const updateAvailable = compareVersions(localVersion, remoteInfo.version) < 0;
+
+  return {
+    updateAvailable,
+    localVersion,
+    remoteVersion: remoteInfo.version,
+    gitRef: remoteInfo.gitRef,
+  };
+}
+
+/**
  * Verify downloaded source contains expected structure
  */
 export async function verifySourceStructure(sourceDir: string): Promise<{

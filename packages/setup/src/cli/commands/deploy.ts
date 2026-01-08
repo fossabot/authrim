@@ -18,6 +18,7 @@ import {
   uploadSecrets,
   deployPages,
   updateLockWithDeployments,
+  buildApiPackages,
   type DeployOptions,
 } from '../../core/deploy.js';
 import { isWranglerInstalled, checkAuth } from '../../core/cloudflare.js';
@@ -34,6 +35,7 @@ export interface DeployCommandOptions {
   component?: string;
   dryRun?: boolean;
   skipSecrets?: boolean;
+  skipBuild?: boolean;
   skipUi?: boolean;
   parallel?: boolean;
   yes?: boolean;
@@ -151,6 +153,7 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
     if (config.components.async) enabledComponents.push('ar-async');
     if (config.components.vc) enabledComponents.push('ar-vc');
     if (config.components.bridge) enabledComponents.push('ar-bridge');
+    if (config.components.policy) enabledComponents.push('ar-policy');
 
     // Router is always last
     enabledComponents.push('ar-router');
@@ -177,6 +180,31 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
   }
 
   console.log('');
+
+  // Build packages first (unless skipped or dry-run)
+  if (!options.skipBuild && !options.dryRun) {
+    const buildSpinner = ora('Building packages...').start();
+
+    const buildResult = await buildApiPackages({
+      rootDir,
+      onProgress: (msg) => {
+        buildSpinner.text = msg;
+      },
+    });
+
+    if (buildResult.success) {
+      buildSpinner.succeed('Packages built successfully');
+    } else {
+      buildSpinner.fail('Failed to build packages');
+      console.error(chalk.red(`\nBuild error: ${buildResult.error}`));
+      console.log(chalk.yellow('\nYou can try building manually:'));
+      console.log(chalk.cyan('  pnpm install'));
+      console.log(chalk.cyan('  pnpm run build:api'));
+      process.exit(1);
+    }
+
+    console.log('');
+  }
 
   // Upload secrets first (if not skipped)
   if (!options.skipSecrets && !options.component) {

@@ -211,28 +211,48 @@ function validateKeysDirectory(keysDir: string): void {
 }
 
 /**
- * Save keys and secrets to the .keys directory
+ * Get environment-specific keys directory path
+ */
+export function getKeysDirectory(baseDir: string, env: string): string {
+  return join(baseDir, '.keys', env);
+}
+
+/**
+ * Check if keys already exist for an environment
+ */
+export function keysExistForEnvironment(baseDir: string, env: string): boolean {
+  const keysDir = getKeysDirectory(baseDir, env);
+  const metadataPath = join(keysDir, 'metadata.json');
+  return existsSync(metadataPath);
+}
+
+/**
+ * Save keys and secrets to the .keys/{env} directory
  */
 export async function saveKeysToDirectory(
   secrets: GeneratedSecrets,
-  keysDir: string = '.keys'
+  keysDir: string = '.keys',
+  env?: string
 ): Promise<void> {
+  // If env is provided, use environment-specific subdirectory
+  const targetDir = env ? join(keysDir, env) : keysDir;
+
   // Security: Validate directory path to prevent path traversal
-  validateKeysDirectory(keysDir);
+  validateKeysDirectory(targetDir);
 
   // Ensure directory exists
-  if (!existsSync(keysDir)) {
-    await mkdir(keysDir, { recursive: true });
+  if (!existsSync(targetDir)) {
+    await mkdir(targetDir, { recursive: true });
   }
 
   const paths = {
-    privateKey: join(keysDir, 'private.pem'),
-    publicKey: join(keysDir, 'public.jwk.json'),
-    rpTokenEncryptionKey: join(keysDir, 'rp_token_encryption_key.txt'),
-    adminApiSecret: join(keysDir, 'admin_api_secret.txt'),
-    keyManagerSecret: join(keysDir, 'key_manager_secret.txt'),
-    setupToken: join(keysDir, 'setup_token.txt'),
-    metadata: join(keysDir, 'metadata.json'),
+    privateKey: join(targetDir, 'private.pem'),
+    publicKey: join(targetDir, 'public.jwk.json'),
+    rpTokenEncryptionKey: join(targetDir, 'rp_token_encryption_key.txt'),
+    adminApiSecret: join(targetDir, 'admin_api_secret.txt'),
+    keyManagerSecret: join(targetDir, 'key_manager_secret.txt'),
+    setupToken: join(targetDir, 'setup_token.txt'),
+    metadata: join(targetDir, 'metadata.json'),
   };
 
   // Write private key
@@ -269,11 +289,16 @@ export async function saveKeysToDirectory(
 /**
  * Load existing keys from directory
  */
-export async function loadKeysFromDirectory(keysDir: string = '.keys'): Promise<{
+export async function loadKeysFromDirectory(
+  keysDir: string = '.keys',
+  env?: string
+): Promise<{
   keyPair?: Partial<KeyPair>;
   metadata?: KeyMetadata;
 }> {
-  const metadataPath = join(keysDir, 'metadata.json');
+  // If env is provided, use environment-specific subdirectory
+  const targetDir = env ? join(keysDir, env) : keysDir;
+  const metadataPath = join(targetDir, 'metadata.json');
 
   if (!existsSync(metadataPath)) {
     return {};
@@ -284,7 +309,7 @@ export async function loadKeysFromDirectory(keysDir: string = '.keys'): Promise<
     const metadata = JSON.parse(metadataContent) as KeyMetadata;
 
     // Load public key JWK
-    const publicKeyPath = join(keysDir, 'public.jwk.json');
+    const publicKeyPath = join(targetDir, 'public.jwk.json');
     let publicKeyJwk: JWK | undefined;
 
     if (existsSync(publicKeyPath)) {

@@ -10,8 +10,14 @@ import ora from 'ora';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { execa } from 'execa';
 import { createDefaultConfig, parseConfig, type AuthrimConfig } from '../../core/config.js';
-import { generateAllSecrets, saveKeysToDirectory, generateKeyId } from '../../core/keys.js';
+import {
+  generateAllSecrets,
+  saveKeysToDirectory,
+  generateKeyId,
+  keysExistForEnvironment,
+} from '../../core/keys.js';
 import { generateWranglerConfig, toToml } from '../../core/wrangler.js';
 import {
   getEnabledComponents,
@@ -25,6 +31,8 @@ import {
   toResourceIds,
   uploadSecret,
   getAccountId,
+  detectEnvironments,
+  getWorkersSubdomain,
 } from '../../core/cloudflare.js';
 import {
   createLockFile,
@@ -36,6 +44,8 @@ import {
 import {
   downloadSource,
   verifySourceStructure,
+  checkForUpdate,
+  getLocalVersion,
 } from '../../core/source.js';
 
 // =============================================================================
@@ -58,7 +68,7 @@ function printBanner(): void {
   console.log(chalk.blue('╔═══════════════════════════════════════════════════════════╗'));
   console.log(
     chalk.blue('║') +
-      chalk.bold.white('           🔐 Authrim Setup v0.1.0                        ') +
+      chalk.bold.white('           🔐 Authrim Setup v0.1.49                       ') +
       chalk.blue('║')
   );
   console.log(
@@ -68,6 +78,34 @@ function printBanner(): void {
   );
   console.log(chalk.blue('╚═══════════════════════════════════════════════════════════╝'));
   console.log('');
+  console.log(chalk.bgYellow.black(' ⚠️  WARNING: Under Development! '));
+  console.log(chalk.yellow('  This project does not work correctly yet.'));
+  console.log(chalk.yellow('  Admin UI is incomplete and does not support login.'));
+  console.log('');
+  console.log(chalk.gray('  Press Ctrl+C at any time to exit'));
+  console.log('');
+}
+
+// Store the workers.dev subdomain for URL generation
+let workersSubdomain: string | null = null;
+
+/**
+ * Get the correct workers.dev URL with account subdomain
+ * Format: {worker}.{subdomain}.workers.dev
+ */
+function getWorkersDevUrl(workerName: string): string {
+  if (workersSubdomain) {
+    return `https://${workerName}.${workersSubdomain}.workers.dev`;
+  }
+  return `https://${workerName}.workers.dev`;
+}
+
+/**
+ * Get the correct pages.dev URL
+ * Note: Pages uses {project}.pages.dev format (no account subdomain, unlike Workers)
+ */
+function getPagesDevUrl(projectName: string): string {
+  return `https://${projectName}.pages.dev`;
 }
 
 // =============================================================================
@@ -101,6 +139,51 @@ async function ensureAuthrimSource(options: InitOptions): Promise<string> {
 
   // Check if we're already in an Authrim source directory
   if (isAuthrimSourceDir(currentDir)) {
+    // Check for updates
+    const spinner = ora('Checking for updates...').start();
+    const updateInfo = await checkForUpdate(currentDir);
+    spinner.stop();
+
+    if (updateInfo.updateAvailable) {
+      console.log('');
+      console.log(
+        chalk.yellow(
+          `⬆️  Update available: ${updateInfo.localVersion} → ${updateInfo.remoteVersion}`
+        )
+      );
+      console.log('');
+
+      const updateChoice = await select({
+        message: 'What would you like to do?',
+        choices: [
+          {
+            value: 'continue',
+            name: `Continue with current version (${updateInfo.localVersion})`,
+            description: 'Use the existing source code',
+          },
+          {
+            value: 'update',
+            name: `Update to latest (${updateInfo.remoteVersion})`,
+            description: 'Download and replace with new version',
+          },
+          { value: 'cancel', name: 'Cancel', description: 'Exit setup' },
+        ],
+      });
+
+      if (updateChoice === 'cancel') {
+        console.log(chalk.gray('\nCancelled.'));
+        process.exit(0);
+      }
+
+      if (updateChoice === 'update') {
+        // Update in place (backup and replace)
+        return await updateExistingSource(currentDir, updateInfo.gitRef!);
+      }
+    } else {
+      const localVersion = updateInfo.localVersion || 'unknown';
+      console.log(chalk.green(`✓ Using Authrim source (v${localVersion})`));
+    }
+
     return currentDir;
   }
 
@@ -109,12 +192,103 @@ async function ensureAuthrimSource(options: InitOptions): Promise<string> {
     return resolve(options.keep);
   }
 
+  // Check for existing authrim directory that's not a valid source
+  const targetDir = options.keep || './authrim';
+
+  if (existsSync(targetDir)) {
+    if (isAuthrimSourceDir(targetDir)) {
+      // Valid source exists at target location
+      const spinner = ora('Checking for updates...').start();
+      const updateInfo = await checkForUpdate(targetDir);
+      spinner.stop();
+
+      if (updateInfo.updateAvailable) {
+        console.log('');
+        console.log(
+          chalk.yellow(
+            `⬆️  Update available: ${updateInfo.localVersion} → ${updateInfo.remoteVersion}`
+          )
+        );
+        console.log('');
+
+        const updateChoice = await select({
+          message: 'What would you like to do?',
+          choices: [
+            {
+              value: 'continue',
+              name: `Continue with current version (${updateInfo.localVersion})`,
+              description: 'Use the existing source code',
+            },
+            {
+              value: 'update',
+              name: `Update to latest (${updateInfo.remoteVersion})`,
+              description: 'Download and replace with new version',
+            },
+            { value: 'cancel', name: 'Cancel', description: 'Exit setup' },
+          ],
+        });
+
+        if (updateChoice === 'cancel') {
+          console.log(chalk.gray('\nCancelled.'));
+          process.exit(0);
+        }
+
+        if (updateChoice === 'update') {
+          return await updateExistingSource(targetDir, updateInfo.gitRef!);
+        }
+      } else {
+        const localVersion = updateInfo.localVersion || 'unknown';
+        console.log(chalk.green(`✓ Using existing Authrim source (v${localVersion})`));
+      }
+
+      return resolve(targetDir);
+    } else {
+      // Directory exists but is not valid Authrim source
+      console.log('');
+      console.log(
+        chalk.yellow(`⚠️  Directory ${targetDir} exists but is not a valid Authrim source`)
+      );
+      console.log('');
+
+      const existingChoice = await select({
+        message: 'What would you like to do?',
+        choices: [
+          {
+            value: 'replace',
+            name: 'Replace with fresh download',
+            description: `Remove ${targetDir} and download latest`,
+          },
+          {
+            value: 'different',
+            name: 'Use different directory',
+            description: 'Specify another location',
+          },
+          { value: 'cancel', name: 'Cancel', description: 'Exit setup' },
+        ],
+      });
+
+      if (existingChoice === 'cancel') {
+        console.log(chalk.gray('\nCancelled.'));
+        process.exit(0);
+      }
+
+      if (existingChoice === 'different') {
+        const newDir = await input({
+          message: 'Enter directory path:',
+          default: './authrim-new',
+        });
+        return await downloadNewSource(newDir);
+      }
+
+      // Replace existing
+      return await downloadNewSource(targetDir, true);
+    }
+  }
+
   // Need to download source
   console.log('');
   console.log(chalk.yellow('⚠️  Authrim source code not found'));
   console.log('');
-
-  const targetDir = options.keep || './authrim';
 
   const shouldDownload = await confirm({
     message: `Download source code to ${targetDir}?`,
@@ -129,12 +303,19 @@ async function ensureAuthrimSource(options: InitOptions): Promise<string> {
     process.exit(0);
   }
 
-  // Download source
+  return await downloadNewSource(targetDir);
+}
+
+/**
+ * Download source to a new or existing directory
+ */
+async function downloadNewSource(targetDir: string, force: boolean = false): Promise<string> {
   const spinner = ora('Downloading source code...').start();
 
   try {
     const result = await downloadSource({
       targetDir,
+      force,
       onProgress: (msg) => {
         spinner.text = msg;
       },
@@ -151,10 +332,119 @@ async function ensureAuthrimSource(options: InitOptions): Promise<string> {
       }
     }
 
+    // Install dependencies
+    const installSpinner = ora('Installing dependencies (this may take a few minutes)...').start();
+    try {
+      await execa('pnpm', ['install'], {
+        cwd: resolve(targetDir),
+        stdio: 'pipe',
+      });
+      installSpinner.succeed('Dependencies installed');
+    } catch (installError) {
+      installSpinner.fail('Failed to install dependencies');
+      console.error(chalk.red(`\nError: ${installError}`));
+      console.log(chalk.yellow('\nYou can try installing manually:'));
+      console.log(chalk.cyan(`  cd ${targetDir}`));
+      console.log(chalk.cyan('  pnpm install'));
+      process.exit(1);
+    }
+
     return resolve(targetDir);
   } catch (error) {
     spinner.fail('Download failed');
     console.error(chalk.red(`\nError: ${error}`));
+    process.exit(1);
+  }
+}
+
+/**
+ * Update existing source directory to new version
+ */
+async function updateExistingSource(sourceDir: string, gitRef: string): Promise<string> {
+  const spinner = ora('Updating source code...').start();
+
+  try {
+    // Backup existing configuration files
+    const configFiles = ['authrim-config.json', 'authrim-lock.json', '.keys'];
+    const backups: { file: string; content?: string }[] = [];
+
+    for (const file of configFiles) {
+      const filePath = join(sourceDir, file);
+      if (existsSync(filePath)) {
+        if (file === '.keys') {
+          // Skip backing up .keys - will be preserved
+          continue;
+        }
+        const { readFile: rf } = await import('node:fs/promises');
+        const content = await rf(filePath, 'utf-8');
+        backups.push({ file, content });
+      }
+    }
+
+    spinner.text = 'Downloading new version...';
+
+    // Download to temp directory first
+    const { rm, rename, cp } = await import('node:fs/promises');
+    const tempDir = `${sourceDir}.update-${Date.now()}`;
+
+    const result = await downloadSource({
+      targetDir: tempDir,
+      gitRef,
+      onProgress: (msg) => {
+        spinner.text = msg;
+      },
+    });
+
+    // Preserve .keys directory if it exists
+    const keysDir = join(sourceDir, '.keys');
+    const tempKeysDir = join(tempDir, '.keys');
+    if (existsSync(keysDir)) {
+      await cp(keysDir, tempKeysDir, { recursive: true });
+    }
+
+    // Backup old directory
+    const backupDir = `${sourceDir}.backup-${Date.now()}`;
+    await rename(sourceDir, backupDir);
+
+    // Move new directory into place
+    await rename(tempDir, sourceDir);
+
+    // Restore configuration files
+    for (const backup of backups) {
+      const filePath = join(sourceDir, backup.file);
+      if (backup.content) {
+        await writeFile(filePath, backup.content, 'utf-8');
+      }
+    }
+
+    // Remove backup (optional - keep for safety)
+    spinner.text = 'Cleaning up...';
+    await rm(backupDir, { recursive: true });
+
+    spinner.succeed(`Source code updated to ${result.gitRef}`);
+
+    // Install dependencies for updated source
+    const installSpinner = ora('Installing dependencies (this may take a few minutes)...').start();
+    try {
+      await execa('pnpm', ['install'], {
+        cwd: resolve(sourceDir),
+        stdio: 'pipe',
+      });
+      installSpinner.succeed('Dependencies installed');
+    } catch (installError) {
+      installSpinner.fail('Failed to install dependencies');
+      console.error(chalk.red(`\nError: ${installError}`));
+      console.log(chalk.yellow('\nYou can try installing manually:'));
+      console.log(chalk.cyan(`  cd ${sourceDir}`));
+      console.log(chalk.cyan('  pnpm install'));
+      process.exit(1);
+    }
+
+    return resolve(sourceDir);
+  } catch (error) {
+    spinner.fail('Update failed');
+    console.error(chalk.red(`\nError: ${error}`));
+    console.log(chalk.yellow('Your original files should still be intact.'));
     process.exit(1);
   }
 }
@@ -241,28 +531,233 @@ export async function initCommand(options: InitOptions): Promise<void> {
 // =============================================================================
 
 async function runCliSetup(options: InitOptions): Promise<void> {
-  // Step 1: Choose setup mode
-  const setupMode = await select({
-    message: 'Choose setup mode',
-    choices: [
-      {
-        value: 'quick',
-        name: '⚡ Quick Setup (5 minutes)',
-        description: 'Deploy Authrim with minimal configuration',
-      },
-      {
-        value: 'normal',
-        name: '🔧 Custom Setup',
-        description: 'Configure all options step by step',
-      },
-    ],
-  });
+  // Main menu loop - keeps returning to menu until user exits
+  while (true) {
+    const setupMode = await select({
+      message: 'What would you like to do?',
+      choices: [
+        {
+          value: 'quick',
+          name: '⚡ Quick Setup (5 minutes)',
+          description: 'Deploy Authrim with minimal configuration',
+        },
+        {
+          value: 'normal',
+          name: '🔧 Custom Setup',
+          description: 'Configure all options step by step',
+        },
+        {
+          value: 'manage',
+          name: '📋 View Existing Environments',
+          description: 'View, inspect, or delete existing environments',
+        },
+        {
+          value: 'load',
+          name: '📂 Load Existing Configuration',
+          description: 'Resume setup from authrim-config.json',
+        },
+        {
+          value: 'exit',
+          name: '❌ Exit',
+          description: 'Exit setup',
+        },
+      ],
+    });
 
-  if (setupMode === 'quick') {
-    await runQuickSetup(options);
-  } else {
-    await runNormalSetup(options);
+    if (setupMode === 'exit') {
+      console.log('');
+      console.log(chalk.gray('Goodbye!'));
+      console.log('');
+      break;
+    }
+
+    if (setupMode === 'quick') {
+      await runQuickSetup(options);
+      break; // Exit after setup completes
+    } else if (setupMode === 'normal') {
+      await runNormalSetup(options);
+      break; // Exit after setup completes
+    } else if (setupMode === 'manage') {
+      await runManageEnvironments();
+      // Returns to main menu after manage
+      console.log('');
+    } else if (setupMode === 'load') {
+      const shouldContinue = await runLoadConfig();
+      if (!shouldContinue) {
+        // Returns to main menu
+        console.log('');
+      } else {
+        break; // Exit after deploy
+      }
+    }
   }
+}
+
+// =============================================================================
+// Manage Existing Environments
+// =============================================================================
+
+async function runManageEnvironments(): Promise<void> {
+  // Loop to allow multiple operations before returning to main menu
+  while (true) {
+    console.log('');
+    console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+    console.log(chalk.bold('📋 Existing Environments'));
+    console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+    console.log('');
+
+    const spinner = ora('Detecting environments...').start();
+    const environments = await detectEnvironments();
+    spinner.stop();
+
+    if (environments.length === 0) {
+      console.log(chalk.yellow('No Authrim environments found.'));
+      console.log('');
+      return;
+    }
+
+    console.log(chalk.bold('Detected Environments:'));
+    console.log('');
+    for (const env of environments) {
+      console.log(`  ${chalk.cyan(env.env)}`);
+      console.log(
+        chalk.gray(`    Workers: ${env.workers.length}, D1: ${env.d1.length}, KV: ${env.kv.length}`)
+      );
+    }
+    console.log('');
+
+    const action = await select({
+      message: 'Select action',
+      choices: [
+        {
+          value: 'info',
+          name: '🔍 View Details',
+          description: 'Show detailed resource information',
+        },
+        {
+          value: 'delete',
+          name: '🗑️  Delete Environment',
+          description: 'Remove environment and resources',
+        },
+        { value: 'back', name: '← Back to Main Menu', description: 'Return to main menu' },
+      ],
+    });
+
+    if (action === 'back') {
+      return;
+    }
+
+    const envChoices = environments.map((e) => ({
+      name: `${e.env} (${e.workers.length} workers, ${e.d1.length} D1, ${e.kv.length} KV)`,
+      value: e.env,
+    }));
+    envChoices.push({ name: '← Back', value: '__back__' });
+
+    const envName = await select({
+      message: 'Select environment',
+      choices: envChoices,
+    });
+
+    if (envName === '__back__') {
+      continue; // Go back to action selection
+    }
+
+    if (action === 'info') {
+      const { infoCommand } = await import('./info.js');
+      await infoCommand({ env: envName });
+    } else if (action === 'delete') {
+      const { deleteCommand } = await import('./delete.js');
+      await deleteCommand({ env: envName });
+    }
+
+    // After action, ask if user wants to continue managing
+    console.log('');
+    const continueManaging = await confirm({
+      message: 'Continue managing environments?',
+      default: true,
+    });
+
+    if (!continueManaging) {
+      return;
+    }
+  }
+}
+
+// =============================================================================
+// Load Existing Configuration
+// =============================================================================
+
+async function runLoadConfig(): Promise<boolean> {
+  console.log('');
+  console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log(chalk.bold('📂 Load Existing Configuration'));
+  console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log('');
+
+  // Check for config file in current directory
+  const defaultConfigPath = './authrim-config.json';
+  const configExists = existsSync(defaultConfigPath);
+
+  let configPath = defaultConfigPath;
+
+  if (configExists) {
+    console.log(chalk.green(`✓ Found: ${defaultConfigPath}`));
+    console.log('');
+
+    const action = await select({
+      message: 'What would you like to do?',
+      choices: [
+        { value: 'load', name: '📂 Load this configuration' },
+        { value: 'other', name: '📁 Specify different file' },
+        { value: 'back', name: '← Back to Main Menu' },
+      ],
+    });
+
+    if (action === 'back') {
+      return false; // Return to main menu
+    }
+
+    if (action === 'other') {
+      configPath = await input({
+        message: 'Enter configuration file path',
+        validate: (value) => {
+          if (!value) return 'Please enter a path';
+          if (!existsSync(value)) return `File not found: ${value}`;
+          return true;
+        },
+      });
+    }
+  } else {
+    console.log(chalk.yellow('No authrim-config.json found in current directory.'));
+    console.log('');
+    console.log(chalk.gray('💡 Tip: You can specify a config file with:'));
+    console.log(chalk.cyan('   npx @authrim/setup --config /path/to/authrim-config.json'));
+    console.log('');
+
+    const action = await select({
+      message: 'What would you like to do?',
+      choices: [
+        { value: 'specify', name: '📁 Specify file path' },
+        { value: 'back', name: '← Back to Main Menu' },
+      ],
+    });
+
+    if (action === 'back') {
+      return false;
+    }
+
+    configPath = await input({
+      message: 'Enter configuration file path',
+      validate: (value) => {
+        if (!value) return 'Please enter a path';
+        if (!existsSync(value)) return `File not found: ${value}`;
+        return true;
+      },
+    });
+  }
+
+  await handleExistingConfig(configPath);
+  return true; // Config was loaded and processed
 }
 
 // =============================================================================
@@ -277,15 +772,41 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
   console.log('');
 
   // Step 1: Environment prefix
-  const envPrefix = await select({
-    message: 'Select environment',
-    choices: [
-      { value: 'prod', name: 'prod (Production)' },
-      { value: 'staging', name: 'staging (Staging)' },
-      { value: 'dev', name: 'dev (Development)' },
-    ],
+  const envPrefix = await input({
+    message: 'Enter environment name',
     default: options.env || 'prod',
+    validate: (value) => {
+      if (!/^[a-z][a-z0-9-]*$/.test(value)) {
+        return 'Only lowercase alphanumeric and hyphens allowed (e.g., prod, staging, dev)';
+      }
+      return true;
+    },
   });
+
+  // Check if environment already exists
+  const checkSpinner = ora('Checking for existing environments...').start();
+  try {
+    const existingEnvs = await detectEnvironments();
+    const existingEnv = existingEnvs.find((e) => e.env === envPrefix);
+    if (existingEnv) {
+      checkSpinner.fail(`Environment "${envPrefix}" already exists`);
+      console.log('');
+      console.log(chalk.yellow('  Existing resources:'));
+      console.log(`    Workers: ${existingEnv.workers.length}`);
+      console.log(`    D1 Databases: ${existingEnv.d1.length}`);
+      console.log(`    KV Namespaces: ${existingEnv.kv.length}`);
+      console.log('');
+      console.log(
+        chalk.yellow(
+          '  Please choose a different name or use "npx @authrim/setup manage" to delete it first.'
+        )
+      );
+      return;
+    }
+    checkSpinner.succeed('Environment name is available');
+  } catch {
+    checkSpinner.warn('Could not check existing environments (continuing anyway)');
+  }
 
   // Step 2: Cloudflare API Token
   const cfApiToken = await password({
@@ -299,9 +820,17 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
     },
   });
 
-  // Step 3: Domain configuration
+  // Step 3: Show infrastructure info
+  console.log('');
+  console.log(
+    chalk.gray('  Workers to deploy: ' + envPrefix + '-ar-router, ' + envPrefix + '-ar-auth, ...')
+  );
+  console.log(chalk.gray('  Default API: ' + getWorkersDevUrl(envPrefix + '-ar-router')));
+  console.log('');
+
+  // Step 4: Domain configuration (single-tenant mode only in Quick Setup)
   const useCustomDomain = await confirm({
-    message: 'Configure custom domain?',
+    message: 'Configure custom domain? (for Issuer URL)',
     default: false,
   });
 
@@ -310,8 +839,12 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
   let adminUiDomain: string | null = null;
 
   if (useCustomDomain) {
+    console.log('');
+    console.log(chalk.gray('  In single-tenant mode, Issuer URL = API domain'));
+    console.log('');
+
     apiDomain = await input({
-      message: 'API (issuer) domain',
+      message: 'API / Issuer domain (e.g., auth.example.com)',
       validate: (value) => {
         if (!value) return true; // Allow empty for workers.dev fallback
         if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(value)) {
@@ -332,20 +865,141 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
     });
   }
 
+  // Database Configuration
+  console.log('');
+  console.log(chalk.blue('━━━ Database Configuration ━━━'));
+  console.log(chalk.yellow('⚠️  Database region cannot be changed after creation.'));
+  console.log('');
+
+  const locationChoices = [
+    { name: 'Automatic (nearest to you)', value: 'auto' },
+    { name: '── Location Hints ──', value: '__separator1__', disabled: true },
+    { name: 'North America (West)', value: 'wnam' },
+    { name: 'North America (East)', value: 'enam' },
+    { name: 'Europe (West)', value: 'weur' },
+    { name: 'Europe (East)', value: 'eeur' },
+    { name: 'Asia Pacific', value: 'apac' },
+    { name: 'Oceania', value: 'oc' },
+    { name: '── Jurisdiction (Compliance) ──', value: '__separator2__', disabled: true },
+    { name: 'EU Jurisdiction (GDPR compliance)', value: 'eu' },
+  ];
+
+  console.log(chalk.gray('  Core DB: Stores OAuth clients, tokens, sessions, audit logs'));
+  const coreDbLocation = await select({
+    message: 'Core Database region',
+    choices: locationChoices,
+    default: 'auto',
+  });
+
+  console.log('');
+  console.log(chalk.gray('  PII DB: Stores user profiles, credentials, personal data'));
+  const piiDbLocation = await select({
+    message: 'PII Database region',
+    choices: locationChoices,
+    default: 'auto',
+  });
+
+  // Parse location vs jurisdiction
+  function parseDbLocation(value: string) {
+    if (value === 'eu') {
+      return { location: 'auto' as const, jurisdiction: 'eu' as const };
+    }
+    return {
+      location: value as 'auto' | 'wnam' | 'enam' | 'weur' | 'eeur' | 'apac' | 'oc',
+      jurisdiction: 'none' as const,
+    };
+  }
+
+  // Email Provider Configuration
+  console.log('');
+  console.log(chalk.blue('━━━ Email Provider ━━━'));
+  console.log(chalk.gray('Configure email sending for magic links and verification codes.'));
+  console.log('');
+
+  const configureEmail = await confirm({
+    message: 'Configure email provider now?',
+    default: false,
+  });
+
+  let emailConfig: {
+    provider: 'resend' | 'none';
+    fromAddress?: string;
+    fromName?: string;
+    apiKey?: string;
+  } = { provider: 'none' };
+
+  if (configureEmail) {
+    console.log('');
+    console.log(chalk.gray('Resend is the supported email provider.'));
+    console.log(chalk.gray('Get your API key at: https://resend.com/api-keys'));
+    console.log(chalk.gray('Set up domain at: https://resend.com/domains'));
+    console.log('');
+
+    const resendApiKey = await password({
+      message: 'Resend API key',
+      mask: '*',
+      validate: (value) => {
+        if (!value.trim()) return 'API key is required';
+        if (!value.startsWith('re_')) {
+          return 'Warning: Resend API keys typically start with "re_"';
+        }
+        return true;
+      },
+    });
+
+    const fromAddress = await input({
+      message: 'From email address',
+      default: 'noreply@yourdomain.com',
+      validate: (value) => {
+        if (!value.includes('@')) return 'Please enter a valid email address';
+        return true;
+      },
+    });
+
+    const fromName = await input({
+      message: 'From display name (optional)',
+      default: 'Authrim',
+    });
+
+    emailConfig = {
+      provider: 'resend',
+      fromAddress,
+      fromName: fromName || undefined,
+      apiKey: resendApiKey,
+    };
+
+    console.log('');
+    console.log(chalk.yellow('⚠️  Domain verification required for sending from your own domain.'));
+    console.log(chalk.gray('   See: https://resend.com/docs/dashboard/domains/introduction'));
+  }
+
   // Create configuration
   const config = createDefaultConfig(envPrefix);
+  config.database = {
+    core: parseDbLocation(coreDbLocation),
+    pii: parseDbLocation(piiDbLocation),
+  };
+  config.features = {
+    ...config.features,
+    email: {
+      provider: emailConfig.provider,
+      fromAddress: emailConfig.fromAddress,
+      fromName: emailConfig.fromName,
+      configured: emailConfig.provider === 'resend',
+    },
+  };
   config.urls = {
     api: {
       custom: apiDomain || null,
-      auto: `https://${envPrefix}-ar-router.workers.dev`, // Placeholder
+      auto: getWorkersDevUrl(envPrefix + '-ar-router'),
     },
     loginUi: {
       custom: loginUiDomain || null,
-      auto: `https://${envPrefix}-ar-ui.pages.dev`,
+      auto: getPagesDevUrl(envPrefix + '-ar-ui'),
     },
     adminUi: {
       custom: adminUiDomain || null,
-      auto: `https://${envPrefix}-ar-ui.pages.dev/admin`,
+      auto: getPagesDevUrl(envPrefix + '-ar-ui') + '/admin',
     },
   };
 
@@ -355,14 +1009,29 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
   console.log(chalk.bold('📋 Configuration Summary'));
   console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
   console.log('');
-  console.log(`  Environment: ${chalk.cyan(envPrefix)}`);
-  console.log(`  API URL:     ${chalk.cyan(config.urls.api.custom || config.urls.api.auto)}`);
+  console.log(chalk.bold('Infrastructure:'));
+  console.log(`  Environment:   ${chalk.cyan(envPrefix)}`);
+  console.log(`  Worker Prefix: ${chalk.cyan(envPrefix + '-ar-*')}`);
+  console.log('');
+  console.log(chalk.bold('URLs (Single-tenant):'));
+  console.log(`  Issuer URL:    ${chalk.cyan(config.urls.api.custom || config.urls.api.auto)}`);
   console.log(
-    `  Login UI:    ${chalk.cyan(config.urls.loginUi.custom || config.urls.loginUi.auto)}`
+    `  Login UI:      ${chalk.cyan(config.urls.loginUi.custom || config.urls.loginUi.auto)}`
   );
   console.log(
-    `  Admin UI:    ${chalk.cyan(config.urls.adminUi.custom || config.urls.adminUi.auto)}`
+    `  Admin UI:      ${chalk.cyan(config.urls.adminUi.custom || config.urls.adminUi.auto)}`
   );
+  console.log('');
+  console.log(chalk.bold('Email:'));
+  if (emailConfig.provider === 'resend') {
+    console.log(`  Provider:      ${chalk.cyan('Resend')}`);
+    console.log(`  From Address:  ${chalk.cyan(emailConfig.fromAddress)}`);
+    if (emailConfig.fromName) {
+      console.log(`  From Name:     ${chalk.cyan(emailConfig.fromName)}`);
+    }
+  } else {
+    console.log(`  Provider:      ${chalk.gray('Not configured (configure later)')}`);
+  }
   console.log('');
 
   const proceed = await confirm({
@@ -373,6 +1042,20 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
   if (!proceed) {
     console.log(chalk.yellow('Setup cancelled.'));
     return;
+  }
+
+  // Save email secrets if configured
+  if (emailConfig.provider === 'resend' && emailConfig.apiKey) {
+    const keysDir = `.keys/${envPrefix}`;
+    await import('node:fs/promises').then(async (fs) => {
+      await fs.mkdir(keysDir, { recursive: true });
+      await fs.writeFile(`${keysDir}/resend_api_key.txt`, emailConfig.apiKey!.trim());
+      await fs.writeFile(`${keysDir}/email_from.txt`, emailConfig.fromAddress!.trim());
+      if (emailConfig.fromName) {
+        await fs.writeFile(`${keysDir}/email_from_name.txt`, emailConfig.fromName.trim());
+      }
+    });
+    console.log(chalk.gray(`📧 Email secrets saved to ${keysDir}/`));
   }
 
   // Run setup
@@ -392,7 +1075,7 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   // Step 1: Environment prefix
   const envPrefix = await input({
-    message: 'Enter environment prefix',
+    message: 'Enter environment name',
     default: options.env || 'prod',
     validate: (value) => {
       if (!/^[a-z][a-z0-9-]*$/.test(value)) {
@@ -401,6 +1084,31 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
       return true;
     },
   });
+
+  // Check if environment already exists
+  const checkSpinner = ora('Checking for existing environments...').start();
+  try {
+    const existingEnvs = await detectEnvironments();
+    const existingEnv = existingEnvs.find((e) => e.env === envPrefix);
+    if (existingEnv) {
+      checkSpinner.fail(`Environment "${envPrefix}" already exists`);
+      console.log('');
+      console.log(chalk.yellow('  Existing resources:'));
+      console.log(`    Workers: ${existingEnv.workers.length}`);
+      console.log(`    D1 Databases: ${existingEnv.d1.length}`);
+      console.log(`    KV Namespaces: ${existingEnv.kv.length}`);
+      console.log('');
+      console.log(
+        chalk.yellow(
+          '  Please choose a different name or use "npx @authrim/setup manage" to delete it first.'
+        )
+      );
+      return;
+    }
+    checkSpinner.succeed('Environment name is available');
+  } catch {
+    checkSpinner.warn('Could not check existing environments (continuing anyway)');
+  }
 
   // Step 2: Cloudflare API Token
   const cfApiToken = await password({
@@ -437,42 +1145,168 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
     default: 'basic-op',
   });
 
-  // Step 4: Domain configuration
-  const useCustomDomain = await confirm({
-    message: 'Configure custom domain?',
+  // Step 4: Infrastructure overview (Workers are auto-generated from env)
+  console.log('');
+  console.log(chalk.blue('━━━ Infrastructure (Auto-generated) ━━━'));
+  console.log('');
+  console.log(chalk.gray('  The following Workers will be deployed:'));
+  console.log(`    Router:     ${chalk.cyan(envPrefix + '-ar-router')}`);
+  console.log(`    Auth:       ${chalk.cyan(envPrefix + '-ar-auth')}`);
+  console.log(`    Token:      ${chalk.cyan(envPrefix + '-ar-token')}`);
+  console.log(`    Management: ${chalk.cyan(envPrefix + '-ar-management')}`);
+  console.log(chalk.gray('    ... and other supporting workers'));
+  console.log('');
+  console.log(chalk.gray('  Default endpoints (without custom domain):'));
+  console.log(`    API:        ${chalk.gray(getWorkersDevUrl(envPrefix + '-ar-router'))}`);
+  console.log(`    UI:         ${chalk.gray(getPagesDevUrl(envPrefix + '-ar-ui'))}`);
+  console.log('');
+
+  // Step 5: Tenant configuration
+  console.log(chalk.blue('━━━ Tenant Mode ━━━'));
+  console.log('');
+
+  const multiTenant = await confirm({
+    message: 'Enable multi-tenant mode? (subdomain-based tenant isolation)',
     default: false,
   });
 
+  let tenantName = 'default';
+  let tenantDisplayName = 'Default Tenant';
+  let baseDomain: string | undefined;
+
+  // Step 6: URL configuration (depends on tenant mode)
   let apiDomain: string | null = null;
   let loginUiDomain: string | null = null;
   let adminUiDomain: string | null = null;
 
-  if (useCustomDomain) {
-    apiDomain = await input({
-      message: 'API (issuer) domain',
+  if (multiTenant) {
+    // Multi-tenant mode: base domain is required, becomes the issuer base
+    console.log('');
+    console.log(chalk.blue('━━━ Multi-tenant URL Configuration ━━━'));
+    console.log('');
+    console.log(chalk.gray('  In multi-tenant mode:'));
+    console.log(chalk.gray('    • Each tenant has a subdomain: https://{tenant}.{base-domain}'));
+    console.log(chalk.gray('    • The base domain points to the router Worker'));
+    console.log(chalk.gray('    • Issuer URL is dynamically built from Host header'));
+    console.log('');
+
+    baseDomain = await input({
+      message: 'Base domain (e.g., authrim.com)',
       validate: (value) => {
-        if (!value) return true;
+        if (!value) return 'Base domain is required for multi-tenant mode';
         if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(value)) {
-          return 'Please enter a valid domain';
+          return 'Please enter a valid domain (e.g., authrim.com)';
         }
         return true;
       },
     });
 
-    loginUiDomain = await input({
-      message: 'Login UI domain (Enter to skip)',
-      default: '',
+    console.log('');
+    console.log(chalk.green('  ✓ Issuer URL format: https://{tenant}.' + baseDomain));
+    console.log(chalk.gray('    Example: https://acme.' + baseDomain));
+    console.log('');
+
+    // API domain in multi-tenant is the base domain (or custom apex)
+    apiDomain = baseDomain;
+
+    tenantName = await input({
+      message: 'Default tenant name (identifier)',
+      default: 'default',
+      validate: (value) => {
+        if (!/^[a-z][a-z0-9-]*$/.test(value)) {
+          return 'Only lowercase alphanumeric and hyphens allowed';
+        }
+        return true;
+      },
     });
 
-    adminUiDomain = await input({
-      message: 'Admin UI domain (Enter to skip)',
-      default: '',
+    tenantDisplayName = await input({
+      message: 'Default tenant display name',
+      default: 'Default Tenant',
     });
+
+    // UI domains for multi-tenant
+    console.log('');
+    console.log(chalk.blue('━━━ UI Domain Configuration ━━━'));
+    console.log('');
+
+    const useCustomUiDomain = await confirm({
+      message: 'Configure custom UI domains?',
+      default: false,
+    });
+
+    if (useCustomUiDomain) {
+      loginUiDomain = await input({
+        message: 'Login UI domain (e.g., login.example.com)',
+        default: '',
+      });
+
+      adminUiDomain = await input({
+        message: 'Admin UI domain (e.g., admin.example.com)',
+        default: '',
+      });
+    }
+  } else {
+    // Single-tenant mode
+    console.log('');
+    console.log(chalk.blue('━━━ Single-tenant URL Configuration ━━━'));
+    console.log('');
+    console.log(chalk.gray('  In single-tenant mode:'));
+    console.log(chalk.gray('    • Issuer URL = API custom domain (or workers.dev fallback)'));
+    console.log(chalk.gray('    • All clients share the same issuer'));
+    console.log('');
+
+    tenantDisplayName = await input({
+      message: 'Organization name (display name)',
+      default: 'Default Tenant',
+    });
+
+    const useCustomDomain = await confirm({
+      message: 'Configure custom domain?',
+      default: false,
+    });
+
+    if (useCustomDomain) {
+      console.log('');
+      console.log(chalk.gray('  Enter custom domains (leave empty to use Cloudflare defaults)'));
+      console.log('');
+
+      apiDomain = await input({
+        message: 'API / Issuer domain (e.g., auth.example.com)',
+        validate: (value) => {
+          if (!value) return true;
+          if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(value)) {
+            return 'Please enter a valid domain';
+          }
+          return true;
+        },
+      });
+
+      loginUiDomain = await input({
+        message: 'Login UI domain (Enter to skip)',
+        default: '',
+      });
+
+      adminUiDomain = await input({
+        message: 'Admin UI domain (Enter to skip)',
+        default: '',
+      });
+    }
+
+    if (apiDomain) {
+      console.log('');
+      console.log(chalk.green('  ✓ Issuer URL: https://' + apiDomain));
+    } else {
+      console.log('');
+      console.log(chalk.green('  ✓ Issuer URL: ' + getWorkersDevUrl(envPrefix + '-ar-router')));
+      console.log(chalk.gray('    (using Cloudflare workers.dev domain)'));
+    }
   }
 
   // Step 5: Optional components
   console.log('');
   console.log(chalk.blue('━━━ Optional Components ━━━'));
+  console.log(chalk.gray('  Note: Social Login and Policy Engine are standard components'));
   console.log('');
 
   const enableSaml = await confirm({
@@ -482,16 +1316,6 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   const enableVc = await confirm({
     message: 'Enable Verifiable Credentials?',
-    default: false,
-  });
-
-  const enableBridge = await confirm({
-    message: 'Enable External IdP Bridge?',
-    default: false,
-  });
-
-  const enablePolicy = await confirm({
-    message: 'Enable ReBAC Policy service?',
     default: false,
   });
 
@@ -510,16 +1334,69 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
     default: false,
   });
 
-  const emailProvider = await select({
+  const emailProviderChoice = await select({
     message: 'Select email provider',
     choices: [
-      { value: 'none', name: 'None (email disabled)' },
+      { value: 'none', name: 'None (configure later)' },
       { value: 'resend', name: 'Resend' },
-      { value: 'sendgrid', name: 'SendGrid' },
-      { value: 'ses', name: 'AWS SES' },
+      { value: 'sendgrid', name: 'SendGrid (coming soon)', disabled: true },
+      { value: 'ses', name: 'AWS SES (coming soon)', disabled: true },
     ],
     default: 'none',
   });
+
+  // Email configuration details
+  let emailConfigNormal: {
+    provider: 'resend' | 'none';
+    fromAddress?: string;
+    fromName?: string;
+    apiKey?: string;
+  } = { provider: 'none' };
+
+  if (emailProviderChoice === 'resend') {
+    console.log('');
+    console.log(chalk.blue('━━━ Resend Configuration ━━━'));
+    console.log(chalk.gray('Get your API key at: https://resend.com/api-keys'));
+    console.log(chalk.gray('Set up domain at: https://resend.com/domains'));
+    console.log('');
+
+    const resendApiKey = await password({
+      message: 'Resend API key',
+      mask: '*',
+      validate: (value) => {
+        if (!value.trim()) return 'API key is required';
+        if (!value.startsWith('re_')) {
+          return 'Warning: Resend API keys typically start with "re_"';
+        }
+        return true;
+      },
+    });
+
+    const fromAddress = await input({
+      message: 'From email address',
+      default: 'noreply@yourdomain.com',
+      validate: (value) => {
+        if (!value.includes('@')) return 'Please enter a valid email address';
+        return true;
+      },
+    });
+
+    const fromName = await input({
+      message: 'From display name (optional)',
+      default: 'Authrim',
+    });
+
+    emailConfigNormal = {
+      provider: 'resend',
+      fromAddress,
+      fromName: fromName || undefined,
+      apiKey: resendApiKey,
+    };
+
+    console.log('');
+    console.log(chalk.yellow('⚠️  Domain verification required for sending from your own domain.'));
+    console.log(chalk.gray('   See: https://resend.com/docs/dashboard/domains/introduction'));
+  }
 
   // Step 7: Advanced OIDC settings
   const configureOidc = await confirm({
@@ -614,29 +1491,85 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
     refreshTokenShards = parseInt(refreshTokenShardsStr, 10);
   }
 
+  // Step 9: Database Configuration
+  console.log('');
+  console.log(chalk.blue('━━━ Database Configuration ━━━'));
+  console.log(chalk.yellow('⚠️  Database region cannot be changed after creation.'));
+  console.log('');
+
+  const dbLocationChoices = [
+    { name: 'Automatic (nearest to you)', value: 'auto' },
+    { name: '── Location Hints ──', value: '__separator1__', disabled: true },
+    { name: 'North America (West)', value: 'wnam' },
+    { name: 'North America (East)', value: 'enam' },
+    { name: 'Europe (West)', value: 'weur' },
+    { name: 'Europe (East)', value: 'eeur' },
+    { name: 'Asia Pacific', value: 'apac' },
+    { name: 'Oceania', value: 'oc' },
+    { name: '── Jurisdiction (Compliance) ──', value: '__separator2__', disabled: true },
+    { name: 'EU Jurisdiction (GDPR compliance)', value: 'eu' },
+  ];
+
+  console.log(chalk.gray('  Core DB: Stores OAuth clients, tokens, sessions, audit logs'));
+  const coreDbLocation = await select({
+    message: 'Core Database region',
+    choices: dbLocationChoices,
+    default: 'auto',
+  });
+
+  console.log('');
+  console.log(chalk.gray('  PII DB: Stores user profiles, credentials, personal data'));
+  console.log(chalk.gray('  Consider your data protection requirements.'));
+  const piiDbLocation = await select({
+    message: 'PII Database region',
+    choices: dbLocationChoices,
+    default: 'auto',
+  });
+
+  // Parse location vs jurisdiction
+  function parseDbLocationNormal(value: string) {
+    if (value === 'eu') {
+      return { location: 'auto' as const, jurisdiction: 'eu' as const };
+    }
+    return {
+      location: value as 'auto' | 'wnam' | 'enam' | 'weur' | 'eeur' | 'apac' | 'oc',
+      jurisdiction: 'none' as const,
+    };
+  }
+
   // Create configuration
   const config = createDefaultConfig(envPrefix);
   config.profile = profile as 'basic-op' | 'fapi-rw' | 'fapi2-security';
+  config.database = {
+    core: parseDbLocationNormal(coreDbLocation),
+    pii: parseDbLocationNormal(piiDbLocation),
+  };
+  config.tenant = {
+    name: tenantName,
+    displayName: tenantDisplayName,
+    multiTenant,
+    baseDomain,
+  };
   config.components = {
     ...config.components,
     saml: enableSaml,
     async: enableQueue, // async is tied to queue
     vc: enableVc,
-    bridge: enableBridge,
-    policy: enablePolicy,
+    bridge: true, // Standard component
+    policy: true, // Standard component
   };
   config.urls = {
     api: {
       custom: apiDomain || null,
-      auto: `https://${envPrefix}-ar-router.workers.dev`,
+      auto: getWorkersDevUrl(envPrefix + '-ar-router'),
     },
     loginUi: {
       custom: loginUiDomain || null,
-      auto: `https://${envPrefix}-ar-ui.pages.dev`,
+      auto: getPagesDevUrl(envPrefix + '-ar-ui'),
     },
     adminUi: {
       custom: adminUiDomain || null,
-      auto: `https://${envPrefix}-ar-ui.pages.dev/admin`,
+      auto: getPagesDevUrl(envPrefix + '-ar-ui') + '/admin',
     },
   };
   config.oidc = {
@@ -653,7 +1586,12 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
   config.features = {
     queue: { enabled: enableQueue },
     r2: { enabled: enableR2 },
-    email: { provider: emailProvider as 'none' | 'resend' | 'sendgrid' | 'ses' },
+    email: {
+      provider: emailConfigNormal.provider,
+      fromAddress: emailConfigNormal.fromAddress,
+      fromName: emailConfigNormal.fromName,
+      configured: emailConfigNormal.provider === 'resend',
+    },
   };
 
   // Show summary
@@ -662,12 +1600,40 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
   console.log(chalk.bold('📋 Configuration Summary'));
   console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
   console.log('');
-  console.log(chalk.bold('Basic Settings:'));
-  console.log(`  Environment:          ${chalk.cyan(envPrefix)}`);
-  console.log(`  Profile:   ${chalk.cyan(profile)}`);
+
+  // Infrastructure
+  console.log(chalk.bold('Infrastructure:'));
+  console.log(`  Environment:   ${chalk.cyan(envPrefix)}`);
+  console.log(`  Worker Prefix: ${chalk.cyan(envPrefix + '-ar-*')}`);
+  console.log(`  Profile:       ${chalk.cyan(profile)}`);
   console.log('');
-  console.log(chalk.bold('URL Settings:'));
-  console.log(`  API URL:       ${chalk.cyan(config.urls.api.custom || config.urls.api.auto)}`);
+
+  // Tenant mode and Issuer
+  console.log(chalk.bold('Tenant & Issuer:'));
+  console.log(
+    `  Mode:          ${multiTenant ? chalk.cyan('Multi-tenant') : chalk.cyan('Single-tenant')}`
+  );
+  if (multiTenant && baseDomain) {
+    console.log(`  Base Domain:   ${chalk.cyan(baseDomain)}`);
+    console.log(`  Issuer Format: ${chalk.cyan('https://{tenant}.' + baseDomain)}`);
+    console.log(`  Example:       ${chalk.gray('https://acme.' + baseDomain)}`);
+  } else {
+    const issuerUrl = config.urls.api.custom || config.urls.api.auto;
+    console.log(`  Issuer URL:    ${chalk.cyan(issuerUrl)}`);
+  }
+  console.log(`  Default Tenant: ${chalk.cyan(tenantName)}`);
+  console.log(`  Display Name:  ${chalk.cyan(tenantDisplayName)}`);
+  console.log('');
+
+  // Public URLs
+  console.log(chalk.bold('Public URLs:'));
+  if (multiTenant && baseDomain) {
+    console.log(
+      `  API Router:    ${chalk.cyan('*.' + baseDomain)} → ${chalk.gray(envPrefix + '-ar-router')}`
+    );
+  } else {
+    console.log(`  API Router:    ${chalk.cyan(config.urls.api.custom || config.urls.api.auto)}`);
+  }
   console.log(
     `  Login UI:      ${chalk.cyan(config.urls.loginUi.custom || config.urls.loginUi.auto)}`
   );
@@ -678,13 +1644,23 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
   console.log(chalk.bold('Components:'));
   console.log(`  SAML:          ${enableSaml ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
   console.log(`  VC:            ${enableVc ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
-  console.log(`  Bridge:        ${enableBridge ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
-  console.log(`  Policy:        ${enablePolicy ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
+  console.log(`  Social Login:  ${chalk.green('Enabled')} ${chalk.gray('(standard)')}`);
+  console.log(`  Policy Engine: ${chalk.green('Enabled')} ${chalk.gray('(standard)')}`);
   console.log('');
   console.log(chalk.bold('Feature Flags:'));
   console.log(`  Queue:         ${enableQueue ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
   console.log(`  R2:            ${enableR2 ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
-  console.log(`  Email:         ${chalk.cyan(emailProvider)}`);
+  console.log('');
+  console.log(chalk.bold('Email:'));
+  if (emailConfigNormal.provider === 'resend') {
+    console.log(`  Provider:      ${chalk.cyan('Resend')}`);
+    console.log(`  From Address:  ${chalk.cyan(emailConfigNormal.fromAddress)}`);
+    if (emailConfigNormal.fromName) {
+      console.log(`  From Name:     ${chalk.cyan(emailConfigNormal.fromName)}`);
+    }
+  } else {
+    console.log(`  Provider:      ${chalk.gray('Not configured (configure later)')}`);
+  }
   console.log('');
   console.log(chalk.bold('OIDC Settings:'));
   console.log(`  Access TTL:    ${chalk.cyan(accessTokenTtl + 'sec')}`);
@@ -696,6 +1672,22 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
   console.log(`  Auth Code:     ${chalk.cyan(authCodeShards)} shards`);
   console.log(`  Refresh Token: ${chalk.cyan(refreshTokenShards)} shards`);
   console.log('');
+  console.log(chalk.bold('Database:'));
+  const coreDbDisplay =
+    coreDbLocation === 'eu'
+      ? 'EU Jurisdiction'
+      : coreDbLocation === 'auto'
+        ? 'Automatic'
+        : coreDbLocation.toUpperCase();
+  const piiDbDisplay =
+    piiDbLocation === 'eu'
+      ? 'EU Jurisdiction'
+      : piiDbLocation === 'auto'
+        ? 'Automatic'
+        : piiDbLocation.toUpperCase();
+  console.log(`  Core DB:       ${chalk.cyan(coreDbDisplay)}`);
+  console.log(`  PII DB:        ${chalk.cyan(piiDbDisplay)}`);
+  console.log('');
 
   const proceed = await confirm({
     message: 'Start setup with this configuration?',
@@ -705,6 +1697,20 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
   if (!proceed) {
     console.log(chalk.yellow('Setup cancelled.'));
     return;
+  }
+
+  // Save email secrets if configured
+  if (emailConfigNormal.provider === 'resend' && emailConfigNormal.apiKey) {
+    const keysDir = `.keys/${envPrefix}`;
+    await import('node:fs/promises').then(async (fs) => {
+      await fs.mkdir(keysDir, { recursive: true });
+      await fs.writeFile(`${keysDir}/resend_api_key.txt`, emailConfigNormal.apiKey!.trim());
+      await fs.writeFile(`${keysDir}/email_from.txt`, emailConfigNormal.fromAddress!.trim());
+      if (emailConfigNormal.fromName) {
+        await fs.writeFile(`${keysDir}/email_from_name.txt`, emailConfigNormal.fromName.trim());
+      }
+    });
+    console.log(chalk.gray(`📧 Email secrets saved to ${keysDir}/`));
   }
 
   await executeSetup(config, cfApiToken, options.keep);
@@ -719,7 +1725,7 @@ async function executeSetup(
   cfApiToken: string,
   keepPath?: string
 ): Promise<void> {
-  const outputDir = keepPath || '.';
+  const outputDir = resolve(keepPath || '.');
   const env = config.environment.prefix;
   let secrets: ReturnType<typeof generateAllSecrets> | null = null;
 
@@ -735,42 +1741,62 @@ async function executeSetup(
     const installed = await isWranglerInstalled();
     if (!installed) {
       wranglerCheck.fail('wrangler is not installed');
-      console.log(chalk.yellow('  npm install -g wrangler  to install'));
+      console.log('');
+      console.log(chalk.yellow('  Run the following command to install:'));
+      console.log('');
+      console.log(chalk.cyan('    npm install -g wrangler'));
+      console.log('');
       return;
     }
 
     const auth = await checkAuth();
     if (!auth.isLoggedIn) {
       wranglerCheck.fail('Not logged in to Cloudflare');
-      console.log(chalk.yellow('  wrangler login  to install'));
+      console.log('');
+      console.log(chalk.yellow('  Run the following command to authenticate:'));
+      console.log('');
+      console.log(chalk.cyan('    wrangler login'));
+      console.log('');
       return;
     }
 
     wranglerCheck.succeed(`Connected to Cloudflare (${auth.email || 'authenticated'})`);
 
-    // Get account ID and update auto URLs
+    // Get account ID and workers subdomain
     const accountId = await getAccountId();
     if (accountId) {
       config.cloudflare = { accountId };
     }
+
+    // Get workers.dev subdomain for correct URL generation
+    workersSubdomain = await getWorkersSubdomain();
   } catch (error) {
     wranglerCheck.fail('Failed to check wrangler');
     console.error(error);
     return;
   }
 
-  // Step 1: Generate keys
+  // Step 1: Generate keys (environment-specific directory)
+  // Check if keys already exist for this environment
+  if (keysExistForEnvironment(outputDir, env)) {
+    console.log(chalk.yellow(`⚠️  Warning: Keys already exist for environment "${env}"`));
+    console.log(chalk.yellow('   Existing keys will be overwritten.'));
+    console.log('');
+  }
+
   const keysSpinner = ora('Generating cryptographic keys...').start();
   try {
     const keyId = generateKeyId(env);
     secrets = generateAllSecrets(keyId);
-    const keysDir = join(outputDir, '.keys');
-    await saveKeysToDirectory(secrets, keysDir);
+    // Save to environment-specific subdirectory: .keys/{env}/
+    const keysBaseDir = join(outputDir, '.keys');
+    await saveKeysToDirectory(secrets, keysBaseDir, env);
 
+    const keysDir = join(keysBaseDir, env);
     config.keys = {
       keyId: secrets.keyPair.keyId,
       publicKeyJwk: secrets.keyPair.publicKeyJwk as Record<string, unknown>,
-      secretsPath: './.keys/',
+      secretsPath: `./.keys/${env}/`,
       includeSecrets: false,
     };
 
@@ -793,6 +1819,7 @@ async function executeSetup(
       createKV: true,
       createQueues: config.features.queue?.enabled,
       createR2: config.features.r2?.enabled,
+      databaseConfig: config.database,
       onProgress: (msg) => console.log(`  ${msg}`),
     });
   } catch (error) {
@@ -895,7 +1922,9 @@ async function executeSetup(
   console.log(chalk.bold('📁 Generated Files:'));
   console.log(`  - ${join(outputDir, 'authrim-config.json')}`);
   console.log(`  - ${join(outputDir, 'authrim-lock.json')}`);
-  console.log(`  - ${join(outputDir, '.keys/')} ${chalk.gray('(private keys - add to .gitignore)')}`);
+  console.log(
+    `  - ${join(outputDir, '.keys/')} ${chalk.gray('(private keys - add to .gitignore)')}`
+  );
   console.log('');
 
   // Show URLs
@@ -996,18 +2025,29 @@ async function handleRedeploy(config: AuthrimConfig, configPath: string): Promis
     const installed = await isWranglerInstalled();
     if (!installed) {
       wranglerCheck.fail('wrangler is not installed');
-      console.log(chalk.yellow('  npm install -g wrangler  to install'));
+      console.log('');
+      console.log(chalk.yellow('  Run the following command to install:'));
+      console.log('');
+      console.log(chalk.cyan('    npm install -g wrangler'));
+      console.log('');
       return;
     }
 
     const auth = await checkAuth();
     if (!auth.isLoggedIn) {
       wranglerCheck.fail('Not logged in to Cloudflare');
-      console.log(chalk.yellow('  wrangler login  to install'));
+      console.log('');
+      console.log(chalk.yellow('  Run the following command to authenticate:'));
+      console.log('');
+      console.log(chalk.cyan('    wrangler login'));
+      console.log('');
       return;
     }
 
     wranglerCheck.succeed(`Connected to Cloudflare (${auth.email || 'authenticated'})`);
+
+    // Get workers.dev subdomain for correct URL generation
+    workersSubdomain = await getWorkersSubdomain();
   } catch (error) {
     wranglerCheck.fail('Failed to check wrangler');
     console.error(error);
@@ -1042,6 +2082,7 @@ async function handleRedeploy(config: AuthrimConfig, configPath: string): Promis
         createKV: true,
         createQueues: config.features.queue?.enabled,
         createR2: config.features.r2?.enabled,
+        databaseConfig: config.database,
         onProgress: (msg) => console.log(`  ${msg}`),
       });
 
@@ -1192,9 +2233,9 @@ async function editUrls(config: AuthrimConfig): Promise<boolean> {
   // Ensure urls object exists
   if (!config.urls) {
     config.urls = {
-      api: { custom: null, auto: `https://${env}-ar-router.workers.dev` },
-      loginUi: { custom: null, auto: `https://${env}-ar-ui.pages.dev` },
-      adminUi: { custom: null, auto: `https://${env}-ar-ui.pages.dev/admin` },
+      api: { custom: null, auto: getWorkersDevUrl(env + '-ar-router') },
+      loginUi: { custom: null, auto: getPagesDevUrl(env + '-ar-ui') },
+      adminUi: { custom: null, auto: getPagesDevUrl(env + '-ar-ui') + '/admin' },
     };
   }
 
@@ -1234,15 +2275,15 @@ async function editUrls(config: AuthrimConfig): Promise<boolean> {
 
   config.urls.api = {
     custom: apiDomain || null,
-    auto: config.urls.api?.auto || `https://${env}-ar-router.workers.dev`,
+    auto: config.urls.api?.auto || getWorkersDevUrl(env + '-ar-router'),
   };
   config.urls.loginUi = {
     custom: loginUiDomain || null,
-    auto: config.urls.loginUi?.auto || `https://${env}-ar-ui.pages.dev`,
+    auto: config.urls.loginUi?.auto || getPagesDevUrl(env + '-ar-ui'),
   };
   config.urls.adminUi = {
     custom: adminUiDomain || null,
-    auto: config.urls.adminUi?.auto || `https://${env}-ar-ui.pages.dev/admin`,
+    auto: config.urls.adminUi?.auto || getPagesDevUrl(env + '-ar-ui') + '/admin',
   };
 
   return true;
@@ -1254,11 +2295,17 @@ async function editUrls(config: AuthrimConfig): Promise<boolean> {
 
 async function editComponents(config: AuthrimConfig): Promise<boolean> {
   console.log(chalk.bold('\nCurrent Component Settings:'));
-  console.log(`  SAML:    ${config.components.saml ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
-  console.log(`  Async:   ${config.components.async ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
-  console.log(`  VC:      ${config.components.vc ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
-  console.log(`  Bridge:  ${config.components.bridge ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
-  console.log(`  Policy:  ${config.components.policy ? chalk.green('Enabled') : chalk.gray('Disabled')}`);
+  console.log(
+    `  SAML:          ${config.components.saml ? chalk.green('Enabled') : chalk.gray('Disabled')}`
+  );
+  console.log(
+    `  Async:         ${config.components.async ? chalk.green('Enabled') : chalk.gray('Disabled')}`
+  );
+  console.log(
+    `  VC:            ${config.components.vc ? chalk.green('Enabled') : chalk.gray('Disabled')}`
+  );
+  console.log(`  Social Login:  ${chalk.green('Enabled')} ${chalk.gray('(standard - always on)')}`);
+  console.log(`  Policy Engine: ${chalk.green('Enabled')} ${chalk.gray('(standard - always on)')}`);
   console.log('');
 
   config.components.saml = await confirm({
@@ -1276,15 +2323,9 @@ async function editComponents(config: AuthrimConfig): Promise<boolean> {
     default: config.components.vc,
   });
 
-  config.components.bridge = await confirm({
-    message: 'Enable External IdP Bridge?',
-    default: config.components.bridge,
-  });
-
-  config.components.policy = await confirm({
-    message: 'Enable ReBAC Policy service?',
-    default: config.components.policy,
-  });
+  // Standard components are always enabled
+  config.components.bridge = true;
+  config.components.policy = true;
 
   return true;
 }
@@ -1418,7 +2459,12 @@ async function editFeatures(config: AuthrimConfig): Promise<boolean> {
 
   config.features.queue = { enabled: queueEnabled };
   config.features.r2 = { enabled: r2Enabled };
-  config.features.email = { provider: emailProvider as 'none' | 'resend' | 'sendgrid' | 'ses' };
+  config.features.email = {
+    provider: emailProvider as 'none' | 'resend' | 'sendgrid' | 'ses',
+    configured: config.features.email?.configured || false,
+    fromAddress: config.features.email?.fromAddress,
+    fromName: config.features.email?.fromName,
+  };
 
   return true;
 }

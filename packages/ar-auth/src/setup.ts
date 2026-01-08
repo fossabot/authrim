@@ -6,7 +6,7 @@
  *
  * Flow:
  * 1. Deploy script generates setup token and stores in KV (1 hour TTL)
- * 2. Admin opens /setup?token=xxx in browser
+ * 2. Admin opens /admin-init-setup?token=xxx in browser
  * 3. Admin enters email, registers Passkey
  * 4. System creates user with system_admin role
  * 5. Setup is permanently disabled (setup:completed flag set)
@@ -139,7 +139,7 @@ async function rateLimitMiddleware(c: Context<{ Bindings: Env }>, next: () => Pr
 
     // Increment counter BEFORE processing to prevent bypass via errors
     // Only increment on actual attempts (not status checks)
-    if (c.req.path !== '/api/setup/status') {
+    if (c.req.path !== '/api/admin-init-setup/status') {
       const newCount = (count + 1).toString();
       await c.env.AUTHRIM_CONFIG.put(rateLimitKey, newCount, {
         expirationTtl: RATE_LIMIT_WINDOW_SECONDS,
@@ -320,17 +320,17 @@ async function rollbackUserCreation(
 }
 
 // Apply setup check and rate limiting to all API endpoints
-setupApp.use('/api/setup/*', rateLimitMiddleware);
-setupApp.use('/api/setup/*', checkSetupEnabled);
+setupApp.use('/api/admin-init-setup/*', rateLimitMiddleware);
+setupApp.use('/api/admin-init-setup/*', checkSetupEnabled);
 
 /**
- * GET /api/setup/status
+ * GET /api/admin-init-setup/status
  *
  * Returns the current setup status.
  * - initialized: true if system_admin exists
  * - setup_token_valid: true if a valid setup token exists
  */
-setupApp.get('/api/setup/status', async (c) => {
+setupApp.get('/api/admin-init-setup/status', async (c) => {
   const initialized = await isSystemInitialized(c.env);
   const disabled = await isSetupDisabled(c.env);
 
@@ -349,7 +349,7 @@ setupApp.get('/api/setup/status', async (c) => {
 });
 
 /**
- * POST /api/setup/initialize
+ * POST /api/admin-init-setup/initialize
  *
  * Creates the initial admin user and returns Passkey registration options.
  *
@@ -368,7 +368,7 @@ setupApp.get('/api/setup/status', async (c) => {
  *   passkey_options: PublicKeyCredentialCreationOptionsJSON
  * }
  */
-setupApp.post('/api/setup/initialize', async (c) => {
+setupApp.post('/api/admin-init-setup/initialize', async (c) => {
   let lockAcquired = false;
 
   try {
@@ -586,7 +586,7 @@ setupApp.post('/api/setup/initialize', async (c) => {
 });
 
 /**
- * POST /api/setup/complete
+ * POST /api/admin-init-setup/complete
  *
  * Completes the setup by verifying Passkey registration and assigning system_admin role.
  *
@@ -605,7 +605,7 @@ setupApp.post('/api/setup/initialize', async (c) => {
  *   redirect_url: string
  * }
  */
-setupApp.post('/api/setup/complete', async (c) => {
+setupApp.post('/api/admin-init-setup/complete', async (c) => {
   try {
     const tempSessionToken = c.req.header(SETUP_SESSION_HEADER);
     if (!tempSessionToken) {
@@ -794,12 +794,12 @@ setupApp.post('/api/setup/complete', async (c) => {
 });
 
 /**
- * GET /setup
+ * GET /admin-init-setup
  *
  * Returns the setup UI HTML page.
  * The page handles the entire Passkey registration flow in the browser.
  */
-setupApp.get('/setup', async (c) => {
+setupApp.get('/admin-init-setup', async (c) => {
   const token = c.req.query('token');
 
   // Check if setup is disabled
@@ -1077,7 +1077,7 @@ function setupFormHtml(token: string, csrfToken: string): string {
         // Step 1: Initialize setup
         showStatus('loading', 'Initializing setup...');
 
-        const initResponse = await fetch('/api/setup/initialize', {
+        const initResponse = await fetch('/api/admin-init-setup/initialize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ setup_token: setupToken, email, name, csrf_token: csrfToken }),
@@ -1097,7 +1097,7 @@ function setupFormHtml(token: string, csrfToken: string): string {
         // Step 3: Complete setup
         showStatus('loading', 'Completing setup...');
 
-        const completeResponse = await fetch('/api/setup/complete', {
+        const completeResponse = await fetch('/api/admin-init-setup/complete', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

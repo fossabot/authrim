@@ -9,7 +9,7 @@
  * 2. Deploy workers
  * 3. Store setup token in KV (AUTHRIM_CONFIG namespace)
  * 4. Display setup URL to user
- * 5. User accesses /setup?token=xxx and registers Passkey
+ * 5. User accesses /admin-init-setup?token=xxx and registers Passkey
  * 6. System creates initial admin and disables setup feature
  */
 
@@ -122,11 +122,12 @@ export async function storeSetupToken(options: SetupTokenOptions): Promise<Setup
   validateEnv(env);
 
   // Read setup token from file
-  const tokenPath = join(keysDir, 'setup_token.txt');
+  // Keys are stored in environment-specific subdirectory: .keys/{env}/
+  const tokenPath = join(keysDir, env, 'setup_token.txt');
   if (!existsSync(tokenPath)) {
     return {
       success: false,
-      error: 'Setup token file not found. Run key generation first.',
+      error: `Setup token file not found at ${keysDir}/${env}/. Run key generation first.`,
     };
   }
 
@@ -215,7 +216,7 @@ export async function storeSetupToken(options: SetupTokenOptions): Promise<Setup
         wranglerConfig,
         '--binding',
         'AUTHRIM_CONFIG',
-        '--expiration-ttl',
+        '--ttl',
         ttlSeconds.toString(),
       ],
       {
@@ -228,7 +229,7 @@ export async function storeSetupToken(options: SetupTokenOptions): Promise<Setup
 
     return {
       success: true,
-      setupUrl: `/setup?token=${setupToken}`,
+      setupUrl: `/admin-init-setup?token=${setupToken}`,
     };
   } catch (error) {
     return {
@@ -248,7 +249,7 @@ export function getFullSetupUrl(baseUrl: string, setupToken: string): string {
   // Ensure baseUrl doesn't have trailing slash
   const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
 
-  return `${cleanBaseUrl}/setup?token=${setupToken}`;
+  return `${cleanBaseUrl}/admin-init-setup?token=${setupToken}`;
 }
 
 /**
@@ -318,7 +319,8 @@ export async function completeInitialSetup(options: {
   }
 
   // Read token and generate full URL
-  const tokenPath = join(keysDir, 'setup_token.txt');
+  // Keys are stored in environment-specific subdirectory: .keys/{env}/
+  const tokenPath = join(keysDir, env, 'setup_token.txt');
   const setupToken = (await readFile(tokenPath, 'utf-8')).trim();
   const fullSetupUrl = getFullSetupUrl(baseUrl, setupToken);
 

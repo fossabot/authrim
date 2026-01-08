@@ -19,6 +19,8 @@ export interface WebServerOptions {
   port?: number;
   host?: string;
   openBrowser?: boolean;
+  /** Start in manage-only mode (skip to environment management) */
+  manageOnly?: boolean;
 }
 
 // =============================================================================
@@ -26,7 +28,10 @@ export interface WebServerOptions {
 // =============================================================================
 
 export async function startWebServer(options: WebServerOptions = {}): Promise<void> {
-  const { port = 3456, host = 'localhost' } = options;
+  const { port: preferredPort = 3456, host = 'localhost', manageOnly = false } = options;
+
+  // Try to find an available port
+  const port = await findAvailablePort(preferredPort, host);
 
   // Generate session token for this server instance
   generateSessionToken();
@@ -49,7 +54,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
 
   // Serve UI with embedded session token
   app.get('/', (c) => {
-    return c.html(getHtmlTemplate(getSessionToken()));
+    return c.html(getHtmlTemplate(getSessionToken(), manageOnly));
   });
 
   // Static assets (if needed in the future)
@@ -58,6 +63,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
   // Start server
   console.log(chalk.bold('\n🌐 Authrim Setup Web UI\n'));
   console.log(`Server running at ${chalk.cyan(`http://${host}:${port}`)}`);
+  if (port !== preferredPort) {
+    console.log(chalk.gray(`(Port ${preferredPort} was in use, using ${port} instead)`));
+  }
   console.log(chalk.gray('\nPress Ctrl+C to stop\n'));
 
   // Open browser if requested
@@ -71,6 +79,60 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
     port,
     hostname: host,
   });
+}
+
+/**
+ * Check if a port is available
+ */
+async function isPortAvailable(port: number, host: string): Promise<boolean> {
+  const net = await import('node:net');
+
+  return new Promise((resolve) => {
+    const server = net.createServer();
+
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(false);
+      } else {
+        resolve(false);
+      }
+    });
+
+    server.once('listening', () => {
+      server.close();
+      resolve(true);
+    });
+
+    server.listen(port, host);
+  });
+}
+
+/**
+ * Find an available port, starting from the preferred port
+ */
+async function findAvailablePort(preferredPort: number, host: string): Promise<number> {
+  const maxAttempts = 10;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = preferredPort + i;
+    if (await isPortAvailable(port, host)) {
+      return port;
+    }
+  }
+
+  // If no port found after maxAttempts, throw a helpful error
+  console.log(chalk.red('\n❌ Could not find an available port'));
+  console.log('');
+  console.log(
+    chalk.yellow(`  Ports ${preferredPort}-${preferredPort + maxAttempts - 1} are all in use.`)
+  );
+  console.log('');
+  console.log(chalk.gray('  To free up the port, you can:'));
+  console.log('');
+  console.log(chalk.cyan(`    lsof -i :${preferredPort}      # Find process using the port`));
+  console.log(chalk.cyan(`    kill <PID>                # Kill the process`));
+  console.log('');
+  process.exit(1);
 }
 
 // =============================================================================

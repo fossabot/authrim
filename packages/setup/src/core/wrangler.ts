@@ -46,6 +46,7 @@ export interface WranglerConfig {
   queues?: {
     producers?: Array<{ queue: string; binding: string }>;
   };
+  services?: Array<{ binding: string; service: string }>;
 }
 
 // =============================================================================
@@ -126,6 +127,52 @@ const COMPONENT_ENTRY_POINTS: Record<WorkerComponent, string> = {
   'ar-bridge': 'src/index.ts',
   'ar-vc': 'src/index.ts',
 };
+
+// =============================================================================
+// CORS Helper Functions
+// =============================================================================
+
+/**
+ * Derive CORS allowed origins from UI domain configuration
+ *
+ * Returns origins that differ from the API origin (LoginUI and AdminUI domains).
+ * Same-origin requests don't need CORS, so they are excluded.
+ */
+function deriveAllowedOrigins(config: AuthrimConfig): string[] {
+  const origins = new Set<string>();
+
+  // Get API origin (the issuer URL)
+  const apiUrl = config.urls?.api?.custom || config.urls?.api?.auto;
+  const apiOrigin = apiUrl ? new URL(apiUrl).origin : null;
+
+  // LoginUI origin
+  const loginUiUrl = config.urls?.loginUi?.custom || config.urls?.loginUi?.auto;
+  if (loginUiUrl) {
+    try {
+      const loginOrigin = new URL(loginUiUrl).origin;
+      if (apiOrigin && loginOrigin !== apiOrigin) {
+        origins.add(loginOrigin);
+      }
+    } catch {
+      // Invalid URL, skip
+    }
+  }
+
+  // AdminUI origin
+  const adminUiUrl = config.urls?.adminUi?.custom || config.urls?.adminUi?.auto;
+  if (adminUiUrl) {
+    try {
+      const adminOrigin = new URL(adminUiUrl).origin;
+      if (apiOrigin && adminOrigin !== apiOrigin) {
+        origins.add(adminOrigin);
+      }
+    } catch {
+      // Invalid URL, skip
+    }
+  }
+
+  return Array.from(origins);
+}
 
 // =============================================================================
 // Generator Functions
@@ -231,6 +278,45 @@ export function generateWranglerConfig(
     }
   }
 
+  // Service Bindings for ar-router (required for routing to other workers)
+  if (component === 'ar-router') {
+    // Core services (always required)
+    const services: Array<{ binding: string; service: string }> = [
+      { binding: 'OP_DISCOVERY', service: `${env}-ar-discovery` },
+      { binding: 'OP_AUTH', service: `${env}-ar-auth` },
+      { binding: 'OP_TOKEN', service: `${env}-ar-token` },
+      { binding: 'OP_USERINFO', service: `${env}-ar-userinfo` },
+      { binding: 'OP_MANAGEMENT', service: `${env}-ar-management` },
+      // Standard components (always included)
+      { binding: 'EXTERNAL_IDP', service: `${env}-ar-bridge` },
+      { binding: 'POLICY_SERVICE', service: `${env}-ar-policy` },
+    ];
+
+    // Optional services (only if enabled in config)
+    if (config.components.async) {
+      services.push({ binding: 'OP_ASYNC', service: `${env}-ar-async` });
+    }
+    if (config.components.saml) {
+      services.push({ binding: 'OP_SAML', service: `${env}-ar-saml` });
+    }
+
+    wranglerConfig.services = services;
+
+    // Routes for custom domain (ar-router only)
+    if (config.urls?.api?.custom) {
+      try {
+        const customUrl = new URL(config.urls.api.custom);
+        const hostname = customUrl.hostname;
+        // Extract zone name (e.g., "example.com" from "auth.example.com")
+        const parts = hostname.split('.');
+        const zoneName = parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
+        wranglerConfig.routes = [{ pattern: `${hostname}/*`, zone_name: zoneName }];
+      } catch {
+        // Invalid URL, skip routes configuration
+      }
+    }
+  }
+
   return wranglerConfig;
 }
 
@@ -247,8 +333,24 @@ function generateEnvVars(
   const issuerUrl = config.urls?.api?.custom || config.urls?.api?.auto || '';
   const uiUrl = config.urls?.loginUi?.custom || config.urls?.loginUi?.auto || issuerUrl;
 
+  // Issuer URL (single-tenant mode uses this directly)
+  // In multi-tenant mode, issuer is dynamically built from subdomain + BASE_DOMAIN
   if (component === 'ar-auth' || component === 'ar-token' || component === 'ar-discovery') {
     vars['ISSUER_URL'] = issuerUrl;
+  }
+
+  // Tenant configuration
+  // Multi-tenant mode: subdomain-based tenant isolation
+  // - BASE_DOMAIN: base domain (e.g., "authrim.com")
+  // - TENANT_ISOLATION_ENABLED: "true" to enable
+  // - Issuer URL: https://{tenant}.{BASE_DOMAIN}
+  if (component === 'ar-auth' || component === 'ar-management' || component === 'ar-router') {
+    vars['DEFAULT_TENANT_ID'] = config.tenant?.name || 'default';
+
+    if (config.tenant?.multiTenant && config.tenant?.baseDomain) {
+      vars['BASE_DOMAIN'] = config.tenant.baseDomain;
+      vars['TENANT_ISOLATION_ENABLED'] = 'true';
+    }
   }
 
   if (component === 'ar-auth') {
@@ -284,6 +386,14 @@ function generateEnvVars(
   if (component === 'ar-lib-core' || component === 'ar-management') {
     vars['KEY_MANAGER_SECRET'] = ''; // Set via secret
     vars['ADMIN_API_SECRET'] = ''; // Set via secret
+  }
+
+  // CORS allowed origins for workers that handle cross-origin requests
+  if (['ar-auth', 'ar-management', 'ar-router'].includes(component)) {
+    const allowedOrigins = deriveAllowedOrigins(config);
+    if (allowedOrigins.length > 0) {
+      vars['ALLOWED_ORIGINS'] = allowedOrigins.join(',');
+    }
   }
 
   return vars;
@@ -447,6 +557,17 @@ export function toToml(config: WranglerConfig): string {
       }
     }
     lines.push('');
+  }
+
+  // Service Bindings
+  if (config.services && config.services.length > 0) {
+    lines.push('# Service Bindings');
+    for (const svc of config.services) {
+      lines.push('[[services]]');
+      lines.push(`binding = "${svc.binding}"`);
+      lines.push(`service = "${svc.service}"`);
+      lines.push('');
+    }
   }
 
   // Routes

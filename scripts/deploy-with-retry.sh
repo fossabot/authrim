@@ -515,6 +515,11 @@ for pkg_dir in packages/*/; do
             continue
         fi
 
+        # Skip setup package (CLI tool, not a deployable worker)
+        if [ "$package_name" = "setup" ]; then
+            continue
+        fi
+
         # Skip library packages (not deployable workers)
         # ar-lib-core is special - it contains Durable Objects and IS deployed
         if [[ "$package_name" == ar-lib-* && "$package_name" != "ar-lib-core" ]]; then

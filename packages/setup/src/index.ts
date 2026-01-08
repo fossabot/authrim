@@ -12,13 +12,15 @@ import { Command } from 'commander';
 import { initCommand } from './cli/commands/init.js';
 import { deployCommand, statusCommand } from './cli/commands/deploy.js';
 import { configCommand } from './cli/commands/config.js';
+import { deleteCommand } from './cli/commands/delete.js';
+import { infoCommand } from './cli/commands/info.js';
 
 const program = new Command();
 
 program
   .name('authrim-setup')
   .description('CLI tool for setting up Authrim OIDC Provider on Cloudflare Workers')
-  .version('0.1.0');
+  .version('0.1.50');
 
 program
   .command('init', { isDefault: true })
@@ -66,6 +68,54 @@ program
   .option('--json', 'Output in JSON format for scripting')
   .option('--config <path>', 'Configuration file path', 'authrim-config.json')
   .action(configCommand);
+
+program
+  .command('manage')
+  .description('Manage existing Authrim environments (view, delete)')
+  .option('--port <number>', 'Web UI port', '3456')
+  .option('--no-browser', 'Do not open browser automatically')
+  .action(async (options) => {
+    const chalk = await import('chalk').then((m) => m.default);
+    const { isWranglerInstalled, checkAuth } = await import('./core/cloudflare.js');
+    const { startWebServer } = await import('./web/server.js');
+
+    console.log(chalk.bold('\n🔐 Authrim Environment Manager\n'));
+
+    // Check prerequisites
+    const wranglerOk = await isWranglerInstalled();
+    if (!wranglerOk) {
+      console.log(chalk.red('❌ Wrangler is not installed'));
+      console.log('');
+      console.log(chalk.yellow('  Run the following command to install:'));
+      console.log('');
+      console.log(chalk.cyan('    npm install -g wrangler'));
+      console.log('');
+      process.exitCode = 1;
+      return;
+    }
+
+    const auth = await checkAuth();
+    if (!auth.isLoggedIn) {
+      console.log(chalk.red('❌ Not logged in to Cloudflare'));
+      console.log('');
+      console.log(chalk.yellow('  Run the following command to authenticate:'));
+      console.log('');
+      console.log(chalk.cyan('    wrangler login'));
+      console.log('');
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log(chalk.green(`✓ Logged in as ${auth.email || 'Unknown'}`));
+    console.log('');
+
+    // Start Web UI in manage-only mode
+    await startWebServer({
+      port: parseInt(options.port, 10),
+      openBrowser: options.browser !== false,
+      manageOnly: true,
+    });
+  });
 
 program
   .command('download')
@@ -127,5 +177,27 @@ program
       process.exitCode = 1;
     }
   });
+
+program
+  .command('delete')
+  .description('Delete an Authrim environment and its resources')
+  .option('--env <name>', 'Environment name to delete')
+  .option('-y, --yes', 'Skip confirmation prompts (for CI)')
+  .option('--no-workers', 'Keep Workers')
+  .option('--no-d1', 'Keep D1 databases')
+  .option('--no-kv', 'Keep KV namespaces')
+  .option('--no-queues', 'Keep Queues')
+  .option('--no-r2', 'Keep R2 buckets')
+  .option('--all', 'Delete all resource types (default)')
+  .action(deleteCommand);
+
+program
+  .command('info')
+  .description('Display detailed information about Authrim resources')
+  .option('--env <name>', 'Environment name')
+  .option('--json', 'Output in JSON format (for scripting/CI)')
+  .option('--d1', 'Show only D1 database information')
+  .option('--workers', 'Show only Worker information')
+  .action(infoCommand);
 
 program.parse();

@@ -416,6 +416,21 @@ app.all('/_internal/*', async (c) => {
   return c.env.OP_AUTH.fetch(request);
 });
 
+/**
+ * Initial Admin Setup endpoints - Route to OP_AUTH worker
+ * - /admin-init-setup - Initial admin setup page (one-time use, expires in 1 hour)
+ * - /api/admin-init-setup/* - Setup API endpoints
+ */
+app.get('/admin-init-setup', async (c) => {
+  const request = new Request(c.req.url, c.req.raw);
+  return c.env.OP_AUTH.fetch(request);
+});
+
+app.all('/api/admin-init-setup/*', async (c) => {
+  const request = new Request(c.req.url, c.req.raw);
+  return c.env.OP_AUTH.fetch(request);
+});
+
 // 404 handler
 app.notFound((c) => {
   return c.json(
