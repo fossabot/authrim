@@ -9,18 +9,23 @@
  */
 
 import { Command } from 'commander';
+import { createRequire } from 'node:module';
 import { initCommand } from './cli/commands/init.js';
 import { deployCommand, statusCommand } from './cli/commands/deploy.js';
 import { configCommand } from './cli/commands/config.js';
 import { deleteCommand } from './cli/commands/delete.js';
 import { infoCommand } from './cli/commands/info.js';
 
+// Read version from package.json
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json') as { version: string };
+
 const program = new Command();
 
 program
   .name('authrim-setup')
   .description('CLI tool for setting up Authrim OIDC Provider on Cloudflare Workers')
-  .version('0.1.50');
+  .version(pkg.version);
 
 program
   .command('init', { isDefault: true })

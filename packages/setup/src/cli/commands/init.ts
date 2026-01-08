@@ -10,6 +10,7 @@ import ora from 'ora';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { execa } from 'execa';
 import { createDefaultConfig, parseConfig, type AuthrimConfig } from '../../core/config.js';
 import {
@@ -60,15 +61,33 @@ interface InitOptions {
 }
 
 // =============================================================================
+// Version
+// =============================================================================
+
+const require = createRequire(import.meta.url);
+
+function getVersion(): string {
+  try {
+    // package.json is at the root of the package (3 levels up from dist/cli/commands/)
+    const pkg = require('../../../package.json') as { version: string };
+    return pkg.version;
+  } catch {
+    return '0.0.0';
+  }
+}
+
+// =============================================================================
 // Banner
 // =============================================================================
 
 function printBanner(): void {
+  const version = getVersion();
+  const versionStr = `v${version}`.padEnd(7); // "v0.1.58" = 7 chars
   console.log('');
   console.log(chalk.blue('╔═══════════════════════════════════════════════════════════╗'));
   console.log(
     chalk.blue('║') +
-      chalk.bold.white('           🔐 Authrim Setup v0.1.58                       ') +
+      chalk.bold.white(`           🔐 Authrim Setup ${versionStr}                       `) +
       chalk.blue('║')
   );
   console.log(
