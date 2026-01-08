@@ -68,7 +68,7 @@ function printBanner(): void {
   console.log(chalk.blue('╔═══════════════════════════════════════════════════════════╗'));
   console.log(
     chalk.blue('║') +
-      chalk.bold.white('           🔐 Authrim Setup v0.1.49                       ') +
+      chalk.bold.white('           🔐 Authrim Setup v0.1.58                       ') +
       chalk.blue('║')
   );
   console.log(
