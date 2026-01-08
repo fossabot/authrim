@@ -29,7 +29,7 @@ export const EXTERNAL_IDP_SETTINGS_META: Record<keyof ExternalIdPSettings, Setti
     key: 'external_idp.jit_provisioning_enabled',
     type: 'boolean',
     default: false,
-    envKey: 'JIT_PROVISIONING_ENABLED',
+    envKey: 'ENABLE_JIT_PROVISIONING',
     label: 'JIT Provisioning',
     description: 'Enable Just-In-Time user provisioning from external IdPs',
     visibility: 'public',

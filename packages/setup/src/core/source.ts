@@ -6,7 +6,7 @@
  */
 
 import { execa } from 'execa';
-import { existsSync, createWriteStream } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdir, rm, rename, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { pipeline } from 'node:stream/promises';

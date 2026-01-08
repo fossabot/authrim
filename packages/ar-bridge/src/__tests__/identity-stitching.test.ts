@@ -156,8 +156,8 @@ describe('Identity Stitching Service', () => {
     SETTINGS: {
       get: vi.fn().mockResolvedValue(null),
     },
-    IDENTITY_STITCHING_ENABLED: 'true',
-    IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL: 'true',
+    ENABLE_IDENTITY_STITCHING: 'true',
+    ENABLE_IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL: 'true',
     ...overrides,
   });
 
@@ -188,8 +188,8 @@ describe('Identity Stitching Service', () => {
         SETTINGS: {
           get: vi.fn().mockRejectedValueOnce(new Error('KV error')),
         },
-        IDENTITY_STITCHING_ENABLED: 'true',
-        IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL: 'false',
+        ENABLE_IDENTITY_STITCHING: 'true',
+        ENABLE_IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL: 'false',
       });
 
       const config = await getStitchingConfig(env as never);
@@ -201,7 +201,7 @@ describe('Identity Stitching Service', () => {
     it('should default to disabled if no config found', async () => {
       const env = createMockEnv({
         SETTINGS: null,
-        IDENTITY_STITCHING_ENABLED: undefined,
+        ENABLE_IDENTITY_STITCHING: undefined,
       });
 
       const config = await getStitchingConfig(env as never);
@@ -307,7 +307,7 @@ describe('Identity Stitching Service', () => {
 
       it('should not stitch if stitching is disabled', async () => {
         const env = createMockEnv({
-          IDENTITY_STITCHING_ENABLED: 'false',
+          ENABLE_IDENTITY_STITCHING: 'false',
         });
         vi.mocked(linkedIdentityStore.findLinkedIdentity).mockResolvedValueOnce(null);
         vi.mocked(linkedIdentityStore.createLinkedIdentity).mockResolvedValueOnce('new-linked-id');

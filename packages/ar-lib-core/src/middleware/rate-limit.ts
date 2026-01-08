@@ -5,7 +5,7 @@
  * Uses Cloudflare KV for distributed rate limit tracking.
  *
  * Configuration Priority:
- * 1. In-memory cache (default 5min TTL, configurable via SETTINGS_CACHE_TTL_SECONDS)
+ * 1. In-memory cache (default 5min TTL, configurable via SETTINGS_CACHE_TTL)
  * 2. KV (AUTHRIM_CONFIG namespace) - Dynamic override without deployment
  * 3. Environment variables (RATE_LIMIT_PROFILE)
  * 4. Default profiles (RateLimitProfiles)
@@ -79,7 +79,7 @@ let cloudProviderCache: CachedCloudProviderSetting | null = null;
 
 /**
  * Default cache TTL in milliseconds (5 minutes)
- * Can be overridden via SETTINGS_CACHE_TTL_SECONDS environment variable
+ * Can be overridden via SETTINGS_CACHE_TTL environment variable
  *
  * Design note: Admin API clears cache immediately on settings change,
  * so this TTL only affects direct KV edits (emergency operations).
@@ -93,8 +93,8 @@ const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
  * @returns Cache TTL in milliseconds
  */
 function getCacheTTLMs(env: Env): number {
-  if (env.SETTINGS_CACHE_TTL_SECONDS) {
-    const seconds = parseInt(env.SETTINGS_CACHE_TTL_SECONDS, 10);
+  if (env.SETTINGS_CACHE_TTL) {
+    const seconds = parseInt(env.SETTINGS_CACHE_TTL, 10);
     if (!isNaN(seconds) && seconds > 0) {
       return seconds * 1000;
     }
@@ -542,7 +542,7 @@ export const RateLimitProfiles = {
 
 /**
  * Cached rate limit config to avoid repeated KV lookups.
- * Cache duration controlled by SETTINGS_CACHE_TTL_SECONDS env var (default: 5 minutes)
+ * Cache duration controlled by SETTINGS_CACHE_TTL env var (default: 5 minutes)
  */
 interface CachedRateLimitConfig {
   config: RateLimitConfig;
@@ -677,7 +677,7 @@ const PROFILE_OVERRIDE_KV_KEY = 'rate_limit_profile_override';
  * Get rate limit profile with KV override support (async version)
  *
  * Priority:
- * 1. Cache (default 5min TTL, configurable via SETTINGS_CACHE_TTL_SECONDS)
+ * 1. Cache (default 5min TTL, configurable via SETTINGS_CACHE_TTL)
  * 2. KV profile override (rate_limit_profile_override) - switches ALL endpoints to specified profile
  * 3. KV per-profile settings (rate_limit_{profile}_max_requests, rate_limit_{profile}_window_seconds)
  * 4. Environment variable (RATE_LIMIT_PROFILE for profile selection)

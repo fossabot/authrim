@@ -13,13 +13,12 @@
  * - wrangler rollback provides instant rollback without custom DO
  * - Eliminates the need for this DO's maintenance overhead
  *
- * Migration:
- * 1. Stop using versionCheckMiddleware in your Workers
- * 2. Use --gradual flag in deploy-with-retry.sh for production deployments
- * 3. This DO can be safely removed once no Workers depend on it
+ * Migration Status:
+ * - versionCheckMiddleware has been removed from all Workers
+ * - This DO can now be safely removed
  *
- * Note: This DO is currently still used by deploy-with-retry.sh for
- * backward compatibility. It will be removed in a future version.
+ * Note: This DO is kept for backward compatibility with older deployments.
+ * It can be safely removed once no external systems depend on it.
  *
  * ─────────────────────────────────────────────────────────────────────
  * Original Description (for reference):

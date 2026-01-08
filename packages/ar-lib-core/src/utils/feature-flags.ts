@@ -133,7 +133,7 @@ export async function isAnonymousAuthEnabled(env: Env): Promise<boolean> {
  * @returns true if ID-JAG is enabled, false otherwise (secure default)
  */
 export async function isIdJagEnabled(env: Env): Promise<boolean> {
-  return getFeatureFlag('ID_JAG_ENABLED', env, false);
+  return getFeatureFlag('ENABLE_ID_JAG', env, false);
 }
 
 /**
@@ -148,5 +148,5 @@ export async function isIdJagEnabled(env: Env): Promise<boolean> {
  * @returns true if assurance levels feature is enabled, false otherwise
  */
 export async function isAssuranceLevelsEnabled(env: Env): Promise<boolean> {
-  return getFeatureFlag('NIST_ASSURANCE_LEVELS_ENABLED', env, false);
+  return getFeatureFlag('ENABLE_NIST_ASSURANCE_LEVELS', env, false);
 }

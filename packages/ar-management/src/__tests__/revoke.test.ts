@@ -105,7 +105,7 @@ function createMockContext(options: {
       n: 'mock-n',
       e: 'AQAB',
     }),
-    TOKEN_EXPIRY: '3600',
+    ACCESS_TOKEN_EXPIRY: '3600',
     DB: {
       prepare: vi.fn().mockReturnValue({
         bind: vi.fn().mockReturnValue({

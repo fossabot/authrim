@@ -167,7 +167,7 @@ export const ASSURANCE_LEVELS_SETTINGS_META: Record<keyof AssuranceLevelsSetting
     key: 'assurance.enabled',
     type: 'boolean',
     default: false,
-    envKey: 'NIST_ASSURANCE_LEVELS_ENABLED',
+    envKey: 'ENABLE_NIST_ASSURANCE_LEVELS',
     label: 'Enable Assurance Levels',
     description: 'Enable explicit AAL/FAL/IAL tracking per NIST SP 800-63-4',
   },

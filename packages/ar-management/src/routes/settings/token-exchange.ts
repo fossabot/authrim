@@ -127,8 +127,8 @@ export async function getIdJagSettings(env: Env): Promise<{
   };
 
   // Check environment variables
-  if (env.ID_JAG_ENABLED !== undefined) {
-    settings.enabled = env.ID_JAG_ENABLED === 'true';
+  if (env.ENABLE_ID_JAG !== undefined) {
+    settings.enabled = env.ENABLE_ID_JAG === 'true';
     sources.enabled = 'env';
   }
 

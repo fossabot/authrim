@@ -30,7 +30,6 @@ vi.mock('@authrim/ar-lib-core', async () => {
     getCachedUser: vi.fn(), // Mock getCachedUser for PII/Non-PII DB separation
     rateLimitMiddleware: () => async (_c: unknown, next: () => Promise<void>) => next(),
     RateLimitProfiles: { moderate: {} },
-    versionCheckMiddleware: () => async (_c: unknown, next: () => Promise<void>) => next(),
     requestContextMiddleware: () => async (_c: unknown, next: () => Promise<void>) => next(),
   };
 });

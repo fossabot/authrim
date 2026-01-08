@@ -7,7 +7,7 @@
  *
  * Multi-tenant mode is enabled when:
  * - BASE_DOMAIN is set
- * - TENANT_ISOLATION_ENABLED = 'true'
+ * - ENABLE_TENANT_ISOLATION = 'true'
  *
  * Security: Tenant ID is determined by Host header (trusted),
  * NOT tenant_hint (untrusted UX hint).

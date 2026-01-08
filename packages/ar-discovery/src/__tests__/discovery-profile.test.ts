@@ -17,8 +17,8 @@ import type { OIDCProviderMetadata } from '@authrim/ar-lib-core/types/oidc';
 function createMockEnv(): Env {
   return {
     ISSUER_URL: 'https://test.example.com',
-    TOKEN_EXPIRY: '3600',
-    CODE_EXPIRY: '600',
+    ACCESS_TOKEN_EXPIRY: '3600',
+    AUTH_CODE_EXPIRY: '600',
     STATE_EXPIRY: '600',
     NONCE_EXPIRY: '600',
     PRIVATE_KEY_PEM: 'test-key',

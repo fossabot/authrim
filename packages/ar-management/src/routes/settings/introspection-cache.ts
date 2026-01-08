@@ -74,13 +74,13 @@ export async function getIntrospectionCacheSettings(env: Env): Promise<{
   };
 
   // Check environment variables
-  if (env.INTROSPECTION_CACHE_ENABLED !== undefined) {
-    settings.enabled = env.INTROSPECTION_CACHE_ENABLED === 'true';
+  if (env.ENABLE_INTROSPECTION_CACHE !== undefined) {
+    settings.enabled = env.ENABLE_INTROSPECTION_CACHE === 'true';
     sources.enabled = 'env';
   }
 
-  if (env.INTROSPECTION_CACHE_TTL_SECONDS !== undefined) {
-    const ttl = parseInt(env.INTROSPECTION_CACHE_TTL_SECONDS, 10);
+  if (env.INTROSPECTION_CACHE_TTL !== undefined) {
+    const ttl = parseInt(env.INTROSPECTION_CACHE_TTL, 10);
     if (!isNaN(ttl) && ttl > 0) {
       settings.ttlSeconds = ttl;
       sources.ttlSeconds = 'env';

@@ -10,7 +10,6 @@ import {
   getWorkerName,
   getDOScriptName,
   DURABLE_OBJECTS,
-  KV_NAMESPACES,
   D1_DATABASES,
   type WorkerComponent,
   type KVNamespace,
@@ -57,8 +56,8 @@ const COMPONENT_KV_BINDINGS: Record<WorkerComponent, KVNamespace[]> = {
   'ar-lib-core': ['AUTHRIM_CONFIG'],
   'ar-discovery': ['AUTHRIM_CONFIG'],
   'ar-auth': ['CLIENTS_CACHE', 'SETTINGS', 'USER_CACHE', 'CONSENT_CACHE', 'AUTHRIM_CONFIG'],
-  'ar-token': ['CLIENTS_CACHE', 'SETTINGS', 'AUTHRIM_CONFIG'],
-  'ar-userinfo': ['SETTINGS', 'AUTHRIM_CONFIG'],
+  'ar-token': ['CLIENTS_CACHE', 'SETTINGS', 'USER_CACHE', 'REBAC_CACHE', 'AUTHRIM_CONFIG'],
+  'ar-userinfo': ['CLIENTS_CACHE', 'USER_CACHE', 'AUTHRIM_CONFIG'],
   'ar-management': [
     'CLIENTS_CACHE',
     'SETTINGS',
@@ -80,7 +79,7 @@ const COMPONENT_KV_BINDINGS: Record<WorkerComponent, KVNamespace[]> = {
 
 const COMPONENT_DO_BINDINGS: Record<WorkerComponent, string[]> = {
   'ar-lib-core': [], // Defines DOs, doesn't reference external
-  'ar-discovery': ['KEY_MANAGER'],
+  'ar-discovery': ['KEY_MANAGER', 'VERSION_MANAGER'],
   'ar-auth': [
     'KEY_MANAGER',
     'SESSION_STORE',
@@ -92,21 +91,37 @@ const COMPONENT_DO_BINDINGS: Record<WorkerComponent, string[]> = {
   ],
   'ar-token': [
     'KEY_MANAGER',
+    'SESSION_STORE',
     'AUTH_CODE_STORE',
     'REFRESH_TOKEN_ROTATOR',
+    'RATE_LIMITER',
     'DPOP_JTI_STORE',
-    'DEVICE_CODE_STORE',
-    'CIBA_REQUEST_STORE',
     'TOKEN_REVOCATION_STORE',
+    'VERSION_MANAGER',
   ],
-  'ar-userinfo': ['KEY_MANAGER', 'SESSION_STORE'],
-  'ar-management': ['KEY_MANAGER', 'VERSION_MANAGER', 'RATE_LIMITER'],
+  'ar-userinfo': [
+    'KEY_MANAGER',
+    'SESSION_STORE',
+    'RATE_LIMITER',
+    'DPOP_JTI_STORE',
+    'TOKEN_REVOCATION_STORE',
+    'VERSION_MANAGER',
+  ],
+  'ar-management': [
+    'KEY_MANAGER',
+    'REFRESH_TOKEN_ROTATOR',
+    'RATE_LIMITER',
+    'SESSION_STORE',
+    'TOKEN_REVOCATION_STORE',
+    'VERSION_MANAGER',
+    'CHALLENGE_STORE',
+  ],
   'ar-router': ['VERSION_MANAGER'],
-  'ar-async': [],
-  'ar-policy': ['PERMISSION_CHANGE_HUB'],
-  'ar-saml': ['KEY_MANAGER', 'SAML_REQUEST_STORE', 'SESSION_STORE'],
-  'ar-bridge': ['SESSION_STORE'],
-  'ar-vc': ['KEY_MANAGER'],
+  'ar-async': ['DEVICE_CODE_STORE', 'CIBA_REQUEST_STORE', 'VERSION_MANAGER'],
+  'ar-policy': ['PERMISSION_CHANGE_HUB', 'VERSION_MANAGER'],
+  'ar-saml': ['KEY_MANAGER', 'SAML_REQUEST_STORE', 'SESSION_STORE', 'VERSION_MANAGER'],
+  'ar-bridge': ['SESSION_STORE', 'VERSION_MANAGER'],
+  'ar-vc': ['KEY_MANAGER', 'VERSION_MANAGER'],
 };
 
 // =============================================================================
@@ -342,26 +357,26 @@ function generateEnvVars(
   // Tenant configuration
   // Multi-tenant mode: subdomain-based tenant isolation
   // - BASE_DOMAIN: base domain (e.g., "authrim.com")
-  // - TENANT_ISOLATION_ENABLED: "true" to enable
+  // - ENABLE_TENANT_ISOLATION: "true" to enable
   // - Issuer URL: https://{tenant}.{BASE_DOMAIN}
   if (component === 'ar-auth' || component === 'ar-management' || component === 'ar-router') {
     vars['DEFAULT_TENANT_ID'] = config.tenant?.name || 'default';
 
     if (config.tenant?.multiTenant && config.tenant?.baseDomain) {
       vars['BASE_DOMAIN'] = config.tenant.baseDomain;
-      vars['TENANT_ISOLATION_ENABLED'] = 'true';
+      vars['ENABLE_TENANT_ISOLATION'] = 'true';
     }
   }
 
   if (component === 'ar-auth') {
     vars['UI_URL'] = uiUrl;
-    vars['CONFORMANCE_MODE'] = 'false';
+    vars['ENABLE_CONFORMANCE_MODE'] = 'false';
   }
 
   // OIDC settings
   if (component === 'ar-auth' || component === 'ar-token') {
-    vars['TOKEN_EXPIRY'] = config.oidc.accessTokenTtl.toString();
-    vars['CODE_EXPIRY'] = config.oidc.authCodeTtl.toString();
+    vars['ACCESS_TOKEN_EXPIRY'] = config.oidc.accessTokenTtl.toString();
+    vars['AUTH_CODE_EXPIRY'] = config.oidc.authCodeTtl.toString();
     vars['STATE_EXPIRY'] = '300';
     vars['NONCE_EXPIRY'] = '300';
     vars['REFRESH_TOKEN_EXPIRY'] = config.oidc.refreshTokenTtl.toString();
@@ -373,8 +388,8 @@ function generateEnvVars(
   }
 
   // Security settings
-  vars['ALLOW_HTTP_REDIRECT'] = 'false';
-  vars['OPEN_REGISTRATION'] = 'false';
+  vars['ENABLE_HTTP_REDIRECT'] = 'false';
+  vars['ENABLE_OPEN_REGISTRATION'] = 'false';
 
   // Sharding configuration
   if (component === 'ar-lib-core' || component === 'ar-auth' || component === 'ar-token') {
@@ -383,8 +398,23 @@ function generateEnvVars(
   }
 
   // Secrets placeholders (will be set via wrangler secret put)
-  if (component === 'ar-lib-core' || component === 'ar-management') {
+  // KEY_MANAGER_SECRET is needed by workers that access KeyManager DO
+  const needsKeyManagerSecret = [
+    'ar-lib-core',
+    'ar-auth',
+    'ar-token',
+    'ar-userinfo',
+    'ar-discovery',
+    'ar-management',
+    'ar-saml',
+  ];
+  // ADMIN_API_SECRET is needed by workers that expose Admin API endpoints
+  const needsAdminApiSecret = ['ar-lib-core', 'ar-auth', 'ar-token', 'ar-management'];
+
+  if (needsKeyManagerSecret.includes(component)) {
     vars['KEY_MANAGER_SECRET'] = ''; // Set via secret
+  }
+  if (needsAdminApiSecret.includes(component)) {
     vars['ADMIN_API_SECRET'] = ''; // Set via secret
   }
 

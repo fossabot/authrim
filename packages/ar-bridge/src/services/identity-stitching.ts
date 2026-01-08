@@ -58,8 +58,8 @@ export async function getStitchingConfig(env: Env): Promise<StitchingConfig> {
 
   // Fall back to env vars
   return {
-    enabled: env.IDENTITY_STITCHING_ENABLED === 'true',
-    requireVerifiedEmail: env.IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL !== 'false',
+    enabled: env.ENABLE_IDENTITY_STITCHING === 'true',
+    requireVerifiedEmail: env.ENABLE_IDENTITY_STITCHING_REQUIRE_VERIFIED_EMAIL !== 'false',
   };
 }
 

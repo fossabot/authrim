@@ -230,7 +230,7 @@ describe('EncryptionConfigManager', () => {
       expect(
         () =>
           new EncryptionConfigManager({
-            PII_ENCRYPTION_ENABLED: 'true',
+            ENABLE_PII_ENCRYPTION: 'true',
           })
       ).toThrow(EncryptionKeyMissingError);
     });
@@ -240,7 +240,7 @@ describe('EncryptionConfigManager', () => {
       expect(
         () =>
           new EncryptionConfigManager({
-            PII_ENCRYPTION_ENABLED: 'false',
+            ENABLE_PII_ENCRYPTION: 'false',
           })
       ).not.toThrow();
     });
@@ -313,7 +313,7 @@ describe('EncryptionConfigManager', () => {
       expect(
         () =>
           new EncryptionConfigManager({
-            PII_ENCRYPTION_ENABLED: 'false',
+            ENABLE_PII_ENCRYPTION: 'false',
             PII_ENCRYPTION_KEY: 'invalid',
           })
       ).not.toThrow();
@@ -380,7 +380,7 @@ describe('EncryptionConfigManager', () => {
   describe('environment variable override', () => {
     it('should use environment variables when set', async () => {
       const env: Partial<Env> = {
-        PII_ENCRYPTION_ENABLED: 'false', // Explicitly disable
+        ENABLE_PII_ENCRYPTION: 'false', // Explicitly disable
         PII_ENCRYPTION_ALGORITHM: 'AES-256-CBC',
         PII_ENCRYPTION_FIELDS: 'email,phone_number',
         PII_ENCRYPTION_KEY_VERSION: '5',
@@ -395,10 +395,10 @@ describe('EncryptionConfigManager', () => {
 
     it('should handle "true" and "1" as true for enabled flag', async () => {
       const envTrue: Partial<Env> = {
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
         PII_ENCRYPTION_KEY: TEST_KEY,
       };
-      const envOne: Partial<Env> = { PII_ENCRYPTION_ENABLED: '1', PII_ENCRYPTION_KEY: TEST_KEY };
+      const envOne: Partial<Env> = { ENABLE_PII_ENCRYPTION: '1', PII_ENCRYPTION_KEY: TEST_KEY };
 
       expect(await new EncryptionConfigManager(envTrue).isEncryptionEnabled()).toBe(true);
       expect(await new EncryptionConfigManager(envOne).isEncryptionEnabled()).toBe(true);
@@ -406,7 +406,7 @@ describe('EncryptionConfigManager', () => {
 
     it('should use default for invalid values', async () => {
       const env: Partial<Env> = {
-        PII_ENCRYPTION_ENABLED: 'false', // Disable to avoid key requirement
+        ENABLE_PII_ENCRYPTION: 'false', // Disable to avoid key requirement
         PII_ENCRYPTION_ALGORITHM: 'INVALID_ALGO',
         PII_ENCRYPTION_FIELDS: 'invalid_field_only',
       };
@@ -423,7 +423,7 @@ describe('EncryptionConfigManager', () => {
   describe('empty field list with "none" keyword (Issue 5)', () => {
     it('should allow explicitly setting empty field list with "none"', async () => {
       const env: Partial<Env> = {
-        PII_ENCRYPTION_ENABLED: 'false',
+        ENABLE_PII_ENCRYPTION: 'false',
         PII_ENCRYPTION_FIELDS: 'none',
       };
       const manager = new EncryptionConfigManager(env);
@@ -433,7 +433,7 @@ describe('EncryptionConfigManager', () => {
 
     it('should handle "NONE" (uppercase) for empty field list', async () => {
       const env: Partial<Env> = {
-        PII_ENCRYPTION_ENABLED: 'false',
+        ENABLE_PII_ENCRYPTION: 'false',
         PII_ENCRYPTION_FIELDS: 'NONE',
       };
       const manager = new EncryptionConfigManager(env);
@@ -443,7 +443,7 @@ describe('EncryptionConfigManager', () => {
 
     it('should handle " none " (with spaces) for empty field list', async () => {
       const env: Partial<Env> = {
-        PII_ENCRYPTION_ENABLED: 'false',
+        ENABLE_PII_ENCRYPTION: 'false',
         PII_ENCRYPTION_FIELDS: '  none  ',
       };
       const manager = new EncryptionConfigManager(env);
@@ -471,7 +471,7 @@ describe('EncryptionConfigManager', () => {
 
     it('should return false when encryption is explicitly disabled', async () => {
       const manager = new EncryptionConfigManager({
-        PII_ENCRYPTION_ENABLED: 'false',
+        ENABLE_PII_ENCRYPTION: 'false',
       });
       expect(await manager.shouldEncryptField('email')).toBe(false);
     });
@@ -489,7 +489,7 @@ describe('EncryptionConfigManager', () => {
     it('should return current configuration status', () => {
       const manager = new EncryptionConfigManager({
         PII_ENCRYPTION_KEY: TEST_KEY,
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
         PII_ENCRYPTION_ALGORITHM: 'AES-256-GCM',
         PII_ENCRYPTION_FIELDS: 'email,name',
         PII_ENCRYPTION_KEY_VERSION: '3',
@@ -530,7 +530,7 @@ describe('PIIEncryptionService', () => {
     it('should encrypt and decrypt fields when enabled', async () => {
       const env: Partial<Env> = {
         PII_ENCRYPTION_KEY: TEST_KEY,
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
         PII_ENCRYPTION_ALGORITHM: 'AES-256-GCM',
         PII_ENCRYPTION_FIELDS: 'email',
       };
@@ -548,7 +548,7 @@ describe('PIIEncryptionService', () => {
     it('should not encrypt fields not in the configured list', async () => {
       const env: Partial<Env> = {
         PII_ENCRYPTION_KEY: TEST_KEY,
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
         PII_ENCRYPTION_FIELDS: 'email',
       };
 
@@ -562,7 +562,7 @@ describe('PIIEncryptionService', () => {
 
     it('should not encrypt when disabled', async () => {
       const env: Partial<Env> = {
-        PII_ENCRYPTION_ENABLED: 'false',
+        ENABLE_PII_ENCRYPTION: 'false',
       };
 
       configManager = new EncryptionConfigManager(env);
@@ -575,7 +575,7 @@ describe('PIIEncryptionService', () => {
     it('should not double-encrypt already encrypted values', async () => {
       const env: Partial<Env> = {
         PII_ENCRYPTION_KEY: TEST_KEY,
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
         PII_ENCRYPTION_FIELDS: 'email',
       };
 
@@ -593,7 +593,7 @@ describe('PIIEncryptionService', () => {
     it('should encrypt multiple fields', async () => {
       const env: Partial<Env> = {
         PII_ENCRYPTION_KEY: TEST_KEY,
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
         PII_ENCRYPTION_FIELDS: 'email,phone_number,name',
       };
 
@@ -626,7 +626,7 @@ describe('PIIEncryptionService', () => {
   describe('isAvailable', () => {
     it('should return false when encryption is disabled', async () => {
       const env: Partial<Env> = {
-        PII_ENCRYPTION_ENABLED: 'false',
+        ENABLE_PII_ENCRYPTION: 'false',
       };
 
       configManager = new EncryptionConfigManager(env);
@@ -638,7 +638,7 @@ describe('PIIEncryptionService', () => {
     it('should return true when key configured and enabled', async () => {
       const env: Partial<Env> = {
         PII_ENCRYPTION_KEY: TEST_KEY,
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
       };
 
       configManager = new EncryptionConfigManager(env);
@@ -653,7 +653,7 @@ describe('PIIEncryptionService', () => {
     it('should not encrypt when service has no key', async () => {
       const env: Partial<Env> = {
         PII_ENCRYPTION_KEY: TEST_KEY, // ConfigManager needs key
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
         PII_ENCRYPTION_FIELDS: 'email',
       };
 
@@ -671,7 +671,7 @@ describe('PIIEncryptionService', () => {
 
       const env: Partial<Env> = {
         PII_ENCRYPTION_KEY: TEST_KEY,
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
         PII_ENCRYPTION_FIELDS: 'email',
       };
 
@@ -690,7 +690,7 @@ describe('PIIEncryptionService', () => {
     it('should return false for isAvailable when service has no key', async () => {
       const env: Partial<Env> = {
         PII_ENCRYPTION_KEY: TEST_KEY,
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
       };
 
       configManager = new EncryptionConfigManager(env);
@@ -704,7 +704,7 @@ describe('PIIEncryptionService', () => {
     it('should re-encrypt with new algorithm', async () => {
       const env: Partial<Env> = {
         PII_ENCRYPTION_KEY: TEST_KEY,
-        PII_ENCRYPTION_ENABLED: 'true',
+        ENABLE_PII_ENCRYPTION: 'true',
         PII_ENCRYPTION_ALGORITHM: 'AES-256-GCM',
         PII_ENCRYPTION_FIELDS: 'email',
       };

@@ -6,7 +6,6 @@ import type { Env } from '@authrim/ar-lib-core';
 import {
   rateLimitMiddleware,
   getRateLimitProfileAsync,
-  versionCheckMiddleware,
   requestContextMiddleware,
   pluginContextMiddleware,
   // Health Check
@@ -22,7 +21,6 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
 app.use('*', logger());
-app.use('*', versionCheckMiddleware('op-userinfo'));
 app.use('*', requestContextMiddleware());
 app.use('*', pluginContextMiddleware());
 
@@ -64,10 +62,10 @@ app.use(
 // Rate limiting for userinfo endpoint
 // Configurable via KV (rate_limit_moderate_max_requests, rate_limit_moderate_window_seconds)
 // or RATE_LIMIT_PROFILE env var for profile selection
-// Set RATE_LIMIT_DISABLED=true to bypass rate limiting (for benchmarks)
+// Set ENABLE_RATE_LIMIT=false to bypass rate limiting (for benchmarks)
 app.use('/userinfo', async (c, next) => {
   // Skip rate limiting if explicitly disabled (for load testing)
-  if (c.env.RATE_LIMIT_DISABLED === 'true') {
+  if (c.env.ENABLE_RATE_LIMIT === 'false') {
     return next();
   }
   const profile = await getRateLimitProfileAsync(c.env, 'moderate');

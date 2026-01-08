@@ -149,8 +149,8 @@ function evictSdkCacheIfNeeded(): void {
  * Priority: Cache → KV → Environment → Defaults
  *
  * Environment variable controls the master switch:
- * - SDK_COMPATIBILITY_CHECK_ENABLED=true: Enabled
- * - SDK_COMPATIBILITY_CHECK_ENABLED=false: Disabled
+ * - ENABLE_SDK_COMPATIBILITY_CHECK=true: Enabled
+ * - ENABLE_SDK_COMPATIBILITY_CHECK=false: Disabled
  * - Not set: Disabled (default, until SDKs are developed)
  *
  * @param env - Worker environment bindings
@@ -163,7 +163,7 @@ export async function getSdkCompatibilityConfig(env: Env): Promise<SdkCompatibil
   }
 
   // Check if enabled via environment (default: disabled until SDKs are developed)
-  const envEnabled = env.SDK_COMPATIBILITY_CHECK_ENABLED === 'true';
+  const envEnabled = env.ENABLE_SDK_COMPATIBILITY_CHECK === 'true';
   if (!envEnabled) {
     const config: SdkCompatibilityConfig = {
       ...DEFAULT_SDK_COMPATIBILITY_CONFIG,

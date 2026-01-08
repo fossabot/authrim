@@ -1327,7 +1327,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   }
 
   // Validate redirect_uri format (allow http for development)
-  const allowHttp = c.env.ALLOW_HTTP_REDIRECT === 'true';
+  const allowHttp = c.env.ENABLE_HTTP_REDIRECT === 'true';
   const redirectUriValidation = validateRedirectUri(redirect_uri, allowHttp);
   if (!redirectUriValidation.valid) {
     // Invalid redirect_uri format - cannot redirect, must show error page

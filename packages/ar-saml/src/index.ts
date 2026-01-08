@@ -29,7 +29,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@authrim/ar-lib-core';
 import {
-  versionCheckMiddleware,
   requestContextMiddleware,
   pluginContextMiddleware,
   createErrorResponse,
@@ -70,8 +69,6 @@ app.use(
   })
 );
 
-// Version check middleware - ensures consistent code version across Cloudflare PoPs
-app.use('*', versionCheckMiddleware('ar-saml'));
 app.use('*', requestContextMiddleware());
 app.use('*', pluginContextMiddleware());
 

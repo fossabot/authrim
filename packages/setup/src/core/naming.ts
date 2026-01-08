@@ -94,7 +94,7 @@ export type KVNamespace = (typeof KV_NAMESPACES)[number];
 
 export const D1_DATABASES = [
   { binding: 'DB', dbType: 'core-db' },
-  { binding: 'PII_DB', dbType: 'pii-db' },
+  { binding: 'DB_PII', dbType: 'pii-db' },
 ] as const;
 
 export type D1Database = (typeof D1_DATABASES)[number];

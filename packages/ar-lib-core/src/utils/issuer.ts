@@ -44,7 +44,7 @@ export interface HostValidationResult {
  */
 export function buildIssuerUrl(env: Env, tenantSubdomain: string = DEFAULT_TENANT_ID): string {
   // Multi-tenant mode: construct from subdomain + BASE_DOMAIN
-  if (env.BASE_DOMAIN && env.TENANT_ISOLATION_ENABLED === 'true') {
+  if (env.BASE_DOMAIN && env.ENABLE_TENANT_ISOLATION === 'true') {
     return `https://${tenantSubdomain}.${env.BASE_DOMAIN}`;
   }
 
@@ -59,7 +59,7 @@ export function buildIssuerUrl(env: Env, tenantSubdomain: string = DEFAULT_TENAN
  * @returns true if multi-tenant mode is enabled
  */
 export function isMultiTenantEnabled(env: Partial<Env>): boolean {
-  return !!env.BASE_DOMAIN && env.TENANT_ISOLATION_ENABLED === 'true';
+  return !!env.BASE_DOMAIN && env.ENABLE_TENANT_ISOLATION === 'true';
 }
 
 /**

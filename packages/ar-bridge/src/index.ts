@@ -29,7 +29,6 @@ import {
   RateLimitProfiles,
   isAllowedOrigin,
   parseAllowedOrigins,
-  versionCheckMiddleware,
   requestContextMiddleware,
   pluginContextMiddleware,
   createErrorResponse,
@@ -70,7 +69,6 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
 app.use('*', logger());
-app.use('*', versionCheckMiddleware('ar-bridge'));
 app.use('*', requestContextMiddleware());
 app.use('*', pluginContextMiddleware());
 

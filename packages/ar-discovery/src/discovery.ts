@@ -141,7 +141,7 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
   // Check SETTINGS KV first, then fall back to environment variable
   const idJagEnabled =
     (tokenExchangeEnabled && oidcConfig.tokenExchange?.idJag?.enabled) ??
-    c.env.ID_JAG_ENABLED === 'true';
+    c.env.ENABLE_ID_JAG === 'true';
 
   // Load TenantProfile for profile-based grant_types filtering
   // §16: Human Auth / AI Ephemeral Auth two-layer model

@@ -115,7 +115,7 @@ export async function getDeprecationContext(
   version: string | null
 ): Promise<DeprecationContext> {
   // Check if deprecation headers are enabled
-  const enabled = env.DEPRECATION_HEADERS_ENABLED !== 'false';
+  const enabled = env.ENABLE_DEPRECATION_HEADERS !== 'false';
   if (!enabled) {
     return DEFAULT_DEPRECATION_CONTEXT;
   }

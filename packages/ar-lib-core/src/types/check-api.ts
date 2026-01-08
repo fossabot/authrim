@@ -398,11 +398,11 @@ export interface CheckApiFeatureFlags {
   /** Master switch for Check API */
   ENABLE_CHECK_API: boolean;
   /** Enable audit logging */
-  CHECK_API_AUDIT_ENABLED: boolean;
+  ENABLE_CHECK_API_AUDIT: boolean;
   /** Enable debug info in responses */
-  CHECK_API_DEBUG_MODE: boolean;
+  ENABLE_CHECK_API_DEBUG: boolean;
   /** Enable WebSocket push notifications */
-  CHECK_API_WEBSOCKET_ENABLED: boolean;
+  ENABLE_CHECK_API_WEBSOCKET: boolean;
 }
 
 /**

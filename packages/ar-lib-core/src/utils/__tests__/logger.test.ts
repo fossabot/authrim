@@ -347,7 +347,7 @@ describe('Logger', () => {
       initLoggerFromEnv({
         LOG_LEVEL: 'debug',
         LOG_FORMAT: 'pretty',
-        LOG_HASH_USER_ID: 'true',
+        ENABLE_LOG_HASH_USER_ID: 'true',
       });
 
       const config = getLoggerConfig();
@@ -360,7 +360,7 @@ describe('Logger', () => {
       initLoggerFromEnv({
         LOG_LEVEL: 'invalid',
         LOG_FORMAT: 'invalid',
-        LOG_HASH_USER_ID: 'invalid',
+        ENABLE_LOG_HASH_USER_ID: 'invalid',
       });
 
       const config = getLoggerConfig();

@@ -11,7 +11,6 @@ import { existsSync } from 'node:fs';
 import {
   getWorkerName,
   getDeploymentOrder,
-  getEnabledComponents,
   CORE_WORKER_COMPONENTS,
   WORKER_COMPONENTS,
   type WorkerComponent,

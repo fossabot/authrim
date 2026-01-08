@@ -101,7 +101,7 @@ export function deprecationHeadersMiddleware(): MiddlewareHandler<{ Bindings: En
     };
 
     // Check if deprecation headers are enabled
-    const enabled = c.env.DEPRECATION_HEADERS_ENABLED !== 'false';
+    const enabled = c.env.ENABLE_DEPRECATION_HEADERS !== 'false';
     if (!enabled) {
       setContext(DEFAULT_DEPRECATION_CONTEXT);
       return next();

@@ -39,7 +39,6 @@ import { secureHeaders } from 'hono/secure-headers';
 import { logger } from 'hono/logger';
 import type { Env as SharedEnv, IStorageAdapter } from '@authrim/ar-lib-core';
 import {
-  versionCheckMiddleware,
   requestContextMiddleware,
   pluginContextMiddleware,
   createReBACService,
@@ -109,7 +108,6 @@ const policyEngine = createDefaultPolicyEngine();
 
 // Global middleware
 app.use('*', logger());
-app.use('*', versionCheckMiddleware('ar-policy'));
 app.use('*', requestContextMiddleware());
 app.use('*', pluginContextMiddleware());
 app.use(

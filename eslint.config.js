@@ -6,7 +6,7 @@ import globals from 'globals';
 export default [
   // Ignore patterns
   {
-    ignores: ['dist/**', '.wrangler/**', 'node_modules/**'],
+    ignores: ['dist/**', '.wrangler/**', 'node_modules/**', 'packages/setup/**'],
   },
 
   // Base configuration for all files

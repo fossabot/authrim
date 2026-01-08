@@ -12,7 +12,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@authrim/ar-lib-core';
 import {
-  versionCheckMiddleware,
   requestContextMiddleware,
   pluginContextMiddleware,
 } from '@authrim/ar-lib-core';
@@ -38,9 +37,6 @@ app.use(
     credentials: true,
   })
 );
-
-// Version check middleware
-app.use('/*', versionCheckMiddleware('ar-async'));
 
 // Request context middleware (tenantId, requestId, logger)
 app.use('/*', requestContextMiddleware());

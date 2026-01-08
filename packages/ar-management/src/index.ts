@@ -10,7 +10,6 @@ import {
   getRateLimitProfileAsync,
   initialAccessTokenMiddleware,
   adminAuthMiddleware,
-  versionCheckMiddleware,
   requestContextMiddleware,
   pluginContextMiddleware,
   idempotencyMiddleware,
@@ -431,7 +430,6 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
 app.use('*', logger());
-app.use('*', versionCheckMiddleware('ar-management'));
 app.use('*', requestContextMiddleware());
 app.use('*', pluginContextMiddleware());
 
@@ -518,7 +516,7 @@ app.use('/register', async (c, next) => {
 });
 
 // Initial Access Token validation for Dynamic Client Registration (RFC 7591)
-// Can be disabled by setting OPEN_REGISTRATION=true in environment variables
+// Can be disabled by setting ENABLE_OPEN_REGISTRATION=true in environment variables
 app.use('/register', initialAccessTokenMiddleware());
 
 // Rate limiting for introspect endpoint

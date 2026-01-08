@@ -42,7 +42,7 @@ interface Env extends SharedEnv {
   /** Feature flag: Enable Check API */
   ENABLE_CHECK_API?: string;
   /** Feature flag: Enable WebSocket Push */
-  CHECK_API_WEBSOCKET_ENABLED?: string;
+  ENABLE_CHECK_API_WEBSOCKET?: string;
 }
 
 // =============================================================================
@@ -60,7 +60,7 @@ function isCheckApiEnabled(env: Env): boolean {
  * Check if WebSocket Push feature is enabled
  */
 function isWebSocketEnabled(env: Env): boolean {
-  return env.CHECK_API_WEBSOCKET_ENABLED === 'true';
+  return env.ENABLE_CHECK_API_WEBSOCKET === 'true';
 }
 
 // =============================================================================

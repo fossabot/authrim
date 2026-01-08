@@ -29,11 +29,11 @@ describe('Issuer URL Builder', () => {
         expect(issuer).toBe('https://auth.example.com');
       });
 
-      it('should return ISSUER_URL when TENANT_ISOLATION_ENABLED is not "true"', () => {
+      it('should return ISSUER_URL when ENABLE_TENANT_ISOLATION is not "true"', () => {
         const env = {
           ISSUER_URL: 'https://auth.example.com',
           BASE_DOMAIN: 'authrim.com',
-          TENANT_ISOLATION_ENABLED: 'false',
+          ENABLE_TENANT_ISOLATION: 'false',
         } as Env;
 
         const issuer = buildIssuerUrl(env);
@@ -54,7 +54,7 @@ describe('Issuer URL Builder', () => {
       const mtEnv = {
         ISSUER_URL: 'https://auth.example.com',
         BASE_DOMAIN: 'authrim.com',
-        TENANT_ISOLATION_ENABLED: 'true',
+        ENABLE_TENANT_ISOLATION: 'true',
       } as Env;
 
       it('should build issuer from subdomain + BASE_DOMAIN', () => {
@@ -82,10 +82,10 @@ describe('Issuer URL Builder', () => {
   });
 
   describe('isMultiTenantEnabled', () => {
-    it('should return true when BASE_DOMAIN and TENANT_ISOLATION_ENABLED are set', () => {
+    it('should return true when BASE_DOMAIN and ENABLE_TENANT_ISOLATION are set', () => {
       const env = {
         BASE_DOMAIN: 'authrim.com',
-        TENANT_ISOLATION_ENABLED: 'true',
+        ENABLE_TENANT_ISOLATION: 'true',
       };
 
       expect(isMultiTenantEnabled(env)).toBe(true);
@@ -93,22 +93,22 @@ describe('Issuer URL Builder', () => {
 
     it('should return false when BASE_DOMAIN is not set', () => {
       const env = {
-        TENANT_ISOLATION_ENABLED: 'true',
+        ENABLE_TENANT_ISOLATION: 'true',
       };
 
       expect(isMultiTenantEnabled(env)).toBe(false);
     });
 
-    it('should return false when TENANT_ISOLATION_ENABLED is not "true"', () => {
+    it('should return false when ENABLE_TENANT_ISOLATION is not "true"', () => {
       const env = {
         BASE_DOMAIN: 'authrim.com',
-        TENANT_ISOLATION_ENABLED: 'false',
+        ENABLE_TENANT_ISOLATION: 'false',
       };
 
       expect(isMultiTenantEnabled(env)).toBe(false);
     });
 
-    it('should return false when TENANT_ISOLATION_ENABLED is undefined', () => {
+    it('should return false when ENABLE_TENANT_ISOLATION is undefined', () => {
       const env = {
         BASE_DOMAIN: 'authrim.com',
       };
@@ -120,10 +120,10 @@ describe('Issuer URL Builder', () => {
       expect(isMultiTenantEnabled({})).toBe(false);
     });
 
-    it('should be case-sensitive for TENANT_ISOLATION_ENABLED', () => {
+    it('should be case-sensitive for ENABLE_TENANT_ISOLATION', () => {
       const env = {
         BASE_DOMAIN: 'authrim.com',
-        TENANT_ISOLATION_ENABLED: 'TRUE', // Capital letters
+        ENABLE_TENANT_ISOLATION: 'TRUE', // Capital letters
       };
 
       // Only exactly "true" enables MT mode
@@ -166,7 +166,7 @@ describe('Issuer URL Builder', () => {
     describe('multi-tenant mode', () => {
       const mtEnv = {
         BASE_DOMAIN: 'authrim.com',
-        TENANT_ISOLATION_ENABLED: 'true',
+        ENABLE_TENANT_ISOLATION: 'true',
       };
 
       it('should extract tenant from valid subdomain', () => {
@@ -231,7 +231,7 @@ describe('Issuer URL Builder', () => {
     describe('Host format validation', () => {
       const mtEnv = {
         BASE_DOMAIN: 'authrim.com',
-        TENANT_ISOLATION_ENABLED: 'true',
+        ENABLE_TENANT_ISOLATION: 'true',
       };
 
       it('should reject Host starting with hyphen', () => {

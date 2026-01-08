@@ -56,7 +56,7 @@ export async function getLoggingConfig(c: Context<{ Bindings: Env }>) {
   // Get environment variable overrides
   const envLevel = c.env.LOG_LEVEL as string | undefined;
   const envFormat = c.env.LOG_FORMAT as string | undefined;
-  const envHashUserId = c.env.LOG_HASH_USER_ID as string | undefined;
+  const envHashUserId = c.env.ENABLE_LOG_HASH_USER_ID as string | undefined;
 
   return c.json({
     level: {

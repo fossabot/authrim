@@ -71,7 +71,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
   // Open browser if requested
   if (options.openBrowser !== false) {
     const url = `http://${host}:${port}`;
-    openBrowser(url);
+    void openBrowser(url);
   }
 
   serve({

@@ -61,8 +61,8 @@ function createMockEnv(secret?: string): Env {
   return {
     ADMIN_API_SECRET: secret || 'test-secret-token',
     ISSUER_URL: 'https://test.example.com',
-    TOKEN_EXPIRY: '3600',
-    CODE_EXPIRY: '600',
+    ACCESS_TOKEN_EXPIRY: '3600',
+    AUTH_CODE_EXPIRY: '600',
     STATE_EXPIRY: '600',
     NONCE_EXPIRY: '600',
   } as Env;

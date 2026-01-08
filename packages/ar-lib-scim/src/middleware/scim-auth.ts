@@ -28,7 +28,7 @@ import type { ScimError, ScimErrorType } from '../types/scim';
  * - SCIM_AUTH_WINDOW_SECONDS: Time window for counting failures (default: 300)
  * - SCIM_AUTH_LOCKOUT_SECONDS: Lockout duration after exceeding limit (default: 900)
  * - SCIM_AUTH_FAILURE_DELAY_MS: Base delay on failed attempt (default: 200)
- * - SCIM_AUTH_RATE_LIMIT_DISABLED: Set to "true" to disable rate limiting (for testing)
+ * - ENABLE_SCIM_AUTH_RATE_LIMIT: Set to "false" to disable rate limiting (for testing)
  */
 const DEFAULT_SCIM_AUTH_RATE_LIMIT = {
   maxFailedAttempts: 5, // Maximum failed attempts before lockout
@@ -57,7 +57,7 @@ function getScimAuthRateLimitConfig(env: Env): typeof DEFAULT_SCIM_AUTH_RATE_LIM
     failureDelayMs:
       parseInt(env.SCIM_AUTH_FAILURE_DELAY_MS as string, 10) ||
       DEFAULT_SCIM_AUTH_RATE_LIMIT.failureDelayMs,
-    disabled: env.SCIM_AUTH_RATE_LIMIT_DISABLED === 'true',
+    disabled: env.ENABLE_SCIM_AUTH_RATE_LIMIT === 'false',
   };
 }
 
@@ -257,7 +257,7 @@ async function applyFailureDelay(
  * - SCIM_AUTH_WINDOW_SECONDS: Time window for counting failures (default: 300)
  * - SCIM_AUTH_LOCKOUT_SECONDS: Lockout duration (default: 900)
  * - SCIM_AUTH_FAILURE_DELAY_MS: Base delay on failure (default: 200)
- * - SCIM_AUTH_RATE_LIMIT_DISABLED: Set to "true" to disable rate limiting
+ * - ENABLE_SCIM_AUTH_RATE_LIMIT: Set to "false" to disable rate limiting
  */
 export async function scimAuthMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
   const log = getLogger(c).module('SCIM-AUTH');

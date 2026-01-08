@@ -61,7 +61,7 @@ interface Env extends SharedEnv {
   /** Feature flag: Enable Check API */
   ENABLE_CHECK_API?: string;
   /** Feature flag: Enable Check API debug mode */
-  CHECK_API_DEBUG_MODE?: string;
+  ENABLE_CHECK_API_DEBUG?: string;
   /** Batch size limit for batch check API (1-1000, default: 100) */
   CHECK_API_BATCH_SIZE_LIMIT?: string;
 }
@@ -221,7 +221,7 @@ async function isCheckApiEnabled(env: Env): Promise<boolean> {
  * Check if debug mode is enabled
  */
 function isDebugModeEnabled(env: Env): boolean {
-  return env.CHECK_API_DEBUG_MODE === 'true';
+  return env.ENABLE_CHECK_API_DEBUG === 'true';
 }
 
 /**

@@ -136,7 +136,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);
@@ -169,7 +169,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);
@@ -202,7 +202,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);
@@ -237,7 +237,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);
@@ -269,7 +269,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);
@@ -293,7 +293,7 @@ describe('sdkCompatibilityMiddleware', () => {
   describe('No SDK Header', () => {
     it('should handle requests without SDK version header', async () => {
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
       });
       const app = createTestApp(env);
 
@@ -311,7 +311,7 @@ describe('sdkCompatibilityMiddleware', () => {
   describe('Invalid SDK Version Format', () => {
     it('should handle invalid SDK version format', async () => {
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
       });
       const app = createTestApp(env);
 
@@ -343,7 +343,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(enabledConfig),
       });
       const app = createTestApp(env);
@@ -377,7 +377,7 @@ describe('sdkCompatibilityMiddleware', () => {
       } as unknown as KVNamespace;
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: errorKV,
       });
       const app = createTestApp(env);
@@ -409,7 +409,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);
@@ -442,7 +442,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);
@@ -474,7 +474,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);
@@ -498,7 +498,7 @@ describe('sdkCompatibilityMiddleware', () => {
   describe('Security: Input Length Limits', () => {
     it('should reject excessively long SDK version headers', async () => {
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
       });
       const app = createTestApp(env);
 
@@ -536,7 +536,7 @@ describe('sdkCompatibilityMiddleware', () => {
 
     it('should not crash on malformed version numbers', async () => {
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
       });
       const app = createTestApp(env);
 
@@ -571,7 +571,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);
@@ -599,7 +599,7 @@ describe('sdkCompatibilityMiddleware', () => {
       };
 
       const env = createMockEnv({
-        SDK_COMPATIBILITY_CHECK_ENABLED: 'true',
+        ENABLE_SDK_COMPATIBILITY_CHECK: 'true',
         AUTHRIM_CONFIG: createMockKV(kvData),
       });
       const app = createTestApp(env);

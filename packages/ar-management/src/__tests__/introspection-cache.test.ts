@@ -94,8 +94,8 @@ describe('Introspection Cache Settings', () => {
 
     it('should use environment variable when set', async () => {
       const env = {
-        INTROSPECTION_CACHE_ENABLED: 'false',
-        INTROSPECTION_CACHE_TTL_SECONDS: '30',
+        ENABLE_INTROSPECTION_CACHE: 'false',
+        INTROSPECTION_CACHE_TTL: '30',
         SETTINGS: {
           get: vi.fn().mockResolvedValue(null),
         },
@@ -115,8 +115,8 @@ describe('Introspection Cache Settings', () => {
 
     it('should prioritize KV over environment variable', async () => {
       const env = {
-        INTROSPECTION_CACHE_ENABLED: 'false',
-        INTROSPECTION_CACHE_TTL_SECONDS: '30',
+        ENABLE_INTROSPECTION_CACHE: 'false',
+        INTROSPECTION_CACHE_TTL: '30',
         SETTINGS: {
           get: vi.fn().mockResolvedValue(
             JSON.stringify({
@@ -164,7 +164,7 @@ describe('Introspection Cache Settings', () => {
 
     it('should handle invalid TTL in environment variable', async () => {
       const env = {
-        INTROSPECTION_CACHE_TTL_SECONDS: 'invalid',
+        INTROSPECTION_CACHE_TTL: 'invalid',
         SETTINGS: {
           get: vi.fn().mockResolvedValue(null),
         },

@@ -61,13 +61,13 @@ export const CONFORMANCE_CONFIG_METADATA: Record<
 
 /**
  * Get conformance mode configuration
- * Priority: KV (system_settings.conformance) > env.CONFORMANCE_MODE > default
+ * Priority: KV (system_settings.conformance) > env.ENABLE_CONFORMANCE_MODE > default
  *
  * @param env Environment bindings
  * @returns Conformance configuration
  */
 export async function getConformanceConfig(
-  env: Partial<Pick<Env, 'SETTINGS' | 'CONFORMANCE_MODE'>>
+  env: Partial<Pick<Env, 'SETTINGS' | 'ENABLE_CONFORMANCE_MODE'>>
 ): Promise<ConformanceConfig> {
   // 1. Try KV first
   if (env.SETTINGS) {
@@ -89,8 +89,8 @@ export async function getConformanceConfig(
   }
 
   // 2. Try environment variable
-  if (env.CONFORMANCE_MODE !== undefined) {
-    const enabled = parseBoolean(env.CONFORMANCE_MODE);
+  if (env.ENABLE_CONFORMANCE_MODE !== undefined) {
+    const enabled = parseBoolean(env.ENABLE_CONFORMANCE_MODE);
     return {
       enabled,
       useBuiltinForms: enabled, // When conformance is enabled via env, use built-in forms
@@ -109,7 +109,7 @@ export async function getConformanceConfig(
  * @returns true if conformance mode is enabled
  */
 export async function isConformanceMode(
-  env: Partial<Pick<Env, 'SETTINGS' | 'CONFORMANCE_MODE'>>
+  env: Partial<Pick<Env, 'SETTINGS' | 'ENABLE_CONFORMANCE_MODE'>>
 ): Promise<boolean> {
   const config = await getConformanceConfig(env);
   return config.enabled;
@@ -122,7 +122,7 @@ export async function isConformanceMode(
  * @returns true if built-in forms should be used
  */
 export async function shouldUseBuiltinForms(
-  env: Partial<Pick<Env, 'SETTINGS' | 'CONFORMANCE_MODE'>>
+  env: Partial<Pick<Env, 'SETTINGS' | 'ENABLE_CONFORMANCE_MODE'>>
 ): Promise<boolean> {
   const config = await getConformanceConfig(env);
   return config.enabled && config.useBuiltinForms;
@@ -135,7 +135,7 @@ export async function shouldUseBuiltinForms(
  * @returns Source of the configuration
  */
 export async function getConformanceConfigSource(
-  env: Partial<Pick<Env, 'SETTINGS' | 'CONFORMANCE_MODE'>>
+  env: Partial<Pick<Env, 'SETTINGS' | 'ENABLE_CONFORMANCE_MODE'>>
 ): Promise<'kv' | 'env' | 'default'> {
   // Check KV first
   if (env.SETTINGS) {
@@ -153,7 +153,7 @@ export async function getConformanceConfigSource(
   }
 
   // Check environment variable
-  if (env.CONFORMANCE_MODE !== undefined) {
+  if (env.ENABLE_CONFORMANCE_MODE !== undefined) {
     return 'env';
   }
 

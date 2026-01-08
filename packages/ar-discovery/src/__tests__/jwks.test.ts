@@ -14,8 +14,8 @@ let testPublicJWK: string;
 function createMockEnv(privateKey?: string, keyId?: string, publicJWK?: string): Env {
   return {
     ISSUER_URL: 'https://test.example.com',
-    TOKEN_EXPIRY: '3600',
-    CODE_EXPIRY: '600',
+    ACCESS_TOKEN_EXPIRY: '3600',
+    AUTH_CODE_EXPIRY: '600',
     STATE_EXPIRY: '600',
     NONCE_EXPIRY: '600',
     PRIVATE_KEY_PEM: privateKey,

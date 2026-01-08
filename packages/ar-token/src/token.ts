@@ -604,7 +604,7 @@ async function handleAuthorizationCodeGrant(
   }
 
   // Validate redirect_uri
-  const allowHttp = c.env.ALLOW_HTTP_REDIRECT === 'true';
+  const allowHttp = c.env.ENABLE_HTTP_REDIRECT === 'true';
   const redirectUriValidation = validateRedirectUri(redirect_uri, allowHttp);
   if (!redirectUriValidation.valid) {
     return oauthError(c, 'invalid_request', redirectUriValidation.error as string, 400);
@@ -1971,8 +1971,8 @@ async function handleRefreshTokenGrant(
   }
 
   // Check if Token Rotation is enabled (default: true for security)
-  // Set REFRESH_TOKEN_ROTATION_ENABLED=false to disable (for load testing only!)
-  const rotationEnabled = c.env.REFRESH_TOKEN_ROTATION_ENABLED !== 'false';
+  // Set ENABLE_REFRESH_TOKEN_ROTATION=false to disable (for load testing only!)
+  const rotationEnabled = c.env.ENABLE_REFRESH_TOKEN_ROTATION !== 'false';
 
   let newRefreshToken: string;
   const refreshTokenExpiresIn = await configManager.getRefreshTokenExpiry();
@@ -3385,7 +3385,7 @@ async function handleTokenExchangeGrant(
   }
 
   // Check env fallback for ID-JAG enabled flag
-  if (!idJagConfig.enabled && c.env.ID_JAG_ENABLED === 'true') {
+  if (!idJagConfig.enabled && c.env.ENABLE_ID_JAG === 'true') {
     idJagConfig.enabled = true;
   }
 

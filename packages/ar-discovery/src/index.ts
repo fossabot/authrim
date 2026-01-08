@@ -6,7 +6,6 @@ import type { Env } from '@authrim/ar-lib-core';
 import {
   rateLimitMiddleware,
   RateLimitProfiles,
-  versionCheckMiddleware,
   requestContextMiddleware,
   pluginContextMiddleware,
   // Health Check
@@ -23,7 +22,6 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
 app.use('*', logger());
-app.use('*', versionCheckMiddleware('op-discovery'));
 app.use('*', requestContextMiddleware());
 app.use('*', pluginContextMiddleware());
 

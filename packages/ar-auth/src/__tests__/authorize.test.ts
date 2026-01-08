@@ -151,13 +151,13 @@ type ErrorResponse = Record<string, unknown>;
 function createMockEnv(): Env {
   return {
     ISSUER_URL: 'https://test.example.com',
-    TOKEN_EXPIRY: '3600',
-    CODE_EXPIRY: '120',
+    ACCESS_TOKEN_EXPIRY: '3600',
+    AUTH_CODE_EXPIRY: '120',
     STATE_EXPIRY: '300',
     NONCE_EXPIRY: '300',
     REFRESH_TOKEN_EXPIRY: '2592000',
-    ALLOW_HTTP_REDIRECT: 'true',
-    CONFORMANCE_MODE: 'true', // Enable conformance mode for testing (uses built-in forms)
+    ENABLE_HTTP_REDIRECT: 'true',
+    ENABLE_CONFORMANCE_MODE: 'true', // Enable conformance mode for testing (uses built-in forms)
     STATE_STORE: new MockKVNamespace() as unknown as KVNamespace,
     NONCE_STORE: new MockKVNamespace() as unknown as KVNamespace,
     CLIENTS_CACHE: new MockKVNamespace() as unknown as KVNamespace,
@@ -232,7 +232,7 @@ describe('Authorization Handler', () => {
       expect(location).toContain('/flow/login');
     });
 
-    it('should accept http://localhost redirect_uri when ALLOW_HTTP_REDIRECT is true', async () => {
+    it('should accept http://localhost redirect_uri when ENABLE_HTTP_REDIRECT is true', async () => {
       const response = await app.request(
         '/authorize?response_type=code&client_id=test-client&redirect_uri=http://localhost:3000/callback&scope=openid',
         { method: 'GET' },

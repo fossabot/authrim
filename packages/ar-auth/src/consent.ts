@@ -271,9 +271,9 @@ async function handleJsonConsentGet(
 
   // Parse feature flags from environment
   const features = parseConsentFeatureFlags(
-    c.env.RBAC_CONSENT_ORG_SELECTOR,
-    c.env.RBAC_CONSENT_ACTING_AS,
-    c.env.RBAC_CONSENT_SHOW_ROLES
+    c.env.ENABLE_RBAC_CONSENT_ORG_SELECTOR,
+    c.env.ENABLE_RBAC_CONSENT_ACTING_AS,
+    c.env.ENABLE_RBAC_CONSENT_SHOW_ROLES
   );
 
   // Get acting-as info if present in metadata

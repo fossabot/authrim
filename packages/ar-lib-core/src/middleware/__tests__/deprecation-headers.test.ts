@@ -265,7 +265,7 @@ describe('deprecationHeadersMiddleware', () => {
   });
 
   describe('Disabled via Environment', () => {
-    it('should skip deprecation when DEPRECATION_HEADERS_ENABLED is false', async () => {
+    it('should skip deprecation when ENABLE_DEPRECATION_HEADERS is false', async () => {
       const kvData = {
         [`${DEPRECATION_VERSION_PREFIX}2024-12-01`]: JSON.stringify({
           sunsetDate: '2025-06-01T00:00:00Z',
@@ -275,7 +275,7 @@ describe('deprecationHeadersMiddleware', () => {
 
       const env = createMockEnv({
         AUTHRIM_CONFIG: createMockKV(kvData),
-        DEPRECATION_HEADERS_ENABLED: 'false',
+        ENABLE_DEPRECATION_HEADERS: 'false',
       });
       const app = createTestApp(env);
 

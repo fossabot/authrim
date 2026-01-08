@@ -31,12 +31,12 @@ type RegistrationResponse = Record<string, unknown>;
 function createMockEnv(options?: { db?: D1Database }): Env {
   return {
     ISSUER_URL: 'https://id.example.com',
-    TOKEN_EXPIRY: '3600',
-    CODE_EXPIRY: '120',
+    ACCESS_TOKEN_EXPIRY: '3600',
+    AUTH_CODE_EXPIRY: '120',
     STATE_EXPIRY: '300',
     NONCE_EXPIRY: '300',
     REFRESH_TOKEN_EXPIRY: '2592000',
-    ALLOW_HTTP_REDIRECT: 'true',
+    ENABLE_HTTP_REDIRECT: 'true',
     PRIVATE_KEY_PEM: 'mock-private-key',
     PUBLIC_JWK_JSON: '{"kty":"RSA"}',
     KEY_ID: 'test-key-id',

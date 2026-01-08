@@ -163,7 +163,7 @@ export class AuthorizationCodeStore extends DurableObject<Env> {
 
     // Set initial values from environment (will be updated in initializeState with KV values)
     // Default: 60 seconds per OAuth 2.0 Security BCP, but can be increased for load testing
-    const codeTtlEnv = env.AUTH_CODE_TTL;
+    const codeTtlEnv = env.AUTH_CODE_EXPIRY;
     this.CODE_TTL = codeTtlEnv && !isNaN(Number(codeTtlEnv)) ? Number(codeTtlEnv) : 60;
 
     // Configure CLEANUP_INTERVAL_MS from environment variable (in seconds, converted to ms)

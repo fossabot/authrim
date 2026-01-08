@@ -6,7 +6,6 @@ import type { Env } from '@authrim/ar-lib-core';
 import {
   rateLimitMiddleware,
   getRateLimitProfileAsync,
-  versionCheckMiddleware,
   requestContextMiddleware,
   // Plugin Context (Phase 9 - Plugin Architecture)
   pluginContextMiddleware,
@@ -23,7 +22,6 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
 app.use('*', logger());
-app.use('*', versionCheckMiddleware('op-token'));
 app.use('*', requestContextMiddleware());
 
 // Plugin Context - provides access to notifiers, idp handlers, authenticators

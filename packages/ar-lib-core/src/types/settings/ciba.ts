@@ -89,7 +89,7 @@ export const CIBA_SETTINGS_META: Record<keyof CIBASettings, SettingMeta> = {
     key: 'ciba.user_code_enabled',
     type: 'boolean',
     default: false,
-    envKey: 'CIBA_USER_CODE_ENABLED',
+    envKey: 'ENABLE_CIBA_USER_CODE',
     label: 'User Code Support',
     description: 'Enable user_code parameter support',
     visibility: 'public',

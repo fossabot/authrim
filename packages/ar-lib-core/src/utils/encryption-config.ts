@@ -207,7 +207,7 @@ function parseNumber(value: string | undefined, defaultValue: number): number {
 export function getEncryptionConfigFromEnv(env: Partial<Env>): EncryptionConfig {
   return {
     PII_ENCRYPTION_ENABLED: parseBool(
-      env.PII_ENCRYPTION_ENABLED,
+      env.ENABLE_PII_ENCRYPTION,
       DEFAULT_ENCRYPTION_CONFIG.PII_ENCRYPTION_ENABLED
     ),
     PII_ENCRYPTION_ALGORITHM: parseAlgorithm(
@@ -238,7 +238,7 @@ export class EncryptionKeyMissingError extends Error {
     super(
       message ??
         'PII encryption is enabled but PII_ENCRYPTION_KEY is not set. ' +
-          'Either set the encryption key or set PII_ENCRYPTION_ENABLED=false to disable encryption.'
+          'Either set the encryption key or set ENABLE_PII_ENCRYPTION=false to disable encryption.'
     );
     this.name = 'EncryptionKeyMissingError';
   }

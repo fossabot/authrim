@@ -67,8 +67,8 @@ export async function getIntrospectionValidationSettings(env: Env): Promise<{
   };
 
   // Check environment variables
-  if (env.INTROSPECTION_STRICT_VALIDATION !== undefined) {
-    settings.strictValidation = env.INTROSPECTION_STRICT_VALIDATION === 'true';
+  if (env.ENABLE_INTROSPECTION_STRICT_VALIDATION !== undefined) {
+    settings.strictValidation = env.ENABLE_INTROSPECTION_STRICT_VALIDATION === 'true';
     sources.strictValidation = 'env';
   }
 

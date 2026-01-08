@@ -104,7 +104,7 @@ export async function getAssuranceLevelsSettings(env: Env): Promise<{
   };
 
   // Check environment variables
-  if (env.NIST_ASSURANCE_LEVELS_ENABLED === 'true') {
+  if (env.ENABLE_NIST_ASSURANCE_LEVELS === 'true') {
     settings.enabled = true;
     sources.enabled = 'env';
   }

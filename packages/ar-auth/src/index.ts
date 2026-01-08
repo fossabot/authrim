@@ -8,7 +8,6 @@ import {
   getRateLimitProfileAsync,
   isAllowedOrigin,
   parseAllowedOrigins,
-  versionCheckMiddleware,
   requestContextMiddleware,
   createErrorResponse,
   AR_ERROR_CODES,
@@ -61,7 +60,6 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
 app.use('*', logger());
-app.use('*', versionCheckMiddleware('ar-auth'));
 app.use('*', requestContextMiddleware());
 
 // Plugin Context - provides access to notifiers, idp handlers, authenticators

@@ -363,9 +363,9 @@ describe('apiVersionMiddleware', () => {
   });
 
   describe('Versioning Disabled', () => {
-    it('should skip versioning when API_VERSIONING_ENABLED is false', async () => {
+    it('should skip versioning when ENABLE_API_VERSIONING is false', async () => {
       const env = createMockEnv({
-        API_VERSIONING_ENABLED: 'false',
+        ENABLE_API_VERSIONING: 'false',
       });
       const app = createTestApp(env);
 

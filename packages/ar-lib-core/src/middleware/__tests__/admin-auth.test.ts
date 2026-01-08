@@ -78,7 +78,7 @@ describe('adminAuthMiddleware', () => {
       expect(data.adminAuth).toEqual({
         userId: 'system',
         authMethod: 'bearer',
-        roles: ['admin', 'system'],
+        roles: ['system_admin', 'admin', 'system'],
       });
     });
 

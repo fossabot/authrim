@@ -10,8 +10,8 @@ import { rateLimitMiddleware, RateLimitProfiles } from '../rate-limit';
 // Mock environment
 const mockEnv: Env = {
   ISSUER_URL: 'https://id.example.com',
-  TOKEN_EXPIRY: '3600',
-  CODE_EXPIRY: '120',
+  ACCESS_TOKEN_EXPIRY: '3600',
+  AUTH_CODE_EXPIRY: '120',
   STATE_EXPIRY: '300',
   NONCE_EXPIRY: '300',
   PRIVATE_KEY_PEM: 'mock-private-key',

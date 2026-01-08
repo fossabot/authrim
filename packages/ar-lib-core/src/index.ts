@@ -248,7 +248,6 @@ export * from './middleware/rbac';
 export * from './middleware/rate-limit';
 export * from './middleware/initial-access-token';
 export * from './middleware/request-context';
-export * from './middleware/version-check';
 export * from './middleware/api-version';
 export * from './middleware/deprecation-headers';
 export * from './middleware/sdk-compatibility';

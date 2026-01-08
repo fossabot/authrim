@@ -34,7 +34,7 @@ describe('Conformance Mode Configuration', () => {
 
         const result = await getConformanceConfig({
           SETTINGS: mockSettings as unknown as KVNamespace,
-          CONFORMANCE_MODE: 'false', // Should be ignored
+          ENABLE_CONFORMANCE_MODE: 'false', // Should be ignored
         });
 
         expect(result.enabled).toBe(true);
@@ -46,7 +46,7 @@ describe('Conformance Mode Configuration', () => {
 
         const result = await getConformanceConfig({
           SETTINGS: mockSettings as unknown as KVNamespace,
-          CONFORMANCE_MODE: 'true',
+          ENABLE_CONFORMANCE_MODE: 'true',
         });
 
         expect(result.enabled).toBe(true);
@@ -103,7 +103,7 @@ describe('Conformance Mode Configuration', () => {
     describe('env boolean parsing', () => {
       it('should parse "true" as true', async () => {
         const result = await getConformanceConfig({
-          CONFORMANCE_MODE: 'true',
+          ENABLE_CONFORMANCE_MODE: 'true',
         });
 
         expect(result.enabled).toBe(true);
@@ -111,7 +111,7 @@ describe('Conformance Mode Configuration', () => {
 
       it('should parse "TRUE" as true (case insensitive)', async () => {
         const result = await getConformanceConfig({
-          CONFORMANCE_MODE: 'TRUE',
+          ENABLE_CONFORMANCE_MODE: 'TRUE',
         });
 
         expect(result.enabled).toBe(true);
@@ -119,7 +119,7 @@ describe('Conformance Mode Configuration', () => {
 
       it('should parse "1" as true', async () => {
         const result = await getConformanceConfig({
-          CONFORMANCE_MODE: '1',
+          ENABLE_CONFORMANCE_MODE: '1',
         });
 
         expect(result.enabled).toBe(true);
@@ -127,7 +127,7 @@ describe('Conformance Mode Configuration', () => {
 
       it('should parse "false" as false', async () => {
         const result = await getConformanceConfig({
-          CONFORMANCE_MODE: 'false',
+          ENABLE_CONFORMANCE_MODE: 'false',
         });
 
         expect(result.enabled).toBe(false);
@@ -135,7 +135,7 @@ describe('Conformance Mode Configuration', () => {
 
       it('should parse "0" as false', async () => {
         const result = await getConformanceConfig({
-          CONFORMANCE_MODE: '0',
+          ENABLE_CONFORMANCE_MODE: '0',
         });
 
         expect(result.enabled).toBe(false);
@@ -143,7 +143,7 @@ describe('Conformance Mode Configuration', () => {
 
       it('should parse any other value as false', async () => {
         const result = await getConformanceConfig({
-          CONFORMANCE_MODE: 'invalid',
+          ENABLE_CONFORMANCE_MODE: 'invalid',
         });
 
         expect(result.enabled).toBe(false);
@@ -158,7 +158,7 @@ describe('Conformance Mode Configuration', () => {
 
         const result = await getConformanceConfig({
           SETTINGS: mockSettings as unknown as KVNamespace,
-          CONFORMANCE_MODE: 'true',
+          ENABLE_CONFORMANCE_MODE: 'true',
         });
 
         expect(result.enabled).toBe(true);
@@ -171,7 +171,7 @@ describe('Conformance Mode Configuration', () => {
 
         const result = await getConformanceConfig({
           SETTINGS: mockSettings as unknown as KVNamespace,
-          CONFORMANCE_MODE: 'true',
+          ENABLE_CONFORMANCE_MODE: 'true',
         });
 
         expect(result.enabled).toBe(true);
@@ -276,7 +276,7 @@ describe('Conformance Mode Configuration', () => {
 
       const source = await getConformanceConfigSource({
         SETTINGS: mockSettings as unknown as KVNamespace,
-        CONFORMANCE_MODE: 'true',
+        ENABLE_CONFORMANCE_MODE: 'true',
       });
 
       expect(source).toBe('kv');
@@ -287,7 +287,7 @@ describe('Conformance Mode Configuration', () => {
 
       const source = await getConformanceConfigSource({
         SETTINGS: mockSettings as unknown as KVNamespace,
-        CONFORMANCE_MODE: 'true',
+        ENABLE_CONFORMANCE_MODE: 'true',
       });
 
       expect(source).toBe('env');
@@ -303,12 +303,12 @@ describe('Conformance Mode Configuration', () => {
       expect(source).toBe('default');
     });
 
-    it('should return "env" even when CONFORMANCE_MODE is "false"', async () => {
+    it('should return "env" even when ENABLE_CONFORMANCE_MODE is "false"', async () => {
       const mockSettings = createMockSettings(null);
 
       const source = await getConformanceConfigSource({
         SETTINGS: mockSettings as unknown as KVNamespace,
-        CONFORMANCE_MODE: 'false',
+        ENABLE_CONFORMANCE_MODE: 'false',
       });
 
       // env var is defined, even if value is "false"
@@ -322,7 +322,7 @@ describe('Conformance Mode Configuration', () => {
 
       const source = await getConformanceConfigSource({
         SETTINGS: mockSettings as unknown as KVNamespace,
-        CONFORMANCE_MODE: 'true',
+        ENABLE_CONFORMANCE_MODE: 'true',
       });
 
       expect(source).toBe('env');

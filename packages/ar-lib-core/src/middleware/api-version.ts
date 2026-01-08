@@ -97,7 +97,7 @@ export function apiVersionMiddleware(): MiddlewareHandler<{ Bindings: Env }> {
     };
 
     // Check if API versioning is enabled
-    const enabled = c.env.API_VERSIONING_ENABLED !== 'false';
+    const enabled = c.env.ENABLE_API_VERSIONING !== 'false';
     if (!enabled) {
       // Versioning disabled - skip
       const ctx: ApiVersionContext = {

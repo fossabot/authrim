@@ -63,8 +63,8 @@ function extractBearerToken(authHeader: string | null | undefined): string | nul
  * Middleware to validate Initial Access Token for Dynamic Client Registration
  *
  * Behavior:
- * - If OPEN_REGISTRATION=true: Allow requests without token
- * - If OPEN_REGISTRATION=false or unset: Require valid Initial Access Token
+ * - If ENABLE_OPEN_REGISTRATION=true: Allow requests without token
+ * - If ENABLE_OPEN_REGISTRATION=false or unset: Require valid Initial Access Token
  *
  * Token validation:
  * - Token must be present in Authorization: Bearer <token> header
@@ -79,7 +79,7 @@ export function initialAccessTokenMiddleware(): MiddlewareHandler<{
     const env = c.env;
 
     // Check if open registration is enabled
-    const openRegistration = env.OPEN_REGISTRATION?.toLowerCase() === 'true';
+    const openRegistration = env.ENABLE_OPEN_REGISTRATION?.toLowerCase() === 'true';
 
     if (openRegistration) {
       // Open registration enabled - no token required

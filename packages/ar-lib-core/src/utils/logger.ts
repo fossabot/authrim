@@ -341,7 +341,7 @@ export function structuredLog(
  * Environment variables:
  * - LOG_LEVEL: "debug" | "info" | "warn" | "error" (default: "info")
  * - LOG_FORMAT: "json" | "pretty" (default: "json")
- * - LOG_HASH_USER_ID: "true" to hash user IDs (default: false)
+ * - ENABLE_LOG_HASH_USER_ID: "true" to hash user IDs (default: false)
  *
  * @param env - Environment object with optional LOG_* variables
  *
@@ -352,7 +352,7 @@ export function structuredLog(
 export function initLoggerFromEnv(env: {
   LOG_LEVEL?: string;
   LOG_FORMAT?: string;
-  LOG_HASH_USER_ID?: string;
+  ENABLE_LOG_HASH_USER_ID?: string;
 }): void {
   const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
   const validFormats: LogFormat[] = ['json', 'pretty'];
@@ -365,7 +365,7 @@ export function initLoggerFromEnv(env: {
     ? (env.LOG_FORMAT as LogFormat)
     : DEFAULT_LOGGER_CONFIG.format;
 
-  const hashUserId = env.LOG_HASH_USER_ID === 'true';
+  const hashUserId = env.ENABLE_LOG_HASH_USER_ID === 'true';
 
   setLoggerConfig({ level, format, hashUserId });
 }

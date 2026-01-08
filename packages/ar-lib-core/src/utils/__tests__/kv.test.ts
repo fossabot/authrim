@@ -79,8 +79,8 @@ describe('KV Utilities', () => {
         }),
       } as unknown as D1Database,
       ISSUER_URL: 'http://localhost:8787',
-      TOKEN_EXPIRY: '3600',
-      CODE_EXPIRY: '120',
+      ACCESS_TOKEN_EXPIRY: '3600',
+      AUTH_CODE_EXPIRY: '120',
       STATE_EXPIRY: '300',
       NONCE_EXPIRY: '300',
     };

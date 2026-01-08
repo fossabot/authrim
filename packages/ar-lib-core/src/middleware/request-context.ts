@@ -8,7 +8,7 @@
  *
  * Multi-tenant mode is enabled when:
  * - BASE_DOMAIN is set
- * - TENANT_ISOLATION_ENABLED = 'true'
+ * - ENABLE_TENANT_ISOLATION = 'true'
  *
  * Should be added early in the middleware chain so all subsequent
  * handlers have access to the context.

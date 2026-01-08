@@ -23,7 +23,6 @@ import {
   deleteEnvironment,
   getWorkersSubdomain,
   type CloudflareAuth,
-  type EnvironmentInfo,
 } from '../core/cloudflare.js';
 import {
   AuthrimConfigSchema,
@@ -42,11 +41,7 @@ import {
   deployPages,
   type DeployResult,
 } from '../core/deploy.js';
-import {
-  CORE_WORKER_COMPONENTS,
-  getEnabledComponents,
-  type WorkerComponent,
-} from '../core/naming.js';
+import { getEnabledComponents, type WorkerComponent } from '../core/naming.js';
 import { completeInitialSetup } from '../core/admin.js';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
