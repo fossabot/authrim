@@ -384,6 +384,77 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       word-break: break-word;
     }
 
+    /* Progress UI Components */
+    .progress-container {
+      margin: 1rem 0;
+    }
+
+    .progress-status {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .progress-status .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #e2e8f0;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .progress-bar-wrapper {
+      background: #e2e8f0;
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 0.5rem;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .log-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 1rem;
+    }
+
+    .log-toggle:hover {
+      background: #e2e8f0;
+    }
+
+    .log-toggle .arrow {
+      transition: transform 0.2s;
+    }
+
+    .log-toggle.open .arrow {
+      transform: rotate(90deg);
+    }
+
     .step-indicator {
       display: flex;
       justify-content: center;
@@ -1417,6 +1488,23 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         </div>
       </div>
 
+      <!-- Progress UI (shown during provisioning) -->
+      <div id="provision-progress-ui" class="progress-container hidden">
+        <div class="progress-status">
+          <div class="spinner" id="provision-spinner"></div>
+          <span id="provision-current-task">Initializing...</span>
+        </div>
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar" id="provision-progress-bar" style="width: 0%"></div>
+        </div>
+        <div class="progress-text" id="provision-progress-text">0 / 0 resources</div>
+
+        <div class="log-toggle" id="provision-log-toggle">
+          <span class="arrow">▶</span>
+          <span>Show detailed log</span>
+        </div>
+      </div>
+
       <div class="progress-log hidden" id="provision-log">
         <pre id="provision-output"></pre>
       </div>
@@ -1445,7 +1533,24 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <span class="status-badge status-pending" id="deploy-status">Ready</span>
       </h2>
 
-      <p style="margin-bottom: 1rem;">Ready to deploy Authrim workers to Cloudflare.</p>
+      <p id="deploy-ready-text" style="margin-bottom: 1rem;">Ready to deploy Authrim workers to Cloudflare.</p>
+
+      <!-- Progress UI (shown during deployment) -->
+      <div id="deploy-progress-ui" class="progress-container hidden">
+        <div class="progress-status">
+          <div class="spinner" id="deploy-spinner"></div>
+          <span id="deploy-current-task">Initializing...</span>
+        </div>
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar" id="deploy-progress-bar" style="width: 0%"></div>
+        </div>
+        <div class="progress-text" id="deploy-progress-text">0 / 0 components</div>
+
+        <div class="log-toggle" id="deploy-log-toggle">
+          <span class="arrow">▶</span>
+          <span>Show detailed log</span>
+        </div>
+      </div>
 
       <div class="progress-log hidden" id="deploy-log">
         <pre id="deploy-output"></pre>
@@ -1521,6 +1626,31 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <code id="detail-env-name" style="background: var(--bg); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 1rem;"></code>
       </h2>
 
+      <!-- Admin Setup Section -->
+      <div id="admin-setup-section" class="hidden" style="margin-bottom: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px; border: 1px solid #fcd34d;">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+          <span style="font-size: 1.5rem;">⚠️</span>
+          <div>
+            <div style="font-weight: 600; color: #92400e;">Admin Account Not Configured</div>
+            <div style="font-size: 0.875rem; color: #a16207;">Initial administrator has not been set up for this environment.</div>
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-start-admin-setup" style="margin-top: 0.5rem;">
+          🔐 Start Admin Account Setup with Passkey
+        </button>
+        <div id="admin-setup-result" class="hidden" style="margin-top: 1rem; padding: 0.75rem; background: white; border-radius: 6px;">
+          <div style="font-weight: 500; margin-bottom: 0.5rem;">Setup URL Generated:</div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="text" id="admin-setup-url" readonly style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-family: monospace; font-size: 0.875rem;">
+            <button class="btn-secondary" id="btn-copy-setup-url" style="white-space: nowrap;">📋 Copy</button>
+            <a id="btn-open-setup-url" href="#" target="_blank" class="btn-primary" style="text-decoration: none; white-space: nowrap;">🔗 Open</a>
+          </div>
+          <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem;">
+            This URL is valid for 1 hour. Open it in a browser to register the first admin account.
+          </div>
+        </div>
+      </div>
+
       <div id="detail-resources">
         <!-- Workers -->
         <div class="resource-section">
@@ -1571,31 +1701,6 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         </div>
       </div>
 
-      <!-- Admin Setup Section -->
-      <div id="admin-setup-section" class="resource-section hidden" style="margin-top: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px; border: 1px solid #fcd34d;">
-        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-          <span style="font-size: 1.5rem;">⚠️</span>
-          <div>
-            <div style="font-weight: 600; color: #92400e;">Admin Account Not Configured</div>
-            <div style="font-size: 0.875rem; color: #a16207;">Initial administrator has not been set up for this environment.</div>
-          </div>
-        </div>
-        <button class="btn-primary" id="btn-start-admin-setup" style="margin-top: 0.5rem;">
-          🔐 Start Admin Account Setup with Passkey
-        </button>
-        <div id="admin-setup-result" class="hidden" style="margin-top: 1rem; padding: 0.75rem; background: white; border-radius: 6px;">
-          <div style="font-weight: 500; margin-bottom: 0.5rem;">Setup URL Generated:</div>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <input type="text" id="admin-setup-url" readonly style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-family: monospace; font-size: 0.875rem;">
-            <button class="btn-secondary" id="btn-copy-setup-url" style="white-space: nowrap;">📋 Copy</button>
-            <a id="btn-open-setup-url" href="#" target="_blank" class="btn-primary" style="text-decoration: none; white-space: nowrap;">🔗 Open</a>
-          </div>
-          <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem;">
-            This URL is valid for 1 hour. Open it in a browser to register the first admin account.
-          </div>
-        </div>
-      </div>
-
       <div class="button-group">
         <button class="btn-secondary" id="btn-back-env-detail">← Back to List</button>
         <button class="btn-danger" id="btn-delete-from-detail">🗑️ Delete Environment...</button>
@@ -1617,6 +1722,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           Environment: <code id="delete-env-name" style="background: var(--bg); padding: 0.25rem 0.5rem; border-radius: 4px;"></code>
         </h3>
 
+        <div id="delete-options-section">
         <p style="margin-bottom: 1rem; color: var(--text-muted);">Select resources to delete:</p>
 
         <div class="delete-options">
@@ -1667,6 +1773,24 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
               <small id="delete-pages-count">(0 projects)</small>
             </span>
           </label>
+        </div>
+        </div>
+      </div>
+
+      <!-- Progress UI (shown during deletion) -->
+      <div id="delete-progress-ui" class="progress-container hidden">
+        <div class="progress-status">
+          <div class="spinner" id="delete-spinner"></div>
+          <span id="delete-current-task">Initializing...</span>
+        </div>
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar" id="delete-progress-bar" style="width: 0%"></div>
+        </div>
+        <div class="progress-text" id="delete-progress-text">0 / 0 resources</div>
+
+        <div class="log-toggle" id="delete-log-toggle">
+          <span class="arrow">▶</span>
+          <span>Show detailed log</span>
         </div>
       </div>
 
@@ -1772,6 +1896,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     function showSection(name) {
       Object.values(sections).forEach(s => s.classList.add('hidden'));
       sections[name].classList.remove('hidden');
+      window.scrollTo(0, 0);
     }
 
     // Auto-scroll helper for progress logs
@@ -1779,6 +1904,106 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       if (element) {
         element.scrollTop = element.scrollHeight;
       }
+    }
+
+    // Log toggle functionality
+    function setupLogToggle(toggleId, logId) {
+      const toggle = document.getElementById(toggleId);
+      const log = document.getElementById(logId);
+      if (toggle && log) {
+        toggle.addEventListener('click', () => {
+          const isHidden = log.classList.contains('hidden');
+          if (isHidden) {
+            log.classList.remove('hidden');
+            toggle.classList.add('open');
+            toggle.querySelector('span:last-child').textContent = 'Hide detailed log';
+          } else {
+            log.classList.add('hidden');
+            toggle.classList.remove('open');
+            toggle.querySelector('span:last-child').textContent = 'Show detailed log';
+          }
+        });
+      }
+    }
+
+    // Setup all log toggles
+    setupLogToggle('deploy-log-toggle', 'deploy-log');
+    setupLogToggle('provision-log-toggle', 'provision-log');
+    setupLogToggle('delete-log-toggle', 'delete-log');
+
+    // Progress UI update helper
+    function updateProgressUI(prefix, current, total, currentTask) {
+      const progressBar = document.getElementById(prefix + '-progress-bar');
+      const progressText = document.getElementById(prefix + '-progress-text');
+      const currentTaskEl = document.getElementById(prefix + '-current-task');
+
+      if (progressBar && total > 0) {
+        const percent = Math.round((current / total) * 100);
+        progressBar.style.width = percent + '%';
+      }
+      if (progressText) {
+        progressText.textContent = current + ' / ' + total + ' ' + (prefix === 'deploy' ? 'components' : 'resources');
+      }
+      if (currentTaskEl && currentTask) {
+        currentTaskEl.textContent = currentTask;
+      }
+    }
+
+    // Parse progress message to extract current task
+    function parseProgressMessage(message) {
+      // Match patterns like "Deploying xxx...", "Creating xxx...", "Deleting xxx..."
+      if (message.includes('Deploying ')) {
+        const parts = message.split('Deploying ')[1];
+        if (parts) {
+          const name = parts.split('.')[0].split(' ')[0];
+          if (name) return 'Deploying ' + name + '...';
+        }
+      }
+
+      if (message.includes('Creating ')) {
+        const parts = message.split('Creating ')[1];
+        if (parts) {
+          const name = parts.split(' ')[0].split('.')[0];
+          if (name) return 'Creating ' + name + '...';
+        }
+      }
+
+      if (message.includes('Deleting')) {
+        const parts = message.split('Deleting')[1];
+        if (parts) {
+          const name = parts.trim().split(' ')[0].replace(':', '');
+          if (name) return 'Deleting ' + name + '...';
+        }
+      }
+
+      if (message.includes('✓')) {
+        const parts = message.split('✓')[1];
+        if (parts) {
+          const text = parts.trim().substring(0, 40);
+          return '✓ ' + text;
+        }
+      }
+
+      if (message.includes('Level ')) {
+        const parts = message.split('Level ')[1];
+        if (parts) {
+          const num = parts.trim().split(' ')[0];
+          if (num) return 'Deployment Level ' + num;
+        }
+      }
+
+      if (message.includes('Generating')) {
+        const parts = message.split('Generating')[1];
+        if (parts) {
+          const text = parts.trim().substring(0, 30);
+          return 'Generating ' + text + '...';
+        }
+      }
+
+      if (message.includes('Uploading')) return 'Uploading secrets...';
+      if (message.toLowerCase().includes('building')) return 'Building packages...';
+
+      return null;
     }
 
     // Safe DOM element creation helpers
@@ -2580,15 +2805,22 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       const resourcePreview = document.getElementById('resource-preview');
       const keysSavedInfo = document.getElementById('keys-saved-info');
       const keysPath = document.getElementById('keys-path');
+      const progressUI = document.getElementById('provision-progress-ui');
 
       btn.disabled = true;
+      btn.classList.add('hidden');
       btnGotoDeploy.classList.add('hidden');
       status.textContent = 'Running...';
       status.className = 'status-badge status-running';
-      log.classList.remove('hidden');
+      progressUI.classList.remove('hidden');
+      log.classList.add('hidden'); // Log is hidden by default, toggled via button
       resourcePreview.classList.add('hidden');
       keysSavedInfo.classList.add('hidden');
       output.textContent = '';
+
+      let provisionCompleted = 0;
+      const totalResources = 8; // D1 Core, D1 PII, KV Settings, KV Cache, KV Tokens, R2 (optional), Queues (optional), Keys
+      updateProgressUI('provision', 0, totalResources, 'Initializing...');
 
       // Start polling for progress
       let lastProgressLength = 0;
@@ -2600,6 +2832,16 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
             const newMessages = statusResult.progress.slice(lastProgressLength);
             newMessages.forEach(msg => {
               output.textContent += msg + '\\n';
+              // Update progress UI based on message content
+              const taskInfo = parseProgressMessage(msg);
+              if (taskInfo) {
+                updateProgressUI('provision', provisionCompleted, totalResources, taskInfo);
+              }
+              // Count completed items (lines with checkmark)
+              if (msg.includes('✓') || msg.includes('✅')) {
+                provisionCompleted++;
+                updateProgressUI('provision', provisionCompleted, totalResources, taskInfo || ('Completed ' + provisionCompleted + ' items'));
+              }
             });
             lastProgressLength = statusResult.progress.length;
             scrollToBottom(log);
@@ -2651,6 +2893,8 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         }
 
         if (result.success) {
+          // Final progress update
+          updateProgressUI('provision', totalResources, totalResources, '✅ Provisioning complete!');
           output.textContent += '\\n✅ Provisioning complete!\\n';
           scrollToBottom(log);
           status.textContent = 'Complete';
@@ -2664,6 +2908,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
           // Update buttons
           btn.textContent = 'Re-provision (Delete & Create)';
+          btn.classList.remove('hidden');
           btn.disabled = false;
           btnGotoDeploy.classList.remove('hidden');
         } else {
@@ -2680,6 +2925,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         scrollToBottom(log);
         status.textContent = 'Error';
         status.className = 'status-badge status-error';
+        btn.classList.remove('hidden');
         btn.disabled = false;
         resourcePreview.classList.remove('hidden');
       }
@@ -2708,13 +2954,21 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       const status = document.getElementById('deploy-status');
       const log = document.getElementById('deploy-log');
       const output = document.getElementById('deploy-output');
+      const progressUI = document.getElementById('deploy-progress-ui');
+      const readyText = document.getElementById('deploy-ready-text');
 
       btn.disabled = true;
+      btn.classList.add('hidden');
       status.textContent = 'Deploying...';
       status.className = 'status-badge status-running';
-      log.classList.remove('hidden');
+      readyText.classList.add('hidden');
+      progressUI.classList.remove('hidden');
+      log.classList.add('hidden'); // Log is hidden by default, toggled via button
       output.textContent = 'Starting deployment...\\n\\n';
-      scrollToBottom(log);
+
+      let completedCount = 0;
+      const totalComponents = 10; // Approximate total components
+      updateProgressUI('deploy', 0, totalComponents, 'Initializing...');
 
       try {
         // Generate wrangler configs first
@@ -2732,10 +2986,25 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         scrollToBottom(log);
 
         // Poll for status updates
+        let lastProgressLength = 0;
         const pollInterval = setInterval(async () => {
           const statusResult = await api('/deploy/status');
-          if (statusResult.progress && statusResult.progress.length > 0) {
-            output.textContent = statusResult.progress.join('\\n') + '\\n';
+          if (statusResult.progress && statusResult.progress.length > lastProgressLength) {
+            const newMessages = statusResult.progress.slice(lastProgressLength);
+            newMessages.forEach(msg => {
+              output.textContent += msg + '\\n';
+              // Update progress UI based on message content
+              const taskInfo = parseProgressMessage(msg);
+              if (taskInfo) {
+                updateProgressUI('deploy', completedCount, totalComponents, taskInfo);
+              }
+              // Count completed items (lines with checkmark)
+              if (msg.includes('✓') || msg.includes('✅')) {
+                completedCount++;
+                updateProgressUI('deploy', completedCount, totalComponents, taskInfo || ('Completed ' + completedCount + ' items'));
+              }
+            });
+            lastProgressLength = statusResult.progress.length;
             scrollToBottom(log);
           }
         }, 1000);
@@ -2751,6 +3020,8 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         clearInterval(pollInterval);
 
         if (result.success) {
+          // Final progress update
+          updateProgressUI('deploy', totalComponents, totalComponents, '✓ Deployment complete!');
           output.textContent += '\\n✓ Deployment complete!\\n';
           scrollToBottom(log);
 
@@ -3512,9 +3783,11 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       document.getElementById('delete-pages').checked = true;
 
       // Reset UI state
+      document.getElementById('delete-options-section').classList.remove('hidden');
       document.getElementById('delete-log').classList.add('hidden');
       document.getElementById('delete-result').classList.add('hidden');
-      document.getElementById('delete-result').innerHTML = '';
+      document.getElementById('delete-result').textContent = '';
+      document.getElementById('btn-confirm-delete').classList.remove('hidden');
       document.getElementById('btn-confirm-delete').disabled = false;
 
       showSection('envDelete');
@@ -3638,9 +3911,13 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       const log = document.getElementById('delete-log');
       const output = document.getElementById('delete-output');
       const result = document.getElementById('delete-result');
+      const progressUI = document.getElementById('delete-progress-ui');
 
       btn.disabled = true;
-      log.classList.remove('hidden');
+      btn.classList.add('hidden');
+      document.getElementById('delete-options-section').classList.add('hidden');
+      progressUI.classList.remove('hidden');
+      log.classList.add('hidden'); // Log is hidden by default, toggled via button
       result.classList.add('hidden');
       output.textContent = '';
 
@@ -3653,6 +3930,11 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         deletePages: document.getElementById('delete-pages').checked,
       };
 
+      // Count selected options for progress tracking
+      let deleteCompleted = 0;
+      const totalToDelete = Object.values(deleteOptions).filter(v => v).length;
+      updateProgressUI('delete', 0, totalToDelete, 'Starting deletion...');
+
       // Poll for progress
       let lastProgressLength = 0;
       const pollInterval = setInterval(async () => {
@@ -3662,9 +3944,19 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
             const newMessages = statusResult.progress.slice(lastProgressLength);
             newMessages.forEach(msg => {
               output.textContent += msg + '\\n';
+              // Update progress UI based on message content
+              const taskInfo = parseProgressMessage(msg);
+              if (taskInfo) {
+                updateProgressUI('delete', deleteCompleted, totalToDelete, taskInfo);
+              }
+              // Count completed items (lines with checkmark)
+              if (msg.includes('✓') || msg.includes('✅') || msg.includes('Deleted')) {
+                deleteCompleted++;
+                updateProgressUI('delete', deleteCompleted, totalToDelete, taskInfo || ('Deleted ' + deleteCompleted + ' items'));
+              }
             });
             lastProgressLength = statusResult.progress.length;
-            log.scrollTop = log.scrollHeight;
+            scrollToBottom(log);
           }
         } catch (e) {}
       }, 500);
@@ -3685,6 +3977,8 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         result.classList.remove('hidden');
 
         if (deleteResult.success) {
+          // Final progress update
+          updateProgressUI('delete', totalToDelete, totalToDelete, '✅ Deletion complete!');
           result.textContent = '';
           result.appendChild(createAlert('success', '✅ Environment deleted successfully!'));
 
@@ -3696,6 +3990,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         } else {
           result.textContent = '';
           result.appendChild(createAlert('error', '❌ Some errors occurred: ' + (deleteResult.errors || []).join(', ')));
+          btn.classList.remove('hidden');
           btn.disabled = false;
         }
       } catch (error) {
@@ -3703,6 +3998,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         result.classList.remove('hidden');
         result.textContent = '';
         result.appendChild(createAlert('error', '❌ Error: ' + error.message));
+        btn.classList.remove('hidden');
         btn.disabled = false;
       }
     });
