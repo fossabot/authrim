@@ -111,11 +111,13 @@ export async function assignSystemAdminRole(env: Env, userId: string): Promise<v
 
   // Generate a new UUID for the role assignment
   const assignmentId = crypto.randomUUID();
+  const now = Math.floor(Date.now() / 1000);
 
   // Create the role assignment (no expiration for system_admin)
+  // scope_type='global' means system-wide access
   await coreAdapter.execute(
-    `INSERT INTO role_assignments (id, subject_id, role_id, scope, created_at)
-     VALUES (?, ?, ?, NULL, ?)`,
-    [assignmentId, userId, role.id, Math.floor(Date.now() / 1000)]
+    `INSERT INTO role_assignments (id, tenant_id, subject_id, role_id, scope_type, scope_target, created_at, updated_at)
+     VALUES (?, 'default', ?, ?, 'global', '', ?, ?)`,
+    [assignmentId, userId, role.id, now, now]
   );
 }

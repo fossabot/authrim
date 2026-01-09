@@ -59,10 +59,12 @@ function validateEnv(env: string): void {
 }
 
 /**
- * Validate setup token format (64 hex characters = 256 bits)
+ * Validate setup token format (base64url encoded, 32 bytes = 43 characters)
  */
 function validateSetupToken(token: string): void {
-  if (!/^[a-f0-9]{64}$/i.test(token)) {
+  // Base64url: A-Z, a-z, 0-9, -, _ (no padding)
+  // 32 bytes = 43 characters in base64url
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
     throw new Error('Invalid setup token format');
   }
 }

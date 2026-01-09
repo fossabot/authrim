@@ -406,8 +406,8 @@ setupApp.post('/api/admin-init-setup/initialize', async (c) => {
           403
         );
       }
-      // Delete CSRF token after use (one-time use)
-      await c.env.AUTHRIM_CONFIG.delete(`csrf:${csrf_token}`);
+      // Note: CSRF token is deleted in /complete endpoint after successful Passkey registration
+      // This allows retry if Passkey registration fails
     }
 
     // Validate email format with stricter rules
@@ -551,6 +551,7 @@ setupApp.post('/api/admin-init-setup/initialize', async (c) => {
           rpID,
           origin: originHeader,
           userId,
+          csrfToken: csrf_token, // Store for cleanup in /complete
         }),
         { expirationTtl: 300 } // 5 minutes
       );
@@ -660,11 +661,12 @@ setupApp.post('/api/admin-init-setup/complete', async (c) => {
       );
     }
 
-    const { challenge, rpID, origin } = JSON.parse(challengeData) as {
+    const { challenge, rpID, origin, csrfToken } = JSON.parse(challengeData) as {
       challenge: string;
       rpID: string;
       origin: string;
       userId: string;
+      csrfToken?: string;
     };
 
     // Verify Passkey registration
@@ -767,6 +769,13 @@ setupApp.post('/api/admin-init-setup/complete', async (c) => {
     // Clean up temporary data
     await deleteSetupSession(c.env, tempSessionToken);
     await c.env.AUTHRIM_CONFIG.delete(`setup:challenge:${tempSessionToken}`);
+    // Delete CSRF token after successful completion
+    if (csrfToken) {
+      await c.env.AUTHRIM_CONFIG.delete(`csrf:${csrfToken}`);
+    }
+
+    // Get Admin UI URL from environment if available
+    const adminUiUrl = (c.env as unknown as Record<string, string>).ADMIN_UI_URL || null;
 
     return c.json({
       success: true,
@@ -776,8 +785,8 @@ setupApp.post('/api/admin-init-setup/complete', async (c) => {
         name: name || null,
         role: 'system_admin',
       },
-      message: 'Initial administrator created successfully. You can now log in.',
-      redirect_url: '/login',
+      message: 'Initial administrator created successfully.',
+      admin_ui_url: adminUiUrl,
     });
   } catch (error) {
     // Sanitized error logging - don't log full error object
@@ -1112,12 +1121,88 @@ function setupFormHtml(token: string, csrfToken: string): string {
           throw new Error(completeData.error_description || 'Setup completion failed');
         }
 
-        // Success!
-        showStatus('success', 'Administrator account created! Redirecting to login...');
+        // Success! Show completion page
+        document.body.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        const container = document.querySelector('.container');
+        // Clear existing content
+        while (container.firstChild) container.removeChild(container.firstChild);
 
-        setTimeout(() => {
-          window.location.href = completeData.redirect_url || '/login';
-        }, 2000);
+        // Build completion page using DOM methods for security
+        const logo = document.createElement('div');
+        logo.className = 'logo';
+        logo.innerHTML = '<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="45" fill="url(#grad2)"/><path d="M30 50 L45 65 L70 35" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><defs><linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#10b981"/><stop offset="100%" style="stop-color:#059669"/></linearGradient></defs></svg>';
+        container.appendChild(logo);
+
+        const h1 = document.createElement('h1');
+        h1.style.color = '#059669';
+        h1.textContent = 'Setup Complete!';
+        container.appendChild(h1);
+
+        const subtitle = document.createElement('p');
+        subtitle.className = 'subtitle';
+        subtitle.textContent = 'Your administrator account has been created successfully.';
+        container.appendChild(subtitle);
+
+        // Info card
+        const infoCard = document.createElement('div');
+        infoCard.className = 'info-card';
+        const items = [
+          ['Email', completeData.user.email],
+          ['Role', 'System Administrator'],
+          ['Authentication', 'Passkey (WebAuthn)']
+        ];
+        items.forEach(([label, value]) => {
+          const item = document.createElement('div');
+          item.className = 'info-item';
+          const labelSpan = document.createElement('span');
+          labelSpan.className = 'info-label';
+          labelSpan.textContent = label;
+          const valueSpan = document.createElement('span');
+          valueSpan.className = 'info-value';
+          valueSpan.textContent = value;
+          item.appendChild(labelSpan);
+          item.appendChild(valueSpan);
+          infoCard.appendChild(item);
+        });
+        container.appendChild(infoCard);
+
+        // Admin UI link if available
+        if (completeData.admin_ui_url) {
+          const adminLink = document.createElement('a');
+          adminLink.href = completeData.admin_ui_url;
+          adminLink.className = 'btn';
+          adminLink.style.marginBottom = '1rem';
+          adminLink.textContent = 'Open Admin Dashboard';
+          container.appendChild(adminLink);
+        }
+
+        // Next steps
+        const nextSteps = document.createElement('div');
+        nextSteps.className = 'next-steps';
+        const h3 = document.createElement('h3');
+        h3.textContent = "What's Next?";
+        nextSteps.appendChild(h3);
+        const ul = document.createElement('ul');
+        ['Your Passkey is now registered and ready to use',
+         'You can create OAuth clients to enable application authentication',
+         'Configure identity providers for social login'
+        ].forEach(text => {
+          const li = document.createElement('li');
+          li.textContent = text;
+          ul.appendChild(li);
+        });
+        nextSteps.appendChild(ul);
+        container.appendChild(nextSteps);
+
+        const footer = document.createElement('div');
+        footer.className = 'footer';
+        footer.textContent = 'Powered by Authrim';
+        container.appendChild(footer);
+
+        // Add completion styles
+        const style = document.createElement('style');
+        style.textContent = '.info-card{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:1.5rem;margin:1.5rem 0}.info-item{display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid #dcfce7}.info-item:last-child{border-bottom:none}.info-label{color:#166534;font-weight:500}.info-value{color:#15803d}.next-steps{background:#f8fafc;border-radius:12px;padding:1.5rem;margin-top:1.5rem;text-align:left}.next-steps h3{color:#334155;margin:0 0 1rem 0;font-size:1rem}.next-steps ul{margin:0;padding-left:1.5rem;color:#64748b}.next-steps li{margin-bottom:0.5rem}';
+        document.head.appendChild(style);
 
       } catch (error) {
         console.error('Setup error:', error);

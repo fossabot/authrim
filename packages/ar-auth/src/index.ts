@@ -74,8 +74,8 @@ app.use('*', pluginContextMiddleware());
 app.use('*', async (c, next) => {
   // Skip secure headers for /session/check - it returns custom headers for iframe embedding
   // Skip secure headers for /logout - frontchannel logout embeds iframes to notify RPs
-  // Skip secure headers for /setup - needs unpkg.com CDN for WebAuthn library
-  if (c.req.path === '/session/check' || c.req.path === '/logout' || c.req.path === '/setup') {
+  // Skip secure headers for /admin-init-setup - needs unpkg.com CDN for WebAuthn library
+  if (c.req.path === '/session/check' || c.req.path === '/logout' || c.req.path.startsWith('/admin-init-setup')) {
     return next();
   }
 

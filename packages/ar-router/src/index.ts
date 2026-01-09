@@ -41,12 +41,14 @@ app.use('*', async (c, next) => {
   // Skip secure headers for /authorize and /flow endpoints (handled by op-auth worker with nonce-based CSP)
   // Skip for /session/check endpoint (OIDC Session Management iframe needs custom headers)
   // Skip for /logout endpoint (OIDC Front-Channel Logout needs to embed iframes)
+  // Skip for /admin-init-setup (needs unpkg.com CDN for WebAuthn library)
   if (
     c.req.path === '/authorize' ||
     c.req.path.startsWith('/authorize/') ||
     c.req.path.startsWith('/flow/') ||
     c.req.path === '/session/check' ||
-    c.req.path === '/logout'
+    c.req.path === '/logout' ||
+    c.req.path.startsWith('/admin-init-setup')
   ) {
     return next();
   }

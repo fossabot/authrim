@@ -148,26 +148,32 @@ const COMPONENT_ENTRY_POINTS: Record<WorkerComponent, string> = {
 // =============================================================================
 
 /**
- * Derive CORS allowed origins from UI domain configuration
+ * Derive CORS allowed origins from config URLs
  *
- * Returns origins that differ from the API origin (LoginUI and AdminUI domains).
- * Same-origin requests don't need CORS, so they are excluded.
+ * Includes:
+ * - API origin (router) - needed for admin-init-setup WebAuthn operations
+ * - LoginUI origin - for cross-origin requests from login UI
+ * - AdminUI origin - for cross-origin requests from admin UI
  */
 function deriveAllowedOrigins(config: AuthrimConfig): string[] {
   const origins = new Set<string>();
 
-  // Get API origin (the issuer URL)
+  // API origin (the issuer URL / router)
+  // This is needed for admin-init-setup page which runs on the router domain
   const apiUrl = config.urls?.api?.custom || config.urls?.api?.auto;
-  const apiOrigin = apiUrl ? new URL(apiUrl).origin : null;
+  if (apiUrl) {
+    try {
+      origins.add(new URL(apiUrl).origin);
+    } catch {
+      // Invalid URL, skip
+    }
+  }
 
   // LoginUI origin
   const loginUiUrl = config.urls?.loginUi?.custom || config.urls?.loginUi?.auto;
   if (loginUiUrl) {
     try {
-      const loginOrigin = new URL(loginUiUrl).origin;
-      if (apiOrigin && loginOrigin !== apiOrigin) {
-        origins.add(loginOrigin);
-      }
+      origins.add(new URL(loginUiUrl).origin);
     } catch {
       // Invalid URL, skip
     }
@@ -177,10 +183,7 @@ function deriveAllowedOrigins(config: AuthrimConfig): string[] {
   const adminUiUrl = config.urls?.adminUi?.custom || config.urls?.adminUi?.auto;
   if (adminUiUrl) {
     try {
-      const adminOrigin = new URL(adminUiUrl).origin;
-      if (apiOrigin && adminOrigin !== apiOrigin) {
-        origins.add(adminOrigin);
-      }
+      origins.add(new URL(adminUiUrl).origin);
     } catch {
       // Invalid URL, skip
     }

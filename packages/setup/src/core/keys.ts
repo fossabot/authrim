@@ -167,7 +167,7 @@ export function generateAllSecrets(keyId?: string): GeneratedSecrets {
     rpTokenEncryptionKey: generateHexSecret(32), // 256-bit key
     adminApiSecret: generateBase64Secret(32), // 256-bit secret
     keyManagerSecret: generateBase64Secret(32), // 256-bit secret
-    setupToken: generateHexSecret(32), // 256-bit token for initial setup
+    setupToken: generateBase64Secret(32), // 256-bit URL-safe token for initial setup
   };
 }
 
