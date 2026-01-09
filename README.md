@@ -8,9 +8,19 @@ An open-source, serverless **Identity Hub** that combines authentication, author
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange?logo=cloudflare)](https://workers.cloudflare.com/)
 
+<table>
+<tr>
+<td>
 <a href="https://openid.net/certification/">
   <img src="./docs/images/openid-certified.jpg" alt="OpenID Certified" height="100">
 </a>
+</td>
+<td>
+✓ <a href="https://openid.net/certification/certified-openid-providers-profiles/">OpenID Provider</a> (7 profiles)<br>
+✓ <a href="https://openid.net/certification/certified-openid-providers-for-logout-profiles/">Logout Profiles</a> (4 profiles)
+</td>
+</tr>
+</table>
 
 ## ⚠️ Pre-1.0 Software
 
