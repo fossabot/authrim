@@ -97,35 +97,33 @@ VALUES ('global', 0, 'development');
 -- Documentation: docs/architecture/database-schema.md
 
 -- =============================================================================
--- 1. Users Table
+-- 1. Users Core Table (Non-PII data in Core DB)
 -- =============================================================================
-CREATE TABLE users (
+-- PII Separation Architecture:
+-- - users_core: Authentication data, status (Core DB)
+-- - users_pii: Personal information (PII DB)
+-- =============================================================================
+CREATE TABLE users_core (
   id TEXT PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  -- Verification status (no PII here)
   email_verified INTEGER DEFAULT 0,
-  name TEXT,
-  given_name TEXT,
-  family_name TEXT,
-  middle_name TEXT,
-  nickname TEXT,
-  preferred_username TEXT,
-  profile TEXT,
-  picture TEXT,
-  website TEXT,
-  gender TEXT,
-  birthdate TEXT,
-  zoneinfo TEXT,
-  locale TEXT,
-  phone_number TEXT,
   phone_number_verified INTEGER DEFAULT 0,
-  address_json TEXT,
-  custom_attributes_json TEXT,
-  parent_user_id TEXT REFERENCES users(id),
-  identity_provider_id TEXT REFERENCES identity_providers(id),
-  -- Password authentication fields (optional, disabled by default)
+  -- Blind index for email domain (for domain-based rules, no PII)
+  email_domain_hash TEXT,
+  -- Password authentication
   password_hash TEXT,
-  password_changed_at INTEGER,
-  failed_login_attempts INTEGER DEFAULT 0,
+  -- Account status
+  is_active INTEGER DEFAULT 1,
+  user_type TEXT DEFAULT 'end_user',  -- end_user | admin | m2m | anonymous
+  -- PII routing
+  pii_partition TEXT DEFAULT 'default',
+  pii_status TEXT DEFAULT 'none',  -- none | pending | active | failed | deleted
+  -- Suspend/Lock status (Admin SDK)
+  status TEXT DEFAULT 'active',  -- active | suspended | locked
+  suspended_at INTEGER,
+  suspended_until INTEGER,
+  locked_at INTEGER,
   locked_until INTEGER,
   -- Timestamps
   created_at INTEGER NOT NULL,
@@ -133,9 +131,11 @@ CREATE TABLE users (
   last_login_at INTEGER
 );
 
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_created_at ON users(created_at);
-CREATE INDEX idx_users_parent_user_id ON users(parent_user_id);
+CREATE INDEX idx_users_core_tenant ON users_core(tenant_id);
+CREATE INDEX idx_users_core_created_at ON users_core(created_at);
+CREATE INDEX idx_users_core_user_type ON users_core(user_type);
+CREATE INDEX idx_users_core_pii_status ON users_core(pii_status);
+CREATE INDEX idx_users_core_email_domain ON users_core(email_domain_hash);
 
 -- =============================================================================
 -- 2. User Custom Fields Table (searchable custom attributes)
@@ -147,7 +147,7 @@ CREATE TABLE user_custom_fields (
   field_type TEXT,
   searchable INTEGER DEFAULT 1,
   PRIMARY KEY (user_id, field_name),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_user_custom_fields_search ON user_custom_fields(field_name, field_value);
@@ -165,7 +165,7 @@ CREATE TABLE passkeys (
   device_name TEXT,
   created_at INTEGER NOT NULL,
   last_used_at INTEGER,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_passkeys_user_id ON passkeys(user_id);
@@ -181,7 +181,7 @@ CREATE TABLE password_reset_tokens (
   expires_at INTEGER NOT NULL,
   used INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
@@ -234,7 +234,7 @@ CREATE TABLE sessions (
   -- External provider mapping for backchannel logout (OIDC Back-Channel Logout 1.0)
   external_provider_id TEXT,
   external_provider_sub TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_sessions_user_id ON sessions(user_id);
@@ -263,7 +263,7 @@ CREATE TABLE user_roles (
   role_id TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   PRIMARY KEY (user_id, role_id),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE,
   FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
 );
 
@@ -413,130 +413,52 @@ INSERT INTO branding_settings (id, primary_color, secondary_color, font_family, 
 -- Default Scope Mappings (OIDC Standard Claims)
 -- =============================================================================
 
--- Profile scope mappings
+-- Profile scope mappings (PII data from users_pii)
 INSERT INTO scope_mappings (scope, claim_name, source_table, source_column, transformation, condition, created_at) VALUES
-  ('profile', 'name', 'users', 'name', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'given_name', 'users', 'given_name', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'family_name', 'users', 'family_name', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'middle_name', 'users', 'middle_name', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'nickname', 'users', 'nickname', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'preferred_username', 'users', 'preferred_username', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'profile', 'users', 'profile', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'picture', 'users', 'picture', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'website', 'users', 'website', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'gender', 'users', 'gender', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'birthdate', 'users', 'birthdate', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'zoneinfo', 'users', 'zoneinfo', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'locale', 'users', 'locale', NULL, NULL, strftime('%s', 'now')),
-  ('profile', 'updated_at', 'users', 'updated_at', NULL, NULL, strftime('%s', 'now'));
+  ('profile', 'name', 'users_pii', 'name', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'given_name', 'users_pii', 'given_name', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'family_name', 'users_pii', 'family_name', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'middle_name', 'users_pii', 'middle_name', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'nickname', 'users_pii', 'nickname', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'preferred_username', 'users_pii', 'preferred_username', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'profile', 'users_pii', 'profile', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'picture', 'users_pii', 'picture', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'website', 'users_pii', 'website', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'gender', 'users_pii', 'gender', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'birthdate', 'users_pii', 'birthdate', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'zoneinfo', 'users_pii', 'zoneinfo', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'locale', 'users_pii', 'locale', NULL, NULL, strftime('%s', 'now')),
+  ('profile', 'updated_at', 'users_core', 'updated_at', NULL, NULL, strftime('%s', 'now'));
 
--- Email scope mapping
+-- Email scope mapping (email from PII, verified status from Core)
 INSERT INTO scope_mappings (scope, claim_name, source_table, source_column, transformation, condition, created_at) VALUES
-  ('email', 'email', 'users', 'email', NULL, NULL, strftime('%s', 'now')),
-  ('email', 'email_verified', 'users', 'email_verified', NULL, NULL, strftime('%s', 'now'));
+  ('email', 'email', 'users_pii', 'email', NULL, NULL, strftime('%s', 'now')),
+  ('email', 'email_verified', 'users_core', 'email_verified', NULL, NULL, strftime('%s', 'now'));
 
--- Phone scope mapping
+-- Phone scope mapping (phone from PII, verified status from Core)
 INSERT INTO scope_mappings (scope, claim_name, source_table, source_column, transformation, condition, created_at) VALUES
-  ('phone', 'phone_number', 'users', 'phone_number', NULL, NULL, strftime('%s', 'now')),
-  ('phone', 'phone_number_verified', 'users', 'phone_number_verified', NULL, NULL, strftime('%s', 'now'));
+  ('phone', 'phone_number', 'users_pii', 'phone_number', NULL, NULL, strftime('%s', 'now')),
+  ('phone', 'phone_number_verified', 'users_core', 'phone_number_verified', NULL, NULL, strftime('%s', 'now'));
 
--- Address scope mapping
+-- Address scope mapping (from PII)
 INSERT INTO scope_mappings (scope, claim_name, source_table, source_column, transformation, condition, created_at) VALUES
-  ('address', 'address', 'users', 'address_json', NULL, NULL, strftime('%s', 'now'));
+  ('address', 'address', 'users_pii', 'address_formatted', NULL, NULL, strftime('%s', 'now'));
 
 -- =============================================================================
 -- Test Data (Development/Staging Only)
--- NOTE: Remove this section before deploying to production!
+-- NOTE: With PII separation, test users should be created via the setup wizard
+--       which handles both Core DB and PII DB insertions.
 -- =============================================================================
 
--- Test Admin User
-INSERT INTO users (
-  id,
-  email,
-  email_verified,
-  name,
-  given_name,
-  family_name,
-  picture,
-  created_at,
-  updated_at,
-  last_login_at
-) VALUES (
-  'user_test_admin',
-  'admin@test.authrim.org',
-  1,
-  'Test Admin',
-  'Test',
-  'Admin',
-  'https://ui-avatars.com/api/?name=Test+Admin&background=3B82F6&color=fff',
-  strftime('%s', 'now'),
-  strftime('%s', 'now'),
-  NULL
-);
-
--- Assign super_admin role to test admin
-INSERT INTO user_roles (user_id, role_id, created_at) VALUES (
-  'user_test_admin',
-  'role_super_admin',
-  strftime('%s', 'now')
-);
-
--- Test Regular User
-INSERT INTO users (
-  id,
-  email,
-  email_verified,
-  name,
-  given_name,
-  family_name,
-  picture,
-  created_at,
-  updated_at,
-  last_login_at
-) VALUES (
-  'user_test_user',
-  'user@test.authrim.org',
-  1,
-  'Test User',
-  'Test',
-  'User',
-  'https://ui-avatars.com/api/?name=Test+User&background=10B981&color=fff',
-  strftime('%s', 'now'),
-  strftime('%s', 'now'),
-  NULL
-);
-
--- Test Support User
-INSERT INTO users (
-  id,
-  email,
-  email_verified,
-  name,
-  given_name,
-  family_name,
-  picture,
-  created_at,
-  updated_at,
-  last_login_at
-) VALUES (
-  'user_test_support',
-  'support@test.authrim.org',
-  1,
-  'Test Support',
-  'Test',
-  'Support',
-  'https://ui-avatars.com/api/?name=Test+Support&background=F59E0B&color=fff',
-  strftime('%s', 'now'),
-  strftime('%s', 'now'),
-  NULL
-);
-
--- Assign support role
-INSERT INTO user_roles (user_id, role_id, created_at) VALUES (
-  'user_test_support',
-  'role_support',
-  strftime('%s', 'now')
-);
+-- NOTE: Test user data has been removed because it requires PII separation.
+-- Use the setup wizard (/admin-init-setup) to create the initial admin user.
+-- The wizard will properly insert:
+--   - users_core record (Core DB): id, tenant_id, email_verified, etc.
+--   - users_pii record (PII DB): id, tenant_id, email, name, etc.
+--
+-- Role assignments for test users are commented out:
+-- INSERT INTO user_roles (user_id, role_id, created_at) VALUES
+--   ('user_test_admin', 'role_super_admin', strftime('%s', 'now'));
 
 -- Test OAuth Client (for development)
 INSERT INTO oauth_clients (
@@ -604,54 +526,16 @@ INSERT INTO oauth_clients (
   strftime('%s', 'now')
 );
 
--- Sample Custom Field for Test User
-INSERT INTO user_custom_fields (user_id, field_name, field_value, field_type, searchable) VALUES (
-  'user_test_user',
-  'employee_id',
-  'EMP-12345',
-  'string',
-  1
-);
-
-INSERT INTO user_custom_fields (user_id, field_name, field_value, field_type, searchable) VALUES (
-  'user_test_user',
-  'department',
-  'Engineering',
-  'string',
-  1
-);
-
--- Sample Audit Log Entries
-INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, ip_address, user_agent, created_at) VALUES (
-  'audit_' || lower(hex(randomblob(16))),
-  'user_test_admin',
-  'user.created',
-  'user',
-  'user_test_user',
-  '127.0.0.1',
-  'Mozilla/5.0 (Test)',
-  strftime('%s', 'now')
-);
-
-INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, ip_address, user_agent, created_at) VALUES (
-  'audit_' || lower(hex(randomblob(16))),
-  'user_test_admin',
-  'client.created',
-  'oauth_client',
-  'test_client_app',
-  '127.0.0.1',
-  'Mozilla/5.0 (Test)',
-  strftime('%s', 'now')
-);
+-- NOTE: Sample custom fields and audit log entries for test users removed.
+-- These will be created when users are added via the setup wizard.
 
 -- =============================================================================
 -- Seed Complete
 -- =============================================================================
 -- Default roles: 4
 -- Default scope mappings: 19
--- Test users: 3
--- Test clients: 2
--- Version: 002
+-- Test OAuth clients: 2
+-- Version: 002 (Updated for PII separation)
 -- =============================================================================
 
 -- =============================================================================
@@ -671,7 +555,7 @@ CREATE TABLE IF NOT EXISTS oauth_client_consents (
   expires_at INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE,
   FOREIGN KEY (client_id) REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
   UNIQUE (user_id, client_id)
 );
@@ -847,7 +731,7 @@ CREATE TABLE ciba_requests (
   token_issued_at INTEGER,
 
   FOREIGN KEY (client_id) REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE
 );
 
 -- Index for quick auth_req_id lookup
@@ -933,7 +817,7 @@ ALTER TABLE scope_mappings ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default';
 ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default';
 ALTER TABLE user_custom_fields ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default';
 ALTER TABLE user_roles ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default';
-ALTER TABLE users ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default';
+-- NOTE: users_core already created with tenant_id in initial schema
 
 -- Create indexes for frequently queried tables
 CREATE INDEX IF NOT EXISTS idx_audit_log_tenant_id ON audit_log(tenant_id);
@@ -941,12 +825,10 @@ CREATE INDEX IF NOT EXISTS idx_oauth_clients_tenant_id ON oauth_clients(tenant_i
 CREATE INDEX IF NOT EXISTS idx_passkeys_tenant_id ON passkeys(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_tenant_id ON sessions(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users(tenant_id);
+-- NOTE: idx_users_core_tenant already created in initial schema
 
--- Update unique constraints to be tenant-scoped
--- users: Make email unique per tenant
-DROP INDEX IF EXISTS idx_users_email;
-CREATE UNIQUE INDEX idx_users_tenant_email ON users(tenant_id, email);
+-- NOTE: Email is in users_pii (PII DB), not users_core
+-- Email uniqueness is enforced in PII DB via idx_users_pii_email index
 
 -- =============================================================================
 -- Down Migration (Rollback) - COMMENTED OUT
@@ -1040,7 +922,7 @@ CREATE UNIQUE INDEX idx_organizations_tenant_name ON organizations(tenant_id, na
 CREATE TABLE subject_org_membership (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL DEFAULT 'default',
-  subject_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_id TEXT NOT NULL REFERENCES users_core(id) ON DELETE CASCADE,
   org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   membership_type TEXT NOT NULL DEFAULT 'member',  -- member, admin, owner
   is_primary INTEGER DEFAULT 0,
@@ -1194,7 +1076,7 @@ CREATE INDEX IF NOT EXISTS idx_roles_parent_role_id ON roles(parent_role_id);
 CREATE TABLE role_assignments (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL DEFAULT 'default',
-  subject_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_id TEXT NOT NULL REFERENCES users_core(id) ON DELETE CASCADE,
   role_id TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
   scope_type TEXT NOT NULL DEFAULT 'global',  -- global, org, resource
   scope_target TEXT NOT NULL DEFAULT '',  -- Empty for global, "type:id" format otherwise
@@ -1332,45 +1214,12 @@ CREATE UNIQUE INDEX idx_relationships_unique
 -- =============================================================================
 -- 3. Migrate existing parent_user_id data to relationships
 -- =============================================================================
--- Convert users.parent_user_id to parent_child relationships
-
-INSERT INTO relationships (
-  id,
-  tenant_id,
-  relationship_type,
-  from_type,
-  from_id,
-  to_type,
-  to_id,
-  permission_level,
-  expires_at,
-  is_bidirectional,
-  metadata_json,
-  created_at,
-  updated_at
-)
-SELECT
-  lower(hex(randomblob(16))) as id,
-  u.tenant_id,
-  'parent_child' as relationship_type,
-  'subject' as from_type,
-  u.parent_user_id as from_id,
-  'subject' as to_type,
-  u.id as to_id,
-  'full' as permission_level,
-  NULL as expires_at,
-  0 as is_bidirectional,
-  '{"migrated_from": "parent_user_id"}' as metadata_json,
-  u.created_at,
-  strftime('%s', 'now') as updated_at
-FROM users u
-WHERE u.parent_user_id IS NOT NULL
-  AND NOT EXISTS (
-    SELECT 1 FROM relationships r
-    WHERE r.from_id = u.parent_user_id
-      AND r.to_id = u.id
-      AND r.relationship_type = 'parent_child'
-  );
+-- NOTE: Disabled for PII separation architecture.
+-- parent_user_id is no longer in users_core table.
+-- For existing environment upgrades, run migration 002_pii_separation.sql
+--
+-- INSERT INTO relationships (...)
+-- SELECT ... FROM users_core u WHERE u.parent_user_id IS NOT NULL ...
 
 -- =============================================================================
 -- Migration Complete
@@ -1400,13 +1249,13 @@ WHERE u.parent_user_id IS NOT NULL
 --   - enterprise_admin: Enterprise customer administrator
 --   - system_admin: System administrator
 
-ALTER TABLE users ADD COLUMN user_type TEXT NOT NULL DEFAULT 'end_user';
+-- NOTE: users_core already created with user_type column in initial schema
+-- ALTER TABLE users ADD COLUMN user_type TEXT NOT NULL DEFAULT 'end_user';
 
 -- =============================================================================
--- 2. Create index for user_type
+-- 2. Note on user_type index
 -- =============================================================================
-
-CREATE INDEX idx_users_user_type ON users(user_type);
+-- idx_users_core_user_type already created in initial schema
 
 -- =============================================================================
 -- 3. Note: primary_org_id is NOT added in Phase 1
@@ -1809,58 +1658,40 @@ CREATE INDEX idx_subject_identifiers_primary
   ON subject_identifiers(tenant_id, subject_id, is_primary);
 
 -- =============================================================================
--- 3. Create verified_attributes Table
+-- 3. Create user_verified_attributes Table
 -- =============================================================================
--- Stores verified attributes from various sources (VC, KYC, manual).
--- Policy Engine reads this table for ABAC conditions (attribute_equals, etc.).
--- Phase 3: Table exists but is mostly empty (used for manual attributes)
--- Phase 4+: VC/JWT-SD parsers write extracted claims here
+-- Stores verified attributes extracted from VCs or other sources.
+-- Each user can have one value per attribute (latest wins).
+-- Populated by VP verification flow.
 
-CREATE TABLE verified_attributes (
+CREATE TABLE user_verified_attributes (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
-  -- Subject this attribute belongs to
-  subject_id TEXT NOT NULL,         -- References users(id)
-  -- Attribute details
-  attribute_name TEXT NOT NULL,     -- 'age_over_18', 'medical_license', 'subscription_tier'
-  attribute_value TEXT,             -- 'true', 'MD12345', 'premium'
-  -- Source information (for auditing and trust evaluation)
-  source TEXT NOT NULL DEFAULT 'manual',  -- 'manual', 'vc', 'jwt_sd', 'kyc_provider'
-  issuer TEXT,                      -- Issuer DID or URL (Phase 4+)
-  credential_id TEXT,               -- VC ID for traceability (Phase 4+)
-  -- Validity
-  verified_at INTEGER NOT NULL,     -- When the attribute was verified/extracted
-  expires_at INTEGER,               -- When the attribute expires (from VC exp)
-  revoked_at INTEGER,               -- When the attribute was revoked
-  -- Timestamps
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  user_id TEXT NOT NULL,
+  attribute_name TEXT NOT NULL,
+  attribute_value TEXT NOT NULL,
+  source_type TEXT NOT NULL DEFAULT 'vc',  -- 'vc', 'manual', 'kyc_provider'
+  issuer_did TEXT,
+  verification_id TEXT,  -- References attribute_verifications(id) - added later
+  verified_at TEXT DEFAULT (datetime('now')),
+  expires_at TEXT,
+
+  UNIQUE(tenant_id, user_id, attribute_name)
 );
 
 -- =============================================================================
--- 4. Indexes for verified_attributes
+-- 4. Indexes for user_verified_attributes
 -- =============================================================================
 
--- Lookup by subject
-CREATE INDEX idx_verified_attributes_tenant_subject
-  ON verified_attributes(tenant_id, subject_id);
+-- Lookup by user
+CREATE INDEX idx_user_verified_attributes_user
+  ON user_verified_attributes(tenant_id, user_id);
 
--- Attribute lookup for Policy Engine
-CREATE INDEX idx_verified_attributes_lookup
-  ON verified_attributes(tenant_id, subject_id, attribute_name);
+-- Attribute name lookup
+CREATE INDEX idx_user_verified_attributes_name
+  ON user_verified_attributes(tenant_id, attribute_name);
 
--- Source filtering (e.g., find all VC-sourced attributes)
-CREATE INDEX idx_verified_attributes_source
-  ON verified_attributes(tenant_id, source);
-
--- Expiration check
-CREATE INDEX idx_verified_attributes_expires
-  ON verified_attributes(tenant_id, expires_at);
-
--- Unique constraint: one attribute value per name per subject
--- (allows multiple sources for the same attribute name)
-CREATE INDEX idx_verified_attributes_unique_check
-  ON verified_attributes(tenant_id, subject_id, attribute_name, source);
+-- Note: UNIQUE constraint already defined in table (tenant_id, user_id, attribute_name)
 
 -- =============================================================================
 -- 5. Add evidence columns to relationships table
@@ -1882,39 +1713,12 @@ CREATE INDEX idx_relationships_evidence_type
 -- =============================================================================
 -- 6. Seed existing users' email as subject_identifiers
 -- =============================================================================
--- Migrate existing user emails to subject_identifiers for unified lookup
-
-INSERT INTO subject_identifiers (
-  id,
-  tenant_id,
-  subject_id,
-  identifier_type,
-  identifier_value,
-  is_primary,
-  verified_at,
-  verification_method,
-  created_at,
-  updated_at
-)
-SELECT
-  'sid_' || lower(hex(randomblob(16))) as id,
-  u.tenant_id,
-  u.id as subject_id,
-  'email' as identifier_type,
-  u.email as identifier_value,
-  1 as is_primary,
-  CASE WHEN u.email_verified = 1 THEN u.created_at ELSE NULL END as verified_at,
-  CASE WHEN u.email_verified = 1 THEN 'email_verification' ELSE NULL END as verification_method,
-  strftime('%s', 'now') as created_at,
-  strftime('%s', 'now') as updated_at
-FROM users u
-WHERE u.email IS NOT NULL
-  AND NOT EXISTS (
-    SELECT 1 FROM subject_identifiers si
-    WHERE si.tenant_id = u.tenant_id
-      AND si.identifier_type = 'email'
-      AND si.identifier_value = u.email
-  );
+-- NOTE: Disabled for PII separation architecture.
+-- email column is no longer in users_core table (moved to PII DB).
+-- For existing environment upgrades, run migration 002_pii_separation.sql
+--
+-- INSERT INTO subject_identifiers (...)
+-- SELECT ... FROM users_core u WHERE u.email IS NOT NULL ...
 
 -- =============================================================================
 -- Migration Complete
@@ -2010,7 +1814,7 @@ CREATE TABLE IF NOT EXISTS linked_identities (
 
   -- Constraints
   UNIQUE(provider_id, provider_user_id),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE,
   FOREIGN KEY (provider_id) REFERENCES upstream_providers(id) ON DELETE CASCADE
 );
 
@@ -2122,7 +1926,7 @@ CREATE TABLE IF NOT EXISTS user_token_families (
   expires_at INTEGER NOT NULL,        -- Token expiration timestamp (ms)
   is_revoked INTEGER DEFAULT 0,       -- 0 = active, 1 = revoked
 
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE
 );
 
 -- Note: Removed columns for high RPS optimization:
@@ -2292,7 +2096,310 @@ CREATE INDEX idx_ai_grants_active ON ai_grants(is_active) WHERE is_active = 1;
 CREATE INDEX idx_ai_grants_expires ON ai_grants(expires_at) WHERE expires_at IS NOT NULL;
 
 -- =============================================================================
--- Migration Complete
+-- Additional Tables (Consolidated from migrations 016-035)
 -- =============================================================================
--- Version: 018
+
+-- =============================================================================
+-- session_clients: Session-Client relationship tracking
+-- =============================================================================
+CREATE TABLE session_clients (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  first_token_at INTEGER NOT NULL,
+  last_token_at INTEGER NOT NULL,
+  last_seen_at INTEGER,
+
+  FOREIGN KEY (client_id) REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+  UNIQUE (session_id, client_id)
+);
+
+CREATE INDEX idx_session_clients_session_id ON session_clients(session_id);
+CREATE INDEX idx_session_clients_client_id ON session_clients(client_id);
+CREATE INDEX idx_session_clients_last_seen_at ON session_clients(last_seen_at);
+
+-- =============================================================================
+-- device_secrets: Native SSO 1.0 device secrets
+-- =============================================================================
+CREATE TABLE device_secrets (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  user_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  secret_hash TEXT NOT NULL,
+  device_name TEXT,
+  device_platform TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  last_used_at INTEGER,
+  use_count INTEGER NOT NULL DEFAULT 0,
+  revoked_at INTEGER,
+  revoke_reason TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+
+  FOREIGN KEY (user_id) REFERENCES users_core(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_device_secrets_secret_hash ON device_secrets(secret_hash);
+CREATE INDEX idx_device_secrets_tenant_user ON device_secrets(tenant_id, user_id);
+CREATE INDEX idx_device_secrets_session_id ON device_secrets(session_id);
+CREATE INDEX idx_device_secrets_expires ON device_secrets(expires_at) WHERE is_active = 1;
+
+-- =============================================================================
+-- settings_history: Settings version control
+-- =============================================================================
+CREATE TABLE settings_history (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  category TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  snapshot TEXT NOT NULL,
+  changes TEXT NOT NULL,
+  actor_id TEXT,
+  actor_type TEXT,
+  change_reason TEXT,
+  change_source TEXT,
+  created_at INTEGER NOT NULL,
+
+  UNIQUE(tenant_id, category, version)
+);
+
+CREATE INDEX idx_settings_history_category ON settings_history(tenant_id, category, version DESC);
+CREATE INDEX idx_settings_history_actor ON settings_history(actor_id, created_at DESC);
+CREATE INDEX idx_settings_history_cleanup ON settings_history(tenant_id, category, created_at);
+
+-- =============================================================================
+-- org_domain_mappings: Organization domain-based auto-join
+-- =============================================================================
+CREATE TABLE org_domain_mappings (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  domain_hash TEXT NOT NULL,
+  domain_hash_version INTEGER DEFAULT 1,
+  org_id TEXT NOT NULL,
+  auto_join_enabled INTEGER DEFAULT 1,
+  membership_type TEXT NOT NULL DEFAULT 'member',
+  auto_assign_role_id TEXT,
+  verified INTEGER DEFAULT 0,
+  priority INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  verification_token TEXT,
+  verification_status TEXT DEFAULT 'unverified',
+  verification_expires_at INTEGER,
+  verification_method TEXT,
+
+  UNIQUE(tenant_id, domain_hash, domain_hash_version, org_id)
+);
+
+CREATE INDEX idx_odm_lookup ON org_domain_mappings(tenant_id, domain_hash, is_active, verified DESC, priority DESC);
+CREATE INDEX idx_odm_org ON org_domain_mappings(org_id);
+CREATE INDEX idx_odm_version ON org_domain_mappings(domain_hash_version);
+CREATE INDEX idx_odm_verification_status ON org_domain_mappings(verification_status, verification_expires_at);
+
+-- =============================================================================
+-- status_lists: VC Status List 2021 for credential revocation
+-- =============================================================================
+CREATE TABLE status_lists (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'revocation',
+  encoded_list TEXT NOT NULL,
+  current_index INTEGER DEFAULT 0,
+  capacity INTEGER DEFAULT 131072,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  state TEXT DEFAULT 'active',
+  used_count INTEGER DEFAULT 0,
+  sealed_at TEXT
+);
+
+CREATE INDEX idx_status_lists_tenant ON status_lists(tenant_id);
+CREATE INDEX idx_status_lists_tenant_state ON status_lists(tenant_id, state);
+
+-- =============================================================================
+-- trusted_issuers: Trusted VC issuer registry
+-- =============================================================================
+CREATE TABLE trusted_issuers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  issuer_did TEXT NOT NULL,
+  display_name TEXT,
+  credential_types TEXT,
+  trust_level TEXT DEFAULT 'standard',
+  jwks_uri TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+
+  UNIQUE(tenant_id, issuer_did)
+);
+
+CREATE INDEX idx_trusted_issuers_tenant ON trusted_issuers(tenant_id);
+CREATE INDEX idx_trusted_issuers_did ON trusted_issuers(issuer_did);
+
+-- =============================================================================
+-- issued_credentials: Tracked VCs issued by Authrim
+-- =============================================================================
+CREATE TABLE issued_credentials (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  credential_type TEXT NOT NULL,
+  format TEXT NOT NULL,
+  claims TEXT NOT NULL,
+  status TEXT DEFAULT 'active',
+  status_list_index INTEGER,
+  status_list_id TEXT REFERENCES status_lists(id),
+  created_at TEXT DEFAULT (datetime('now')),
+  expires_at TEXT,
+  revoked_at TEXT,
+  revoked_reason TEXT
+);
+
+CREATE INDEX idx_issued_credentials_user ON issued_credentials(tenant_id, user_id);
+CREATE INDEX idx_issued_credentials_type ON issued_credentials(credential_type);
+CREATE INDEX idx_issued_credentials_status ON issued_credentials(status);
+CREATE INDEX idx_issued_credentials_status_list ON issued_credentials(status_list_id);
+
+-- =============================================================================
+-- did_document_cache: DID Document resolution cache
+-- =============================================================================
+CREATE TABLE did_document_cache (
+  did TEXT PRIMARY KEY,
+  document TEXT NOT NULL,
+  resolved_at TEXT DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_did_document_cache_expires ON did_document_cache(expires_at);
+
+-- =============================================================================
+-- attribute_verifications: VC/VP verification results
+-- =============================================================================
+CREATE TABLE attribute_verifications (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  vp_request_id TEXT,
+  issuer_did TEXT NOT NULL,
+  credential_type TEXT NOT NULL,
+  format TEXT NOT NULL,
+  verification_result TEXT NOT NULL,
+  holder_binding_verified INTEGER DEFAULT 0,
+  issuer_trusted INTEGER DEFAULT 0,
+  status_valid INTEGER DEFAULT 0,
+  mapped_attribute_ids TEXT,
+  verified_at TEXT DEFAULT (datetime('now')),
+  expires_at TEXT
+);
+
+CREATE INDEX idx_attribute_verifications_user ON attribute_verifications(tenant_id, user_id);
+CREATE INDEX idx_attribute_verifications_result ON attribute_verifications(verification_result);
+
+-- =============================================================================
+-- webhook_configs: Event webhook configuration
+-- =============================================================================
+CREATE TABLE webhook_configs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  client_id TEXT,
+  scope TEXT NOT NULL DEFAULT 'tenant',
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  events TEXT NOT NULL,
+  secret_encrypted TEXT,
+  headers TEXT,
+  retry_policy TEXT NOT NULL,
+  timeout_ms INTEGER NOT NULL DEFAULT 10000,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  last_success_at TEXT,
+  last_failure_at TEXT
+);
+
+CREATE INDEX idx_webhook_configs_tenant ON webhook_configs(tenant_id);
+CREATE INDEX idx_webhook_configs_client ON webhook_configs(tenant_id, client_id);
+CREATE INDEX idx_webhook_configs_active ON webhook_configs(tenant_id, active) WHERE active = 1;
+CREATE INDEX idx_webhook_configs_scope ON webhook_configs(tenant_id, scope);
+
+-- =============================================================================
+-- consent_policy_versions: Privacy policy version tracking
+-- =============================================================================
+CREATE TABLE consent_policy_versions (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  version TEXT NOT NULL,
+  policy_type TEXT NOT NULL,
+  policy_uri TEXT,
+  policy_hash TEXT,
+  effective_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+
+  UNIQUE (tenant_id, policy_type, version)
+);
+
+CREATE INDEX idx_consent_policy_versions_tenant ON consent_policy_versions(tenant_id, policy_type);
+CREATE INDEX idx_consent_policy_versions_effective ON consent_policy_versions(effective_at);
+
+-- =============================================================================
+-- event_log: Anonymized audit/event log (non-PII)
+-- =============================================================================
+CREATE TABLE event_log (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  event_category TEXT NOT NULL,
+  result TEXT NOT NULL,
+  error_code TEXT,
+  error_message TEXT,
+  severity TEXT NOT NULL DEFAULT 'info',
+  anonymized_user_id TEXT,
+  client_id TEXT,
+  session_id TEXT,
+  request_id TEXT,
+  duration_ms INTEGER,
+  details_r2_key TEXT,
+  details_json TEXT,
+  retention_until INTEGER,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_event_log_tenant_time ON event_log(tenant_id, created_at DESC);
+CREATE INDEX idx_event_log_type ON event_log(event_type);
+CREATE INDEX idx_event_log_anon_user ON event_log(anonymized_user_id);
+CREATE INDEX idx_event_log_request_id ON event_log(request_id);
+CREATE INDEX idx_event_log_result ON event_log(result);
+CREATE INDEX idx_event_log_severity ON event_log(severity);
+CREATE INDEX idx_event_log_retention ON event_log(retention_until);
+
+-- =============================================================================
+-- operational_logs: Admin operation audit (encrypted)
+-- =============================================================================
+CREATE TABLE operational_logs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  operation_type TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  admin_id TEXT NOT NULL,
+  reason_detail_encrypted TEXT,
+  metadata TEXT,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_operational_logs_tenant_created ON operational_logs(tenant_id, created_at DESC);
+CREATE INDEX idx_operational_logs_resource ON operational_logs(resource_type, resource_id);
+CREATE INDEX idx_operational_logs_expires ON operational_logs(expires_at);
+CREATE INDEX idx_operational_logs_admin ON operational_logs(admin_id);
+
+-- =============================================================================
+-- Final Migration Complete
+-- =============================================================================
+-- This consolidated schema includes all tables from migrations 000-035
+-- For PII tables, see migrations/pii/001_pii_initial.sql
 -- =============================================================================

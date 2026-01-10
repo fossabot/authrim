@@ -133,6 +133,7 @@ export async function isSetupCompleted(env: string, configPath: string = '.'): P
 /**
  * Resolve setup token path based on options
  * Supports both new (.authrim/{env}/keys/) and legacy (.keys/{env}/) structures
+ * Also searches in subdirectories (e.g., authrim/) for cases where setup is run from parent directory
  */
 function resolveSetupTokenPath(options: {
   env: string;
@@ -152,7 +153,22 @@ function resolveSetupTokenPath(options: {
     return getLegacyPaths(baseDir, env).keyFiles.setupToken;
   }
 
-  // Auto-detect structure
+  // Auto-detect structure - also check in 'authrim/' subdirectory
+  const dirsToCheck = [baseDir, join(baseDir, 'authrim')];
+
+  for (const dir of dirsToCheck) {
+    const resolved = resolvePaths({ baseDir: dir, env });
+    const tokenPath =
+      resolved.type === 'legacy'
+        ? (resolved.paths as LegacyPaths).keyFiles.setupToken
+        : (resolved.paths as EnvironmentPaths).keyFiles.setupToken;
+
+    if (existsSync(tokenPath)) {
+      return tokenPath;
+    }
+  }
+
+  // Fall back to baseDir resolution (for error messaging)
   const resolved = resolvePaths({ baseDir, env });
   if (resolved.type === 'legacy') {
     return (resolved.paths as LegacyPaths).keyFiles.setupToken;
@@ -197,8 +213,15 @@ export async function storeSetupToken(options: SetupTokenOptions): Promise<Setup
 
   // Find the ar-auth package directory for wrangler commands
   // We need to use the ar-auth config because it has the AUTHRIM_CONFIG KV binding
+  // Search multiple locations to handle different project structures:
+  // 1. baseDir/packages/ar-auth (when running from authrim root)
+  // 2. baseDir/authrim/packages/ar-auth (when authrim is in a subdirectory)
+  // 3. cwd-relative paths for backward compatibility
   const packageDirs = [
+    join(baseDir, 'packages', 'ar-auth'),
+    join(baseDir, 'authrim', 'packages', 'ar-auth'),
     join('.', 'packages', 'ar-auth'),
+    join('.', 'authrim', 'packages', 'ar-auth'),
     join('..', 'ar-auth'),
     join('.', 'ar-auth'),
   ];
@@ -207,16 +230,20 @@ export async function storeSetupToken(options: SetupTokenOptions): Promise<Setup
   const wranglerConfig = `wrangler.${env}.toml`;
 
   for (const dir of packageDirs) {
-    if (existsSync(join(dir, wranglerConfig))) {
+    const configPath = join(dir, wranglerConfig);
+    onProgress?.(`Checking for ar-auth at: ${configPath}`);
+    if (existsSync(configPath)) {
       workerDir = dir;
+      onProgress?.(`Found ar-auth package at: ${dir}`);
       break;
     }
   }
 
   if (!workerDir) {
+    const searchedPaths = packageDirs.map((d) => join(d, wranglerConfig)).join(', ');
     return {
       success: false,
-      error: `Cannot find ar-auth package with ${wranglerConfig}. Deploy workers first.`,
+      error: `Cannot find ar-auth package with ${wranglerConfig}. Searched: ${searchedPaths}. Deploy workers first.`,
     };
   }
 
@@ -233,6 +260,7 @@ export async function storeSetupToken(options: SetupTokenOptions): Promise<Setup
         wranglerConfig,
         '--binding',
         'AUTHRIM_CONFIG',
+        '--remote',
       ],
       {
         cwd: workerDir,
@@ -254,7 +282,7 @@ export async function storeSetupToken(options: SetupTokenOptions): Promise<Setup
   onProgress?.('Storing setup token in KV...');
 
   try {
-    // Store the setup token with TTL
+    // Store the setup token with TTL (--remote ensures it goes to Cloudflare KV, not local)
     await execa(
       'wrangler',
       [
@@ -269,6 +297,7 @@ export async function storeSetupToken(options: SetupTokenOptions): Promise<Setup
         'AUTHRIM_CONFIG',
         '--ttl',
         ttlSeconds.toString(),
+        '--remote',
       ],
       {
         cwd: workerDir,

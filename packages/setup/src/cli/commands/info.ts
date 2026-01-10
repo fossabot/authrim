@@ -170,7 +170,7 @@ export async function infoCommand(options: InfoCommandOptions): Promise<void> {
             console.log(chalk.gray(`    Region: ${info.region}`));
           }
         }
-      } catch (error) {
+      } catch {
         infoSpinner?.fail(db.name);
         output.d1.push({
           name: db.name,
@@ -218,7 +218,7 @@ export async function infoCommand(options: InfoCommandOptions): Promise<void> {
             console.log(chalk.yellow(`    Status: Not deployed`));
           }
         }
-      } catch (error) {
+      } catch {
         infoSpinner?.fail(worker.name);
         output.workers.push({
           name: worker.name,

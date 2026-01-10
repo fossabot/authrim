@@ -17,6 +17,7 @@ import { getEnvironmentPaths } from './paths.js';
 import { generateWranglerConfig, toToml, type ResourceIds } from './wrangler.js';
 import type { AuthrimConfig } from './config.js';
 import { CORE_WORKER_COMPONENTS } from './naming.js';
+import { getWorkersSubdomain } from './cloudflare.js';
 
 // =============================================================================
 // Types
@@ -159,9 +160,18 @@ export async function saveMasterWranglerConfigs(
     await mkdir(envPaths.wrangler, { recursive: true });
   }
 
+  // Get workers.dev subdomain for CORS configuration
+  // Workers.dev URLs must be in format: {name}.{subdomain}.workers.dev
+  const workersSubdomain = await getWorkersSubdomain();
+
   for (const component of CORE_WORKER_COMPONENTS) {
     try {
-      const wranglerConfig = generateWranglerConfig(component, config, resourceIds);
+      const wranglerConfig = generateWranglerConfig(
+        component,
+        config,
+        resourceIds,
+        workersSubdomain ?? undefined
+      );
       const tomlContent = toToml(wranglerConfig);
       const masterPath = getMasterWranglerPath(envPaths, component);
 

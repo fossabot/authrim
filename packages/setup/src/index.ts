@@ -45,7 +45,9 @@ program
   .option('--component <name>', 'Deploy a single component')
   .option('--dry-run', 'Show what would be deployed without actually deploying')
   .option('--skip-secrets', 'Skip uploading secrets')
+  .option('--skip-build', 'Skip building packages')
   .option('--skip-ui', 'Skip UI deployment to Cloudflare Pages')
+  .option('--skip-migrations', 'Skip D1 database migrations')
   .option('-y, --yes', 'Skip confirmation prompts')
   .action(deployCommand);
 

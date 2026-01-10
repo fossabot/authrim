@@ -28,7 +28,7 @@ import {
   buildApiPackages,
   type DeployOptions,
 } from '../../core/deploy.js';
-import { isWranglerInstalled, checkAuth } from '../../core/cloudflare.js';
+import { isWranglerInstalled, checkAuth, runMigrationsForEnvironment } from '../../core/cloudflare.js';
 import { type WorkerComponent } from '../../core/naming.js';
 import { completeInitialSetup, displaySetupInstructions } from '../../core/admin.js';
 import type { SyncAction } from '../../core/wrangler-sync.js';
@@ -45,6 +45,7 @@ export interface DeployCommandOptions {
   skipSecrets?: boolean;
   skipBuild?: boolean;
   skipUi?: boolean;
+  skipMigrations?: boolean;
   parallel?: boolean;
   yes?: boolean;
   keysDir?: string;
@@ -417,11 +418,50 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
     }
   }
 
+  // Run D1 database migrations (unless skipped or dry-run)
+  let migrationsSuccess = true;
+  if (!options.skipMigrations && !options.dryRun && !options.component && summary.failedCount === 0) {
+    console.log(chalk.bold('\n📜 Running D1 database migrations...\n'));
+
+    const migrationsSpinner = ora('Running migrations...').start();
+
+    try {
+      const migrationsResult = await runMigrationsForEnvironment(
+        env,
+        rootDir,
+        (msg) => {
+          migrationsSpinner.text = msg;
+        }
+      );
+
+      if (migrationsResult.success) {
+        migrationsSpinner.succeed(
+          `Migrations completed - core: ${migrationsResult.core.appliedCount}, pii: ${migrationsResult.pii.appliedCount} applied`
+        );
+      } else {
+        migrationsSpinner.warn('Some migrations failed');
+        if (migrationsResult.core.error) {
+          console.log(chalk.yellow(`  Core: ${migrationsResult.core.error}`));
+        }
+        if (migrationsResult.pii.error) {
+          console.log(chalk.yellow(`  PII: ${migrationsResult.pii.error}`));
+        }
+        migrationsSuccess = false;
+      }
+    } catch (error) {
+      migrationsSpinner.fail('Migrations failed');
+      console.log(chalk.red(`  ${error instanceof Error ? error.message : String(error)}`));
+      migrationsSuccess = false;
+    }
+  }
+
   // Final summary
   console.log(chalk.bold('\n━━━ Deployment Complete ━━━\n'));
 
-  if (summary.failedCount === 0) {
-    console.log(chalk.green('✅ All components deployed successfully!\n'));
+  if (summary.failedCount === 0 && migrationsSuccess) {
+    console.log(chalk.green('✅ All components deployed and migrations applied!\n'));
+  } else if (summary.failedCount === 0 && !migrationsSuccess) {
+    console.log(chalk.yellow('⚠️  All components deployed, but some migrations failed.\n'));
   } else {
     console.log(
       chalk.yellow(`⚠️  ${summary.successCount}/${summary.totalComponents} components deployed\n`)

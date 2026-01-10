@@ -226,15 +226,16 @@ export async function adminComplianceStatusHandler(c: Context<{ Bindings: Env }>
     );
 
     // 5. Get data retention status
+    // Note: Detailed deletion stats require PII DB access (users_pii_tombstone)
+    // Here we use users_core.pii_status as a proxy
     const retentionStats = await adapter.queryOne<{
       pending_deletions: number;
-      last_cleanup: number | null;
     }>(
-      `SELECT
-        (SELECT COUNT(*) FROM users WHERE tenant_id = ? AND scheduled_deletion_at IS NOT NULL AND scheduled_deletion_at > ?) as pending_deletions,
-        (SELECT MAX(deleted_at) FROM tombstones WHERE tenant_id = ?) as last_cleanup`,
-      [tenantId, nowTs, tenantId]
+      `SELECT COUNT(*) as pending_deletions FROM users_core WHERE tenant_id = ? AND pii_status = 'deleted'`,
+      [tenantId]
     );
+    // Note: last_cleanup would require PII DB access, set to null for now
+    const lastCleanup: number | null = null;
 
     // 6. Get signing key status for encryption info
     const keyStats = await adapter.queryOne<{
@@ -336,7 +337,7 @@ export async function adminComplianceStatusHandler(c: Context<{ Bindings: Env }>
       data_retention: {
         policy_enabled: !!tenantSettings?.data_retention_enabled,
         retention_days: tenantSettings?.data_retention_days || null,
-        last_cleanup: toISOString(retentionStats?.last_cleanup ?? null),
+        last_cleanup: toISOString(lastCleanup),
         pending_deletions: retentionStats?.pending_deletions || 0,
       },
       audit_log: {
@@ -624,7 +625,7 @@ export async function adminComplianceAccessReviewsCreateHandler(c: Context<{ Bin
       case 'all_users':
         {
           const result = await adapter.queryOne<{ count: number }>(
-            'SELECT COUNT(*) as count FROM users WHERE tenant_id = ? AND is_active = 1',
+            'SELECT COUNT(*) as count FROM users_core WHERE tenant_id = ? AND is_active = 1',
             [tenantId]
           );
           totalItems = result?.count ?? 0;
@@ -634,7 +635,7 @@ export async function adminComplianceAccessReviewsCreateHandler(c: Context<{ Bin
         if (scope_value) {
           const result = await adapter.queryOne<{ count: number }>(
             `SELECT COUNT(*) as count FROM user_roles ur
-             JOIN users u ON ur.user_id = u.id
+             JOIN users_core u ON ur.user_id = u.id
              WHERE u.tenant_id = ? AND ur.role_id = ?`,
             [tenantId, scope_value]
           );
@@ -644,9 +645,9 @@ export async function adminComplianceAccessReviewsCreateHandler(c: Context<{ Bin
       case 'organization':
         if (scope_value) {
           const result = await adapter.queryOne<{ count: number }>(
-            `SELECT COUNT(*) as count FROM organization_members om
-             JOIN users u ON om.user_id = u.id
-             WHERE u.tenant_id = ? AND om.organization_id = ?`,
+            `SELECT COUNT(*) as count FROM subject_org_membership om
+             JOIN users_core u ON om.subject_id = u.id
+             WHERE u.tenant_id = ? AND om.org_id = ?`,
             [tenantId, scope_value]
           );
           totalItems = result?.count ?? 0;

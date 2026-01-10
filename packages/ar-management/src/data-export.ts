@@ -501,7 +501,7 @@ async function collectExportData(
       email_verified: number | null;
       phone_verified: number | null;
     }>(
-      'SELECT id, email_domain_hash, created_at, updated_at, email_verified, phone_verified FROM users WHERE id = ?',
+      'SELECT id, email_domain_hash, created_at, updated_at, email_verified, phone_number_verified FROM users_core WHERE id = ?',
       [userId]
     );
 

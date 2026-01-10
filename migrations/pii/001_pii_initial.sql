@@ -374,6 +374,75 @@ CREATE INDEX IF NOT EXISTS idx_tombstone_retention
   ON users_pii_tombstone(retention_until);
 
 -- =============================================================================
+-- user_anonymization_map Table (PII ↔ Anonymous ID Mapping)
+-- =============================================================================
+-- Maps real user IDs to random anonymous UUIDs.
+-- When user exercises "right to be forgotten", this mapping is deleted,
+-- making event_log entries truly anonymous.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS user_anonymization_map (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  anonymized_user_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+
+  UNIQUE(tenant_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_anon_map_tenant_user
+  ON user_anonymization_map(tenant_id, user_id);
+
+CREATE INDEX IF NOT EXISTS idx_anon_map_anon_id
+  ON user_anonymization_map(anonymized_user_id);
+
+-- =============================================================================
+-- pii_log Table (Encrypted PII Change Audit)
+-- =============================================================================
+-- Stores encrypted records of PII changes for GDPR audit compliance.
+-- Each entry records what was changed, by whom, and the legal basis.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS pii_log (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  anonymized_user_id TEXT NOT NULL,
+  change_type TEXT NOT NULL,
+  affected_fields TEXT NOT NULL,
+  values_r2_key TEXT,
+  values_encrypted TEXT,
+  encryption_key_id TEXT NOT NULL,
+  encryption_iv TEXT NOT NULL,
+  actor_user_id TEXT,
+  actor_type TEXT NOT NULL,
+  request_id TEXT,
+  legal_basis TEXT,
+  consent_reference TEXT,
+  retention_until INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pii_log_tenant_user
+  ON pii_log(tenant_id, user_id);
+
+CREATE INDEX IF NOT EXISTS idx_pii_log_anon_user
+  ON pii_log(anonymized_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_pii_log_request_id
+  ON pii_log(request_id);
+
+CREATE INDEX IF NOT EXISTS idx_pii_log_change_type
+  ON pii_log(change_type);
+
+CREATE INDEX IF NOT EXISTS idx_pii_log_retention
+  ON pii_log(retention_until);
+
+CREATE INDEX IF NOT EXISTS idx_pii_log_actor
+  ON pii_log(actor_user_id);
+
+-- =============================================================================
 -- Migration Complete
 -- =============================================================================
 -- How to apply this migration:

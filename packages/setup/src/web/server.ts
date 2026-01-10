@@ -61,18 +61,23 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
   app.get('/health', (c) => c.json({ status: 'ok' }));
 
   // Start server
-  console.log(chalk.bold('\n🌐 Authrim Setup Web UI\n'));
-  console.log(`Server running at ${chalk.cyan(`http://${host}:${port}`)}`);
-  if (port !== preferredPort) {
-    console.log(chalk.gray(`(Port ${preferredPort} was in use, using ${port} instead)`));
-  }
-  console.log(chalk.gray('\nPress Ctrl+C to stop\n'));
+  const url = `http://${host}:${port}`;
 
-  // Open browser if requested
-  if (options.openBrowser !== false) {
-    const url = `http://${host}:${port}`;
-    void openBrowser(url);
+  console.log(chalk.bold('\n🌐 Authrim Setup Web UI\n'));
+
+  if (port !== preferredPort) {
+    console.log(chalk.gray(`(Port ${preferredPort} was in use, using ${port} instead)\n`));
   }
+
+  console.log(`Open at:`);
+  console.log(chalk.cyan(`  ${url}\n`));
+
+  // Open browser if requested - wait for ENTER first
+  if (options.openBrowser !== false) {
+    await waitForEnterAndOpenBrowser(url);
+  }
+
+  console.log(chalk.gray('Press Ctrl+C to stop\n'));
 
   serve({
     fetch: app.fetch,
@@ -167,6 +172,27 @@ function validateLocalhostUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Wait for user to press ENTER, then open the browser
+ */
+async function waitForEnterAndOpenBrowser(url: string): Promise<void> {
+  const readline = await import('node:readline');
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  await new Promise<void>((resolve) => {
+    rl.question('Press ENTER to open in the browser...', () => {
+      rl.close();
+      resolve();
+    });
+  });
+
+  await openBrowser(url);
 }
 
 async function openBrowser(url: string): Promise<void> {

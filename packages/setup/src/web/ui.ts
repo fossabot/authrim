@@ -16,18 +16,80 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Authrim Setup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
   <style>
     :root {
+      /* Typography */
+      --font-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+      --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Consolas', monospace;
+
+      /* Light theme colors */
       --primary: #2563eb;
       --primary-dark: #1d4ed8;
-      --success: #10b981;
-      --error: #ef4444;
-      --warning: #f59e0b;
-      --bg: #f8fafc;
-      --card-bg: #ffffff;
-      --text: #1e293b;
-      --text-muted: #64748b;
-      --border: #e2e8f0;
+      --primary-light: #3b82f6;
+      --accent: #c2410c;
+      --success: #059669;
+      --error: #dc2626;
+      --warning: #d97706;
+      --bg: #f8f5e3;
+      --bg-secondary: #f3eed6;
+      --card-bg: #fffefa;
+      --card-bg-hover: #fdfcf4;
+      --text: #1c1917;
+      --text-muted: #57534e;
+      --text-subtle: #78716c;
+      --border: #d6d3d1;
+      --border-light: #e7e5e4;
+
+      /* Glassmorphism */
+      --glass-bg: rgba(248, 245, 227, 0.25);
+      --glass-border: rgba(214, 211, 209, 0.5);
+
+      /* Splash */
+      --splash-bg: #1c1917;
+      --splash-text: #f8f5e3;
+
+      /* Shadows & Effects */
+      --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.04);
+      --shadow-md: 0 4px 12px rgba(28, 25, 23, 0.06);
+      --shadow-lg: 0 12px 32px rgba(28, 25, 23, 0.08);
+      --shadow-card: 0 1px 3px rgba(28, 25, 23, 0.04), 0 4px 12px rgba(28, 25, 23, 0.02);
+
+      /* Transitions */
+      --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Dark theme */
+    [data-theme="dark"] {
+      --primary: #60a5fa;
+      --primary-dark: #3b82f6;
+      --primary-light: #93c5fd;
+      --accent: #fb923c;
+      --success: #34d399;
+      --error: #f87171;
+      --warning: #fbbf24;
+      --bg: #0c0a09;
+      --bg-secondary: #1c1917;
+      --card-bg: #1c1917;
+      --card-bg-hover: #292524;
+      --text: #fafaf9;
+      --text-muted: #a8a29e;
+      --text-subtle: #78716c;
+      --border: #44403c;
+      --border-light: #292524;
+      --glass-bg: rgba(28, 25, 23, 0.35);
+      --glass-border: rgba(68, 64, 60, 0.5);
+      --splash-bg: #0c0a09;
+      --splash-text: #f8f5e3;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.4);
+      --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
     * {
@@ -37,155 +99,399 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: var(--font-sans);
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
       min-height: 100vh;
+      transition: background-color var(--transition-slow), color var(--transition-slow);
     }
 
-    .container {
-      max-width: 800px;
+    /* Subtle grain texture */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: 0.015;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      z-index: 9998;
+    }
+
+    [data-theme="dark"] body::before {
+      opacity: 0.03;
+    }
+
+    /* ========================================
+       SPLASH SCREEN
+       ======================================== */
+    .splash {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: var(--splash-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 600ms ease, visibility 600ms ease;
+    }
+
+    .splash.fade-out {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .splash-content {
+      text-align: center;
+      opacity: 0;
+      transform: translateY(16px);
+      animation: splash-reveal 800ms ease forwards;
+      animation-delay: 200ms;
+    }
+
+    .splash-title {
+      font-family: var(--font-serif);
+      font-size: clamp(3.5rem, 10vw, 5.5rem);
+      font-weight: 600;
+      color: var(--splash-text);
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 1rem;
+    }
+
+    .splash-tagline {
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-subtle);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 3rem;
+    }
+
+    .splash-loader {
+      width: 32px;
+      height: 32px;
       margin: 0 auto;
-      padding: 2rem;
+      border: 2px solid var(--border);
+      border-top-color: var(--splash-text);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes splash-reveal {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ========================================
+       BACKGROUND TYPOGRAPHY
+       ======================================== */
+    .bg-typography {
+      position: fixed;
+      top: -16%;
+      left: -5%;
+      font-family: var(--font-serif);
+      font-size: clamp(26rem, 25vw, 28rem);
+      font-weight: 700;
+      color: rgba(209, 201, 173, 0.18);
+      letter-spacing: -0.04em;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 0;
+      user-select: none;
+    }
+
+    [data-theme="dark"] .bg-typography {
+      color: rgba(255, 255, 255, 0.025);
+    }
+
+    /* ========================================
+       THEME TOGGLE
+       ======================================== */
+    .theme-toggle {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.5rem;
+      z-index: 100;
+      width: 44px;
+      height: 44px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1.25rem;
+      transition: all var(--transition-fast);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .theme-toggle:hover {
+      background: var(--card-bg-hover);
+      border-color: var(--primary);
+      transform: scale(1.05);
+    }
+
+    .theme-toggle:active {
+      transform: scale(0.95);
+    }
+
+    /* ========================================
+       LAYOUT
+       ======================================== */
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem;
     }
 
     header {
       text-align: center;
       margin-bottom: 2rem;
+      padding-top: 0.5rem;
     }
 
     h1 {
-      font-size: 2rem;
-      color: var(--primary);
+      font-family: var(--font-serif);
+      font-size: clamp(2.25rem, 6vw, 3rem);
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.03em;
+      line-height: 1;
       margin-bottom: 0.5rem;
     }
 
-    .subtitle {
-      color: var(--text-muted);
+    .header-wizard {
+      font-family: var(--font-serif);
+      font-size: 1.15rem;
+      font-weight: 400;
+      font-style: italic;
+      color: var(--primary);
+      margin-bottom: 0.375rem;
     }
 
+    .subtitle {
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      letter-spacing: 0.03em;
+    }
+
+    /* ========================================
+       CARDS
+       ======================================== */
     .card {
-      background: var(--card-bg);
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      position: relative;
+      z-index: 1;
+      background: var(--glass-bg);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      border-radius: 16px;
+      border: 1px solid var(--glass-border);
+      padding: 2rem;
+      margin-bottom: 1.75rem;
+      box-shadow: var(--shadow-card);
+      transition: background-color var(--transition-base), border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .card:hover {
+      border-color: var(--border);
     }
 
     .card-title {
-      font-size: 1.25rem;
+      font-family: var(--font-sans);
+      font-size: 1.35rem;
       font-weight: 600;
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.625rem;
+      color: var(--text);
     }
 
+    /* ========================================
+       STATUS BADGES
+       ======================================== */
     .status-badge {
-      font-size: 0.75rem;
-      padding: 0.25rem 0.5rem;
-      border-radius: 9999px;
-      font-weight: 500;
+      font-family: var(--font-sans);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.3rem 0.625rem;
+      border-radius: 6px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
     }
 
-    .status-pending { background: var(--border); color: var(--text-muted); }
-    .status-running { background: #dbeafe; color: var(--primary); }
-    .status-success { background: #d1fae5; color: var(--success); }
-    .status-error { background: #fee2e2; color: var(--error); }
-    .status-warning { background: #fef3c7; color: #b45309; }
+    .status-pending {
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+    }
+    .status-running {
+      background: rgba(37, 99, 235, 0.1);
+      color: var(--primary);
+    }
+    .status-success {
+      background: rgba(5, 150, 105, 0.1);
+      color: var(--success);
+    }
+    .status-error {
+      background: rgba(220, 38, 38, 0.1);
+      color: var(--error);
+    }
+    .status-warning {
+      background: rgba(217, 119, 6, 0.1);
+      color: var(--warning);
+    }
 
-    /* Mode selection cards */
+    [data-theme="dark"] .status-running { background: rgba(96, 165, 250, 0.15); }
+    [data-theme="dark"] .status-success { background: rgba(52, 211, 153, 0.15); }
+    [data-theme="dark"] .status-error { background: rgba(248, 113, 113, 0.15); }
+    [data-theme="dark"] .status-warning { background: rgba(251, 191, 36, 0.15); }
+
+    /* ========================================
+       MODE SELECTION CARDS
+       ======================================== */
     .mode-cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      margin-bottom: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
     }
 
     .mode-card {
-      border: 2px solid var(--border);
-      border-radius: 12px;
-      padding: 1.5rem;
+      background: var(--card-bg);
+      border: 2px solid var(--border-light);
+      border-radius: 14px;
+      padding: 1.75rem;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all var(--transition-base);
       position: relative;
     }
 
     .mode-card:hover {
       border-color: var(--primary);
-      background: #f8fafc;
+      background: var(--card-bg-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
     }
 
     .mode-card.selected {
       border-color: var(--primary);
-      background: #eff6ff;
+      background: rgba(37, 99, 235, 0.04);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    [data-theme="dark"] .mode-card.selected {
+      background: rgba(96, 165, 250, 0.08);
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
     }
 
     .mode-card .mode-icon {
-      font-size: 2rem;
-      margin-bottom: 0.5rem;
+      font-size: 2.25rem;
+      margin-bottom: 0.75rem;
+      display: block;
     }
 
     .mode-card h3 {
+      font-family: var(--font-sans);
       font-size: 1.1rem;
+      font-weight: 600;
       margin-bottom: 0.5rem;
+      color: var(--text);
     }
 
     .mode-card p {
-      font-size: 0.875rem;
+      font-size: 0.9rem;
       color: var(--text-muted);
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.875rem;
+      line-height: 1.5;
     }
 
     .mode-card ul {
       font-size: 0.8rem;
-      color: var(--text-muted);
+      color: var(--text-subtle);
       margin-left: 1rem;
+      line-height: 1.6;
     }
 
     .mode-card ul li {
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.3rem;
     }
 
     .mode-badge {
       position: absolute;
-      top: -8px;
-      right: 10px;
-      background: var(--primary);
+      top: -10px;
+      right: 12px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
       color: white;
-      font-size: 0.7rem;
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-weight: 500;
+      font-family: var(--font-sans);
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.35rem 0.625rem;
+      border-radius: 6px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
     }
 
+    /* ========================================
+       FORMS
+       ======================================== */
     .form-group {
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
     }
 
     label {
       display: block;
+      font-family: var(--font-sans);
       font-weight: 500;
+      font-size: 0.9rem;
       margin-bottom: 0.5rem;
+      color: var(--text);
     }
 
     input[type="text"],
     input[type="password"],
+    input[type="email"],
     input[type="file"],
     select {
       width: 100%;
-      padding: 0.75rem;
+      padding: 0.875rem 1rem;
       border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 1rem;
-      transition: border-color 0.2s;
+      border-radius: 10px;
+      font-family: var(--font-sans);
+      font-size: 0.95rem;
+      background: var(--card-bg);
+      color: var(--text);
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    input::placeholder,
+    select::placeholder {
+      color: var(--text-subtle);
     }
 
     input:focus,
     select:focus {
       outline: none;
       border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    [data-theme="dark"] input:focus,
+    [data-theme="dark"] select:focus {
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
     }
 
     /* Fix browser autofill/autocomplete styling */
@@ -193,9 +499,17 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     input:-webkit-autofill:hover,
     input:-webkit-autofill:focus,
     input:-webkit-autofill:active {
-      -webkit-box-shadow: 0 0 0 30px white inset !important;
-      -webkit-text-fill-color: #1e293b !important;
-      caret-color: #1e293b !important;
+      -webkit-box-shadow: 0 0 0 30px var(--card-bg) inset !important;
+      -webkit-text-fill-color: var(--text) !important;
+      caret-color: var(--text) !important;
+    }
+
+    small {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.375rem;
+      line-height: 1.4;
     }
 
     .checkbox-group {
@@ -208,28 +522,130 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       display: flex;
       align-items: center;
       gap: 0.5rem;
+      cursor: pointer;
     }
 
-    /* Infrastructure info section */
-    .infra-section {
-      background: #f8fafc;
-      border: 1px solid var(--border);
+    .checkbox-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      /* Custom checkbox styling */
+      appearance: none;
+      -webkit-appearance: none;
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      transition: all var(--transition-fast);
+    }
+
+    .checkbox-item input[type="checkbox"]:checked {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .checkbox-item input[type="checkbox"]:checked::after {
+      content: '✓';
+      display: block;
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+      text-align: center;
+      line-height: 14px;
+    }
+
+    .checkbox-item input[type="checkbox"]:hover:not(:disabled) {
+      border-color: var(--primary);
+    }
+
+    .checkbox-item input[type="checkbox"]:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    [data-theme="dark"] .checkbox-item input[type="checkbox"] {
+      background: var(--bg-secondary);
+      border-color: var(--border);
+    }
+
+    [data-theme="dark"] .checkbox-item input[type="checkbox"]:checked {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    /* ========================================
+       COMPONENT CARDS
+       ======================================== */
+    .component-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border: 1px solid var(--glass-border);
       border-radius: 8px;
       padding: 1rem;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
+      transition: background-color var(--transition-base), border-color var(--transition-base);
+    }
+
+    .component-card p {
+      color: var(--text-muted);
+    }
+
+    /* ========================================
+       HINT / TIP BOXES
+       ======================================== */
+    .hint-box {
+      padding: 0.625rem 0.875rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+
+    [data-theme="dark"] .hint-box {
+      background: rgba(251, 191, 36, 0.12);
+      color: #fcd34d;
+      border-color: rgba(251, 191, 36, 0.25);
+    }
+
+    .section-hint.hint-box {
+      background: rgba(251, 191, 36, 0.15);
+      color: #92400e;
+    }
+
+    [data-theme="dark"] .section-hint.hint-box {
+      background: rgba(251, 191, 36, 0.1);
+      color: #fcd34d;
+    }
+
+    /* ========================================
+       INFRASTRUCTURE INFO SECTION
+       ======================================== */
+    .infra-section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
     }
 
     .infra-section h4 {
-      margin: 0 0 0.75rem 0;
-      font-size: 0.9rem;
+      margin: 0 0 0.875rem 0;
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      font-weight: 600;
       color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
 
     .infra-item {
       display: flex;
       justify-content: space-between;
-      padding: 0.25rem 0;
-      font-size: 0.85rem;
+      padding: 0.375rem 0;
+      font-size: 0.875rem;
     }
 
     .infra-label {
@@ -237,22 +653,27 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     .infra-value {
-      font-family: monospace;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
       color: var(--primary);
     }
 
-    /* Domain configuration section */
+    /* ========================================
+       DOMAIN CONFIGURATION SECTION
+       ======================================== */
     .domain-section {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem;
-      margin-bottom: 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
     }
 
     .domain-section h4 {
-      margin: 0 0 0.5rem 0;
-      font-size: 0.95rem;
+      margin: 0 0 0.625rem 0;
+      font-family: var(--font-sans);
+      font-size: 1rem;
+      font-weight: 600;
       color: var(--text);
       display: flex;
       align-items: center;
@@ -263,9 +684,14 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       font-size: 0.8rem;
       color: var(--text-muted);
       margin-bottom: 1rem;
-      padding: 0.5rem;
-      background: #f0f9ff;
-      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      background: rgba(37, 99, 235, 0.06);
+      border-radius: 8px;
+      line-height: 1.5;
+    }
+
+    [data-theme="dark"] .domain-section .section-hint {
+      background: rgba(96, 165, 250, 0.1);
     }
 
     .domain-row {
@@ -296,14 +722,15 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
     .domain-default {
       position: absolute;
-      right: 10px;
+      right: 12px;
       top: 50%;
       transform: translateY(-50%);
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      background: #f1f5f9;
-      padding: 2px 6px;
-      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-subtle);
+      background: var(--bg);
+      padding: 3px 8px;
+      border-radius: 5px;
       max-width: 160px;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -311,11 +738,15 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     .issuer-preview {
-      margin-top: 0.75rem;
-      padding: 0.5rem;
-      background: #f0fdf4;
-      border-radius: 4px;
-      font-size: 0.85rem;
+      margin-top: 0.875rem;
+      padding: 0.625rem 0.75rem;
+      background: rgba(5, 150, 105, 0.08);
+      border-radius: 8px;
+      font-size: 0.875rem;
+    }
+
+    [data-theme="dark"] .issuer-preview {
+      background: rgba(52, 211, 153, 0.1);
     }
 
     .issuer-preview .label {
@@ -324,82 +755,129 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     .issuer-preview .value {
-      color: #16a34a;
-      font-family: monospace;
+      color: var(--success);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
       word-break: break-all;
     }
 
-    button {
-      padding: 0.75rem 1.5rem;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: 500;
+    /* ========================================
+       BUTTONS
+       ======================================== */
+    button, a.btn-primary, a.btn-secondary {
+      padding: 0.875rem 1.75rem;
+      border-radius: 10px;
+      font-family: var(--font-sans);
+      font-size: 0.95rem;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all var(--transition-fast);
       border: none;
+      text-decoration: none;
+      display: inline-block;
+      text-align: center;
     }
 
     .btn-primary {
-      background: var(--primary);
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
       color: white;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
     }
 
     .btn-primary:hover:not(:disabled) {
-      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
     }
 
     .btn-primary:disabled {
-      opacity: 0.6;
+      opacity: 0.5;
       cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    [data-theme="dark"] .btn-primary {
+      box-shadow: 0 2px 8px rgba(96, 165, 250, 0.3);
+    }
+
+    [data-theme="dark"] .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 4px 12px rgba(96, 165, 250, 0.4);
     }
 
     .btn-secondary {
-      background: var(--border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       color: var(--text);
+      border: 1px solid var(--glass-border);
     }
 
     .btn-secondary:hover {
-      background: #cbd5e1;
+      background: var(--card-bg);
+      border-color: var(--border);
     }
 
     .button-group {
       display: flex;
+      justify-content: space-between;
+      align-items: center;
       gap: 1rem;
-      margin-top: 1.5rem;
+      margin-top: 2rem;
     }
 
+    .button-group .btn-secondary:first-child:last-child {
+      /* Single back button - keep left aligned */
+      margin-right: auto;
+    }
+
+    .button-group .btn-primary {
+      margin-left: auto;
+    }
+
+    .button-group .btn-secondary + .btn-primary {
+      margin-left: 0;
+    }
+
+    /* ========================================
+       PROGRESS LOG
+       ======================================== */
     .progress-log {
-      background: #1e293b;
-      border-radius: 8px;
-      padding: 1rem;
-      max-height: 300px;
+      background: #0f172a;
+      border-radius: 12px;
+      padding: 1.25rem;
+      max-height: 320px;
       overflow-y: auto;
-      font-family: 'Monaco', 'Menlo', monospace;
-      font-size: 0.875rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      border: 1px solid #1e293b;
     }
 
     .progress-log pre {
       color: #e2e8f0;
       white-space: pre-wrap;
       word-break: break-word;
+      line-height: 1.6;
     }
 
     /* Progress UI Components */
     .progress-container {
-      margin: 1rem 0;
+      margin: 1.25rem 0;
     }
 
     .progress-status {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.75rem;
+      gap: 0.875rem;
+      margin-bottom: 1rem;
     }
 
     .progress-status .spinner {
-      width: 20px;
-      height: 20px;
-      border: 2px solid #e2e8f0;
+      width: 22px;
+      height: 22px;
+      border: 2px solid var(--border);
       border-top-color: var(--primary);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
@@ -410,126 +888,228 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     .progress-bar-wrapper {
-      background: #e2e8f0;
-      border-radius: 4px;
-      height: 8px;
+      background: var(--bg-secondary);
+      border-radius: 6px;
+      height: 10px;
       overflow: hidden;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.625rem;
     }
 
     .progress-bar {
       height: 100%;
-      background: var(--primary);
-      border-radius: 4px;
-      transition: width 0.3s ease;
+      background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+      border-radius: 6px;
+      transition: width 0.4s ease;
     }
 
     .progress-text {
-      font-size: 0.875rem;
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
       color: var(--text-muted);
     }
 
     .log-toggle {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 0.5rem;
-      padding: 0.5rem 0.75rem;
-      background: #f1f5f9;
-      border: 1px solid var(--border);
-      border-radius: 6px;
+      padding: 0.625rem 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 0.875rem;
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
       color: var(--text-muted);
       margin-top: 1rem;
+      transition: all var(--transition-fast);
     }
 
     .log-toggle:hover {
-      background: #e2e8f0;
+      background: var(--border-light);
+      color: var(--text);
     }
 
     .log-toggle .arrow {
-      transition: transform 0.2s;
+      transition: transform var(--transition-fast);
     }
 
     .log-toggle.open .arrow {
       transform: rotate(90deg);
     }
 
+    /* ========================================
+       STEP INDICATOR - Refined Minimal Design
+       ======================================== */
     .step-indicator {
+      position: relative;
       display: flex;
       justify-content: center;
-      gap: 0.5rem;
-      margin-bottom: 2rem;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 2.5rem;
+      padding: 0.75rem 0;
+    }
+
+    /* The connecting line */
+    .step-indicator::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: calc(100% - 80px);
+      max-width: 500px;
+      height: 1px;
+      background: var(--border);
     }
 
     .step {
-      width: 40px;
-      height: 40px;
+      position: relative;
+      z-index: 1;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 600;
-      font-size: 0.875rem;
+      font-family: var(--font-sans);
+      font-weight: 500;
+      font-size: 0.7rem;
+      background: var(--bg);
+      transition: all var(--transition-base);
     }
 
     .step-active {
-      background: var(--primary);
-      color: white;
+      width: 32px;
+      height: 32px;
+      background: var(--text);
+      color: var(--bg);
+      font-weight: 600;
+      font-size: 0.75rem;
+      box-shadow: 0 0 0 4px var(--bg), 0 0 0 5px var(--text);
+    }
+
+    [data-theme="dark"] .step-active {
+      background: var(--splash-text);
+      color: var(--bg);
+      box-shadow: 0 0 0 4px var(--bg), 0 0 0 5px var(--splash-text);
     }
 
     .step-complete {
-      background: var(--success);
-      color: white;
+      background: var(--text);
+      color: var(--bg);
+      font-size: 0;
+    }
+
+    .step-complete::after {
+      content: '✓';
+      font-size: 0.7rem;
+    }
+
+    [data-theme="dark"] .step-complete {
+      background: var(--splash-text);
+      color: var(--bg);
     }
 
     .step-pending {
-      background: var(--border);
-      color: var(--text-muted);
+      background: var(--bg);
+      color: var(--text-subtle);
+      border: 1px solid var(--border);
     }
 
     .step-connector {
       width: 40px;
-      height: 2px;
-      background: var(--border);
+      height: 1px;
+      background: transparent;
       align-self: center;
     }
 
+    /* ========================================
+       ALERTS
+       ======================================== */
     .alert {
-      padding: 1rem;
-      border-radius: 8px;
-      margin-bottom: 1rem;
+      padding: 1rem 1.25rem;
+      border-radius: 10px;
+      margin-bottom: 1.25rem;
+      font-size: 0.9rem;
+      line-height: 1.5;
     }
 
-    .alert-success { background: #d1fae5; color: #065f46; }
-    .alert-error { background: #fee2e2; color: #991b1b; }
-    .alert-warning { background: #fef3c7; color: #92400e; }
-    .alert-info { background: #dbeafe; color: #1e40af; }
+    .alert-success {
+      background: rgba(5, 150, 105, 0.08);
+      color: var(--success);
+      border: 1px solid rgba(5, 150, 105, 0.2);
+    }
+    .alert-error {
+      background: rgba(220, 38, 38, 0.08);
+      color: var(--error);
+      border: 1px solid rgba(220, 38, 38, 0.2);
+    }
+    .alert-warning {
+      background: rgba(217, 119, 6, 0.08);
+      color: var(--warning);
+      border: 1px solid rgba(217, 119, 6, 0.2);
+    }
+    .alert-info {
+      background: rgba(37, 99, 235, 0.06);
+      color: var(--primary);
+      border: 1px solid rgba(37, 99, 235, 0.15);
+    }
 
+    [data-theme="dark"] .alert-success {
+      background: rgba(52, 211, 153, 0.1);
+      border-color: rgba(52, 211, 153, 0.25);
+    }
+    [data-theme="dark"] .alert-error {
+      background: rgba(248, 113, 113, 0.1);
+      border-color: rgba(248, 113, 113, 0.25);
+    }
+    [data-theme="dark"] .alert-warning {
+      background: rgba(251, 191, 36, 0.1);
+      border-color: rgba(251, 191, 36, 0.25);
+    }
+    [data-theme="dark"] .alert-info {
+      background: rgba(96, 165, 250, 0.1);
+      border-color: rgba(96, 165, 250, 0.2);
+    }
+
+    /* ========================================
+       URL DISPLAY
+       ======================================== */
     .url-display {
-      background: var(--bg);
-      padding: 1rem;
-      border-radius: 8px;
-      margin-top: 1rem;
+      background: var(--bg-secondary);
+      padding: 1.25rem;
+      border-radius: 12px;
+      margin-top: 1.25rem;
+      border: 1px solid var(--border-light);
     }
 
     .url-item {
       display: flex;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
+      gap: 0.75rem;
+      margin-bottom: 0.625rem;
+      align-items: baseline;
     }
 
     .url-label {
-      font-weight: 500;
-      min-width: 100px;
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 0.85rem;
+      min-width: 110px;
+      color: var(--text-muted);
     }
 
     .url-value {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
       color: var(--primary);
       word-break: break-all;
       overflow-wrap: break-word;
     }
 
+    /* ========================================
+       FILE INPUT
+       ======================================== */
     .file-input-wrapper {
       position: relative;
       overflow: hidden;
@@ -547,74 +1127,92 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     .file-input-btn {
-      display: inline-block;
-      padding: 0.75rem 1.5rem;
-      background: var(--border);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.5rem;
+      background: var(--bg-secondary);
       color: var(--text);
-      border-radius: 8px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
       cursor: pointer;
+      font-family: var(--font-sans);
+      font-weight: 500;
+      transition: all var(--transition-fast);
     }
 
     .file-input-btn:hover {
-      background: #cbd5e1;
+      background: var(--border-light);
+      border-color: var(--primary);
     }
 
     .config-preview {
-      background: var(--bg);
-      border-radius: 8px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
       padding: 1rem;
       margin-top: 1rem;
-      font-family: 'Monaco', 'Menlo', monospace;
-      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
       max-height: 200px;
       overflow-y: auto;
+      line-height: 1.5;
     }
 
     .hidden { display: none; }
 
-    /* Modal styles */
+    /* ========================================
+       MODAL
+       ======================================== */
     .modal {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      inset: 0;
       z-index: 1000;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .modal.hidden { display: none; }
+
     .modal-backdrop {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
     }
+
     .modal-content {
       position: relative;
       background: var(--card-bg);
-      border-radius: 12px;
-      padding: 1.5rem;
-      max-width: 450px;
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 460px;
       width: 90%;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border-light);
     }
 
-    /* Resource preview styles */
-    .resource-preview {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem;
+    .modal-content h3 {
+      font-family: var(--font-sans);
+      font-size: 1.25rem;
+      font-weight: 600;
       margin-bottom: 1rem;
+    }
+
+    /* ========================================
+       RESOURCE PREVIEW
+       ======================================== */
+    .resource-preview {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
     }
 
     .resource-list {
       display: grid;
-      gap: 1rem;
+      gap: 1.25rem;
     }
 
     .resource-category {
@@ -623,6 +1221,8 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
     .resource-category strong {
       display: block;
+      font-family: var(--font-sans);
+      font-weight: 600;
       margin-bottom: 0.5rem;
       color: var(--text);
     }
@@ -634,9 +1234,9 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     .resource-category li {
-      font-family: 'Monaco', 'Menlo', monospace;
-      font-size: 0.8rem;
-      margin-bottom: 0.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      margin-bottom: 0.3rem;
     }
 
     /* Progress spinner */
@@ -660,6 +1260,8 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       align-items: center;
       margin-bottom: 0.5rem;
       color: #e2e8f0;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
     }
 
     .progress-item.complete {
@@ -670,28 +1272,32 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       color: var(--error);
     }
 
-    /* Environment cards */
+    /* ========================================
+       ENVIRONMENT CARDS
+       ======================================== */
     .env-cards {
       display: grid;
       gap: 1rem;
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
     }
 
     .env-card {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 1.25rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      transition: all var(--transition-fast);
     }
 
     .env-card:hover {
       border-color: var(--primary);
-      background: #f8fafc;
-      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+      background: var(--card-bg-hover);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
     }
 
     .env-card-info {
@@ -699,14 +1305,16 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     .env-card-name {
+      font-family: var(--font-sans);
       font-size: 1.1rem;
       font-weight: 600;
       margin-bottom: 0.5rem;
+      color: var(--text);
     }
 
     .env-card-stats {
       display: flex;
-      gap: 1rem;
+      gap: 1.25rem;
       font-size: 0.8rem;
       color: var(--text-muted);
     }
@@ -714,70 +1322,102 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     .env-card-stat {
       display: flex;
       align-items: center;
-      gap: 0.25rem;
+      gap: 0.375rem;
     }
 
     .env-card-actions {
       display: flex;
-      gap: 0.5rem;
+      gap: 0.625rem;
     }
 
     .btn-danger {
       background: var(--error);
       color: white;
-      padding: 0.5rem 1rem;
-      font-size: 0.875rem;
+      padding: 0.625rem 1rem;
+      font-size: 0.85rem;
+      border-radius: 8px;
     }
 
     .btn-danger:hover {
-      background: #dc2626;
+      background: #b91c1c;
+      transform: translateY(-1px);
+    }
+
+    .btn-warning {
+      background: var(--warning);
+      color: white;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.9rem;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(217, 119, 6, 0.25);
+    }
+
+    .btn-warning:hover {
+      background: #b45309;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+    }
+
+    [data-theme="dark"] .btn-warning {
+      box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+    }
+
+    [data-theme="dark"] .btn-warning:hover {
+      box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
     }
 
     .btn-info {
       background: var(--primary);
       color: white;
-      padding: 0.5rem 1rem;
-      font-size: 0.875rem;
+      padding: 0.625rem 1rem;
+      font-size: 0.85rem;
+      border-radius: 8px;
     }
 
     .btn-info:hover {
       background: var(--primary-dark);
+      transform: translateY(-1px);
     }
 
-    /* Resource list in details view */
+    /* ========================================
+       RESOURCE LIST (Details view)
+       ======================================== */
     .resource-section {
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.75rem;
     }
 
     .resource-section-title {
+      font-family: var(--font-sans);
       font-size: 1rem;
       font-weight: 600;
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.875rem;
       display: flex;
       align-items: center;
       gap: 0.5rem;
+      color: var(--text);
     }
 
     .resource-section-title .count {
       font-size: 0.8rem;
       color: var(--text-muted);
-      font-weight: normal;
+      font-weight: 500;
     }
 
     .resource-list {
-      background: var(--bg);
-      border-radius: 8px;
-      padding: 0.75rem;
+      background: var(--bg-secondary);
+      border-radius: 10px;
+      padding: 0.875rem;
+      border: 1px solid var(--border-light);
     }
 
     .resource-item {
-      font-family: 'Monaco', 'Menlo', monospace;
-      font-size: 0.8rem;
-      padding: 0.25rem 0.5rem;
-      margin-bottom: 0.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 0.375rem;
       background: var(--card-bg);
-      border-radius: 4px;
-      border: 1px solid var(--border);
+      border-radius: 6px;
+      border: 1px solid var(--border-light);
     }
 
     .resource-item:last-child {
@@ -785,14 +1425,14 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     .resource-item-name {
-      font-weight: 500;
+      font-weight: 600;
     }
 
     .resource-item-details {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: var(--text-muted);
       margin-top: 0.25rem;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: var(--font-sans);
     }
 
     .resource-item-details span {
@@ -819,29 +1459,35 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       font-size: 0.875rem;
     }
 
-    /* Delete options */
+    /* ========================================
+       DELETE OPTIONS
+       ======================================== */
     .delete-options {
       display: grid;
-      gap: 0.75rem;
+      gap: 0.875rem;
     }
 
     .delete-option {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem;
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      gap: 0.875rem;
+      padding: 1rem;
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
       cursor: pointer;
+      background: var(--card-bg);
+      transition: all var(--transition-fast);
     }
 
     .delete-option:hover {
-      background: var(--bg);
+      background: var(--bg-secondary);
+      border-color: var(--border);
     }
 
     .delete-option input[type="checkbox"] {
       width: 18px;
       height: 18px;
+      accent-color: var(--error);
     }
 
     .delete-option span {
@@ -854,37 +1500,43 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       font-size: 0.8rem;
     }
 
-    /* Database configuration styles */
+    /* ========================================
+       DATABASE CONFIGURATION
+       ======================================== */
     .database-config-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 1.5rem;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.75rem;
     }
 
     .database-config-stack {
       display: flex;
       flex-direction: column;
       gap: 1.5rem;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.75rem;
     }
 
     .database-card {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 0.5rem;
-      padding: 1.25rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 1.5rem;
     }
 
     .database-card h3 {
-      margin: 0 0 1rem 0;
+      margin: 0 0 1.125rem 0;
+      font-family: var(--font-sans);
       font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
     }
 
     .db-description {
       font-size: 0.875rem;
       color: var(--text-muted);
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
+      line-height: 1.6;
     }
 
     .db-description p {
@@ -897,21 +1549,28 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     }
 
     .db-description li {
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.3rem;
     }
 
     .db-hint {
       font-style: italic;
-      margin-top: 0.75rem;
-      padding: 0.5rem;
-      background: #f0f9ff;
-      border-radius: 4px;
+      margin-top: 0.875rem;
+      padding: 0.625rem 0.75rem;
+      background: rgba(37, 99, 235, 0.06);
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+
+    [data-theme="dark"] .db-hint {
+      background: rgba(96, 165, 250, 0.1);
     }
 
     .region-selection h4 {
-      margin: 0 0 0.75rem 0;
+      margin: 0 0 0.875rem 0;
+      font-family: var(--font-sans);
       font-size: 0.95rem;
       font-weight: 600;
+      color: var(--text);
     }
 
     .radio-group {
@@ -923,24 +1582,66 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     .radio-item {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.625rem;
       cursor: pointer;
-      padding: 0.25rem 0;
+      padding: 0.375rem 0;
+      font-size: 0.9rem;
     }
 
     .radio-item input[type="radio"] {
       margin: 0;
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
+      /* Custom radio styling */
+      appearance: none;
+      -webkit-appearance: none;
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      position: relative;
+    }
+
+    .radio-item input[type="radio"]:checked {
+      border-color: var(--primary);
+      background: var(--card-bg);
+    }
+
+    .radio-item input[type="radio"]:checked::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 10px;
+      height: 10px;
+      background: var(--primary);
+      border-radius: 50%;
+    }
+
+    .radio-item input[type="radio"]:hover:not(:disabled) {
+      border-color: var(--primary);
+    }
+
+    [data-theme="dark"] .radio-item input[type="radio"] {
+      background: var(--bg-secondary);
+      border-color: var(--border);
+    }
+
+    [data-theme="dark"] .radio-item input[type="radio"]:checked {
+      border-color: var(--primary);
+      background: var(--bg-secondary);
     }
 
     .radio-separator {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin: 0.5rem 0 0.25rem 0;
-      font-weight: 500;
+      font-family: var(--font-sans);
+      font-size: 0.7rem;
+      color: var(--text-subtle);
+      margin: 0.75rem 0 0.375rem 0;
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.08em;
     }
 
     @media (max-width: 768px) {
@@ -951,20 +1652,27 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
   </style>
 </head>
 <body>
+  <!-- Background Typography -->
+  <div class="bg-typography" aria-hidden="true">Authrim</div>
+
+  <!-- Splash Screen -->
+  <div id="splash" class="splash">
+    <div class="splash-content">
+      <h1 class="splash-title">Authrim</h1>
+      <p class="splash-tagline">Identity & Access Platform</p>
+      <div class="splash-loader"></div>
+    </div>
+  </div>
+
+  <!-- Theme Toggle -->
+  <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">🌙</button>
+
   <div class="container">
     <header>
-      <h1>🔐 Authrim Setup</h1>
+      <h1>Authrim</h1>
+      <p class="header-wizard">Setup Wizard</p>
       <p class="subtitle">OIDC Provider on Cloudflare Workers</p>
     </header>
-
-    <!-- Development Warning Banner -->
-    <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
-      <strong style="color: #92400e;">⚠️ WARNING: Under Development!</strong>
-      <p style="color: #78350f; margin: 0.5rem 0 0 0; font-size: 0.875rem;">
-        This project is still under active development and does not work correctly yet.<br>
-        Admin UI is incomplete and does not support login functionality.
-      </p>
-    </div>
 
     <div class="step-indicator" id="step-indicator">
       <div class="step step-active" id="step-1">1</div>
@@ -1101,12 +1809,12 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <h3 style="margin: 0 0 1rem; font-size: 1rem;">📦 Components</h3>
 
         <!-- API Component (required) -->
-        <div class="component-card" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+        <div class="component-card">
           <label class="checkbox-item" style="font-weight: 600; margin-bottom: 0.25rem;">
             <input type="checkbox" id="comp-api" checked disabled>
             🔐 API (required)
           </label>
-          <p style="margin: 0.25rem 0 0.5rem 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
+          <p style="margin: 0.25rem 0 0.5rem 1.5rem; font-size: 0.85rem;">
             OIDC Provider endpoints: authorize, token, userinfo, discovery, management APIs.
           </p>
           <div style="margin-left: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.75rem;">
@@ -1126,23 +1834,23 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         </div>
 
         <!-- Login UI Component -->
-        <div class="component-card" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+        <div class="component-card">
           <label class="checkbox-item" style="font-weight: 600; margin-bottom: 0.25rem;">
             <input type="checkbox" id="comp-login-ui" checked>
             🖥️ Login UI
           </label>
-          <p style="margin: 0.25rem 0 0 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
+          <p style="margin: 0.25rem 0 0 1.5rem; font-size: 0.85rem;">
             User-facing login, registration, consent, and account management pages.
           </p>
         </div>
 
         <!-- Admin UI Component -->
-        <div class="component-card" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+        <div class="component-card">
           <label class="checkbox-item" style="font-weight: 600; margin-bottom: 0.25rem;">
             <input type="checkbox" id="comp-admin-ui" checked>
             ⚙️ Admin UI
           </label>
-          <p style="margin: 0.25rem 0 0 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
+          <p style="margin: 0.25rem 0 0 1.5rem; font-size: 0.85rem;">
             Admin dashboard for managing tenants, clients, users, and system settings.
           </p>
         </div>
@@ -1221,7 +1929,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           </div>
         </div>
 
-        <div class="section-hint" style="margin-top: 0.75rem; background: #fef3c7;">
+        <div class="section-hint hint-box" style="margin-top: 0.75rem;">
           💡 CORS: Cross-origin requests from Login/Admin UI to API are automatically allowed.
         </div>
       </div>
@@ -1583,9 +2291,14 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         </ol>
       </div>
 
-      <div class="button-group" style="margin-top: 1.5rem;">
+      <div class="button-group" style="margin-top: 1.5rem; justify-content: center;">
         <button class="btn-secondary" id="btn-save-config-complete" title="Save configuration to file">💾 Save Configuration</button>
+        <button class="btn-secondary" id="btn-back-to-main" title="Return to main screen">🏠 Back to Main</button>
       </div>
+
+      <p style="text-align: center; margin-top: 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+        ✅ Setup is complete. You can safely close this window.
+      </p>
     </div>
 
     <!-- Environment Management: List -->
@@ -1627,25 +2340,27 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       </h2>
 
       <!-- Admin Setup Section -->
-      <div id="admin-setup-section" class="hidden" style="margin-bottom: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px; border: 1px solid #fcd34d;">
+      <div id="admin-setup-section" class="hidden hint-box" style="margin-bottom: 1.5rem; padding: 1rem;">
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
           <span style="font-size: 1.5rem;">⚠️</span>
           <div>
-            <div style="font-weight: 600; color: #92400e;">Admin Account Not Configured</div>
-            <div style="font-size: 0.875rem; color: #a16207;">Initial administrator has not been set up for this environment.</div>
+            <div style="font-weight: 600;">Admin Account Not Configured</div>
+            <div style="font-size: 0.875rem; opacity: 0.85;">Initial administrator has not been set up for this environment.</div>
           </div>
         </div>
         <button class="btn-primary" id="btn-start-admin-setup" style="margin-top: 0.5rem;">
           🔐 Start Admin Account Setup with Passkey
         </button>
-        <div id="admin-setup-result" class="hidden" style="margin-top: 1rem; padding: 0.75rem; background: white; border-radius: 6px;">
+        <div id="admin-setup-result" class="hidden" style="margin-top: 1rem; padding: 0.75rem; background: var(--card-bg); border-radius: 6px;">
           <div style="font-weight: 500; margin-bottom: 0.5rem;">Setup URL Generated:</div>
           <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <input type="text" id="admin-setup-url" readonly style="flex: 1; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-family: monospace; font-size: 0.875rem;">
+            <input type="text" id="admin-setup-url" readonly style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 0.875rem; background: var(--bg); color: var(--text);">
             <button class="btn-secondary" id="btn-copy-setup-url" style="white-space: nowrap;">📋 Copy</button>
-            <a id="btn-open-setup-url" href="#" target="_blank" class="btn-primary" style="text-decoration: none; white-space: nowrap;">🔗 Open</a>
           </div>
-          <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem;">
+          <div style="text-align: center; margin-top: 1rem;">
+            <a id="btn-open-setup-url" href="#" target="_blank" class="btn-primary">🔑 Open Setup</a>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem; text-align: center;">
             This URL is valid for 1 hour. Open it in a browser to register the first admin account.
           </div>
         </div>
@@ -1824,6 +2539,67 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
   </div>
 
   <script>
+    // ========================================
+    // THEME MANAGEMENT
+    // ========================================
+    function initTheme() {
+      const savedTheme = localStorage.getItem('authrim-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+      updateThemeToggle(theme);
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'light';
+      const newTheme = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('authrim-theme', newTheme);
+      updateThemeToggle(newTheme);
+    }
+
+    function updateThemeToggle(theme) {
+      const toggle = document.getElementById('theme-toggle');
+      if (toggle) {
+        toggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+        toggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+      }
+    }
+
+    // Listen for system preference changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (!localStorage.getItem('authrim-theme')) {
+        const theme = e.matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+        updateThemeToggle(theme);
+      }
+    });
+
+    // Initialize theme immediately
+    initTheme();
+
+    // Theme toggle event
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+    // ========================================
+    // SPLASH SCREEN
+    // ========================================
+    function hideSplash() {
+      const splash = document.getElementById('splash');
+      if (splash) {
+        splash.classList.add('fade-out');
+        setTimeout(() => {
+          splash.style.display = 'none';
+        }, 600);
+      }
+    }
+
+    // Hide splash after 2500ms
+    setTimeout(hideSplash, 2500);
+
+    // ========================================
+    // MAIN APPLICATION
+    // ========================================
     // Session token for API authentication (embedded by server)
     const SESSION_TOKEN = '${safeToken}';
     const MANAGE_ONLY = ${manageOnlyFlag};
@@ -1873,13 +2649,15 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
     // API helpers (with session token authentication)
     async function api(endpoint, options = {}) {
+      const { headers: customHeaders, body, ...restOptions } = options;
       const response = await fetch('/api' + endpoint, {
+        ...restOptions,
         headers: {
           'Content-Type': 'application/json',
           'X-Session-Token': SESSION_TOKEN,
+          ...(customHeaders || {}),
         },
-        ...options,
-        body: options.body ? JSON.stringify(options.body) : undefined,
+        body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
       });
       return response.json();
     }
@@ -1936,16 +2714,27 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       const progressBar = document.getElementById(prefix + '-progress-bar');
       const progressText = document.getElementById(prefix + '-progress-text');
       const currentTaskEl = document.getElementById(prefix + '-current-task');
+      const spinner = document.getElementById(prefix + '-spinner');
 
       if (progressBar && total > 0) {
-        const percent = Math.round((current / total) * 100);
+        const percent = Math.min(Math.round((current / total) * 100), 100);
         progressBar.style.width = percent + '%';
       }
       if (progressText) {
-        progressText.textContent = current + ' / ' + total + ' ' + (prefix === 'deploy' ? 'components' : 'resources');
+        // For deploy, show percentage; for others, show count
+        if (prefix === 'deploy') {
+          const percent = Math.min(Math.round((current / total) * 100), 100);
+          progressText.textContent = percent + '% complete';
+        } else {
+          progressText.textContent = current + ' / ' + total + ' resources';
+        }
       }
       if (currentTaskEl && currentTask) {
         currentTaskEl.textContent = currentTask;
+      }
+      // Hide spinner when complete
+      if (spinner) {
+        spinner.style.display = (current >= total && total > 0) ? 'none' : 'block';
       }
     }
 
@@ -2807,6 +3596,21 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       const keysPath = document.getElementById('keys-path');
       const progressUI = document.getElementById('provision-progress-ui');
 
+      // Confirmation dialog for re-provisioning
+      if (provisioningCompleted) {
+        const confirmed = confirm(
+          '⚠️ Re-provision will DELETE all existing resources and create new ones.\\n\\n' +
+          'This action will:\\n' +
+          '• Delete existing D1 databases (all data will be lost)\\n' +
+          '• Delete existing KV namespaces\\n' +
+          '• Generate new encryption keys\\n\\n' +
+          'Are you sure you want to continue?'
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+
       btn.disabled = true;
       btn.classList.add('hidden');
       btnGotoDeploy.classList.add('hidden');
@@ -2906,9 +3710,10 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           // Show keys saved info
           keysSavedInfo.classList.remove('hidden');
 
-          // Update buttons
+          // Update buttons - change to warning style for re-provision
           btn.textContent = 'Re-provision (Delete & Create)';
-          btn.classList.remove('hidden');
+          btn.classList.remove('hidden', 'btn-primary');
+          btn.classList.add('btn-warning');
           btn.disabled = false;
           btnGotoDeploy.classList.remove('hidden');
         } else {
@@ -2967,8 +3772,10 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       output.textContent = 'Starting deployment...\\n\\n';
 
       let completedCount = 0;
-      const totalComponents = 10; // Approximate total components
-      updateProgressUI('deploy', 0, totalComponents, 'Initializing...');
+      // Use indeterminate progress - actual step count varies based on components
+      // We'll update the total dynamically based on actual progress
+      let totalComponents = 0; // Will be calculated from actual progress
+      updateProgressUI('deploy', 0, 100, 'Initializing...');
 
       try {
         // Generate wrangler configs first
@@ -2995,14 +3802,20 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
               output.textContent += msg + '\\n';
               // Update progress UI based on message content
               const taskInfo = parseProgressMessage(msg);
-              if (taskInfo) {
-                updateProgressUI('deploy', completedCount, totalComponents, taskInfo);
-              }
               // Count completed items (lines with checkmark)
               if (msg.includes('✓') || msg.includes('✅')) {
                 completedCount++;
-                updateProgressUI('deploy', completedCount, totalComponents, taskInfo || ('Completed ' + completedCount + ' items'));
               }
+              // Update total when we see completion markers (e.g., "5/5")
+              const progressMatch = msg.match(/(\\d+)\\/(\\d+)/);
+              if (progressMatch) {
+                const [, , total] = progressMatch;
+                totalComponents = Math.max(totalComponents, parseInt(total, 10) + completedCount);
+              }
+              // Display progress as percentage or show current task
+              const displayTotal = totalComponents > 0 ? totalComponents : completedCount + 10;
+              const percent = Math.min(Math.round((completedCount / displayTotal) * 100), 99);
+              updateProgressUI('deploy', percent, 100, taskInfo || ('Processing... ' + completedCount + ' steps completed'));
             });
             lastProgressLength = statusResult.progress.length;
             scrollToBottom(log);
@@ -3021,7 +3834,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         if (result.success) {
           // Final progress update
-          updateProgressUI('deploy', totalComponents, totalComponents, '✓ Deployment complete!');
+          updateProgressUI('deploy', 100, 100, '✓ Deployment complete!');
           output.textContent += '\\n✓ Deployment complete!\\n';
           scrollToBottom(log);
 
@@ -3145,36 +3958,54 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       urlsEl.appendChild(createUrlItem('Login UI:', loginUrl));
       urlsEl.appendChild(createUrlItem('Admin UI:', adminUrl));
 
-      // Add setup URL if available
-      if (result && result.setupUrl) {
-        const setupItem = createUrlItem('Admin Setup:', result.setupUrl);
-        setupItem.querySelector('a').style.fontWeight = 'bold';
-        urlsEl.appendChild(setupItem);
+      // Create Admin Setup section (separate, prominent box)
+      const adminSetupSection = document.createElement('div');
+      adminSetupSection.style.cssText = 'margin-top: 1.5rem; padding: 1.25rem; background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%); border: 2px solid var(--primary); border-radius: 12px;';
 
-        // Add warning about one-time use and time limit
-        const setupNote = document.createElement('div');
-        setupNote.style.cssText = 'margin-top: 0.5rem; margin-bottom: 0.5rem; padding: 0.5rem 0.75rem; background: #fef3c7; border-radius: 0.375rem; font-size: 0.85rem; color: #92400e;';
-        setupNote.innerHTML = '⚠️ This URL can only be used <strong>once</strong> and expires in <strong>1 hour</strong>.';
-        urlsEl.appendChild(setupNote);
+      if (result && result.setupUrl) {
+        adminSetupSection.innerHTML = \`
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <span style="font-size: 1.5rem;">🔐</span>
+            <h4 style="margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--primary);">Admin Account Setup</h4>
+            <span style="background: var(--warning); color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600;">IMPORTANT</span>
+          </div>
+          <p style="margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--text-muted);">
+            Register your first administrator account with Passkey authentication:
+          </p>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="text" value="\${result.setupUrl}" readonly style="flex: 1; min-width: 200px; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-family: var(--font-mono); font-size: 0.8rem; background: var(--card-bg); color: var(--text);">
+            <button class="btn-secondary" onclick="navigator.clipboard.writeText('\${result.setupUrl}'); this.textContent='✓ Copied'; setTimeout(() => this.textContent='📋 Copy', 2000);" style="white-space: nowrap;">📋 Copy</button>
+          </div>
+          <div style="text-align: center; margin-top: 1rem;">
+            <a href="\${result.setupUrl}" target="_blank" class="btn-primary">🔑 Open Setup</a>
+          </div>
+          <div class="hint-box" style="margin-top: 0.75rem;">
+            ⚠️ This URL can only be used <strong>once</strong> and expires in <strong>1 hour</strong>.
+          </div>
+        \`;
       } else {
-        // Show debug info when setup URL is missing
-        const debugDiv = document.createElement('div');
-        debugDiv.style.cssText = 'margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border-radius: 0.5rem; font-size: 0.875rem;';
-        debugDiv.innerHTML = '<strong>⚠️ Admin Setup URL not generated</strong><br>';
+        // Show message when setup URL is missing
+        let debugInfo = '';
         if (result && result.adminSetupDebug) {
           const debug = result.adminSetupDebug;
-          if (debug.error) {
-            debugDiv.innerHTML += '<span style="color: #dc2626;">Error: ' + debug.error + '</span><br>';
-          }
           if (debug.alreadyCompleted) {
-            debugDiv.innerHTML += 'Status: Already completed (setup can only be done once)<br>';
+            debugInfo = '<p style="margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--text-muted);">Admin setup has already been completed for this environment.</p>';
+          } else if (debug.error) {
+            debugInfo = '<p style="margin: 0.5rem 0 0; font-size: 0.85rem; color: var(--error);">Error: ' + debug.error + '</p>';
           }
-          debugDiv.innerHTML += '<br><small>Debug: ' + JSON.stringify(debug) + '</small>';
-        } else {
-          debugDiv.innerHTML += 'No debug information available';
         }
-        urlsEl.appendChild(debugDiv);
+        adminSetupSection.innerHTML = \`
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <span style="font-size: 1.5rem;">🔐</span>
+            <h4 style="margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--text-muted);">Admin Account Setup</h4>
+          </div>
+          <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted);">
+            Setup URL not available. You can configure admin access from the Admin UI later.
+          </p>
+          \${debugInfo}
+        \`;
       }
+      urlsEl.parentNode.insertBefore(adminSetupSection, urlsEl.nextSibling);
 
       setStep(8);
       showSection('complete');
@@ -3275,11 +4106,15 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
       if (provisioningCompleted) {
         btnProvision.textContent = 'Re-provision (Delete & Create)';
+        btnProvision.classList.remove('btn-primary');
+        btnProvision.classList.add('btn-warning');
         btnProvision.disabled = false;
         btnGotoDeploy.classList.remove('hidden');
         btnSaveConfig.classList.remove('hidden');
       } else {
         btnProvision.textContent = 'Create Resources';
+        btnProvision.classList.remove('btn-warning');
+        btnProvision.classList.add('btn-primary');
         btnProvision.disabled = false;
         btnGotoDeploy.classList.add('hidden');
         btnSaveConfig.classList.add('hidden');
@@ -3391,6 +4226,12 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     // Save config button handlers
     document.getElementById('btn-save-config-provision').addEventListener('click', saveConfigToFile);
     document.getElementById('btn-save-config-complete').addEventListener('click', saveConfigToFile);
+
+    // Back to main button (from complete screen)
+    document.getElementById('btn-back-to-main').addEventListener('click', () => {
+      showSection('welcome');
+      setStep(1);
+    });
 
     // =============================================================================
     // Environment Management
@@ -3845,11 +4686,17 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         let baseUrl = '';
         if (router && router.name) {
-          // Construct URL from worker name
-          baseUrl = 'https://' + router.name + '.workers.dev';
+          // Construct URL from worker name with subdomain
+          // Format: https://{worker-name}.{subdomain}.workers.dev
+          if (workersSubdomain) {
+            baseUrl = 'https://' + router.name + '.' + workersSubdomain + '.workers.dev';
+          } else {
+            // Fallback without subdomain (shouldn't happen in practice)
+            baseUrl = 'https://' + router.name + '.workers.dev';
+          }
         } else {
           // Fallback - ask for URL
-          baseUrl = prompt('Enter the base URL for the router (e.g., https://myenv-ar-router.workers.dev):');
+          baseUrl = prompt('Enter the base URL for the router (e.g., https://myenv-ar-router.subdomain.workers.dev):');
           if (!baseUrl) {
             btn.disabled = false;
             btn.textContent = '🔐 Start Admin Account Setup with Passkey';
@@ -3930,9 +4777,15 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         deletePages: document.getElementById('delete-pages').checked,
       };
 
-      // Count selected options for progress tracking
+      // Count actual resources to delete based on environment info
       let deleteCompleted = 0;
-      const totalToDelete = Object.values(deleteOptions).filter(v => v).length;
+      let totalToDelete = 0;
+      if (deleteOptions.deleteWorkers) totalToDelete += selectedEnvForDelete.workers?.length || 0;
+      if (deleteOptions.deleteD1) totalToDelete += selectedEnvForDelete.d1?.length || 0;
+      if (deleteOptions.deleteKV) totalToDelete += selectedEnvForDelete.kv?.length || 0;
+      if (deleteOptions.deleteQueues) totalToDelete += selectedEnvForDelete.queues?.length || 0;
+      if (deleteOptions.deleteR2) totalToDelete += selectedEnvForDelete.r2?.length || 0;
+      if (deleteOptions.deletePages) totalToDelete += selectedEnvForDelete.pages?.length || 0;
       updateProgressUI('delete', 0, totalToDelete, 'Starting deletion...');
 
       // Poll for progress

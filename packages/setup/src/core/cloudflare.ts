@@ -12,7 +12,6 @@ import {
   getQueueName,
   D1_DATABASES,
   KV_NAMESPACES,
-  type KVNamespace,
 } from './naming.js';
 import type { D1Location, D1Jurisdiction } from './config.js';
 
@@ -464,6 +463,95 @@ export async function runD1Migrations(
   return { success: true, appliedCount };
 }
 
+/**
+ * Run migrations for an Authrim environment
+ *
+ * Searches for migrations directory in multiple locations:
+ * 1. {rootDir}/migrations
+ * 2. {rootDir}/authrim/migrations
+ * 3. Relative to current working directory
+ *
+ * @param env - Environment name
+ * @param rootDir - Root directory to search for migrations
+ * @param onProgress - Progress callback
+ */
+export async function runMigrationsForEnvironment(
+  env: string,
+  rootDir: string,
+  onProgress?: (message: string) => void
+): Promise<{
+  success: boolean;
+  core: { success: boolean; appliedCount: number; error?: string };
+  pii: { success: boolean; appliedCount: number; error?: string };
+}> {
+  const { existsSync } = await import('node:fs');
+  const { join, resolve } = await import('node:path');
+
+  // Database names for this environment
+  const coreDbName = getD1DatabaseName(env, 'core');
+  const piiDbName = getD1DatabaseName(env, 'pii');
+
+  // Search for migrations directory in multiple locations
+  const searchPaths = [
+    resolve(rootDir, 'migrations'),
+    resolve(rootDir, 'authrim', 'migrations'),
+    resolve(process.cwd(), 'migrations'),
+    resolve(process.cwd(), 'authrim', 'migrations'),
+  ];
+
+  let migrationsRoot: string | null = null;
+  for (const searchPath of searchPaths) {
+    onProgress?.(`  Checking for migrations at: ${searchPath}`);
+    if (existsSync(searchPath)) {
+      migrationsRoot = searchPath;
+      onProgress?.(`  ✓ Found migrations directory: ${searchPath}`);
+      break;
+    }
+  }
+
+  if (!migrationsRoot) {
+    const errorMsg = `Migrations directory not found. Searched:\n${searchPaths.map((p) => `    - ${p}`).join('\n')}`;
+    onProgress?.(`  ❌ ${errorMsg}`);
+    return {
+      success: false,
+      core: { success: false, appliedCount: 0, error: errorMsg },
+      pii: { success: false, appliedCount: 0, error: errorMsg },
+    };
+  }
+
+  // Run core database migrations
+  onProgress?.(`📜 Running migrations for ${coreDbName}...`);
+  const coreResult = await runD1Migrations(coreDbName, migrationsRoot, onProgress);
+  if (!coreResult.success) {
+    onProgress?.(`  ❌ Core migration failed: ${coreResult.error}`);
+  } else {
+    onProgress?.(`  ✅ Applied ${coreResult.appliedCount} core migrations`);
+  }
+
+  // Run PII database migrations
+  const piiMigrationsDir = join(migrationsRoot, 'pii');
+  onProgress?.(`📜 Running migrations for ${piiDbName}...`);
+
+  let piiResult: { success: boolean; appliedCount: number; error?: string };
+  if (!existsSync(piiMigrationsDir)) {
+    onProgress?.(`  ⚠️ PII migrations directory not found: ${piiMigrationsDir}`);
+    piiResult = { success: true, appliedCount: 0 };
+  } else {
+    piiResult = await runD1Migrations(piiDbName, piiMigrationsDir, onProgress);
+    if (!piiResult.success) {
+      onProgress?.(`  ❌ PII migration failed: ${piiResult.error}`);
+    } else {
+      onProgress?.(`  ✅ Applied ${piiResult.appliedCount} PII migrations`);
+    }
+  }
+
+  return {
+    success: coreResult.success && piiResult.success,
+    core: coreResult,
+    pii: piiResult,
+  };
+}
+
 // =============================================================================
 // KV Namespace Operations
 // =============================================================================
@@ -631,7 +719,7 @@ export async function kvPut(
   options: { expirationTtl?: number } = {}
 ): Promise<boolean> {
   try {
-    const args = ['kv', 'key', 'put', key, value, '--namespace-id', namespaceId];
+    const args = ['kv', 'key', 'put', key, value, '--namespace-id', namespaceId, '--remote'];
     if (options.expirationTtl) {
       args.push('--expiration-ttl', options.expirationTtl.toString());
     }
@@ -660,7 +748,7 @@ export async function createQueue(name: string): Promise<{ id: string; name: str
       id: idMatch?.[1] || name, // Use name as fallback ID
       name,
     };
-  } catch (error) {
+  } catch {
     // Queue might already exist
     return { id: name, name };
   }
@@ -677,7 +765,7 @@ export async function createR2Bucket(name: string): Promise<{ name: string }> {
   try {
     await wrangler(['r2', 'bucket', 'create', name]);
     return { name };
-  } catch (error) {
+  } catch {
     // Bucket might already exist
     return { name };
   }
@@ -765,7 +853,7 @@ export async function provisionResources(options: ProvisionOptions): Promise<Pro
   const d1Count = D1_DATABASES.length;
   const kvCount = KV_NAMESPACES.length;
   const totalResources = d1Count + kvCount;
-  let completedResources = 0;
+  let _completedResources = 0;
 
   onProgress(`📦 Provisioning ${totalResources} resources...`);
   onProgress('');
@@ -788,7 +876,7 @@ export async function provisionResources(options: ProvisionOptions): Promise<Pro
           name: result.name,
           id: result.id,
         });
-        completedResources++;
+        _completedResources++;
 
         // Show location info if specified
         let locationInfo = '';
@@ -840,7 +928,6 @@ export async function provisionResources(options: ProvisionOptions): Promise<Pro
   // Provision KV namespaces
   if (options.createKV !== false) {
     onProgress(`🗄️ KV Namespaces (0/${kvCount})`);
-    let kvCreated = 0;
     for (const kvName of KV_NAMESPACES) {
       const nsName = getKVNamespaceName(env, kvName);
       onProgress(`  ⏳ Creating: ${nsName}...`);
@@ -856,8 +943,7 @@ export async function provisionResources(options: ProvisionOptions): Promise<Pro
           id: result.id,
           // previewId: previewResult.id,
         });
-        completedResources++;
-        kvCreated++;
+        _completedResources++;
         onProgress(`  ✅ ${nsName} (ID: ${result.id.substring(0, 8)}...)`);
       } catch (error) {
         onProgress(`  ❌ Failed: ${nsName} - ${sanitizeError(error)}`);
@@ -1001,7 +1087,7 @@ export interface DeleteOptions {
  */
 export async function listWorkers(): Promise<Array<{ name: string; id?: string }>> {
   try {
-    const { stdout } = await wrangler(['deployments', 'list', '--json']);
+    const { stdout: _stdout } = await wrangler(['deployments', 'list', '--json']);
     // Note: wrangler deployments list doesn't give us what we need
     // We'll use wrangler whoami to get account and then list workers differently
     // For now, return empty - we'll detect workers from D1/KV patterns

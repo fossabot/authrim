@@ -148,45 +148,79 @@ const COMPONENT_ENTRY_POINTS: Record<WorkerComponent, string> = {
 // =============================================================================
 
 /**
+ * Normalize workers.dev URL to include account subdomain
+ *
+ * Cloudflare Workers.dev URLs always follow the format:
+ *   {name}.{subdomain}.workers.dev
+ *
+ * There is NO short form like {name}.workers.dev - this format does not exist.
+ * If config contains such a URL (e.g., from older setup or manual entry),
+ * we need to expand it to the correct full form.
+ *
+ * @see https://developers.cloudflare.com/workers/configuration/routing/workers-dev/
+ */
+function normalizeWorkersDevUrl(url: string, workersSubdomain?: string): string {
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.hostname.endsWith('.workers.dev')) {
+      const parts = parsed.hostname.split('.');
+      // Check if it's missing the subdomain (only 3 parts: name.workers.dev)
+      if (parts.length === 3 && workersSubdomain) {
+        // Expand to full form: {name}.{subdomain}.workers.dev
+        return `https://${parts[0]}.${workersSubdomain}.workers.dev`;
+      }
+    }
+
+    return parsed.origin;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Add origin to set, normalizing workers.dev URLs to include subdomain
+ */
+function addOriginWithSubdomain(
+  origins: Set<string>,
+  url: string,
+  workersSubdomain?: string
+): void {
+  const normalizedUrl = normalizeWorkersDevUrl(url, workersSubdomain);
+  origins.add(normalizedUrl);
+}
+
+/**
  * Derive CORS allowed origins from config URLs
  *
  * Includes:
  * - API origin (router) - needed for admin-init-setup WebAuthn operations
  * - LoginUI origin - for cross-origin requests from login UI
  * - AdminUI origin - for cross-origin requests from admin UI
+ *
+ * Workers.dev URLs are normalized to the correct format:
+ *   {name}.{subdomain}.workers.dev
  */
-function deriveAllowedOrigins(config: AuthrimConfig): string[] {
+function deriveAllowedOrigins(config: AuthrimConfig, workersSubdomain?: string): string[] {
   const origins = new Set<string>();
 
   // API origin (the issuer URL / router)
   // This is needed for admin-init-setup page which runs on the router domain
   const apiUrl = config.urls?.api?.custom || config.urls?.api?.auto;
   if (apiUrl) {
-    try {
-      origins.add(new URL(apiUrl).origin);
-    } catch {
-      // Invalid URL, skip
-    }
+    addOriginWithSubdomain(origins, apiUrl, workersSubdomain);
   }
 
   // LoginUI origin
   const loginUiUrl = config.urls?.loginUi?.custom || config.urls?.loginUi?.auto;
   if (loginUiUrl) {
-    try {
-      origins.add(new URL(loginUiUrl).origin);
-    } catch {
-      // Invalid URL, skip
-    }
+    addOriginWithSubdomain(origins, loginUiUrl, workersSubdomain);
   }
 
   // AdminUI origin
   const adminUiUrl = config.urls?.adminUi?.custom || config.urls?.adminUi?.auto;
   if (adminUiUrl) {
-    try {
-      origins.add(new URL(adminUiUrl).origin);
-    } catch {
-      // Invalid URL, skip
-    }
+    addOriginWithSubdomain(origins, adminUiUrl, workersSubdomain);
   }
 
   return Array.from(origins);
@@ -198,11 +232,17 @@ function deriveAllowedOrigins(config: AuthrimConfig): string[] {
 
 /**
  * Generate wrangler.toml configuration for a component
+ *
+ * @param component - Worker component name
+ * @param config - Authrim configuration
+ * @param resourceIds - Resource IDs from authrim-lock.json
+ * @param workersSubdomain - Account subdomain for workers.dev (e.g., "sgrastar")
  */
 export function generateWranglerConfig(
   component: WorkerComponent,
   config: AuthrimConfig,
-  resourceIds: ResourceIds
+  resourceIds: ResourceIds,
+  workersSubdomain?: string
 ): WranglerConfig {
   const env = config.environment.prefix;
   const workerName = getWorkerName(env, component);
@@ -214,7 +254,7 @@ export function generateWranglerConfig(
     compatibility_date: '2024-09-23',
     compatibility_flags: ['nodejs_compat'],
     workers_dev: !config.urls?.api?.custom, // Enable workers_dev if no custom domain
-    vars: generateEnvVars(component, config),
+    vars: generateEnvVars(component, config, workersSubdomain),
   };
 
   // Placement (off for better performance with sharded DOs)
@@ -343,10 +383,15 @@ export function generateWranglerConfig(
 
 /**
  * Generate environment variables for a component
+ *
+ * @param component - Worker component name
+ * @param config - Authrim configuration
+ * @param workersSubdomain - Account subdomain for workers.dev (e.g., "sgrastar")
  */
 function generateEnvVars(
   component: WorkerComponent,
-  config: AuthrimConfig
+  config: AuthrimConfig,
+  workersSubdomain?: string
 ): Record<string, string> {
   const vars: Record<string, string> = {};
 
@@ -425,8 +470,9 @@ function generateEnvVars(
   }
 
   // CORS allowed origins for workers that handle cross-origin requests
+  // Workers.dev URLs are normalized to correct format: {name}.{subdomain}.workers.dev
   if (['ar-auth', 'ar-management', 'ar-router'].includes(component)) {
-    const allowedOrigins = deriveAllowedOrigins(config);
+    const allowedOrigins = deriveAllowedOrigins(config, workersSubdomain);
     if (allowedOrigins.length > 0) {
       vars['ALLOWED_ORIGINS'] = allowedOrigins.join(',');
     }

@@ -24,6 +24,7 @@ import {
   getWorkersSubdomain,
   checkAdminSetupStatus,
   generateAndStoreSetupToken,
+  runMigrationsForEnvironment,
   type CloudflareAuth,
 } from '../core/cloudflare.js';
 import {
@@ -633,6 +634,10 @@ export function createApiRoutes(): Hono {
           policy: config.components?.policy,
         });
 
+        // Get workers.dev subdomain for CORS configuration
+        // Workers.dev URLs must be in format: {name}.{subdomain}.workers.dev
+        const workersSubdomain = await getWorkersSubdomain();
+
         const generatedComponents: string[] = [];
         for (const component of enabledComponents) {
           const componentDir = join(rootDir, 'packages', component);
@@ -640,7 +645,12 @@ export function createApiRoutes(): Hono {
             continue;
           }
 
-          const wranglerConfig = generateWranglerConfig(component, config, resourceIds);
+          const wranglerConfig = generateWranglerConfig(
+            component,
+            config,
+            resourceIds,
+            workersSubdomain ?? undefined
+          );
           const tomlContent = toToml(wranglerConfig);
           const tomlPath = join(componentDir, `wrangler.${env}.toml`);
           await writeFile(tomlPath, tomlContent, 'utf-8');
@@ -664,10 +674,13 @@ export function createApiRoutes(): Hono {
     return withLock(async () => {
       try {
         const body = await c.req.json();
-        const { env, rootDir = '.', dryRun = false, components, skipBuild = false } = body;
+        const { env, rootDir = process.cwd(), dryRun = false, components, skipBuild = false, runMigrations = true } = body;
 
         state.status = 'deploying';
         clearProgress();
+
+        // Debug: Log the resolved rootDir for migrations
+        addProgress(`📂 Working directory: ${resolve(rootDir)}`);
 
         // Build packages first (unless dry-run or skipped)
         if (!dryRun && !skipBuild) {
@@ -795,7 +808,26 @@ export function createApiRoutes(): Hono {
         const workersSuccess = summary.failedCount === 0;
         const pagesSuccess = pagesDeployResult ? pagesDeployResult.success : true;
 
-        if (workersSuccess && pagesSuccess) {
+        // Run D1 migrations after deployment (if enabled and not dry-run)
+        let migrationsResult = null;
+        if (runMigrations && !dryRun && workersSuccess) {
+          addProgress('📜 Running D1 database migrations...');
+          migrationsResult = await runMigrationsForEnvironment(
+            env,
+            resolve(rootDir),
+            addProgress
+          );
+
+          if (migrationsResult.success) {
+            addProgress('✅ Database migrations completed successfully');
+          } else {
+            addProgress(`⚠️ Some migrations failed - core: ${migrationsResult.core.error || 'ok'}, pii: ${migrationsResult.pii.error || 'ok'}`);
+          }
+        }
+
+        const migrationsSuccess = migrationsResult ? migrationsResult.success : true;
+
+        if (workersSuccess && pagesSuccess && migrationsSuccess) {
           state.status = 'complete';
           addProgress('Deployment complete!');
         } else {
@@ -804,13 +836,16 @@ export function createApiRoutes(): Hono {
             state.error = `${summary.failedCount} components failed to deploy`;
           } else if (!pagesSuccess) {
             state.error = `Pages deployment failed: ${pagesDeployResult?.error}`;
+          } else if (!migrationsSuccess) {
+            state.error = `Migrations failed: ${migrationsResult?.core.error || migrationsResult?.pii.error}`;
           }
         }
 
         return c.json({
-          success: workersSuccess && pagesSuccess,
+          success: workersSuccess && pagesSuccess && migrationsSuccess,
           summary,
           pagesResult: pagesDeployResult,
+          migrationsResult,
         });
       } catch (error) {
         state.status = 'error';
@@ -1067,6 +1102,47 @@ export function createApiRoutes(): Hono {
     } catch (error) {
       return c.json({ success: false, error: sanitizeError(error) }, 500);
     }
+  });
+
+  // =============================================================================
+  // D1 Migration Management
+  // =============================================================================
+
+  // Apply session validation to migrations
+  api.use('/migrations/*', validateSession);
+
+  // Run D1 migrations for an environment
+  api.post('/migrations/run', async (c) => {
+    return withLock(async () => {
+      try {
+        const body = await c.req.json();
+        const { env, rootDir = process.cwd() } = body;
+
+        if (!env) {
+          return c.json({ success: false, error: 'env is required' }, 400);
+        }
+
+        clearProgress();
+        addProgress(`📜 Running D1 migrations for environment: ${env}`);
+
+        const result = await runMigrationsForEnvironment(env, rootDir, addProgress);
+
+        if (result.success) {
+          addProgress('✅ All migrations completed successfully');
+        } else {
+          addProgress('❌ Some migrations failed');
+        }
+
+        return c.json({
+          success: result.success,
+          core: result.core,
+          pii: result.pii,
+          progress: state.progress,
+        });
+      } catch (error) {
+        return c.json({ success: false, error: sanitizeError(error) }, 500);
+      }
+    });
   });
 
   return api;

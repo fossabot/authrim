@@ -1691,9 +1691,9 @@ export async function adminUserEffectivePermissionsHandler(c: Context<{ Bindings
       return c.json({ error: 'invalid_request', error_description: 'User ID is required' }, 400);
     }
 
-    // Check if user exists
-    const user = await coreAdapter.queryOne<{ id: string; email: string }>(
-      'SELECT id, email FROM users WHERE id = ? AND tenant_id = ?',
+    // Check if user exists (email is in PII DB, not needed for this check)
+    const user = await coreAdapter.queryOne<{ id: string }>(
+      'SELECT id FROM users_core WHERE id = ? AND tenant_id = ?',
       [userId, tenantId]
     );
 
