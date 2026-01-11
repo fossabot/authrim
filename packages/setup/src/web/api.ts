@@ -236,7 +236,12 @@ export function createApiRoutes(): Hono {
     }
 
     if (!existsSync(configPath)) {
-      return c.json({ exists: false, config: null, structure: structureType, environments: listEnvironments(baseDir) });
+      return c.json({
+        exists: false,
+        config: null,
+        structure: structureType,
+        environments: listEnvironments(baseDir),
+      });
     }
 
     try {
@@ -674,7 +679,14 @@ export function createApiRoutes(): Hono {
     return withLock(async () => {
       try {
         const body = await c.req.json();
-        const { env, rootDir = process.cwd(), dryRun = false, components, skipBuild = false, runMigrations = true } = body;
+        const {
+          env,
+          rootDir = process.cwd(),
+          dryRun = false,
+          components,
+          skipBuild = false,
+          runMigrations = true,
+        } = body;
 
         state.status = 'deploying';
         clearProgress();
@@ -812,16 +824,14 @@ export function createApiRoutes(): Hono {
         let migrationsResult = null;
         if (runMigrations && !dryRun && workersSuccess) {
           addProgress('📜 Running D1 database migrations...');
-          migrationsResult = await runMigrationsForEnvironment(
-            env,
-            resolve(rootDir),
-            addProgress
-          );
+          migrationsResult = await runMigrationsForEnvironment(env, resolve(rootDir), addProgress);
 
           if (migrationsResult.success) {
             addProgress('✅ Database migrations completed successfully');
           } else {
-            addProgress(`⚠️ Some migrations failed - core: ${migrationsResult.core.error || 'ok'}, pii: ${migrationsResult.pii.error || 'ok'}`);
+            addProgress(
+              `⚠️ Some migrations failed - core: ${migrationsResult.core.error || 'ok'}, pii: ${migrationsResult.pii.error || 'ok'}`
+            );
           }
         }
 
@@ -894,7 +904,9 @@ export function createApiRoutes(): Hono {
           ? (resolved.paths as LegacyPaths).keyFiles.setupToken
           : (resolved.paths as EnvironmentPaths).keyFiles.setupToken;
 
-        addProgress(`Admin setup request: env=${env}, baseUrl=${baseUrl}, structure=${resolved.type}`);
+        addProgress(
+          `Admin setup request: env=${env}, baseUrl=${baseUrl}, structure=${resolved.type}`
+        );
 
         if (!env || !baseUrl) {
           addProgress('Error: env and baseUrl are required');
@@ -979,11 +991,14 @@ export function createApiRoutes(): Hono {
         // Check if admin setup is already completed
         const status = await checkAdminSetupStatus(kvNamespaceId);
         if (status.completed) {
-          return c.json({
-            success: false,
-            error: 'Admin setup has already been completed for this environment',
-            alreadyCompleted: true,
-          }, 400);
+          return c.json(
+            {
+              success: false,
+              error: 'Admin setup has already been completed for this environment',
+              alreadyCompleted: true,
+            },
+            400
+          );
         }
 
         // Generate and store new token

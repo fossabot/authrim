@@ -35,6 +35,7 @@ program
   .option('--config <path>', 'Load existing configuration file')
   .option('--keep <path>', 'Keep source files at specified path')
   .option('--env <name>', 'Environment name (prod, staging, dev)', 'prod')
+  .option('--lang <code>', 'Language (en, ja, zh-CN, etc.)')
   .action(initCommand);
 
 program

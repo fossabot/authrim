@@ -10,6 +10,14 @@ import { cors } from 'hono/cors';
 import chalk from 'chalk';
 import { createApiRoutes, generateSessionToken, getSessionToken } from './api.js';
 import { getHtmlTemplate } from './ui.js';
+import {
+  initI18n,
+  detectBrowserLocale,
+  getTranslationsForWeb,
+  getAvailableLocales,
+  type Locale,
+  DEFAULT_LOCALE,
+} from '../i18n/index.js';
 
 // =============================================================================
 // Types
@@ -36,6 +44,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
   // Generate session token for this server instance
   generateSessionToken();
 
+  // Initialize i18n with default locale (will be overridden per request)
+  await initI18n(DEFAULT_LOCALE);
+
   const app = new Hono();
 
   // CORS for API requests (localhost only)
@@ -52,13 +63,47 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
   const apiRoutes = createApiRoutes();
   app.route('/api', apiRoutes);
 
-  // Serve UI with embedded session token
+  // Serve UI with embedded session token and locale-aware translations
   app.get('/', (c) => {
-    return c.html(getHtmlTemplate(getSessionToken(), manageOnly));
+    // Detect locale from query param, then Accept-Language header
+    const queryLang = c.req.query('lang');
+    let locale: Locale = DEFAULT_LOCALE;
+
+    if (queryLang) {
+      const availableLocales = getAvailableLocales();
+      if (availableLocales.some((l) => l.code === queryLang)) {
+        locale = queryLang as Locale;
+      }
+    } else {
+      const acceptLanguage = c.req.header('Accept-Language');
+      locale = detectBrowserLocale(acceptLanguage);
+    }
+
+    // Get translations for the detected locale
+    const translations = getTranslationsForWeb(locale);
+    const availableLocales = getAvailableLocales();
+
+    return c.html(
+      getHtmlTemplate(getSessionToken(), manageOnly, locale, translations, availableLocales)
+    );
   });
 
   // Static assets (if needed in the future)
   app.get('/health', (c) => c.json({ status: 'ok' }));
+
+  // Translations API - for client-side language switching without reload
+  app.get('/api/translations/:locale', (c) => {
+    const requestedLocale = c.req.param('locale');
+    const availableLocales = getAvailableLocales();
+
+    // Validate requested locale
+    if (!availableLocales.some((l) => l.code === requestedLocale)) {
+      return c.json({ error: 'Invalid locale' }, 400);
+    }
+
+    const translations = getTranslationsForWeb(requestedLocale as Locale);
+    return c.json({ locale: requestedLocale, translations });
+  });
 
   // Start server
   const url = `http://${host}:${port}`;

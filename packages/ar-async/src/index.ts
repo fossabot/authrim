@@ -11,10 +11,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Env } from '@authrim/ar-lib-core';
-import {
-  requestContextMiddleware,
-  pluginContextMiddleware,
-} from '@authrim/ar-lib-core';
+import { requestContextMiddleware, pluginContextMiddleware } from '@authrim/ar-lib-core';
 import { deviceAuthorizationHandler } from './device-authorization';
 import { deviceVerifyHandler } from './device-verify';
 import { deviceVerifyApiHandler } from './device-verify-api';

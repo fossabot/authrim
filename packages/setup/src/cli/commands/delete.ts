@@ -8,6 +8,7 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import { confirm } from '@inquirer/prompts';
+import { t } from '../../i18n/index.js';
 import {
   isWranglerInstalled,
   checkAuth,
@@ -84,7 +85,7 @@ export async function deleteCommand(options: DeleteCommandOptions): Promise<void
       // Interactive mode: ask which environment to delete
       const { select } = await import('@inquirer/prompts');
       env = await select({
-        message: 'Select environment to delete:',
+        message: t('delete.selectEnv'),
         choices: environments.map((e) => ({
           name: `${e.env} (${e.workers.length} workers, ${e.d1.length} D1, ${e.kv.length} KV)`,
           value: e.env,
@@ -116,12 +117,12 @@ export async function deleteCommand(options: DeleteCommandOptions): Promise<void
   if (!options.yes) {
     console.log('');
     const confirmed = await confirm({
-      message: chalk.red(`⚠️  This will permanently delete all resources for "${env}". Continue?`),
+      message: chalk.red(t('delete.confirmPermanent', { env })),
       default: false,
     });
 
     if (!confirmed) {
-      console.log(chalk.yellow('\nDeletion cancelled.'));
+      console.log(chalk.yellow('\n' + t('delete.cancelled')));
       return;
     }
   }

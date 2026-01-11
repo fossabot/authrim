@@ -7,6 +7,13 @@
 import { input, select, confirm, password } from '@inquirer/prompts';
 import chalk from 'chalk';
 import ora from 'ora';
+import {
+  initI18n,
+  t,
+  getAvailableLocales,
+  detectSystemLocale,
+  type Locale,
+} from '../../i18n/index.js';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -29,11 +36,7 @@ import {
   getWorkersSubdomain,
 } from '../../core/cloudflare.js';
 import { createLockFile, saveLockFile, loadLockFile } from '../../core/lock.js';
-import {
-  getEnvironmentPaths,
-  getRelativeKeysPath,
-  AUTHRIM_DIR,
-} from '../../core/paths.js';
+import { getEnvironmentPaths, getRelativeKeysPath, AUTHRIM_DIR } from '../../core/paths.js';
 import { downloadSource, verifySourceStructure, checkForUpdate } from '../../core/source.js';
 
 // =============================================================================
@@ -45,6 +48,29 @@ interface InitOptions {
   config?: string;
   keep?: string;
   env?: string;
+  lang?: string;
+}
+
+// =============================================================================
+// Language Selection
+// =============================================================================
+
+/**
+ * Show language selection prompt
+ * This is shown before the banner, so we use hardcoded multilingual prompt
+ */
+async function selectLanguage(): Promise<Locale> {
+  const locales = getAvailableLocales();
+
+  const locale = await select<Locale>({
+    message: 'Select language / 言語を選択 / 选择语言',
+    choices: locales.map((l) => ({
+      value: l.code,
+      name: l.nativeName,
+    })),
+  });
+
+  return locale;
 }
 
 // =============================================================================
@@ -67,28 +93,80 @@ function getVersion(): string {
 // Banner
 // =============================================================================
 
+/**
+ * Apply horizontal gradient to a line of text (left to right)
+ * Interpolates between two colors based on character position
+ */
+function applyGradient(text: string, startColor: string, endColor: string): string {
+  // Parse hex color to RGB
+  const parseHex = (hex: string): [number, number, number] => {
+    const h = hex.replace('#', '');
+    return [
+      parseInt(h.substring(0, 2), 16),
+      parseInt(h.substring(2, 4), 16),
+      parseInt(h.substring(4, 6), 16),
+    ];
+  };
+
+  // Convert RGB to hex
+  const toHex = (r: number, g: number, b: number): string => {
+    return '#' + [r, g, b].map((x) => Math.round(x).toString(16).padStart(2, '0')).join('');
+  };
+
+  const [r1, g1, b1] = parseHex(startColor);
+  const [r2, g2, b2] = parseHex(endColor);
+  const len = text.length;
+
+  if (len === 0) return text;
+
+  let result = '';
+  for (let i = 0; i < len; i++) {
+    const char = text[i];
+    if (char === ' ') {
+      result += char;
+      continue;
+    }
+    // Calculate interpolation ratio
+    const ratio = len > 1 ? i / (len - 1) : 0;
+    // Interpolate RGB values
+    const r = r1 + (r2 - r1) * ratio;
+    const g = g1 + (g2 - g1) * ratio;
+    const b = b1 + (b2 - b1) * ratio;
+    // Apply color to character
+    result += chalk.hex(toHex(r, g, b))(char);
+  }
+  return result;
+}
+
 function printBanner(): void {
   const version = getVersion();
-  const versionStr = `v${version}`.padEnd(7); // "v0.1.58" = 7 chars
+  const versionStr = `v${version}`;
+  const subtitle = t('banner.subtitle');
+
+  // ASCII Art Logo (mint gradient theme - inspired by oh-my-logo)
+  // Mint palette: #00d2ff → #3a7bd5 (horizontal gradient, left to right)
+  const mintStart = '#00d2ff'; // Cyan
+  const mintEnd = '#3a7bd5'; // Blue
+
+  const logo = [
+    ' ╔═╗ ╦ ╦ ╔╦╗ ╦ ╦ ╦═╗ ╦ ╔╦╗',
+    ' ╠═╣ ║ ║  ║  ╠═╣ ╠╦╝ ║ ║║║',
+    ' ╩ ╩ ╚═╝  ╩  ╩ ╩ ╩╚═ ╩ ╩ ╩',
+  ];
+
   console.log('');
-  console.log(chalk.blue('╔═══════════════════════════════════════════════════════════╗'));
-  console.log(
-    chalk.blue('║') +
-      chalk.bold.white(`           🔐 Authrim Setup ${versionStr}                       `) +
-      chalk.blue('║')
-  );
-  console.log(
-    chalk.blue('║') +
-      chalk.gray('     OIDC Provider on Cloudflare Workers                  ') +
-      chalk.blue('║')
-  );
-  console.log(chalk.blue('╚═══════════════════════════════════════════════════════════╝'));
+  logo.forEach((line) => {
+    console.log(applyGradient(line, mintStart, mintEnd));
+  });
   console.log('');
-  console.log(chalk.bgYellow.black(' ⚠️  WARNING: Under Development! '));
-  console.log(chalk.yellow('  This project does not work correctly yet.'));
-  console.log(chalk.yellow('  Admin UI is incomplete and does not support login.'));
+  console.log(chalk.gray(` ${subtitle}`));
+  console.log(chalk.gray(` ${versionStr}`));
   console.log('');
-  console.log(chalk.gray('  Press Ctrl+C at any time to exit'));
+  console.log(chalk.bgYellow.black(` ⚠️  ${t('banner.warning')} `));
+  console.log(chalk.yellow(`  ${t('banner.warningDetail')}`));
+  console.log(chalk.yellow(`  ${t('banner.adminWarning')}`));
+  console.log('');
+  console.log(chalk.gray(`  ${t('banner.exitHint')}`));
   console.log('');
 }
 
@@ -464,6 +542,29 @@ async function updateExistingSource(sourceDir: string, gitRef: string): Promise<
 // =============================================================================
 
 export async function initCommand(options: InitOptions): Promise<void> {
+  // Step 0: Language selection (before banner)
+  // Priority: --lang option > env var > system locale > interactive selection
+  let locale: Locale;
+
+  if (options.lang) {
+    // Use provided language option
+    locale = options.lang as Locale;
+  } else {
+    // Check system locale first
+    const systemLocale = detectSystemLocale();
+    if (systemLocale !== 'en') {
+      // Non-English system locale detected, use it
+      locale = systemLocale;
+    } else {
+      // Show language selection prompt
+      locale = await selectLanguage();
+    }
+  }
+
+  // Initialize i18n with selected locale
+  await initI18n(locale);
+
+  // Now show the banner in the selected language
   printBanner();
 
   // Load existing config if provided
@@ -483,37 +584,37 @@ export async function initCommand(options: InitOptions): Promise<void> {
   // Show startup menu
   console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
   console.log('');
-  console.log('  Set up Authrim OIDC Provider on Cloudflare Workers.');
+  console.log(`  ${t('startup.description')}`);
   console.log('');
   console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
   console.log('');
 
   const startupChoice = await select({
-    message: 'Choose setup method',
+    message: t('mode.prompt'),
     choices: [
       {
         value: 'webui',
-        name: '🌐 Web UI (Recommended)',
-        description: 'Interactive setup in your browser',
+        name: `🌐 ${t('mode.quick')}`,
+        description: t('mode.quickDesc'),
       },
       {
         value: 'cli',
-        name: '⌨️  CLI Mode',
-        description: 'Interactive setup in terminal',
+        name: `⌨️ ${t('mode.advanced')}`,
+        description: t('mode.advancedDesc'),
       },
       {
         value: 'cancel',
-        name: '❌ Cancel',
-        description: 'Exit setup',
+        name: `❌ ${t('startup.cancel')}`,
+        description: t('startup.cancelDesc'),
       },
     ],
   });
 
   if (startupChoice === 'cancel') {
     console.log('');
-    console.log(chalk.gray('Setup cancelled.'));
+    console.log(chalk.gray(t('startup.cancelled')));
     console.log('');
-    console.log(chalk.gray('To resume later:'));
+    console.log(chalk.gray(t('startup.resumeLater')));
     console.log(chalk.cyan('  npx @authrim/setup'));
     console.log('');
     return;
@@ -528,7 +629,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
   } else {
     // Start Web UI
     console.log('');
-    console.log(chalk.cyan('🌐 Starting Web UI...'));
+    console.log(chalk.cyan(`🌐 ${t('webUi.starting')}`));
     console.log('');
 
     const { startWebServer } = await import('../../web/server.js');
@@ -544,39 +645,39 @@ async function runCliSetup(options: InitOptions): Promise<void> {
   // Main menu loop - keeps returning to menu until user exits
   while (true) {
     const setupMode = await select({
-      message: 'What would you like to do?',
+      message: t('menu.prompt'),
       choices: [
         {
           value: 'quick',
-          name: '⚡ Quick Setup (5 minutes)',
-          description: 'Deploy Authrim with minimal configuration',
+          name: `⚡ ${t('menu.quick')}`,
+          description: t('menu.quickDesc'),
         },
         {
           value: 'normal',
-          name: '🔧 Custom Setup',
-          description: 'Configure all options step by step',
+          name: `🔧 ${t('menu.custom')}`,
+          description: t('menu.customDesc'),
         },
         {
           value: 'manage',
-          name: '📋 View Existing Environments',
-          description: 'View, inspect, or delete existing environments',
+          name: `📋 ${t('menu.manage')}`,
+          description: t('menu.manageDesc'),
         },
         {
           value: 'load',
-          name: '📂 Load Existing Configuration',
-          description: 'Resume setup from authrim-config.json',
+          name: `📂 ${t('menu.load')}`,
+          description: t('menu.loadDesc'),
         },
         {
           value: 'exit',
-          name: '❌ Exit',
-          description: 'Exit setup',
+          name: `❌ ${t('menu.exit')}`,
+          description: t('menu.exitDesc'),
         },
       ],
     });
 
     if (setupMode === 'exit') {
       console.log('');
-      console.log(chalk.gray('Goodbye!'));
+      console.log(chalk.gray(t('menu.goodbye')));
       console.log('');
       break;
     }
@@ -921,54 +1022,50 @@ async function runLoadConfig(): Promise<boolean> {
 async function runQuickSetup(options: InitOptions): Promise<void> {
   console.log('');
   console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
-  console.log(chalk.bold('⚡ Quick Setup'));
+  console.log(chalk.bold(t('quick.title')));
   console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
   console.log('');
 
   // Step 1: Environment prefix
   const envPrefix = await input({
-    message: 'Enter environment name',
+    message: t('env.prompt'),
     default: options.env || 'prod',
     validate: (value) => {
       if (!/^[a-z][a-z0-9-]*$/.test(value)) {
-        return 'Only lowercase alphanumeric and hyphens allowed (e.g., prod, staging, dev)';
+        return t('env.customValidation');
       }
       return true;
     },
   });
 
   // Check if environment already exists
-  const checkSpinner = ora('Checking for existing environments...').start();
+  const checkSpinner = ora(t('env.checking')).start();
   try {
     const existingEnvs = await detectEnvironments();
     const existingEnv = existingEnvs.find((e) => e.env === envPrefix);
     if (existingEnv) {
-      checkSpinner.fail(`Environment "${envPrefix}" already exists`);
+      checkSpinner.fail(t('env.alreadyExists', { env: envPrefix }));
       console.log('');
-      console.log(chalk.yellow('  Existing resources:'));
-      console.log(`    Workers: ${existingEnv.workers.length}`);
-      console.log(`    D1 Databases: ${existingEnv.d1.length}`);
-      console.log(`    KV Namespaces: ${existingEnv.kv.length}`);
+      console.log(chalk.yellow('  ' + t('env.existingResources')));
+      console.log(`    ${t('env.workers', { count: String(existingEnv.workers.length) })}`);
+      console.log(`    ${t('env.d1Databases', { count: String(existingEnv.d1.length) })}`);
+      console.log(`    ${t('env.kvNamespaces', { count: String(existingEnv.kv.length) })}`);
       console.log('');
-      console.log(
-        chalk.yellow(
-          '  Please choose a different name or use "npx @authrim/setup manage" to delete it first.'
-        )
-      );
+      console.log(chalk.yellow('  ' + t('env.chooseAnother')));
       return;
     }
-    checkSpinner.succeed('Environment name is available');
+    checkSpinner.succeed(t('env.available'));
   } catch {
-    checkSpinner.warn('Could not check existing environments (continuing anyway)');
+    checkSpinner.warn(t('env.checkFailed'));
   }
 
   // Step 2: Cloudflare API Token
   const cfApiToken = await password({
-    message: 'Enter Cloudflare API Token',
+    message: t('cf.apiTokenPrompt'),
     mask: '*',
     validate: (value) => {
       if (!value || value.length < 10) {
-        return 'Please enter a valid API Token';
+        return t('cf.apiTokenValidation');
       }
       return true;
     },
@@ -977,14 +1074,21 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
   // Step 3: Show infrastructure info
   console.log('');
   console.log(
-    chalk.gray('  Workers to deploy: ' + envPrefix + '-ar-router, ' + envPrefix + '-ar-auth, ...')
+    chalk.gray(
+      '  ' +
+        t('infra.workersToDeploy', {
+          workers: envPrefix + '-ar-router, ' + envPrefix + '-ar-auth, ...',
+        })
+    )
   );
-  console.log(chalk.gray('  Default API: ' + getWorkersDevUrl(envPrefix + '-ar-router')));
+  console.log(
+    chalk.gray('  ' + t('infra.defaultApi', { url: getWorkersDevUrl(envPrefix + '-ar-router') }))
+  );
   console.log('');
 
   // Step 4: Domain configuration (single-tenant mode only in Quick Setup)
   const useCustomDomain = await confirm({
-    message: 'Configure custom domain? (for Issuer URL)',
+    message: t('domain.prompt'),
     default: false,
   });
 
@@ -994,61 +1098,65 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
 
   if (useCustomDomain) {
     console.log('');
-    console.log(chalk.gray('  In single-tenant mode, Issuer URL = API domain'));
+    console.log(chalk.gray('  ' + t('domain.singleTenantNote')));
     console.log('');
 
     apiDomain = await input({
-      message: 'API / Issuer domain (e.g., auth.example.com)',
+      message: t('domain.apiDomain'),
       validate: (value) => {
         if (!value) return true; // Allow empty for workers.dev fallback
         if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(value)) {
-          return 'Please enter a valid domain (e.g., auth.example.com)';
+          return t('domain.customValidation');
         }
         return true;
       },
     });
 
     loginUiDomain = await input({
-      message: 'Login UI domain (Enter to skip)',
+      message: t('domain.loginUiDomain'),
       default: '',
     });
 
     adminUiDomain = await input({
-      message: 'Admin UI domain (Enter to skip)',
+      message: t('domain.adminUiDomain'),
       default: '',
     });
   }
 
   // Database Configuration
   console.log('');
-  console.log(chalk.blue('━━━ Database Configuration ━━━'));
-  console.log(chalk.yellow('⚠️  Database region cannot be changed after creation.'));
+  console.log(chalk.blue('━━━ ' + t('db.title') + ' ━━━'));
+  console.log(chalk.yellow('⚠️  ' + t('db.regionWarning')));
   console.log('');
 
   const locationChoices = [
-    { name: 'Automatic (nearest to you)', value: 'auto' },
-    { name: '── Location Hints ──', value: '__separator1__', disabled: true },
-    { name: 'North America (West)', value: 'wnam' },
-    { name: 'North America (East)', value: 'enam' },
-    { name: 'Europe (West)', value: 'weur' },
-    { name: 'Europe (East)', value: 'eeur' },
-    { name: 'Asia Pacific', value: 'apac' },
-    { name: 'Oceania', value: 'oc' },
-    { name: '── Jurisdiction (Compliance) ──', value: '__separator2__', disabled: true },
-    { name: 'EU Jurisdiction (GDPR compliance)', value: 'eu' },
+    { name: t('region.auto'), value: 'auto' },
+    { name: '── ' + t('db.locationHints') + ' ──', value: '__separator1__', disabled: true },
+    { name: t('region.wnam'), value: 'wnam' },
+    { name: t('region.enam'), value: 'enam' },
+    { name: t('region.weur'), value: 'weur' },
+    { name: t('region.eeur'), value: 'eeur' },
+    { name: t('region.apac'), value: 'apac' },
+    { name: t('region.oceania'), value: 'oc' },
+    {
+      name: '── ' + t('db.jurisdictionCompliance') + ' ──',
+      value: '__separator2__',
+      disabled: true,
+    },
+    { name: t('region.euJurisdiction'), value: 'eu' },
   ];
 
-  console.log(chalk.gray('  Core DB: Stores OAuth clients, tokens, sessions, audit logs'));
+  console.log(chalk.gray('  ' + t('db.coreDescription')));
   const coreDbLocation = await select({
-    message: 'Core Database region',
+    message: t('db.coreRegion'),
     choices: locationChoices,
     default: 'auto',
   });
 
   console.log('');
-  console.log(chalk.gray('  PII DB: Stores user profiles, credentials, personal data'));
+  console.log(chalk.gray('  ' + t('db.piiDescription')));
   const piiDbLocation = await select({
-    message: 'PII Database region',
+    message: t('db.piiRegion'),
     choices: locationChoices,
     default: 'auto',
   });
@@ -1066,12 +1174,12 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
 
   // Email Provider Configuration
   console.log('');
-  console.log(chalk.blue('━━━ Email Provider ━━━'));
-  console.log(chalk.gray('Configure email sending for magic links and verification codes.'));
+  console.log(chalk.blue('━━━ ' + t('email.title') + ' ━━━'));
+  console.log(chalk.gray(t('email.description')));
   console.log('');
 
   const configureEmail = await confirm({
-    message: 'Configure email provider now?',
+    message: t('email.prompt'),
     default: false,
   });
 
@@ -1084,34 +1192,34 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
 
   if (configureEmail) {
     console.log('');
-    console.log(chalk.gray('Resend is the supported email provider.'));
-    console.log(chalk.gray('Get your API key at: https://resend.com/api-keys'));
-    console.log(chalk.gray('Set up domain at: https://resend.com/domains'));
+    console.log(chalk.gray(t('email.resendDesc')));
+    console.log(chalk.gray(t('email.apiKeyHint')));
+    console.log(chalk.gray(t('email.domainHint')));
     console.log('');
 
     const resendApiKey = await password({
-      message: 'Resend API key',
+      message: t('email.apiKeyPrompt'),
       mask: '*',
       validate: (value) => {
-        if (!value.trim()) return 'API key is required';
+        if (!value.trim()) return t('email.apiKeyRequired');
         if (!value.startsWith('re_')) {
-          return 'Warning: Resend API keys typically start with "re_"';
+          return t('email.apiKeyWarning');
         }
         return true;
       },
     });
 
     const fromAddress = await input({
-      message: 'From email address',
+      message: t('email.fromAddressPrompt'),
       default: 'noreply@yourdomain.com',
       validate: (value) => {
-        if (!value.includes('@')) return 'Please enter a valid email address';
+        if (!value.includes('@')) return t('email.fromAddressValidation');
         return true;
       },
     });
 
     const fromName = await input({
-      message: 'From display name (optional)',
+      message: t('email.fromNamePrompt'),
       default: 'Authrim',
     });
 
@@ -1123,8 +1231,8 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
     };
 
     console.log('');
-    console.log(chalk.yellow('⚠️  Domain verification required for sending from your own domain.'));
-    console.log(chalk.gray('   See: https://resend.com/docs/dashboard/domains/introduction'));
+    console.log(chalk.yellow('⚠️  ' + t('email.domainVerificationRequired')));
+    console.log(chalk.gray('   ' + t('email.seeDocumentation')));
   }
 
   // Create configuration
@@ -1225,54 +1333,50 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
 async function runNormalSetup(options: InitOptions): Promise<void> {
   console.log('');
   console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
-  console.log(chalk.bold('🔧 Custom Setup'));
+  console.log(chalk.bold(t('custom.title')));
   console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
   console.log('');
 
   // Step 1: Environment prefix
   const envPrefix = await input({
-    message: 'Enter environment name',
+    message: t('env.prompt'),
     default: options.env || 'prod',
     validate: (value) => {
       if (!/^[a-z][a-z0-9-]*$/.test(value)) {
-        return 'Only lowercase alphanumeric and hyphens allowed (e.g., prod, staging, dev)';
+        return t('env.customValidation');
       }
       return true;
     },
   });
 
   // Check if environment already exists
-  const checkSpinner = ora('Checking for existing environments...').start();
+  const checkSpinner = ora(t('env.checking')).start();
   try {
     const existingEnvs = await detectEnvironments();
     const existingEnv = existingEnvs.find((e) => e.env === envPrefix);
     if (existingEnv) {
-      checkSpinner.fail(`Environment "${envPrefix}" already exists`);
+      checkSpinner.fail(t('env.alreadyExists', { env: envPrefix }));
       console.log('');
-      console.log(chalk.yellow('  Existing resources:'));
-      console.log(`    Workers: ${existingEnv.workers.length}`);
-      console.log(`    D1 Databases: ${existingEnv.d1.length}`);
-      console.log(`    KV Namespaces: ${existingEnv.kv.length}`);
+      console.log(chalk.yellow('  ' + t('env.existingResources')));
+      console.log(`    ${t('env.workers', { count: String(existingEnv.workers.length) })}`);
+      console.log(`    ${t('env.d1Databases', { count: String(existingEnv.d1.length) })}`);
+      console.log(`    ${t('env.kvNamespaces', { count: String(existingEnv.kv.length) })}`);
       console.log('');
-      console.log(
-        chalk.yellow(
-          '  Please choose a different name or use "npx @authrim/setup manage" to delete it first.'
-        )
-      );
+      console.log(chalk.yellow('  ' + t('env.chooseAnother')));
       return;
     }
-    checkSpinner.succeed('Environment name is available');
+    checkSpinner.succeed(t('env.available'));
   } catch {
-    checkSpinner.warn('Could not check existing environments (continuing anyway)');
+    checkSpinner.warn(t('env.checkFailed'));
   }
 
   // Step 2: Cloudflare API Token
   const cfApiToken = await password({
-    message: 'Enter Cloudflare API Token',
+    message: t('cf.apiTokenPrompt'),
     mask: '*',
     validate: (value) => {
       if (!value || value.length < 10) {
-        return 'Please enter a valid API Token';
+        return t('cf.apiTokenValidation');
       }
       return true;
     },
@@ -1280,22 +1384,22 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   // Step 3: Profile selection
   const profile = await select({
-    message: 'Select OIDC profile',
+    message: t('profile.prompt'),
     choices: [
       {
         value: 'basic-op',
-        name: 'Basic OP (Standard OIDC Provider)',
-        description: 'Standard OIDC features',
+        name: t('profile.basicOp'),
+        description: t('profile.basicOpDesc'),
       },
       {
         value: 'fapi-rw',
-        name: 'FAPI Read-Write (Financial Grade)',
-        description: 'FAPI 1.0 Read-Write Security Profile compliant',
+        name: t('profile.fapiRw'),
+        description: t('profile.fapiRwDesc'),
       },
       {
         value: 'fapi2-security',
-        name: 'FAPI 2.0 Security Profile',
-        description: 'FAPI 2.0 Security Profile compliant (highest security)',
+        name: t('profile.fapi2Security'),
+        description: t('profile.fapi2SecurityDesc'),
       },
     ],
     default: 'basic-op',
@@ -1303,26 +1407,28 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   // Step 4: Infrastructure overview (Workers are auto-generated from env)
   console.log('');
-  console.log(chalk.blue('━━━ Infrastructure (Auto-generated) ━━━'));
+  console.log(chalk.blue('━━━ ' + t('infra.title') + ' ━━━'));
   console.log('');
-  console.log(chalk.gray('  The following Workers will be deployed:'));
-  console.log(`    Router:     ${chalk.cyan(envPrefix + '-ar-router')}`);
-  console.log(`    Auth:       ${chalk.cyan(envPrefix + '-ar-auth')}`);
-  console.log(`    Token:      ${chalk.cyan(envPrefix + '-ar-token')}`);
-  console.log(`    Management: ${chalk.cyan(envPrefix + '-ar-management')}`);
-  console.log(chalk.gray('    ... and other supporting workers'));
+  console.log(chalk.gray('  ' + t('infra.workersNote')));
+  console.log(`    ${t('infra.router')}     ${chalk.cyan(envPrefix + '-ar-router')}`);
+  console.log(`    ${t('infra.auth')}       ${chalk.cyan(envPrefix + '-ar-auth')}`);
+  console.log(`    ${t('infra.token')}      ${chalk.cyan(envPrefix + '-ar-token')}`);
+  console.log(`    ${t('infra.management')} ${chalk.cyan(envPrefix + '-ar-management')}`);
+  console.log(chalk.gray('    ' + t('infra.otherWorkers')));
   console.log('');
-  console.log(chalk.gray('  Default endpoints (without custom domain):'));
-  console.log(`    API:        ${chalk.gray(getWorkersDevUrl(envPrefix + '-ar-router'))}`);
-  console.log(`    UI:         ${chalk.gray(getPagesDevUrl(envPrefix + '-ar-ui'))}`);
+  console.log(chalk.gray('  ' + t('infra.defaultEndpoints')));
+  console.log(
+    `    ${t('infra.api')}        ${chalk.gray(getWorkersDevUrl(envPrefix + '-ar-router'))}`
+  );
+  console.log(`    ${t('infra.ui')}         ${chalk.gray(getPagesDevUrl(envPrefix + '-ar-ui'))}`);
   console.log('');
 
   // Step 5: Tenant configuration
-  console.log(chalk.blue('━━━ Tenant Mode ━━━'));
+  console.log(chalk.blue('━━━ ' + t('tenant.title') + ' ━━━'));
   console.log('');
 
   const multiTenant = await confirm({
-    message: 'Enable multi-tenant mode? (subdomain-based tenant isolation)',
+    message: t('tenant.multiTenantPrompt'),
     default: false,
   });
 
@@ -1338,165 +1444,169 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
   if (multiTenant) {
     // Multi-tenant mode: base domain is required, becomes the issuer base
     console.log('');
-    console.log(chalk.blue('━━━ Multi-tenant URL Configuration ━━━'));
+    console.log(chalk.blue('━━━ ' + t('tenant.multiTenantTitle') + ' ━━━'));
     console.log('');
-    console.log(chalk.gray('  In multi-tenant mode:'));
-    console.log(chalk.gray('    • Each tenant has a subdomain: https://{tenant}.{base-domain}'));
-    console.log(chalk.gray('    • The base domain points to the router Worker'));
-    console.log(chalk.gray('    • Issuer URL is dynamically built from Host header'));
+    console.log(chalk.gray('  ' + t('tenant.multiTenantNote1')));
+    console.log(chalk.gray('    • ' + t('tenant.multiTenantNote2')));
+    console.log(chalk.gray('    • ' + t('tenant.multiTenantNote3')));
+    console.log(chalk.gray('    • ' + t('tenant.multiTenantNote4')));
     console.log('');
 
     baseDomain = await input({
-      message: 'Base domain (e.g., authrim.com)',
+      message: t('tenant.baseDomainPrompt'),
       validate: (value) => {
-        if (!value) return 'Base domain is required for multi-tenant mode';
+        if (!value) return t('tenant.baseDomainRequired');
         if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(value)) {
-          return 'Please enter a valid domain (e.g., authrim.com)';
+          return t('tenant.baseDomainValidation');
         }
         return true;
       },
     });
 
     console.log('');
-    console.log(chalk.green('  ✓ Issuer URL format: https://{tenant}.' + baseDomain));
-    console.log(chalk.gray('    Example: https://acme.' + baseDomain));
+    console.log(chalk.green('  ✓ ' + t('tenant.issuerFormat', { domain: baseDomain })));
+    console.log(chalk.gray('    ' + t('tenant.issuerExample', { domain: baseDomain })));
     console.log('');
 
     // API domain in multi-tenant is the base domain (or custom apex)
     apiDomain = baseDomain;
 
     tenantName = await input({
-      message: 'Default tenant name (identifier)',
+      message: t('tenant.defaultTenantPrompt'),
       default: 'default',
       validate: (value) => {
         if (!/^[a-z][a-z0-9-]*$/.test(value)) {
-          return 'Only lowercase alphanumeric and hyphens allowed';
+          return t('tenant.defaultTenantValidation');
         }
         return true;
       },
     });
 
     tenantDisplayName = await input({
-      message: 'Default tenant display name',
+      message: t('tenant.displayNamePrompt'),
       default: 'Default Tenant',
     });
 
     // UI domains for multi-tenant
     console.log('');
-    console.log(chalk.blue('━━━ UI Domain Configuration ━━━'));
+    console.log(chalk.blue('━━━ ' + t('tenant.uiDomainTitle') + ' ━━━'));
     console.log('');
 
     const useCustomUiDomain = await confirm({
-      message: 'Configure custom UI domains?',
+      message: t('tenant.customUiDomainPrompt'),
       default: false,
     });
 
     if (useCustomUiDomain) {
       loginUiDomain = await input({
-        message: 'Login UI domain (e.g., login.example.com)',
+        message: t('tenant.loginUiDomain'),
         default: '',
       });
 
       adminUiDomain = await input({
-        message: 'Admin UI domain (e.g., admin.example.com)',
+        message: t('tenant.adminUiDomain'),
         default: '',
       });
     }
   } else {
     // Single-tenant mode
     console.log('');
-    console.log(chalk.blue('━━━ Single-tenant URL Configuration ━━━'));
+    console.log(chalk.blue('━━━ ' + t('tenant.singleTenantTitle') + ' ━━━'));
     console.log('');
-    console.log(chalk.gray('  In single-tenant mode:'));
-    console.log(chalk.gray('    • Issuer URL = API custom domain (or workers.dev fallback)'));
-    console.log(chalk.gray('    • All clients share the same issuer'));
+    console.log(chalk.gray('  ' + t('tenant.singleTenantNote1')));
+    console.log(chalk.gray('    • ' + t('tenant.singleTenantNote2')));
+    console.log(chalk.gray('    • ' + t('tenant.singleTenantNote3')));
     console.log('');
 
     tenantDisplayName = await input({
-      message: 'Organization name (display name)',
+      message: t('tenant.organizationName'),
       default: 'Default Tenant',
     });
 
     const useCustomDomain = await confirm({
-      message: 'Configure custom domain?',
+      message: t('domain.prompt'),
       default: false,
     });
 
     if (useCustomDomain) {
       console.log('');
-      console.log(chalk.gray('  Enter custom domains (leave empty to use Cloudflare defaults)'));
+      console.log(chalk.gray('  ' + t('domain.enterDomains')));
       console.log('');
 
       apiDomain = await input({
-        message: 'API / Issuer domain (e.g., auth.example.com)',
+        message: t('domain.apiDomain'),
         validate: (value) => {
           if (!value) return true;
           if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(value)) {
-            return 'Please enter a valid domain';
+            return t('domain.customValidation');
           }
           return true;
         },
       });
 
       loginUiDomain = await input({
-        message: 'Login UI domain (Enter to skip)',
+        message: t('domain.loginUiDomain'),
         default: '',
       });
 
       adminUiDomain = await input({
-        message: 'Admin UI domain (Enter to skip)',
+        message: t('domain.adminUiDomain'),
         default: '',
       });
     }
 
     if (apiDomain) {
       console.log('');
-      console.log(chalk.green('  ✓ Issuer URL: https://' + apiDomain));
+      console.log(chalk.green('  ✓ ' + t('domain.issuerUrl', { url: 'https://' + apiDomain })));
     } else {
       console.log('');
-      console.log(chalk.green('  ✓ Issuer URL: ' + getWorkersDevUrl(envPrefix + '-ar-router')));
-      console.log(chalk.gray('    (using Cloudflare workers.dev domain)'));
+      console.log(
+        chalk.green(
+          '  ✓ ' + t('domain.issuerUrl', { url: getWorkersDevUrl(envPrefix + '-ar-router') })
+        )
+      );
+      console.log(chalk.gray('    ' + t('domain.usingWorkersDev')));
     }
   }
 
   // Step 5: Optional components
   console.log('');
-  console.log(chalk.blue('━━━ Optional Components ━━━'));
-  console.log(chalk.gray('  Note: Social Login and Policy Engine are standard components'));
+  console.log(chalk.blue('━━━ ' + t('components.title') + ' ━━━'));
+  console.log(chalk.gray('  ' + t('components.note')));
   console.log('');
 
   const enableSaml = await confirm({
-    message: 'Enable SAML support?',
+    message: t('components.samlPrompt'),
     default: false,
   });
 
   const enableVc = await confirm({
-    message: 'Enable Verifiable Credentials?',
+    message: t('components.vcPrompt'),
     default: false,
   });
 
   // Step 6: Feature flags
   console.log('');
-  console.log(chalk.blue('━━━ Feature Flags ━━━'));
+  console.log(chalk.blue('━━━ ' + t('features.title') + ' ━━━'));
   console.log('');
 
   const enableQueue = await confirm({
-    message: 'Enable Cloudflare Queues? (for audit logs)',
+    message: t('features.queuePrompt'),
     default: false,
   });
 
   const enableR2 = await confirm({
-    message: 'Enable Cloudflare R2? (for avatars)',
+    message: t('features.r2Prompt'),
     default: false,
   });
 
   const emailProviderChoice = await select({
-    message: 'Select email provider',
+    message: t('email.title'),
     choices: [
-      { value: 'none', name: 'None (configure later)' },
-      { value: 'resend', name: 'Resend' },
+      { value: 'none', name: t('email.skipOption') },
+      { value: 'resend', name: t('email.resendOption') },
       { value: 'sendgrid', name: 'SendGrid (coming soon)', disabled: true },
-      { value: 'ses', name: 'AWS SES (coming soon)', disabled: true },
+      { value: 'ses', name: t('email.sesOption') + ' (coming soon)', disabled: true },
     ],
     default: 'none',
   });
@@ -1511,34 +1621,34 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   if (emailProviderChoice === 'resend') {
     console.log('');
-    console.log(chalk.blue('━━━ Resend Configuration ━━━'));
-    console.log(chalk.gray('Get your API key at: https://resend.com/api-keys'));
-    console.log(chalk.gray('Set up domain at: https://resend.com/domains'));
+    console.log(chalk.blue('━━━ ' + t('email.resendOption') + ' ━━━'));
+    console.log(chalk.gray(t('email.apiKeyHint')));
+    console.log(chalk.gray(t('email.domainHint')));
     console.log('');
 
     const resendApiKey = await password({
-      message: 'Resend API key',
+      message: t('email.apiKeyPrompt'),
       mask: '*',
       validate: (value) => {
-        if (!value.trim()) return 'API key is required';
+        if (!value.trim()) return t('email.apiKeyRequired');
         if (!value.startsWith('re_')) {
-          return 'Warning: Resend API keys typically start with "re_"';
+          return t('email.apiKeyWarning');
         }
         return true;
       },
     });
 
     const fromAddress = await input({
-      message: 'From email address',
+      message: t('email.fromAddressPrompt'),
       default: 'noreply@yourdomain.com',
       validate: (value) => {
-        if (!value.includes('@')) return 'Please enter a valid email address';
+        if (!value.includes('@')) return t('email.fromAddressValidation');
         return true;
       },
     });
 
     const fromName = await input({
-      message: 'From display name (optional)',
+      message: t('email.fromNamePrompt'),
       default: 'Authrim',
     });
 
@@ -1550,13 +1660,13 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
     };
 
     console.log('');
-    console.log(chalk.yellow('⚠️  Domain verification required for sending from your own domain.'));
-    console.log(chalk.gray('   See: https://resend.com/docs/dashboard/domains/introduction'));
+    console.log(chalk.yellow('⚠️  ' + t('email.domainVerificationRequired')));
+    console.log(chalk.gray('   ' + t('email.seeDocumentation')));
   }
 
   // Step 7: Advanced OIDC settings
   const configureOidc = await confirm({
-    message: 'Configure OIDC settings? (token TTL, etc.)',
+    message: t('oidc.configurePrompt'),
     default: false,
   });
 
@@ -1567,51 +1677,51 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   if (configureOidc) {
     console.log('');
-    console.log(chalk.blue('━━━ OIDC Settings ━━━'));
+    console.log(chalk.blue('━━━ ' + t('oidc.title') + ' ━━━'));
     console.log('');
 
     const accessTokenTtlStr = await input({
-      message: 'Access Token TTL (sec)',
+      message: t('oidc.accessTokenTtl'),
       default: '3600',
       validate: (value) => {
         const num = parseInt(value, 10);
-        if (isNaN(num) || num <= 0) return 'Please enter a positive integer';
+        if (isNaN(num) || num <= 0) return t('oidc.positiveInteger');
         return true;
       },
     });
     accessTokenTtl = parseInt(accessTokenTtlStr, 10);
 
     const refreshTokenTtlStr = await input({
-      message: 'Refresh Token TTL (sec)',
+      message: t('oidc.refreshTokenTtl'),
       default: '604800',
       validate: (value) => {
         const num = parseInt(value, 10);
-        if (isNaN(num) || num <= 0) return 'Please enter a positive integer';
+        if (isNaN(num) || num <= 0) return t('oidc.positiveInteger');
         return true;
       },
     });
     refreshTokenTtl = parseInt(refreshTokenTtlStr, 10);
 
     const authCodeTtlStr = await input({
-      message: 'Authorization Code TTL (sec)',
+      message: t('oidc.authCodeTtl'),
       default: '600',
       validate: (value) => {
         const num = parseInt(value, 10);
-        if (isNaN(num) || num <= 0) return 'Please enter a positive integer';
+        if (isNaN(num) || num <= 0) return t('oidc.positiveInteger');
         return true;
       },
     });
     authCodeTtl = parseInt(authCodeTtlStr, 10);
 
     pkceRequired = await confirm({
-      message: 'Require PKCE?',
+      message: t('oidc.pkceRequired'),
       default: true,
     });
   }
 
   // Step 8: Sharding settings
   const configureSharding = await confirm({
-    message: 'Configure sharding? (for high-load environments)',
+    message: t('sharding.configurePrompt'),
     default: false,
   });
 
@@ -1620,27 +1730,27 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   if (configureSharding) {
     console.log('');
-    console.log(chalk.blue('━━━ Sharding Settings ━━━'));
-    console.log(chalk.gray('  Note: Power of 2 recommended for shard count (8, 16, 32, 64, 128)'));
+    console.log(chalk.blue('━━━ ' + t('sharding.title') + ' ━━━'));
+    console.log(chalk.gray('  ' + t('sharding.note')));
     console.log('');
 
     const authCodeShardsStr = await input({
-      message: 'Auth Code shard count',
+      message: t('sharding.authCodeShards'),
       default: '64',
       validate: (value) => {
         const num = parseInt(value, 10);
-        if (isNaN(num) || num <= 0) return 'Please enter a positive integer';
+        if (isNaN(num) || num <= 0) return t('oidc.positiveInteger');
         return true;
       },
     });
     authCodeShards = parseInt(authCodeShardsStr, 10);
 
     const refreshTokenShardsStr = await input({
-      message: 'Refresh Token shard count',
+      message: t('sharding.refreshTokenShards'),
       default: '8',
       validate: (value) => {
         const num = parseInt(value, 10);
-        if (isNaN(num) || num <= 0) return 'Please enter a positive integer';
+        if (isNaN(num) || num <= 0) return t('oidc.positiveInteger');
         return true;
       },
     });
@@ -1649,35 +1759,39 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   // Step 9: Database Configuration
   console.log('');
-  console.log(chalk.blue('━━━ Database Configuration ━━━'));
-  console.log(chalk.yellow('⚠️  Database region cannot be changed after creation.'));
+  console.log(chalk.blue('━━━ ' + t('db.title') + ' ━━━'));
+  console.log(chalk.yellow('⚠️  ' + t('db.regionWarning')));
   console.log('');
 
   const dbLocationChoices = [
-    { name: 'Automatic (nearest to you)', value: 'auto' },
-    { name: '── Location Hints ──', value: '__separator1__', disabled: true },
-    { name: 'North America (West)', value: 'wnam' },
-    { name: 'North America (East)', value: 'enam' },
-    { name: 'Europe (West)', value: 'weur' },
-    { name: 'Europe (East)', value: 'eeur' },
-    { name: 'Asia Pacific', value: 'apac' },
-    { name: 'Oceania', value: 'oc' },
-    { name: '── Jurisdiction (Compliance) ──', value: '__separator2__', disabled: true },
-    { name: 'EU Jurisdiction (GDPR compliance)', value: 'eu' },
+    { name: t('region.auto'), value: 'auto' },
+    { name: '── ' + t('db.locationHints') + ' ──', value: '__separator1__', disabled: true },
+    { name: t('region.wnam'), value: 'wnam' },
+    { name: t('region.enam'), value: 'enam' },
+    { name: t('region.weur'), value: 'weur' },
+    { name: t('region.eeur'), value: 'eeur' },
+    { name: t('region.apac'), value: 'apac' },
+    { name: t('region.oceania'), value: 'oc' },
+    {
+      name: '── ' + t('db.jurisdictionCompliance') + ' ──',
+      value: '__separator2__',
+      disabled: true,
+    },
+    { name: t('region.euJurisdiction'), value: 'eu' },
   ];
 
-  console.log(chalk.gray('  Core DB: Stores OAuth clients, tokens, sessions, audit logs'));
+  console.log(chalk.gray('  ' + t('db.coreDescription')));
   const coreDbLocation = await select({
-    message: 'Core Database region',
+    message: t('db.coreRegion'),
     choices: dbLocationChoices,
     default: 'auto',
   });
 
   console.log('');
-  console.log(chalk.gray('  PII DB: Stores user profiles, credentials, personal data'));
-  console.log(chalk.gray('  Consider your data protection requirements.'));
+  console.log(chalk.gray('  ' + t('db.piiDescription')));
+  console.log(chalk.gray('  ' + t('db.piiNote')));
   const piiDbLocation = await select({
-    message: 'PII Database region',
+    message: t('db.piiRegion'),
     choices: dbLocationChoices,
     default: 'auto',
   });
@@ -2038,7 +2152,9 @@ async function executeSetup(
   // Step 5a: Save master wrangler configs to .authrim/{env}/wrangler/
   const wranglerSpinner = ora('Saving wrangler.toml master configs...').start();
   try {
-    const { saveMasterWranglerConfigs, syncWranglerConfigs } = await import('../../core/wrangler-sync.js');
+    const { saveMasterWranglerConfigs, syncWranglerConfigs } = await import(
+      '../../core/wrangler-sync.js'
+    );
 
     const masterResult = await saveMasterWranglerConfigs(config, resourceIds, {
       baseDir,
@@ -2217,7 +2333,8 @@ async function handleRedeploy(config: AuthrimConfig, configPath: string): Promis
   // New structure: .authrim/{env}/config.json -> .authrim/{env}/lock.json
   // Legacy structure: authrim-config.json -> authrim-lock.json
   let lockPath: string;
-  const isNewStructure = configPath.includes(`${AUTHRIM_DIR}/`) && configPath.endsWith('/config.json');
+  const isNewStructure =
+    configPath.includes(`${AUTHRIM_DIR}/`) && configPath.endsWith('/config.json');
   if (isNewStructure) {
     lockPath = configPath.replace('/config.json', '/lock.json');
   } else {

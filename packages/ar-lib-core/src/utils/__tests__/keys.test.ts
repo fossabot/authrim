@@ -11,17 +11,13 @@ describe('Key Generation Utilities', () => {
       expect(keyPair.privateKey).toBeDefined();
     });
 
-    it(
-      'should generate RSA key pair with custom size',
-      async () => {
-        const keyPair = await generateRSAKeyPair(4096);
+    it('should generate RSA key pair with custom size', async () => {
+      const keyPair = await generateRSAKeyPair(4096);
 
-        expect(keyPair).toBeDefined();
-        expect(keyPair.publicKey).toBeDefined();
-        expect(keyPair.privateKey).toBeDefined();
-      },
-      15000
-    ); // 4096-bit RSA generation can be slow
+      expect(keyPair).toBeDefined();
+      expect(keyPair.publicKey).toBeDefined();
+      expect(keyPair.privateKey).toBeDefined();
+    }, 15000); // 4096-bit RSA generation can be slow
   });
 
   describe('exportPublicJWK', () => {

@@ -278,9 +278,9 @@ export class PasskeyRepository {
    * This is critical for clone detection
    *
    * @param id - Passkey ID
-   * @param newCounter - New counter value (must be greater than current)
+   * @param newCounter - New counter value (must be greater than current, unless authenticator doesn't support counters)
    * @returns Updated passkey or null if not found
-   * @throws Error if newCounter is not greater than current counter
+   * @throws Error if newCounter is less than current counter (indicates possible cloned authenticator)
    */
   async updateCounterAfterAuth(id: string, newCounter: number): Promise<Passkey | null> {
     const existing = await this.findById(id);
@@ -288,8 +288,13 @@ export class PasskeyRepository {
       return null;
     }
 
-    // Counter must be strictly greater than current value
-    if (newCounter <= existing.counter) {
+    // WebAuthn counter validation:
+    // - If both counters are 0, the authenticator doesn't support counters (valid)
+    // - If new counter is 0 and current is non-zero, authenticator switched to non-counter mode (suspicious but allowed)
+    // - If new counter > current, normal increment (valid)
+    // - If new counter > 0 and new counter <= current, possible cloned authenticator (REJECT)
+    const isCounterSupported = existing.counter > 0 || newCounter > 0;
+    if (isCounterSupported && newCounter > 0 && newCounter <= existing.counter) {
       throw new Error(
         `Invalid counter: new counter (${newCounter}) must be greater than current (${existing.counter}). Possible cloned authenticator.`
       );

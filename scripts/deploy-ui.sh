@@ -67,12 +67,12 @@ echo ""
 
 # Build UI
 echo "🔨 Building UI..."
-pnpm --filter=ui build
+pnpm --filter=@authrim/ar-ui build
 echo ""
 
 # Deploy to Cloudflare Pages
 echo "📤 Deploying to Cloudflare Pages..."
-wrangler pages deploy packages/ui/.svelte-kit/cloudflare --project-name="$PROJECT_NAME"
+wrangler pages deploy packages/ar-ui/.svelte-kit/cloudflare --project-name="$PROJECT_NAME"
 
 echo ""
 echo "✅ UI deployment complete!"

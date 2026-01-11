@@ -26,7 +26,10 @@ import {
 // =============================================================================
 
 function createTempDir(): string {
-  const tempDir = join(tmpdir(), `authrim-migrate-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const tempDir = join(
+    tmpdir(),
+    `authrim-migrate-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
   mkdirSync(tempDir, { recursive: true });
   return tempDir;
 }
@@ -39,7 +42,14 @@ function createLegacyStructure(baseDir: string, env: string = 'dev'): void {
     profile: 'basic-op',
     tenant: { name: 'test', displayName: 'Test' },
     components: { api: true, loginUi: true, adminUi: true },
-    oidc: { accessTokenTtl: 3600, refreshTokenTtl: 86400, authCodeTtl: 600, pkceRequired: true, responseTypes: ['code'], grantTypes: ['authorization_code'] },
+    oidc: {
+      accessTokenTtl: 3600,
+      refreshTokenTtl: 86400,
+      authCodeTtl: 600,
+      pkceRequired: true,
+      responseTypes: ['code'],
+      grantTypes: ['authorization_code'],
+    },
     sharding: { authCodeShards: 4, refreshTokenShards: 4 },
     features: {},
     keys: { secretsPath: './.keys/' },
@@ -59,8 +69,14 @@ function createLegacyStructure(baseDir: string, env: string = 'dev'): void {
   // Create legacy keys directory
   const keysDir = join(baseDir, LEGACY_KEYS_DIR, env);
   mkdirSync(keysDir, { recursive: true });
-  writeFileSync(join(keysDir, 'private.pem'), '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----');
-  writeFileSync(join(keysDir, 'public.jwk.json'), JSON.stringify({ kty: 'RSA', n: 'test', e: 'AQAB' }));
+  writeFileSync(
+    join(keysDir, 'private.pem'),
+    '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----'
+  );
+  writeFileSync(
+    join(keysDir, 'public.jwk.json'),
+    JSON.stringify({ kty: 'RSA', n: 'test', e: 'AQAB' })
+  );
   writeFileSync(join(keysDir, 'admin_api_secret.txt'), 'secret-123');
 }
 
@@ -76,7 +92,14 @@ function createNewStructure(baseDir: string, env: string = 'dev'): void {
     profile: 'basic-op',
     tenant: { name: 'test', displayName: 'Test' },
     components: { api: true },
-    oidc: { accessTokenTtl: 3600, refreshTokenTtl: 86400, authCodeTtl: 600, pkceRequired: true, responseTypes: ['code'], grantTypes: ['authorization_code'] },
+    oidc: {
+      accessTokenTtl: 3600,
+      refreshTokenTtl: 86400,
+      authCodeTtl: 600,
+      pkceRequired: true,
+      responseTypes: ['code'],
+      grantTypes: ['authorization_code'],
+    },
     sharding: { authCodeShards: 4, refreshTokenShards: 4 },
     features: {},
     keys: { secretsPath: './keys/' },
@@ -97,7 +120,10 @@ function createNewStructure(baseDir: string, env: string = 'dev'): void {
   writeFileSync(join(envDir, 'version.txt'), '0.1.0');
 
   // Create keys
-  writeFileSync(join(envDir, 'keys', 'private.pem'), '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----');
+  writeFileSync(
+    join(envDir, 'keys', 'private.pem'),
+    '-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----'
+  );
   writeFileSync(join(envDir, 'keys', 'public.jwk.json'), JSON.stringify({ kty: 'RSA' }));
 }
 
@@ -298,13 +324,29 @@ describe('migrate.ts', () => {
         profile: 'basic-op',
         tenant: { name: 'test', displayName: 'Test' },
         components: { api: true },
-        oidc: { accessTokenTtl: 3600, refreshTokenTtl: 86400, authCodeTtl: 600, pkceRequired: true, responseTypes: ['code'], grantTypes: ['authorization_code'] },
+        oidc: {
+          accessTokenTtl: 3600,
+          refreshTokenTtl: 86400,
+          authCodeTtl: 600,
+          pkceRequired: true,
+          responseTypes: ['code'],
+          grantTypes: ['authorization_code'],
+        },
         sharding: { authCodeShards: 4, refreshTokenShards: 4 },
         features: {},
         keys: { secretsPath: './keys/' },
       };
       writeFileSync(join(envDir, 'config.json'), JSON.stringify(config));
-      writeFileSync(join(envDir, 'lock.json'), JSON.stringify({ version: '1.0.0', env: 'dev', d1: {}, kv: {}, createdAt: new Date().toISOString() }));
+      writeFileSync(
+        join(envDir, 'lock.json'),
+        JSON.stringify({
+          version: '1.0.0',
+          env: 'dev',
+          d1: {},
+          kv: {},
+          createdAt: new Date().toISOString(),
+        })
+      );
       writeFileSync(join(envDir, 'version.txt'), '0.1.0');
 
       const result = await validateMigration(tempDir, 'dev');

@@ -5,13 +5,33 @@
  * Follows the setup flow defined in the design document.
  */
 
-export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): string {
+import type { Locale, LocaleInfo } from '../i18n/types.js';
+
+export function getHtmlTemplate(
+  sessionToken?: string,
+  manageOnly?: boolean,
+  locale: Locale = 'en',
+  translations: Record<string, string> = {},
+  availableLocales: LocaleInfo[] = []
+): string {
   // Escape token for safe embedding in JavaScript
   const safeToken = sessionToken ? sessionToken.replace(/['"\\]/g, '') : '';
   const manageOnlyFlag = manageOnly ? 'true' : 'false';
 
+  // Safely stringify translations for embedding in JavaScript
+  const translationsJson = JSON.stringify(translations);
+  const availableLocalesJson = JSON.stringify(availableLocales);
+
+  // Generate locale options HTML server-side
+  const localeOptionsHtml = availableLocales
+    .map(
+      (l) =>
+        `<option value="${l.code}"${l.code === locale ? ' selected' : ''}>${l.nativeName}</option>`
+    )
+    .join('');
+
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${locale}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -216,11 +236,55 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     /* ========================================
        THEME TOGGLE
        ======================================== */
-    .theme-toggle {
+    /* Top Controls Container - holds language selector and theme toggle */
+    .top-controls {
       position: fixed;
       top: 1.25rem;
       right: 1.5rem;
       z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    /* Language Selector - styled to match theme toggle */
+    .lang-selector select {
+      height: 44px;
+      padding: 0 2.25rem 0 1rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .lang-selector select:hover {
+      background-color: var(--card-bg-hover);
+      border-color: var(--primary);
+      transform: scale(1.02);
+    }
+
+    .lang-selector select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .lang-selector select:active {
+      transform: scale(0.98);
+    }
+
+    .theme-toggle {
       width: 44px;
       height: 44px;
       background: var(--card-bg);
@@ -1650,6 +1714,103 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       }
     }
   </style>
+  <script>
+    // i18n Translation System
+    let _translations = ${translationsJson};
+    const _availableLocales = ${availableLocalesJson};
+    let _currentLocale = '${locale}';
+
+    /**
+     * Translate a key with optional parameter substitution
+     * @param {string} key - Translation key
+     * @param {Object} params - Parameters for substitution {{param}}
+     * @returns {string} Translated string or key if not found
+     */
+    function t(key, params = {}) {
+      let text = _translations[key] || key;
+      if (params) {
+        Object.entries(params).forEach(([param, value]) => {
+          text = text.replace(new RegExp('\\\\{\\\\{' + param + '\\\\}\\\\}', 'g'), String(value));
+        });
+      }
+      return text;
+    }
+
+    /**
+     * Update all elements with data-i18n attribute
+     */
+    function updateAllTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const params = el.getAttribute('data-i18n-params');
+        if (key) {
+          const parsedParams = params ? JSON.parse(params) : {};
+          el.textContent = t(key, parsedParams);
+        }
+      });
+      // Update placeholders
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (key) {
+          el.setAttribute('placeholder', t(key));
+        }
+      });
+      // Update html lang attribute
+      document.documentElement.lang = _currentLocale;
+    }
+
+    /**
+     * Change the current language without page reload
+     * @param {string} locale - Locale code (e.g., 'en', 'ja')
+     */
+    async function changeLanguage(locale) {
+      if (locale === _currentLocale) return;
+
+      try {
+        const response = await fetch('/api/translations/' + locale);
+        if (!response.ok) throw new Error('Failed to fetch translations');
+
+        const data = await response.json();
+        _translations = data.translations;
+        _currentLocale = locale;
+
+        // Save preference
+        localStorage.setItem('authrim_setup_lang', locale);
+
+        // Update URL without reload (for sharing/bookmarking)
+        const url = new URL(window.location.href);
+        url.searchParams.set('lang', locale);
+        window.history.replaceState({}, '', url.toString());
+
+        // Update all translatable elements
+        updateAllTranslations();
+      } catch (error) {
+        console.error('Failed to change language:', error);
+        // Fallback: reload the page
+        localStorage.setItem('authrim_setup_lang', locale);
+        const url = new URL(window.location.href);
+        url.searchParams.set('lang', locale);
+        window.location.href = url.toString();
+      }
+    }
+
+    // Initialize translations on page load
+    (function() {
+      const savedLang = localStorage.getItem('authrim_setup_lang');
+      const url = new URL(window.location.href);
+
+      // If there's a saved language preference and no query param, switch to it
+      if (savedLang && savedLang !== _currentLocale && !url.searchParams.has('lang')) {
+        url.searchParams.set('lang', savedLang);
+        window.history.replaceState({}, '', url.toString());
+        changeLanguage(savedLang);
+      } else {
+        // Apply translations for the current locale immediately
+        // This ensures ?lang=ja works on initial page load
+        updateAllTranslations();
+      }
+    })();
+  </script>
 </head>
 <body>
   <!-- Background Typography -->
@@ -1664,8 +1825,15 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     </div>
   </div>
 
-  <!-- Theme Toggle -->
-  <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">🌙</button>
+  <!-- Top Controls: Language Selector + Theme Toggle -->
+  <div class="top-controls">
+    <div class="lang-selector">
+      <select id="lang-select" onchange="changeLanguage(this.value)" aria-label="Select language">
+        ${localeOptionsHtml}
+      </select>
+    </div>
+    <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">🌙</button>
+  </div>
 
   <div class="container">
     <header>
@@ -1695,132 +1863,132 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
     <!-- Step 1: Prerequisites -->
     <div id="section-prerequisites" class="card">
       <h2 class="card-title">
-        Prerequisites
-        <span class="status-badge status-running" id="prereq-status">Checking...</span>
+        <span data-i18n="web.prereq.title">Prerequisites</span>
+        <span class="status-badge status-running" id="prereq-status" data-i18n="web.prereq.checking">Checking...</span>
       </h2>
       <div id="prereq-content">
-        <p>Checking system requirements...</p>
+        <p data-i18n="web.prereq.checkingRequirements">Checking system requirements...</p>
       </div>
     </div>
 
     <!-- Step 1.5: Top Menu (New Setup / Load Config / Manage) -->
     <div id="section-top-menu" class="card hidden">
-      <h2 class="card-title">Get Started</h2>
-      <p style="margin-bottom: 1.5rem; color: var(--text-muted);">Choose an option to continue:</p>
+      <h2 class="card-title" data-i18n="web.menu.title">Get Started</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-muted);" data-i18n="web.menu.subtitle">Choose an option to continue:</p>
 
       <div class="mode-cards" style="grid-template-columns: repeat(3, 1fr);">
         <div class="mode-card" id="menu-new-setup">
           <div class="mode-icon">🆕</div>
-          <h3>New Setup</h3>
-          <p>Create a new Authrim deployment from scratch</p>
+          <h3 data-i18n="web.menu.newSetup">New Setup</h3>
+          <p data-i18n="web.menu.newSetupDesc">Create a new Authrim deployment from scratch</p>
         </div>
 
         <div class="mode-card" id="menu-load-config">
           <div class="mode-icon">📂</div>
-          <h3>Load Config</h3>
-          <p>Resume or redeploy using existing config</p>
+          <h3 data-i18n="web.menu.loadConfig">Load Config</h3>
+          <p data-i18n="web.menu.loadConfigDesc">Resume or redeploy using existing config</p>
         </div>
 
         <div class="mode-card" id="menu-manage-env">
           <div class="mode-icon">⚙️</div>
-          <h3>Manage Environments</h3>
-          <p>View, inspect, or delete existing environments</p>
+          <h3 data-i18n="web.menu.manageEnv">Manage Environments</h3>
+          <p data-i18n="web.menu.manageEnvDesc">View, inspect, or delete existing environments</p>
         </div>
       </div>
     </div>
 
     <!-- Step 1.6: Setup Mode Selection (Quick / Custom) -->
     <div id="section-mode" class="card hidden">
-      <h2 class="card-title">Setup Mode</h2>
-      <p style="margin-bottom: 1.5rem; color: var(--text-muted);">Choose how you want to set up Authrim:</p>
+      <h2 class="card-title" data-i18n="web.mode.title">Setup Mode</h2>
+      <p style="margin-bottom: 1.5rem; color: var(--text-muted);" data-i18n="web.mode.subtitle">Choose how you want to set up Authrim:</p>
 
       <div class="mode-cards">
         <div class="mode-card" id="mode-quick">
           <div class="mode-icon">⚡</div>
-          <h3>Quick Setup</h3>
-          <p>Get started in ~5 minutes</p>
+          <h3 data-i18n="web.mode.quick">Quick Setup</h3>
+          <p data-i18n="web.mode.quickDesc">Get started in ~5 minutes</p>
           <ul>
-            <li>Environment selection</li>
-            <li>Optional custom domain</li>
-            <li>Default components</li>
+            <li data-i18n="web.mode.quickEnv">Environment selection</li>
+            <li data-i18n="web.mode.quickDomain">Optional custom domain</li>
+            <li data-i18n="web.mode.quickDefault">Default components</li>
           </ul>
-          <span class="mode-badge">Recommended</span>
+          <span class="mode-badge" data-i18n="web.mode.recommended">Recommended</span>
         </div>
 
         <div class="mode-card" id="mode-custom">
           <div class="mode-icon">🔧</div>
-          <h3>Custom Setup</h3>
-          <p>Full control over configuration</p>
+          <h3 data-i18n="web.mode.custom">Custom Setup</h3>
+          <p data-i18n="web.mode.customDesc">Full control over configuration</p>
           <ul>
-            <li>Component selection</li>
-            <li>URL configuration</li>
-            <li>Advanced settings</li>
+            <li data-i18n="web.mode.customComp">Component selection</li>
+            <li data-i18n="web.mode.customUrl">URL configuration</li>
+            <li data-i18n="web.mode.customAdvanced">Advanced settings</li>
           </ul>
         </div>
       </div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-top">Back</button>
+        <button class="btn-secondary" id="btn-back-top" data-i18n="web.btn.back">Back</button>
       </div>
     </div>
 
     <!-- Step 1.7: Load Config -->
     <div id="section-load-config" class="card hidden">
-      <h2 class="card-title">Load Configuration</h2>
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">Select your authrim-config.json file:</p>
+      <h2 class="card-title" data-i18n="web.loadConfig.title">Load Configuration</h2>
+      <p style="margin-bottom: 1rem; color: var(--text-muted);" data-i18n="web.loadConfig.subtitle">Select your authrim-config.json file:</p>
 
       <div class="form-group">
         <div class="file-input-wrapper">
-          <span class="file-input-btn">📁 Choose File</span>
+          <span class="file-input-btn" data-i18n="web.loadConfig.chooseFile">📁 Choose File</span>
           <input type="file" id="config-file" accept=".json">
         </div>
         <span id="config-file-name" style="margin-left: 1rem; color: var(--text-muted);"></span>
       </div>
 
       <div id="config-preview-section" class="hidden">
-        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Configuration Preview</h3>
+        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;" data-i18n="web.loadConfig.preview">Configuration Preview</h3>
         <div class="config-preview" id="config-preview-content"></div>
       </div>
 
       <div id="config-validation-error" class="hidden" style="margin-top: 1rem; padding: 1rem; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px;">
         <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
           <span style="font-size: 1.25rem;">⚠️</span>
-          <strong style="color: #b91c1c;">Configuration Validation Failed</strong>
+          <strong style="color: #b91c1c;" data-i18n="web.loadConfig.validationFailed">Configuration Validation Failed</strong>
         </div>
         <ul id="config-validation-errors" style="margin: 0; padding-left: 1.5rem; color: #991b1b; font-size: 0.875rem;"></ul>
       </div>
 
       <div id="config-validation-success" class="hidden" style="margin-top: 1rem; padding: 0.75rem 1rem; background: #d1fae5; border: 1px solid #6ee7b7; border-radius: 8px;">
-        <span style="color: #065f46;">✓ Configuration is valid</span>
+        <span style="color: #065f46;" data-i18n="web.loadConfig.valid">✓ Configuration is valid</span>
       </div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-top-2">Back</button>
-        <button class="btn-primary" id="btn-load-config" disabled>Load & Continue</button>
+        <button class="btn-secondary" id="btn-back-top-2" data-i18n="web.btn.back">Back</button>
+        <button class="btn-primary" id="btn-load-config" disabled data-i18n="web.loadConfig.loadContinue">Load & Continue</button>
       </div>
     </div>
 
     <!-- Step 2: Configuration -->
     <div id="section-config" class="card hidden">
-      <h2 class="card-title">Configuration</h2>
+      <h2 class="card-title" data-i18n="web.config.title">Configuration</h2>
 
       <!-- 1. Components (shown in custom mode) -->
       <div id="advanced-options" class="hidden">
-        <h3 style="margin: 0 0 1rem; font-size: 1rem;">📦 Components</h3>
+        <h3 style="margin: 0 0 1rem; font-size: 1rem;">📦 <span data-i18n="web.config.components">Components</span></h3>
 
         <!-- API Component (required) -->
         <div class="component-card">
           <label class="checkbox-item" style="font-weight: 600; margin-bottom: 0.25rem;">
             <input type="checkbox" id="comp-api" checked disabled>
-            🔐 API (required)
+            🔐 <span data-i18n="web.config.apiRequired">API (required)</span>
           </label>
-          <p style="margin: 0.25rem 0 0.5rem 1.5rem; font-size: 0.85rem;">
+          <p style="margin: 0.25rem 0 0.5rem 1.5rem; font-size: 0.85rem;" data-i18n="web.config.apiDesc">
             OIDC Provider endpoints: authorize, token, userinfo, discovery, management APIs.
           </p>
           <div style="margin-left: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.75rem;">
             <label class="checkbox-item" style="font-size: 0.9rem;">
               <input type="checkbox" id="comp-saml">
-              SAML IdP
+              <span data-i18n="web.config.saml">SAML IdP</span>
             </label>
             <label class="checkbox-item" style="font-size: 0.9rem;">
               <input type="checkbox" id="comp-async">
@@ -1837,9 +2005,9 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <div class="component-card">
           <label class="checkbox-item" style="font-weight: 600; margin-bottom: 0.25rem;">
             <input type="checkbox" id="comp-login-ui" checked>
-            🖥️ Login UI
+            🖥️ <span data-i18n="web.comp.loginUi">Login UI</span>
           </label>
-          <p style="margin: 0.25rem 0 0 1.5rem; font-size: 0.85rem;">
+          <p style="margin: 0.25rem 0 0 1.5rem; font-size: 0.85rem;" data-i18n="web.comp.loginUiDesc">
             User-facing login, registration, consent, and account management pages.
           </p>
         </div>
@@ -1848,9 +2016,9 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <div class="component-card">
           <label class="checkbox-item" style="font-weight: 600; margin-bottom: 0.25rem;">
             <input type="checkbox" id="comp-admin-ui" checked>
-            ⚙️ Admin UI
+            ⚙️ <span data-i18n="web.comp.adminUi">Admin UI</span>
           </label>
-          <p style="margin: 0.25rem 0 0 1.5rem; font-size: 0.85rem;">
+          <p style="margin: 0.25rem 0 0 1.5rem; font-size: 0.85rem;" data-i18n="web.comp.adminUiDesc">
             Admin dashboard for managing tenants, clients, users, and system settings.
           </p>
         </div>
@@ -1860,28 +2028,28 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
       <!-- 2. Environment Name -->
       <div class="form-group">
-        <label for="env">Environment Name <span style="color: var(--error);">*</span></label>
-        <input type="text" id="env" placeholder="e.g., prod, staging, dev" required>
-        <small style="color: var(--text-muted)">Lowercase letters, numbers, and hyphens only</small>
+        <label for="env"><span data-i18n="web.form.envName">Environment Name</span> <span style="color: var(--error);">*</span></label>
+        <input type="text" id="env" placeholder="e.g., prod, staging, dev" data-i18n-placeholder="web.form.envNamePlaceholder" required>
+        <small style="color: var(--text-muted)" data-i18n="web.form.envNameHint">Lowercase letters, numbers, and hyphens only</small>
       </div>
 
       <!-- 3. Domain Configuration -->
       <!-- 3.1 API / Issuer Domain -->
       <div class="domain-section">
-        <h4>🌐 API / Issuer Domain</h4>
+        <h4>🌐 <span data-i18n="web.section.apiDomain">API / Issuer Domain</span></h4>
 
         <div class="form-group" style="margin-bottom: 0.75rem;">
-          <label for="base-domain">Base Domain (API Domain)</label>
-          <input type="text" id="base-domain" placeholder="oidc.example.com">
-          <small style="color: var(--text-muted)">Custom domain for Authrim. Leave empty to use workers.dev</small>
+          <label for="base-domain" data-i18n="web.form.baseDomain">Base Domain (API Domain)</label>
+          <input type="text" id="base-domain" placeholder="oidc.example.com" data-i18n-placeholder="web.form.baseDomainPlaceholder">
+          <small style="color: var(--text-muted)" data-i18n="web.form.baseDomainHint">Custom domain for Authrim. Leave empty to use workers.dev</small>
           <label class="checkbox-item" id="naked-domain-label" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
             <input type="checkbox" id="naked-domain">
-            <span>Exclude tenant name from URL</span>
+            <span data-i18n="web.form.nakedDomain">Exclude tenant name from URL</span>
           </label>
-          <small id="naked-domain-hint" style="color: var(--text-muted); margin-left: 1.5rem;">
+          <small id="naked-domain-hint" style="color: var(--text-muted); margin-left: 1.5rem;" data-i18n="web.form.nakedDomainHint">
             Use https://example.com instead of https://{tenant}.example.com
           </small>
-          <small id="workers-dev-note" style="color: #d97706; margin-left: 1.5rem; display: none;">
+          <small id="workers-dev-note" style="color: #d97706; margin-left: 1.5rem; display: none;" data-i18n="web.form.nakedDomainWarning">
             ⚠️ Tenant subdomains require a custom domain. Workers.dev does not support wildcard subdomains.
           </small>
         </div>
@@ -1889,146 +2057,146 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <!-- Default Tenant (hidden when naked domain is checked or using workers.dev) -->
         <div id="tenant-fields">
           <div class="form-group" style="margin-bottom: 0.5rem;">
-            <label for="tenant-name">Default Tenant ID</label>
-            <input type="text" id="tenant-name" placeholder="default" value="default">
-            <small style="color: var(--text-muted)">First tenant identifier (lowercase, no spaces)</small>
-            <small id="tenant-workers-note" style="color: #6b7280; display: none;">
+            <label for="tenant-name" data-i18n="web.form.tenantId">Default Tenant ID</label>
+            <input type="text" id="tenant-name" placeholder="default" value="default" data-i18n-placeholder="web.form.tenantIdPlaceholder">
+            <small style="color: var(--text-muted)" data-i18n="web.form.tenantIdHint">First tenant identifier (lowercase, no spaces)</small>
+            <small id="tenant-workers-note" style="color: #6b7280; display: none;" data-i18n="web.form.tenantIdWorkerNote">
               (Tenant ID is used internally. URL subdomain requires custom domain.)
             </small>
           </div>
         </div>
 
         <div class="form-group" style="margin-bottom: 0;">
-          <label for="tenant-display">Tenant Display Name</label>
-          <input type="text" id="tenant-display" placeholder="My Company" value="Default Tenant">
-          <small style="color: var(--text-muted)">Name shown on login page and consent screen</small>
+          <label for="tenant-display" data-i18n="web.form.tenantDisplay">Tenant Display Name</label>
+          <input type="text" id="tenant-display" placeholder="My Company" value="Default Tenant" data-i18n-placeholder="web.form.tenantDisplayPlaceholder">
+          <small style="color: var(--text-muted)" data-i18n="web.form.tenantDisplayHint">Name shown on login page and consent screen</small>
         </div>
       </div>
 
       <!-- 3.2 UI Domains -->
       <div class="domain-section" id="ui-domains-section">
-        <h4>🖥️ UI Domains (Optional)</h4>
-        <div class="section-hint">
+        <h4>🖥️ <span data-i18n="web.section.uiDomains">UI Domains (Optional)</span></h4>
+        <div class="section-hint" data-i18n="web.section.uiDomainsHint">
           Custom domains for Login/Admin UIs. Each can be set independently.
           Leave empty to use Cloudflare Pages default.
         </div>
 
         <div class="domain-row" id="login-domain-row">
-          <span class="domain-label">Login UI</span>
+          <span class="domain-label" data-i18n="web.domain.loginUi">Login UI</span>
           <div class="domain-input-wrapper">
-            <input type="text" id="login-domain" placeholder="login.example.com">
+            <input type="text" id="login-domain" placeholder="login.example.com" data-i18n-placeholder="web.form.loginDomainPlaceholder">
             <span class="domain-default" id="login-default">{env}-ar-ui.pages.dev</span>
           </div>
         </div>
 
         <div class="domain-row" id="admin-domain-row">
-          <span class="domain-label">Admin UI</span>
+          <span class="domain-label" data-i18n="web.domain.adminUi">Admin UI</span>
           <div class="domain-input-wrapper">
-            <input type="text" id="admin-domain" placeholder="admin.example.com">
+            <input type="text" id="admin-domain" placeholder="admin.example.com" data-i18n-placeholder="web.form.adminDomainPlaceholder">
             <span class="domain-default" id="admin-default">{env}-ar-ui.pages.dev/admin</span>
           </div>
         </div>
 
-        <div class="section-hint hint-box" style="margin-top: 0.75rem;">
+        <div class="section-hint hint-box" style="margin-top: 0.75rem;" data-i18n="web.section.corsHint">
           💡 CORS: Cross-origin requests from Login/Admin UI to API are automatically allowed.
         </div>
       </div>
 
       <!-- 4. Preview Section (at the bottom) -->
       <div class="infra-section" id="config-preview">
-        <h4>📋 Configuration Preview</h4>
+        <h4>📋 <span data-i18n="web.section.configPreview">Configuration Preview</span></h4>
         <div class="infra-item">
-          <span class="infra-label">Components:</span>
+          <span class="infra-label" data-i18n="web.preview.components">Components:</span>
           <span class="infra-value" id="preview-components">API, Login UI, Admin UI</span>
         </div>
         <div class="infra-item">
-          <span class="infra-label">Workers:</span>
+          <span class="infra-label" data-i18n="web.preview.workers">Workers:</span>
           <span class="infra-value" id="preview-workers">{env}-ar-router, {env}-ar-auth, ...</span>
         </div>
         <div class="infra-item">
-          <span class="infra-label">Issuer URL:</span>
+          <span class="infra-label" data-i18n="web.preview.issuerUrl">Issuer URL:</span>
           <span class="infra-value" id="preview-issuer">https://{tenant}.{base-domain}</span>
         </div>
         <div class="infra-item">
-          <span class="infra-label">Login UI:</span>
+          <span class="infra-label" data-i18n="web.preview.loginUi">Login UI:</span>
           <span class="infra-value" id="preview-login">{env}-ar-ui.pages.dev</span>
         </div>
         <div class="infra-item">
-          <span class="infra-label">Admin UI:</span>
+          <span class="infra-label" data-i18n="web.preview.adminUi">Admin UI:</span>
           <span class="infra-value" id="preview-admin">{env}-ar-ui.pages.dev/admin</span>
         </div>
       </div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-mode">Back</button>
-        <button class="btn-primary" id="btn-configure">Continue</button>
+        <button class="btn-secondary" id="btn-back-mode" data-i18n="web.btn.back">Back</button>
+        <button class="btn-primary" id="btn-configure" data-i18n="web.btn.continue">Continue</button>
       </div>
     </div>
 
     <!-- Step 3: Database Configuration -->
     <div id="section-database" class="card hidden">
-      <h2 class="card-title">🗄️ Database Configuration</h2>
+      <h2 class="card-title" data-i18n="web.db.title">🗄️ Database Configuration</h2>
 
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p style="margin-bottom: 1rem; color: var(--text-muted);" data-i18n="web.db.introDesc">
         Authrim uses two separate D1 databases to isolate personal data from application data.
       </p>
 
-      <p style="margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
+      <p style="margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--text-muted);" data-i18n="web.db.regionNote">
         Note: Database region cannot be changed after creation.
       </p>
 
       <div class="database-config-stack">
         <!-- Core Database (Non-PII) -->
         <div class="database-card">
-          <h3>🗄️ Core Database <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">(Non-PII)</span></h3>
+          <h3>🗄️ <span data-i18n="web.db.coreTitle">Core Database</span> <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">(<span data-i18n="web.db.coreNonPii">Non-PII</span>)</span></h3>
           <div class="db-description">
-            <p>Stores non-personal application data including:</p>
+            <p data-i18n="web.db.coreDataDesc">Stores non-personal application data including:</p>
             <ul>
-              <li>OAuth clients and their configurations</li>
-              <li>Authorization codes and access tokens</li>
-              <li>User sessions and login state</li>
-              <li>Tenant settings and configurations</li>
-              <li>Audit logs and security events</li>
+              <li data-i18n="web.db.coreData1">OAuth clients and their configurations</li>
+              <li data-i18n="web.db.coreData2">Authorization codes and access tokens</li>
+              <li data-i18n="web.db.coreData3">User sessions and login state</li>
+              <li data-i18n="web.db.coreData4">Tenant settings and configurations</li>
+              <li data-i18n="web.db.coreData5">Audit logs and security events</li>
             </ul>
-            <p class="db-hint">This database handles all authentication flows and should be placed close to your primary user base.</p>
+            <p class="db-hint" data-i18n="web.db.coreHint">This database handles all authentication flows and should be placed close to your primary user base.</p>
           </div>
 
           <div class="region-selection">
-            <h4>Region</h4>
+            <h4 data-i18n="web.db.region">Region</h4>
             <div class="radio-group">
               <label class="radio-item">
                 <input type="radio" name="db-core-location" value="auto" checked>
-                <span>Automatic (nearest to you)</span>
+                <span data-i18n="web.db.autoNearest">Automatic (nearest to you)</span>
               </label>
-              <div class="radio-separator">Location Hints</div>
+              <div class="radio-separator" data-i18n="web.db.locationHints">Location Hints</div>
               <label class="radio-item">
                 <input type="radio" name="db-core-location" value="wnam">
-                <span>North America (West)</span>
+                <span data-i18n="web.db.northAmericaWest">North America (West)</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-core-location" value="enam">
-                <span>North America (East)</span>
+                <span data-i18n="web.db.northAmericaEast">North America (East)</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-core-location" value="weur">
-                <span>Europe (West)</span>
+                <span data-i18n="web.db.europeWest">Europe (West)</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-core-location" value="eeur">
-                <span>Europe (East)</span>
+                <span data-i18n="web.db.europeEast">Europe (East)</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-core-location" value="apac">
-                <span>Asia Pacific</span>
+                <span data-i18n="web.db.asiaPacific">Asia Pacific</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-core-location" value="oc">
-                <span>Oceania</span>
+                <span data-i18n="web.db.oceania">Oceania</span>
               </label>
-              <div class="radio-separator">Jurisdiction (Compliance)</div>
+              <div class="radio-separator" data-i18n="web.db.jurisdiction">Jurisdiction (Compliance)</div>
               <label class="radio-item">
                 <input type="radio" name="db-core-location" value="eu">
-                <span>EU Jurisdiction (GDPR compliance)</span>
+                <span data-i18n="web.db.euJurisdiction">EU Jurisdiction (GDPR compliance)</span>
               </label>
             </div>
           </div>
@@ -2036,54 +2204,54 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         <!-- PII Database -->
         <div class="database-card">
-          <h3>🔒 PII Database <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">(Personal Identifiable Information)</span></h3>
+          <h3>🔒 <span data-i18n="web.db.piiTitle">PII Database</span> <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">(<span data-i18n="web.db.piiLabel">Personal Identifiable Information</span>)</span></h3>
           <div class="db-description">
-            <p>Stores personal user data including:</p>
+            <p data-i18n="web.db.piiDataDesc">Stores personal user data including:</p>
             <ul>
-              <li>User profiles (name, email, phone)</li>
-              <li>Passkey/WebAuthn credentials</li>
-              <li>User preferences and settings</li>
-              <li>Any custom user attributes</li>
+              <li data-i18n="web.db.piiData1">User profiles (name, email, phone)</li>
+              <li data-i18n="web.db.piiData2">Passkey/WebAuthn credentials</li>
+              <li data-i18n="web.db.piiData3">User preferences and settings</li>
+              <li data-i18n="web.db.piiData4">Any custom user attributes</li>
             </ul>
-            <p class="db-hint">This database contains personal data. Consider placing it in a region that complies with your data protection requirements.</p>
+            <p class="db-hint" data-i18n="web.db.piiHint">This database contains personal data. Consider placing it in a region that complies with your data protection requirements.</p>
           </div>
 
           <div class="region-selection">
-            <h4>Region</h4>
+            <h4 data-i18n="web.db.region">Region</h4>
             <div class="radio-group">
               <label class="radio-item">
                 <input type="radio" name="db-pii-location" value="auto" checked>
-                <span>Automatic (nearest to you)</span>
+                <span data-i18n="web.db.autoNearest">Automatic (nearest to you)</span>
               </label>
-              <div class="radio-separator">Location Hints</div>
+              <div class="radio-separator" data-i18n="web.db.locationHints">Location Hints</div>
               <label class="radio-item">
                 <input type="radio" name="db-pii-location" value="wnam">
-                <span>North America (West)</span>
+                <span data-i18n="web.db.northAmericaWest">North America (West)</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-pii-location" value="enam">
-                <span>North America (East)</span>
+                <span data-i18n="web.db.northAmericaEast">North America (East)</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-pii-location" value="weur">
-                <span>Europe (West)</span>
+                <span data-i18n="web.db.europeWest">Europe (West)</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-pii-location" value="eeur">
-                <span>Europe (East)</span>
+                <span data-i18n="web.db.europeEast">Europe (East)</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-pii-location" value="apac">
-                <span>Asia Pacific</span>
+                <span data-i18n="web.db.asiaPacific">Asia Pacific</span>
               </label>
               <label class="radio-item">
                 <input type="radio" name="db-pii-location" value="oc">
-                <span>Oceania</span>
+                <span data-i18n="web.db.oceania">Oceania</span>
               </label>
-              <div class="radio-separator">Jurisdiction (Compliance)</div>
+              <div class="radio-separator" data-i18n="web.db.jurisdiction">Jurisdiction (Compliance)</div>
               <label class="radio-item">
                 <input type="radio" name="db-pii-location" value="eu">
-                <span>EU Jurisdiction (GDPR compliance)</span>
+                <span data-i18n="web.db.euJurisdiction">EU Jurisdiction (GDPR compliance)</span>
               </label>
             </div>
           </div>
@@ -2091,16 +2259,16 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       </div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-database">Back</button>
-        <button class="btn-primary" id="btn-continue-database">Continue</button>
+        <button class="btn-secondary" id="btn-back-database" data-i18n="web.btn.back">Back</button>
+        <button class="btn-primary" id="btn-continue-database" data-i18n="web.btn.continue">Continue</button>
       </div>
     </div>
 
     <!-- Step 4: Email Provider Configuration -->
     <div id="section-email" class="card hidden">
-      <h2 class="card-title">📧 Email Provider</h2>
+      <h2 class="card-title" data-i18n="web.email.title">📧 Email Provider</h2>
 
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p style="margin-bottom: 1rem; color: var(--text-muted);" data-i18n="web.email.introDesc">
         Used for sending Mail OTP and email address verification.
         You can configure this later if you prefer.
       </p>
@@ -2109,88 +2277,90 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <label class="radio-item" style="padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px;">
           <input type="radio" name="email-setup-choice" value="later" checked>
           <span style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <strong>Configure later</strong>
-            <small style="color: var(--text-muted);">Skip for now and configure later.</small>
+            <strong data-i18n="web.email.configureLater">Configure later</strong>
+            <small style="color: var(--text-muted);" data-i18n="web.email.configureLaterHint">Skip for now and configure later.</small>
           </span>
         </label>
         <label class="radio-item" style="padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; margin-top: 0.5rem;">
           <input type="radio" name="email-setup-choice" value="configure">
           <span style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <strong>Configure Resend</strong>
-            <small style="color: var(--text-muted);">Set up email sending with Resend (recommended for production).</small>
+            <strong data-i18n="web.email.configureResend">Configure Resend</strong>
+            <small style="color: var(--text-muted);" data-i18n="web.email.configureResendHint">Set up email sending with Resend (recommended for production).</small>
           </span>
         </label>
       </div>
 
       <!-- Resend Configuration Form (hidden by default) -->
       <div id="resend-config-form" class="hidden" style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem;">
-        <h3 style="margin: 0 0 1rem 0; font-size: 1rem;">🔑 Resend Configuration</h3>
+        <h3 style="margin: 0 0 1rem 0; font-size: 1rem;">🔑 <span data-i18n="web.email.resendSetup">Resend Configuration</span></h3>
 
         <div class="alert alert-info" style="margin-bottom: 1rem;">
-          <strong>📋 Before you begin:</strong>
+          <strong>📋 <span data-i18n="web.email.beforeBegin">Before you begin:</span></strong>
           <ol style="margin: 0.5rem 0 0 1rem; padding: 0;">
-            <li>Create a Resend account at <a href="https://resend.com" target="_blank" style="color: var(--primary);">resend.com</a></li>
-            <li>Add and verify your domain at <a href="https://resend.com/domains" target="_blank" style="color: var(--primary);">Domains Dashboard</a></li>
-            <li>Create an API key at <a href="https://resend.com/api-keys" target="_blank" style="color: var(--primary);">API Keys</a></li>
+            <li><span data-i18n="web.email.step1">Create a Resend account at</span> <a href="https://resend.com" target="_blank" style="color: var(--primary);">resend.com</a></li>
+            <li><span data-i18n="web.email.step2">Add and verify your domain at</span> <a href="https://resend.com/domains" target="_blank" style="color: var(--primary);">Domains Dashboard</a></li>
+            <li><span data-i18n="web.email.step3">Create an API key at</span> <a href="https://resend.com/api-keys" target="_blank" style="color: var(--primary);">API Keys</a></li>
           </ol>
         </div>
 
         <div class="form-group">
-          <label for="resend-api-key">Resend API Key</label>
+          <label for="resend-api-key" data-i18n="web.email.resendApiKey">Resend API Key</label>
           <input type="password" id="resend-api-key" placeholder="re_xxxxxxxxxx" autocomplete="off">
-          <small style="color: var(--text-muted);">Your API key starts with "re_"</small>
+          <small style="color: var(--text-muted);" data-i18n="web.email.resendApiKeyHint">Your API key starts with "re_"</small>
         </div>
 
         <div class="form-group">
-          <label for="email-from-address">From Email Address</label>
+          <label for="email-from-address" data-i18n="web.email.fromEmailAddress">From Email Address</label>
           <input type="email" id="email-from-address" placeholder="noreply@yourdomain.com" autocomplete="off">
-          <small style="color: var(--text-muted);">Must be from a verified domain in your Resend account</small>
+          <small style="color: var(--text-muted);" data-i18n="web.email.fromEmailHint">Must be from a verified domain in your Resend account</small>
         </div>
 
         <div class="form-group">
-          <label for="email-from-name">From Display Name (optional)</label>
+          <label for="email-from-name" data-i18n="web.email.fromDisplayName">From Display Name (optional)</label>
           <input type="text" id="email-from-name" placeholder="Authrim" autocomplete="off">
-          <small style="color: var(--text-muted);">Displayed as the sender name in email clients</small>
+          <small style="color: var(--text-muted);" data-i18n="web.email.fromDisplayHint">Displayed as the sender name in email clients</small>
         </div>
 
         <div class="alert alert-warning" style="margin-top: 1rem;">
-          <strong>⚠️ Domain Verification Required</strong>
+          <strong>⚠️ <span data-i18n="web.email.domainVerificationTitle">Domain Verification Required</span></strong>
+          <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem;" data-i18n="web.email.domainVerificationDesc">
+            Before your domain is verified, emails can only be sent from onboarding@resend.dev (for testing).
+          </p>
           <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem;">
-            Before your domain is verified, emails can only be sent from <code>onboarding@resend.dev</code> (for testing).
-            <a href="https://resend.com/docs/dashboard/domains/introduction" target="_blank" style="color: var(--primary);">Learn more about domain verification →</a>
+            <a href="https://resend.com/docs/dashboard/domains/introduction" target="_blank" style="color: var(--primary);" data-i18n="web.email.learnMore">Learn more about domain verification →</a>
           </p>
         </div>
       </div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-email">Back</button>
-        <button class="btn-primary" id="btn-continue-email">Continue</button>
+        <button class="btn-secondary" id="btn-back-email" data-i18n="web.btn.back">Back</button>
+        <button class="btn-primary" id="btn-continue-email" data-i18n="web.btn.continue">Continue</button>
       </div>
     </div>
 
     <!-- Step 5: Provisioning -->
     <div id="section-provision" class="card hidden">
       <h2 class="card-title">
-        Resource Provisioning
-        <span class="status-badge status-pending" id="provision-status">Ready</span>
+        <span data-i18n="web.provision.title">Resource Provisioning</span>
+        <span class="status-badge status-pending" id="provision-status" data-i18n="web.provision.ready">Ready</span>
       </h2>
 
-      <p style="margin-bottom: 1rem;">The following resources will be created:</p>
+      <p style="margin-bottom: 1rem;" data-i18n="web.provision.desc">The following resources will be created:</p>
 
       <!-- Resource names preview -->
       <div id="resource-preview" class="resource-preview">
-        <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-muted);">📋 Resource Names:</h4>
+        <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-muted);">📋 <span data-i18n="web.provision.resourcePreview">Resource Names:</span></h4>
         <div class="resource-list">
           <div class="resource-category">
-            <strong>D1 Databases:</strong>
+            <strong data-i18n="web.provision.d1Databases">D1 Databases:</strong>
             <ul id="preview-d1"></ul>
           </div>
           <div class="resource-category">
-            <strong>KV Namespaces:</strong>
+            <strong data-i18n="web.provision.kvNamespaces">KV Namespaces:</strong>
             <ul id="preview-kv"></ul>
           </div>
           <div class="resource-category">
-            <strong>Cryptographic Keys:</strong>
+            <strong data-i18n="web.provision.cryptoKeys">Cryptographic Keys:</strong>
             <ul id="preview-keys"></ul>
           </div>
         </div>
@@ -2200,7 +2370,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       <div id="provision-progress-ui" class="progress-container hidden">
         <div class="progress-status">
           <div class="spinner" id="provision-spinner"></div>
-          <span id="provision-current-task">Initializing...</span>
+          <span id="provision-current-task" data-i18n="web.provision.initializing">Initializing...</span>
         </div>
         <div class="progress-bar-wrapper">
           <div class="progress-bar" id="provision-progress-bar" style="width: 0%"></div>
@@ -2209,7 +2379,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         <div class="log-toggle" id="provision-log-toggle">
           <span class="arrow">▶</span>
-          <span>Show detailed log</span>
+          <span data-i18n="web.provision.showLog">Show detailed log</span>
         </div>
       </div>
 
@@ -2219,35 +2389,35 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
       <!-- Keys saved location (shown after completion) -->
       <div id="keys-saved-info" class="alert alert-info hidden" style="margin-top: 1rem;">
-        <strong>🔑 Keys saved to:</strong>
+        <strong>🔑 <span data-i18n="web.provision.keysSavedTo">Keys saved to:</span></strong>
         <code style="display: block; margin-top: 0.5rem; padding: 0.5rem; background: #f1f5f9; border-radius: 4px;" id="keys-path"></code>
-        <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+        <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);" data-i18n="web.provision.keepSafe">
           ⚠️ Keep this directory safe and add it to .gitignore
         </p>
       </div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-config">Back</button>
-        <button class="btn-primary" id="btn-provision">Create Resources</button>
-        <button class="btn-secondary hidden" id="btn-save-config-provision" title="Save configuration to file">💾 Save Config</button>
-        <button class="btn-primary hidden" id="btn-goto-deploy">Continue to Deploy →</button>
+        <button class="btn-secondary" id="btn-back-config" data-i18n="web.btn.back">Back</button>
+        <button class="btn-primary" id="btn-provision" data-i18n="web.provision.createResources">Create Resources</button>
+        <button class="btn-secondary hidden" id="btn-save-config-provision" title="Save configuration to file" data-i18n="web.provision.saveConfig">💾 Save Config</button>
+        <button class="btn-primary hidden" id="btn-goto-deploy" data-i18n="web.provision.continueDeploy">Continue to Deploy →</button>
       </div>
     </div>
 
     <!-- Step 4: Deployment -->
     <div id="section-deploy" class="card hidden">
       <h2 class="card-title">
-        Deployment
-        <span class="status-badge status-pending" id="deploy-status">Ready</span>
+        <span data-i18n="web.deploy.title">Deployment</span>
+        <span class="status-badge status-pending" id="deploy-status" data-i18n="web.provision.ready">Ready</span>
       </h2>
 
-      <p id="deploy-ready-text" style="margin-bottom: 1rem;">Ready to deploy Authrim workers to Cloudflare.</p>
+      <p id="deploy-ready-text" style="margin-bottom: 1rem;" data-i18n="web.deploy.readyText">Ready to deploy Authrim workers to Cloudflare.</p>
 
       <!-- Progress UI (shown during deployment) -->
       <div id="deploy-progress-ui" class="progress-container hidden">
         <div class="progress-status">
           <div class="spinner" id="deploy-spinner"></div>
-          <span id="deploy-current-task">Initializing...</span>
+          <span id="deploy-current-task" data-i18n="web.provision.initializing">Initializing...</span>
         </div>
         <div class="progress-bar-wrapper">
           <div class="progress-bar" id="deploy-progress-bar" style="width: 0%"></div>
@@ -2256,7 +2426,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         <div class="log-toggle" id="deploy-log-toggle">
           <span class="arrow">▶</span>
-          <span>Show detailed log</span>
+          <span data-i18n="web.provision.showLog">Show detailed log</span>
         </div>
       </div>
 
@@ -2265,50 +2435,50 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       </div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-provision">Back</button>
-        <button class="btn-primary" id="btn-deploy">Start Deploy</button>
+        <button class="btn-secondary" id="btn-back-provision" data-i18n="web.btn.back">Back</button>
+        <button class="btn-primary" id="btn-deploy" data-i18n="web.deploy.startDeploy">Start Deploy</button>
       </div>
     </div>
 
     <!-- Complete -->
     <div id="section-complete" class="card hidden">
-      <h2 class="card-title" style="color: var(--success);">
+      <h2 class="card-title" style="color: var(--success);" data-i18n="web.complete.title">
         ✅ Setup Complete!
       </h2>
 
-      <p>Authrim has been successfully deployed.</p>
+      <p data-i18n="web.complete.desc">Authrim has been successfully deployed.</p>
 
       <div class="url-display" id="urls">
         <!-- URLs will be inserted here -->
       </div>
 
       <div class="alert alert-info" style="margin-top: 1rem;">
-        <strong>Next Steps:</strong>
+        <strong data-i18n="web.complete.nextSteps">Next Steps:</strong>
         <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-          <li>Visit the <strong>Admin Setup</strong> URL above to register your first admin with Passkey</li>
-          <li>Log in to the Admin UI to create OAuth clients</li>
-          <li>Configure your application to use the OIDC endpoints</li>
+          <li data-i18n="web.complete.step1">Visit the <strong>Admin Setup</strong> URL above to register your first admin with Passkey</li>
+          <li data-i18n="web.complete.step2">Log in to the Admin UI to create OAuth clients</li>
+          <li data-i18n="web.complete.step3">Configure your application to use the OIDC endpoints</li>
         </ol>
       </div>
 
       <div class="button-group" style="margin-top: 1.5rem; justify-content: center;">
-        <button class="btn-secondary" id="btn-save-config-complete" title="Save configuration to file">💾 Save Configuration</button>
-        <button class="btn-secondary" id="btn-back-to-main" title="Return to main screen">🏠 Back to Main</button>
+        <button class="btn-secondary" id="btn-save-config-complete" title="Save configuration to file" data-i18n="web.complete.saveConfig">💾 Save Configuration</button>
+        <button class="btn-secondary" id="btn-back-to-main" title="Return to main screen" data-i18n="web.complete.backToMain">🏠 Back to Main</button>
       </div>
 
       <p style="text-align: center; margin-top: 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
-        ✅ Setup is complete. You can safely close this window.
+        ✅ <span data-i18n="web.complete.canClose">Setup is complete. You can safely close this window.</span>
       </p>
     </div>
 
     <!-- Environment Management: List -->
     <div id="section-env-list" class="card hidden">
       <h2 class="card-title">
-        Manage Environments
-        <span class="status-badge status-pending" id="env-list-status">Loading...</span>
+        <span data-i18n="web.env.title">Manage Environments</span>
+        <span class="status-badge status-pending" id="env-list-status" data-i18n="web.env.loading">Loading...</span>
       </h2>
 
-      <p style="margin-bottom: 1rem; color: var(--text-muted);">
+      <p style="margin-bottom: 1rem; color: var(--text-muted);" data-i18n="web.env.detectedDesc">
         Detected Authrim environments in your Cloudflare account:
       </p>
 
@@ -2321,21 +2491,21 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           <!-- Environment cards will be inserted here -->
         </div>
 
-        <div id="no-envs-message" class="alert alert-info hidden">
+        <div id="no-envs-message" class="alert alert-info hidden" data-i18n="web.env.noEnvsDetected">
           No Authrim environments detected in this Cloudflare account.
         </div>
       </div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-env-list">Back</button>
-        <button class="btn-secondary" id="btn-refresh-env-list">🔄 Refresh</button>
+        <button class="btn-secondary" id="btn-back-env-list" data-i18n="web.btn.back">Back</button>
+        <button class="btn-secondary" id="btn-refresh-env-list">🔄 <span data-i18n="web.env.refresh">Refresh</span></button>
       </div>
     </div>
 
     <!-- Environment Management: Details -->
     <div id="section-env-detail" class="card hidden">
       <h2 class="card-title">
-        📋 Environment Details
+        📋 <span data-i18n="web.envDetail.title">Environment Details</span>
         <code id="detail-env-name" style="background: var(--bg); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 1rem;"></code>
       </h2>
 
@@ -2344,23 +2514,23 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
           <span style="font-size: 1.5rem;">⚠️</span>
           <div>
-            <div style="font-weight: 600;">Admin Account Not Configured</div>
-            <div style="font-size: 0.875rem; opacity: 0.85;">Initial administrator has not been set up for this environment.</div>
+            <div style="font-weight: 600;" data-i18n="web.envDetail.adminNotConfigured">Admin Account Not Configured</div>
+            <div style="font-size: 0.875rem; opacity: 0.85;" data-i18n="web.envDetail.adminNotConfiguredDesc">Initial administrator has not been set up for this environment.</div>
           </div>
         </div>
-        <button class="btn-primary" id="btn-start-admin-setup" style="margin-top: 0.5rem;">
+        <button class="btn-primary" id="btn-start-admin-setup" style="margin-top: 0.5rem;" data-i18n="web.envDetail.startPasskey">
           🔐 Start Admin Account Setup with Passkey
         </button>
         <div id="admin-setup-result" class="hidden" style="margin-top: 1rem; padding: 0.75rem; background: var(--card-bg); border-radius: 6px;">
-          <div style="font-weight: 500; margin-bottom: 0.5rem;">Setup URL Generated:</div>
+          <div style="font-weight: 500; margin-bottom: 0.5rem;" data-i18n="web.envDetail.setupUrlGenerated">Setup URL Generated:</div>
           <div style="display: flex; gap: 0.5rem; align-items: center;">
             <input type="text" id="admin-setup-url" readonly style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: 4px; font-family: monospace; font-size: 0.875rem; background: var(--bg); color: var(--text);">
-            <button class="btn-secondary" id="btn-copy-setup-url" style="white-space: nowrap;">📋 Copy</button>
+            <button class="btn-secondary" id="btn-copy-setup-url" style="white-space: nowrap;">📋 <span data-i18n="web.envDetail.copyBtn">Copy</span></button>
           </div>
           <div style="text-align: center; margin-top: 1rem;">
-            <a id="btn-open-setup-url" href="#" target="_blank" class="btn-primary">🔑 Open Setup</a>
+            <a id="btn-open-setup-url" href="#" target="_blank" class="btn-primary">🔑 <span data-i18n="web.envDetail.openSetup">Open Setup</span></a>
           </div>
-          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem; text-align: center;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem; text-align: center;" data-i18n="web.envDetail.urlValidFor">
             This URL is valid for 1 hour. Open it in a browser to register the first admin account.
           </div>
         </div>
@@ -2370,7 +2540,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <!-- Workers -->
         <div class="resource-section">
           <div class="resource-section-title">
-            🔧 Workers <span class="count" id="detail-workers-count">(0)</span>
+            🔧 <span data-i18n="web.envDetail.workers">Workers</span> <span class="count" id="detail-workers-count">(0)</span>
           </div>
           <div class="resource-list" id="detail-workers-list"></div>
         </div>
@@ -2378,7 +2548,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <!-- D1 Databases -->
         <div class="resource-section">
           <div class="resource-section-title">
-            📊 D1 Databases <span class="count" id="detail-d1-count">(0)</span>
+            📊 <span data-i18n="web.envDetail.d1Databases">D1 Databases</span> <span class="count" id="detail-d1-count">(0)</span>
           </div>
           <div class="resource-list" id="detail-d1-list"></div>
         </div>
@@ -2386,7 +2556,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <!-- KV Namespaces -->
         <div class="resource-section">
           <div class="resource-section-title">
-            🗄️ KV Namespaces <span class="count" id="detail-kv-count">(0)</span>
+            🗄️ <span data-i18n="web.envDetail.kvNamespaces">KV Namespaces</span> <span class="count" id="detail-kv-count">(0)</span>
           </div>
           <div class="resource-list" id="detail-kv-list"></div>
         </div>
@@ -2394,7 +2564,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <!-- Queues -->
         <div class="resource-section" id="detail-queues-section">
           <div class="resource-section-title">
-            📨 Queues <span class="count" id="detail-queues-count">(0)</span>
+            📨 <span data-i18n="web.envDetail.queues">Queues</span> <span class="count" id="detail-queues-count">(0)</span>
           </div>
           <div class="resource-list" id="detail-queues-list"></div>
         </div>
@@ -2402,7 +2572,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <!-- R2 Buckets -->
         <div class="resource-section" id="detail-r2-section">
           <div class="resource-section-title">
-            📁 R2 Buckets <span class="count" id="detail-r2-count">(0)</span>
+            📁 <span data-i18n="web.envDetail.r2Buckets">R2 Buckets</span> <span class="count" id="detail-r2-count">(0)</span>
           </div>
           <div class="resource-list" id="detail-r2-list"></div>
         </div>
@@ -2410,41 +2580,41 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         <!-- Pages Projects -->
         <div class="resource-section" id="detail-pages-section">
           <div class="resource-section-title">
-            📄 Pages Projects <span class="count" id="detail-pages-count">(0)</span>
+            📄 <span data-i18n="web.envDetail.pagesProjects">Pages Projects</span> <span class="count" id="detail-pages-count">(0)</span>
           </div>
           <div class="resource-list" id="detail-pages-list"></div>
         </div>
       </div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-env-detail">← Back to List</button>
-        <button class="btn-danger" id="btn-delete-from-detail">🗑️ Delete Environment...</button>
+        <button class="btn-secondary" id="btn-back-env-detail" data-i18n="web.env.backToList">← Back to List</button>
+        <button class="btn-danger" id="btn-delete-from-detail">🗑️ <span data-i18n="web.env.deleteEnv">Delete Environment...</span></button>
       </div>
     </div>
 
     <!-- Environment Management: Delete Confirmation -->
     <div id="section-env-delete" class="card hidden">
       <h2 class="card-title" style="color: var(--error);">
-        ⚠️ Delete Environment
+        ⚠️ <span data-i18n="web.delete.title">Delete Environment</span>
       </h2>
 
       <div class="alert alert-warning">
-        <strong>Warning:</strong> This action is irreversible. All selected resources will be permanently deleted.
+        <strong>Warning:</strong> <span data-i18n="web.delete.warning">This action is irreversible. All selected resources will be permanently deleted.</span>
       </div>
 
       <div style="margin: 1.5rem 0;">
         <h3 style="font-size: 1.1rem; margin-bottom: 1rem;">
-          Environment: <code id="delete-env-name" style="background: var(--bg); padding: 0.25rem 0.5rem; border-radius: 4px;"></code>
+          <span data-i18n="web.delete.environment">Environment:</span> <code id="delete-env-name" style="background: var(--bg); padding: 0.25rem 0.5rem; border-radius: 4px;"></code>
         </h3>
 
         <div id="delete-options-section">
-        <p style="margin-bottom: 1rem; color: var(--text-muted);">Select resources to delete:</p>
+        <p style="margin-bottom: 1rem; color: var(--text-muted);" data-i18n="web.delete.selectResources">Select resources to delete:</p>
 
         <div class="delete-options">
           <label class="checkbox-item delete-option">
             <input type="checkbox" id="delete-workers" checked>
             <span>
-              <strong>Workers</strong>
+              <strong data-i18n="web.delete.workers">Workers</strong>
               <small id="delete-workers-count">(0 workers)</small>
             </span>
           </label>
@@ -2452,7 +2622,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           <label class="checkbox-item delete-option">
             <input type="checkbox" id="delete-d1" checked>
             <span>
-              <strong>D1 Databases</strong>
+              <strong data-i18n="web.delete.d1Databases">D1 Databases</strong>
               <small id="delete-d1-count">(0 databases)</small>
             </span>
           </label>
@@ -2460,7 +2630,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           <label class="checkbox-item delete-option">
             <input type="checkbox" id="delete-kv" checked>
             <span>
-              <strong>KV Namespaces</strong>
+              <strong data-i18n="web.delete.kvNamespaces">KV Namespaces</strong>
               <small id="delete-kv-count">(0 namespaces)</small>
             </span>
           </label>
@@ -2468,7 +2638,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           <label class="checkbox-item delete-option">
             <input type="checkbox" id="delete-queues" checked>
             <span>
-              <strong>Queues</strong>
+              <strong data-i18n="web.delete.queues">Queues</strong>
               <small id="delete-queues-count">(0 queues)</small>
             </span>
           </label>
@@ -2476,7 +2646,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           <label class="checkbox-item delete-option">
             <input type="checkbox" id="delete-r2" checked>
             <span>
-              <strong>R2 Buckets</strong>
+              <strong data-i18n="web.delete.r2Buckets">R2 Buckets</strong>
               <small id="delete-r2-count">(0 buckets)</small>
             </span>
           </label>
@@ -2484,7 +2654,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           <label class="checkbox-item delete-option">
             <input type="checkbox" id="delete-pages" checked>
             <span>
-              <strong>Pages Projects</strong>
+              <strong data-i18n="web.delete.pagesProjects">Pages Projects</strong>
               <small id="delete-pages-count">(0 projects)</small>
             </span>
           </label>
@@ -2496,7 +2666,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       <div id="delete-progress-ui" class="progress-container hidden">
         <div class="progress-status">
           <div class="spinner" id="delete-spinner"></div>
-          <span id="delete-current-task">Initializing...</span>
+          <span id="delete-current-task" data-i18n="web.provision.initializing">Initializing...</span>
         </div>
         <div class="progress-bar-wrapper">
           <div class="progress-bar" id="delete-progress-bar" style="width: 0%"></div>
@@ -2505,7 +2675,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         <div class="log-toggle" id="delete-log-toggle">
           <span class="arrow">▶</span>
-          <span>Show detailed log</span>
+          <span data-i18n="web.provision.showLog">Show detailed log</span>
         </div>
       </div>
 
@@ -2516,8 +2686,8 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       <div id="delete-result" class="hidden"></div>
 
       <div class="button-group">
-        <button class="btn-secondary" id="btn-back-env-delete">Cancel</button>
-        <button class="btn-primary" id="btn-confirm-delete" style="background: var(--error);">🗑️ Delete Selected</button>
+        <button class="btn-secondary" id="btn-back-env-delete" data-i18n="web.delete.cancelBtn">Cancel</button>
+        <button class="btn-primary" id="btn-confirm-delete" style="background: var(--error);">🗑️ <span data-i18n="web.delete.confirmBtn">Delete Selected</span></button>
       </div>
     </div>
   </div>
@@ -2526,14 +2696,16 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
   <div id="save-config-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
     <div class="modal-content">
-      <h3 style="margin: 0 0 1rem 0;">💾 Save Configuration?</h3>
-      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+      <h3 style="margin: 0 0 1rem 0;">💾 <span data-i18n="web.modal.saveTitle">Save Configuration?</span></h3>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;" data-i18n="web.modal.saveQuestion">
         Would you like to save your configuration to a file before proceeding?
+      </p>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;" data-i18n="web.modal.saveReason">
         This allows you to resume setup later or use the same settings for another deployment.
       </p>
       <div class="button-group" style="justify-content: flex-end;">
-        <button class="btn-secondary" id="modal-skip-save">Skip</button>
-        <button class="btn-primary" id="modal-save-config">Save Configuration</button>
+        <button class="btn-secondary" id="modal-skip-save" data-i18n="web.modal.skipBtn">Skip</button>
+        <button class="btn-primary" id="modal-save-config" data-i18n="web.modal.saveBtn">Save Configuration</button>
       </div>
     </div>
   </div>
@@ -2694,11 +2866,11 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           if (isHidden) {
             log.classList.remove('hidden');
             toggle.classList.add('open');
-            toggle.querySelector('span:last-child').textContent = 'Hide detailed log';
+            toggle.querySelector('span:last-child').textContent = t('web.provision.hideLog');
           } else {
             log.classList.add('hidden');
             toggle.classList.remove('open');
-            toggle.querySelector('span:last-child').textContent = 'Show detailed log';
+            toggle.querySelector('span:last-child').textContent = t('web.provision.showLog');
           }
         });
       }
@@ -2838,18 +3010,18 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         prereqContent.textContent = '';
 
         if (!result.wranglerInstalled) {
-          prereqStatus.textContent = 'Error';
+          prereqStatus.textContent = t('web.error');
           prereqStatus.className = 'status-badge status-error';
 
           const alertDiv = document.createElement('div');
           alertDiv.className = 'alert alert-error';
 
           const title = document.createElement('strong');
-          title.textContent = 'Wrangler not installed';
+          title.textContent = t('web.error.wranglerNotInstalled');
           alertDiv.appendChild(title);
 
           const para = document.createElement('p');
-          para.textContent = 'Please install wrangler first:';
+          para.textContent = t('web.error.pleaseInstall');
           alertDiv.appendChild(para);
 
           const code = document.createElement('code');
@@ -2866,18 +3038,18 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         }
 
         if (!result.auth.isLoggedIn) {
-          prereqStatus.textContent = 'Login Required';
+          prereqStatus.textContent = t('web.error.notLoggedIn');
           prereqStatus.className = 'status-badge status-warning';
 
           const alertDiv = document.createElement('div');
           alertDiv.className = 'alert alert-warning';
 
           const title = document.createElement('strong');
-          title.textContent = 'Not logged in to Cloudflare';
+          title.textContent = t('web.error.notLoggedIn');
           alertDiv.appendChild(title);
 
           const para1 = document.createElement('p');
-          para1.textContent = 'Please run this command in your terminal:';
+          para1.textContent = t('web.error.runCommand');
           alertDiv.appendChild(para1);
 
           const code = document.createElement('code');
@@ -2891,14 +3063,14 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
           const para2 = document.createElement('p');
           para2.style.marginTop = '0.5rem';
-          para2.textContent = 'Then refresh this page.';
+          para2.textContent = t('web.error.thenRefresh');
           alertDiv.appendChild(para2);
 
           prereqContent.appendChild(alertDiv);
           return false;
         }
 
-        prereqStatus.textContent = 'Ready';
+        prereqStatus.textContent = t('web.prereq.ready');
         prereqStatus.className = 'status-badge status-success';
 
         // Store working directory and workers subdomain for later use
@@ -2909,11 +3081,12 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         alertDiv.className = 'alert alert-success';
 
         const p1 = document.createElement('p');
-        p1.textContent = '✓ Wrangler installed';
+        p1.textContent = '✓ ' + t('web.prereq.wranglerInstalled');
+        p1.setAttribute('data-i18n', 'web.prereq.wranglerInstalled');
         alertDiv.appendChild(p1);
 
         const p2 = document.createElement('p');
-        p2.textContent = '✓ Logged in as ' + (result.auth.email || 'Unknown');
+        p2.textContent = '✓ ' + t('web.prereq.loggedInAs', { email: result.auth.email || 'Unknown' });
         alertDiv.appendChild(p2);
 
         prereqContent.appendChild(alertDiv);
@@ -2923,7 +3096,8 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         const btn = document.createElement('button');
         btn.className = 'btn-primary';
-        btn.textContent = 'Continue';
+        btn.textContent = t('common.continue');
+        btn.setAttribute('data-i18n', 'common.continue');
         btn.addEventListener('click', showTopMenu);
         buttonGroup.appendChild(btn);
 
@@ -2931,10 +3105,10 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         return true;
       } catch (error) {
-        prereqStatus.textContent = 'Error';
+        prereqStatus.textContent = t('web.error');
         prereqStatus.className = 'status-badge status-error';
         prereqContent.textContent = '';
-        prereqContent.appendChild(createAlert('error', 'Error checking prerequisites: ' + error.message));
+        prereqContent.appendChild(createAlert('error', t('web.error.checkingPrereq') + ' ' + error.message));
         return false;
       }
     }
@@ -3005,7 +3179,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           const errorList = document.getElementById('config-validation-errors');
           while (errorList.firstChild) errorList.removeChild(errorList.firstChild);
           const li = document.createElement('li');
-          li.textContent = 'Invalid JSON: ' + err.message;
+          li.textContent = t('web.error.invalidJson') + ' ' + err.message;
           errorList.appendChild(li);
           loadedConfig = null;
           return;
@@ -3050,7 +3224,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           const errorList = document.getElementById('config-validation-errors');
           while (errorList.firstChild) errorList.removeChild(errorList.firstChild);
           const li = document.createElement('li');
-          li.textContent = 'Validation request failed: ' + err.message;
+          li.textContent = t('web.error.validationFailed') + ' ' + err.message;
           errorList.appendChild(li);
           loadedConfig = null;
         }
@@ -3337,7 +3511,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       // Check if environment already exists
       const configureBtn = document.getElementById('btn-configure');
       const originalText = configureBtn.textContent;
-      configureBtn.textContent = 'Checking...';
+      configureBtn.textContent = t('web.status.checking');
       configureBtn.disabled = true;
 
       try {
@@ -3501,7 +3675,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         // Save email configuration to server
         btn.disabled = true;
-        btn.textContent = 'Saving...';
+        btn.textContent = t('web.status.saving');
 
         try {
           const result = await api('/email/configure', {
@@ -3529,12 +3703,12 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         } catch (error) {
           alert('Failed to save email configuration: ' + error.message);
           btn.disabled = false;
-          btn.textContent = 'Continue';
+          btn.textContent = t('web.btn.continue');
           return;
         }
 
         btn.disabled = false;
-        btn.textContent = 'Continue';
+        btn.textContent = t('web.btn.continue');
       } else {
         // Configure later - no email provider
         config.email = {
@@ -3557,18 +3731,18 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       const modal = document.getElementById('save-config-modal');
       const btn = document.getElementById('modal-save-config');
       btn.disabled = true;
-      btn.textContent = 'Saving...';
+      btn.textContent = t('web.status.saving');
 
       try {
         await saveConfigToFile();
         modal.classList.add('hidden');
         btn.disabled = false;
-        btn.textContent = 'Save Configuration';
+        btn.textContent = t('web.btn.saveConfiguration');
         proceedToProvision();
       } catch (error) {
         alert('Failed to save configuration: ' + error.message);
         btn.disabled = false;
-        btn.textContent = 'Save Configuration';
+        btn.textContent = t('web.btn.saveConfiguration');
       }
     });
 
@@ -3614,7 +3788,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       btn.disabled = true;
       btn.classList.add('hidden');
       btnGotoDeploy.classList.add('hidden');
-      status.textContent = 'Running...';
+      status.textContent = t('web.status.running');
       status.className = 'status-badge status-running';
       progressUI.classList.remove('hidden');
       log.classList.add('hidden'); // Log is hidden by default, toggled via button
@@ -3624,7 +3798,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
       let provisionCompleted = 0;
       const totalResources = 8; // D1 Core, D1 PII, KV Settings, KV Cache, KV Tokens, R2 (optional), Queues (optional), Keys
-      updateProgressUI('provision', 0, totalResources, 'Initializing...');
+      updateProgressUI('provision', 0, totalResources, t('web.status.initializing'));
 
       // Start polling for progress
       let lastProgressLength = 0;
@@ -3701,7 +3875,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           updateProgressUI('provision', totalResources, totalResources, '✅ Provisioning complete!');
           output.textContent += '\\n✅ Provisioning complete!\\n';
           scrollToBottom(log);
-          status.textContent = 'Complete';
+          status.textContent = t('web.status.complete');
           status.className = 'status-badge status-success';
 
           // Mark provisioning as completed
@@ -3711,7 +3885,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           keysSavedInfo.classList.remove('hidden');
 
           // Update buttons - change to warning style for re-provision
-          btn.textContent = 'Re-provision (Delete & Create)';
+          btn.textContent = t('web.btn.reprovision');
           btn.classList.remove('hidden', 'btn-primary');
           btn.classList.add('btn-warning');
           btn.disabled = false;
@@ -3728,7 +3902,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
         output.textContent += '\\n❌ Error: ' + error.message + '\\n';
         scrollToBottom(log);
-        status.textContent = 'Error';
+        status.textContent = t('web.status.error');
         status.className = 'status-badge status-error';
         btn.classList.remove('hidden');
         btn.disabled = false;
@@ -3764,18 +3938,18 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
 
       btn.disabled = true;
       btn.classList.add('hidden');
-      status.textContent = 'Deploying...';
+      status.textContent = t('web.status.deploying');
       status.className = 'status-badge status-running';
       readyText.classList.add('hidden');
       progressUI.classList.remove('hidden');
       log.classList.add('hidden'); // Log is hidden by default, toggled via button
-      output.textContent = 'Starting deployment...\\n\\n';
+      output.textContent = t('web.status.startingDeploy') + '\\n\\n';
 
       let completedCount = 0;
       // Use indeterminate progress - actual step count varies based on components
       // We'll update the total dynamically based on actual progress
       let totalComponents = 0; // Will be calculated from actual progress
-      updateProgressUI('deploy', 0, 100, 'Initializing...');
+      updateProgressUI('deploy', 0, 100, t('web.status.initializing'));
 
       try {
         // Generate wrangler configs first
@@ -3897,7 +4071,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           }
           scrollToBottom(log);
 
-          status.textContent = 'Complete';
+          status.textContent = t('web.status.complete');
           status.className = 'status-badge status-success';
 
           // Show completion with setup URL and debug info
@@ -3912,7 +4086,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       } catch (error) {
         output.textContent += '\\n✗ Error: ' + error.message + '\\n';
         scrollToBottom(log);
-        status.textContent = 'Error';
+        status.textContent = t('web.status.error');
         status.className = 'status-badge status-error';
         btn.disabled = false;
       }
@@ -4105,14 +4279,14 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       const btnSaveConfig = document.getElementById('btn-save-config-provision');
 
       if (provisioningCompleted) {
-        btnProvision.textContent = 'Re-provision (Delete & Create)';
+        btnProvision.textContent = t('web.btn.reprovision');
         btnProvision.classList.remove('btn-primary');
         btnProvision.classList.add('btn-warning');
         btnProvision.disabled = false;
         btnGotoDeploy.classList.remove('hidden');
         btnSaveConfig.classList.remove('hidden');
       } else {
-        btnProvision.textContent = 'Create Resources';
+        btnProvision.textContent = t('web.btn.createResources');
         btnProvision.classList.remove('btn-warning');
         btnProvision.classList.add('btn-primary');
         btnProvision.disabled = false;
@@ -4251,7 +4425,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       const output = document.getElementById('env-scan-output');
       const noEnvsMessage = document.getElementById('no-envs-message');
 
-      status.textContent = 'Scanning...';
+      status.textContent = t('web.status.scanning');
       status.className = 'status-badge status-running';
       loading.classList.remove('hidden');
       content.classList.add('hidden');
@@ -4279,7 +4453,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         if (result.success) {
           detectedEnvironments = result.environments || [];
 
-          status.textContent = detectedEnvironments.length + ' found';
+          status.textContent = t('web.status.found', { count: detectedEnvironments.length });
           status.className = 'status-badge status-success';
           loading.classList.add('hidden');
           content.classList.remove('hidden');
@@ -4290,7 +4464,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         }
       } catch (error) {
         clearInterval(pollInterval);
-        status.textContent = 'Error';
+        status.textContent = t('web.status.error');
         status.className = 'status-badge status-error';
         output.textContent += '\\n❌ Error: ' + error.message;
       }
@@ -4385,7 +4559,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
             const badge = document.createElement('span');
             badge.className = 'status-badge status-warning';
             badge.style.cssText = 'font-size: 0.75rem; padding: 0.125rem 0.5rem;';
-            badge.textContent = 'Admin未設定';
+            badge.textContent = t('web.status.adminNotConfigured');
             badgeContainer.appendChild(badge);
           }
         }
@@ -4464,7 +4638,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
       if (resources.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'resource-empty';
-        empty.textContent = 'None';
+        empty.textContent = t('web.status.none');
         list.appendChild(empty);
         return;
       }
@@ -4483,7 +4657,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
         if (resourceType === 'd1' || resourceType === 'worker') {
           const detailsDiv = document.createElement('div');
           detailsDiv.className = 'resource-item-details resource-item-loading';
-          detailsDiv.textContent = 'Loading...';
+          detailsDiv.textContent = t('web.status.loading');
           item.appendChild(detailsDiv);
         }
 
@@ -4535,7 +4709,7 @@ export function getHtmlTemplate(sessionToken?: string, manageOnly?: boolean): st
           }
         } else {
           detailsDiv.className = 'resource-item-details resource-item-error';
-          detailsDiv.textContent = 'Failed to load';
+          detailsDiv.textContent = t('web.status.failedToLoad');
         }
       } catch (e) {
         console.error('Failed to load D1 details:', e);

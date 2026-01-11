@@ -9,6 +9,7 @@
  * - Constant-time comparison to prevent timing attacks
  * - Admin role verification for session auth
  * - Sets adminAuth context for downstream handlers
+ * - Configurable role requirements via requireRoles option
  */
 
 import type { Context, Next } from 'hono';
@@ -19,6 +20,17 @@ import type { DatabaseAdapter } from '../db/adapter';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger().module('ADMIN-AUTH');
+
+/**
+ * Options for admin authentication middleware
+ */
+export interface AdminAuthOptions {
+  /**
+   * Required roles for access. User must have at least one of these roles.
+   * Default: ['system_admin', 'distributor_admin', 'org_admin', 'admin']
+   */
+  requireRoles?: string[];
+}
 
 /**
  * Constant-time string comparison to prevent timing attacks
@@ -91,11 +103,13 @@ async function authenticateBearer(
  *
  * @param c - Hono context
  * @param sessionId - Session ID from cookie
+ * @param requiredRoles - Roles required for access (user must have at least one)
  * @returns AdminAuthContext if valid, null otherwise
  */
 async function authenticateSession(
   c: Context<{ Bindings: Env }>,
-  sessionId: string
+  sessionId: string,
+  requiredRoles: string[] = ['system_admin', 'distributor_admin', 'org_admin', 'admin']
 ): Promise<AdminAuthContext | null> {
   try {
     // Create adapter for database access
@@ -134,11 +148,10 @@ async function authenticateSession(
 
     const roles = rolesResult.map((r) => r.name);
 
-    // Check if user has any admin role (system_admin, distributor_admin, org_admin, or legacy 'admin')
-    const adminRoles = ['system_admin', 'distributor_admin', 'org_admin', 'admin'];
-    const hasAdminRole = roles.some((role) => adminRoles.includes(role));
+    // Check if user has any of the required roles
+    const hasRequiredRole = roles.some((role) => requiredRoles.includes(role));
 
-    if (!hasAdminRole) {
+    if (!hasRequiredRole) {
       return null;
     }
 
@@ -174,14 +187,23 @@ async function authenticateSession(
  *
  * Supports dual authentication:
  * - Bearer Token: Authorization: Bearer <token>
- * - Session Cookie: session_id=<id>
+ * - Session Cookie: authrim_session=<id>
  *
  * Sets adminAuth context on successful authentication:
  * - c.get('adminAuth') => { userId, authMethod, roles }
  *
  * Returns 401 if authentication fails.
+ *
+ * @param options - Optional configuration for role requirements
  */
-export function adminAuthMiddleware() {
+export function adminAuthMiddleware(options: AdminAuthOptions = {}) {
+  const requiredRoles = options.requireRoles || [
+    'system_admin',
+    'distributor_admin',
+    'org_admin',
+    'admin',
+  ];
+
   return async (c: Context<{ Bindings: Env }>, next: Next) => {
     // Try Bearer token authentication first
     const authHeader = c.req.header('Authorization');
@@ -196,12 +218,13 @@ export function adminAuthMiddleware() {
     }
 
     // Try session-based authentication as fallback
+    // Cookie name: authrim_session (consistent with ar-auth session management)
     const cookieHeader = c.req.header('Cookie');
     if (cookieHeader) {
-      const sessionMatch = cookieHeader.match(/session_id=([^;]+)/);
+      const sessionMatch = cookieHeader.match(/authrim_session=([^;]+)/);
       if (sessionMatch) {
         const sessionId = sessionMatch[1];
-        const authContext = await authenticateSession(c, sessionId);
+        const authContext = await authenticateSession(c, sessionId, requiredRoles);
         if (authContext) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (c as any).set('adminAuth', authContext);

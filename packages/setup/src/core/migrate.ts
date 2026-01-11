@@ -380,7 +380,9 @@ async function migrateEnvironment(
 
   // Security: Validate environment name to prevent path traversal
   if (!validateEnvName(env)) {
-    errors.push(`Invalid environment name: ${env}. Must start with lowercase letter and contain only lowercase letters, numbers, and hyphens.`);
+    errors.push(
+      `Invalid environment name: ${env}. Must start with lowercase letter and contain only lowercase letters, numbers, and hyphens.`
+    );
     return { success: false, files, errors };
   }
 
@@ -415,7 +417,9 @@ async function migrateEnvironment(
       }
       files.push(newPaths.config);
     } catch (error) {
-      errors.push(`Failed to migrate config: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(
+        `Failed to migrate config: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -433,7 +437,9 @@ async function migrateEnvironment(
       }
       files.push(newPaths.lock);
     } catch (error) {
-      errors.push(`Failed to migrate lock: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(
+        `Failed to migrate lock: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -471,7 +477,9 @@ async function migrateEnvironment(
         onProgress?.(`  Would migrate ${migratedCount} key files`);
       }
     } catch (error) {
-      errors.push(`Failed to migrate keys: ${error instanceof Error ? error.message : String(error)}`);
+      errors.push(
+        `Failed to migrate keys: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -558,7 +566,9 @@ async function migrateEnvironment(
       }
     } catch (error) {
       // Non-fatal: wrangler generation failure doesn't fail the migration
-      onProgress?.(`  Warning: Could not generate wrangler configs: ${error instanceof Error ? error.message : String(error)}`);
+      onProgress?.(
+        `  Warning: Could not generate wrangler configs: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -605,10 +615,7 @@ async function deleteLegacyFiles(
 /**
  * Validate a migrated environment
  */
-export async function validateMigration(
-  baseDir: string,
-  env: string
-): Promise<ValidationResult> {
+export async function validateMigration(baseDir: string, env: string): Promise<ValidationResult> {
   const issues: string[] = [];
   const paths = getEnvironmentPaths({ baseDir, env });
 
@@ -630,7 +637,9 @@ export async function validateMigration(
         issues.push(`config.json validation failed: ${result.error.message}`);
       }
     } catch (error) {
-      issues.push(`config.json read error: ${error instanceof Error ? error.message : String(error)}`);
+      issues.push(
+        `config.json read error: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -646,7 +655,9 @@ export async function validateMigration(
         issues.push(`lock.json validation failed: ${result.error.message}`);
       }
     } catch (error) {
-      issues.push(`lock.json read error: ${error instanceof Error ? error.message : String(error)}`);
+      issues.push(
+        `lock.json read error: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 

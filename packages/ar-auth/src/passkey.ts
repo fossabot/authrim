@@ -4,6 +4,7 @@
  */
 
 import { Context } from 'hono';
+import { setCookie } from 'hono/cookie';
 import type { Env, Session } from '@authrim/ar-lib-core';
 import {
   isAllowedOrigin,
@@ -782,7 +783,7 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
       const createdSession = (await sessionStore.createSessionRpc(
         sessionId,
         passkey.user_id as string,
-        30 * 24 * 60 * 60, // 30 days in seconds
+        7 * 24 * 60 * 60, // 7 days in seconds (shorter for admin sessions)
         {
           amr: ['passkey'],
           acr: 'urn:mace:incommon:iap:bronze',
@@ -853,13 +854,23 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
       data: {
         sessionId: sessionData.id,
         userId: passkey.user_id,
-        ttlSeconds: 30 * 24 * 60 * 60, // 30 days
+        ttlSeconds: 7 * 24 * 60 * 60, // 7 days (Admin session is shorter)
       } satisfies SessionEventData,
     }).catch((err) => {
       log.error('Failed to publish session.user.created event', {
         action: 'event_publish',
         errorType: err instanceof Error ? err.name : 'Unknown',
       });
+    });
+
+    // Set session cookie for Admin UI
+    // This enables session-based authentication via adminAuthMiddleware
+    setCookie(c, 'authrim_session', sessionData.id, {
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'None', // Required for cross-origin requests
+      maxAge: 7 * 24 * 60 * 60, // 7 days (shorter for admin sessions)
     });
 
     return c.json({

@@ -7,6 +7,7 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import { confirm, select } from '@inquirer/prompts';
+import { t } from '../../i18n/index.js';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
@@ -28,7 +29,11 @@ import {
   buildApiPackages,
   type DeployOptions,
 } from '../../core/deploy.js';
-import { isWranglerInstalled, checkAuth, runMigrationsForEnvironment } from '../../core/cloudflare.js';
+import {
+  isWranglerInstalled,
+  checkAuth,
+  runMigrationsForEnvironment,
+} from '../../core/cloudflare.js';
 import { type WorkerComponent } from '../../core/naming.js';
 import { completeInitialSetup, displaySetupInstructions } from '../../core/admin.js';
 import type { SyncAction } from '../../core/wrangler-sync.js';
@@ -210,12 +215,12 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
   // Confirm deployment
   if (!options.yes) {
     const confirmed = await confirm({
-      message: options.dryRun ? 'Run deployment in dry-run mode?' : 'Start deployment?',
+      message: options.dryRun ? t('deploy.confirmDryRun') : t('deploy.confirmStart'),
       default: true,
     });
 
     if (!confirmed) {
-      console.log(chalk.yellow('Deployment cancelled.'));
+      console.log(chalk.yellow(t('deploy.cancelled')));
       return;
     }
   }
@@ -247,11 +252,11 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
           console.log('');
 
           const action = await select({
-            message: 'How do you want to handle these changes?',
+            message: t('deploy.wranglerChanged'),
             choices: [
-              { value: 'keep', name: '📝 Keep manual changes (deploy as-is)' },
-              { value: 'backup', name: '💾 Backup and overwrite with master' },
-              { value: 'overwrite', name: '⚠️  Overwrite with master (lose changes)' },
+              { value: 'keep', name: t('deploy.wranglerKeep') },
+              { value: 'backup', name: t('deploy.wranglerBackup') },
+              { value: 'overwrite', name: t('deploy.wranglerOverwrite') },
             ],
           });
 
@@ -420,19 +425,20 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
 
   // Run D1 database migrations (unless skipped or dry-run)
   let migrationsSuccess = true;
-  if (!options.skipMigrations && !options.dryRun && !options.component && summary.failedCount === 0) {
+  if (
+    !options.skipMigrations &&
+    !options.dryRun &&
+    !options.component &&
+    summary.failedCount === 0
+  ) {
     console.log(chalk.bold('\n📜 Running D1 database migrations...\n'));
 
     const migrationsSpinner = ora('Running migrations...').start();
 
     try {
-      const migrationsResult = await runMigrationsForEnvironment(
-        env,
-        rootDir,
-        (msg) => {
-          migrationsSpinner.text = msg;
-        }
-      );
+      const migrationsResult = await runMigrationsForEnvironment(env, rootDir, (msg) => {
+        migrationsSpinner.text = msg;
+      });
 
       if (migrationsResult.success) {
         migrationsSpinner.succeed(

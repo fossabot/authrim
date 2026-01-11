@@ -312,9 +312,7 @@ export function listEnvironments(baseDir: string): string[] {
   if (existsSync(legacyKeys)) {
     try {
       const entries = readdirSync(legacyKeys, { withFileTypes: true });
-      entries
-        .filter((d) => d.isDirectory())
-        .forEach((d) => envs.add(d.name));
+      entries.filter((d) => d.isDirectory()).forEach((d) => envs.add(d.name));
     } catch {
       // Ignore errors
     }

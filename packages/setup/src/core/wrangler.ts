@@ -363,7 +363,7 @@ export function generateWranglerConfig(
 
     wranglerConfig.services = services;
 
-    // Routes for custom domain (ar-router only)
+    // Routes for custom domain (ar-router only - catch-all)
     if (config.urls?.api?.custom) {
       try {
         const customUrl = new URL(config.urls.api.custom);
@@ -375,6 +375,23 @@ export function generateWranglerConfig(
       } catch {
         // Invalid URL, skip routes configuration
       }
+    }
+  }
+
+  // Routes for custom domain (individual components - when not using ar-router)
+  // This enables direct deployment without ar-router in custom domain environments
+  if (component !== 'ar-router' && config.urls?.api?.custom) {
+    try {
+      const customUrl = new URL(config.urls.api.custom);
+      const hostname = customUrl.hostname;
+      const parts = hostname.split('.');
+      const zoneName = parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
+      const componentRoutes = generateRoutes(component, hostname, zoneName);
+      if (componentRoutes.length > 0) {
+        wranglerConfig.routes = componentRoutes;
+      }
+    } catch {
+      // Invalid URL, skip routes configuration
     }
   }
 
@@ -689,7 +706,10 @@ export function generateRoutes(
         { pattern: `${domain}/logout*`, zone_name: zoneName },
         { pattern: `${domain}/logged-out`, zone_name: zoneName },
         { pattern: `${domain}/auth/consent*`, zone_name: zoneName },
-        { pattern: `${domain}/_internal/*`, zone_name: zoneName }
+        { pattern: `${domain}/_internal/*`, zone_name: zoneName },
+        // Admin initial setup routes (one-time use for first admin account creation)
+        { pattern: `${domain}/admin-init-setup*`, zone_name: zoneName },
+        { pattern: `${domain}/api/admin-init-setup/*`, zone_name: zoneName }
       );
       break;
     case 'ar-token':

@@ -28,6 +28,20 @@ export default ts.config(
 		}
 	},
 	{
+		files: ['**/*.svelte.ts'],
+		languageOptions: {
+			parser: ts.parser,
+			parserOptions: {
+				ecmaVersion: 'latest',
+				sourceType: 'module'
+			}
+		},
+		rules: {
+			// Svelte 5 runes like $state require 'let' even though they're not reassigned
+			'prefer-const': 'off'
+		}
+	},
+	{
 		ignores: ['build/', '.svelte-kit/', 'dist/', 'src/i18n/i18n-util*.ts']
 	}
 );

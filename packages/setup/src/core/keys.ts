@@ -232,7 +232,11 @@ export interface KeysDirectoryOptions {
  * @param options - Options for path resolution
  * @returns Path to the keys directory
  */
-export function getKeysDirectory(baseDir: string, env: string, options?: KeysDirectoryOptions): string {
+export function getKeysDirectory(
+  baseDir: string,
+  env: string,
+  options?: KeysDirectoryOptions
+): string {
   if (options?.legacy) {
     return getLegacyPaths(baseDir, env).keys;
   }

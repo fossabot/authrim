@@ -76,15 +76,18 @@ export interface WranglerFileStatus {
 function normalizeToml(content: string): string {
   return content
     .split('\n')
-    .map(line => line.trim())
-    .filter(line => line && !line.startsWith('#'))
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
     .join('\n');
 }
 
 /**
  * Get the master wrangler.toml path for a component
  */
-export function getMasterWranglerPath(envPaths: ReturnType<typeof getEnvironmentPaths>, component: string): string {
+export function getMasterWranglerPath(
+  envPaths: ReturnType<typeof getEnvironmentPaths>,
+  component: string
+): string {
   return join(envPaths.wrangler, `${component}.toml`);
 }
 

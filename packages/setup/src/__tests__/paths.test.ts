@@ -161,7 +161,10 @@ describe('paths module', () => {
       mkdirSync(newEnvDir, { recursive: true });
       writeFileSync(join(newEnvDir, 'config.json'), '{}');
 
-      writeFileSync(join(testDir, LEGACY_CONFIG_FILE), JSON.stringify({ environment: { prefix: 'legacyenv' } }));
+      writeFileSync(
+        join(testDir, LEGACY_CONFIG_FILE),
+        JSON.stringify({ environment: { prefix: 'legacyenv' } })
+      );
 
       const result = detectStructure(testDir);
 

@@ -92,6 +92,7 @@ import {
   adminScimTokenRevokeHandler,
 } from './scim-tokens';
 import { adminIATListHandler, adminIATCreateHandler, adminIATRevokeHandler } from './iat-tokens';
+import { adminSessionStatusHandler, adminLogoutHandler } from './admin-session';
 import {
   adminOrganizationsListHandler,
   adminOrganizationGetHandler,
@@ -691,6 +692,13 @@ app.use('/api/admin/clients/:id/regenerate-secret', async (c, next) => {
 app.use('/api/admin/clients/:id/regenerate-secret', idempotencyMiddleware());
 app.post('/api/admin/clients/:id/regenerate-secret', adminClientRegenerateSecretHandler);
 app.get('/api/admin/clients/:id/usage', adminClientUsageHandler);
+
+// Admin UI Session endpoints (Phase 1 - Authentication)
+// - GET /api/admin/sessions/me - Check current session status with role validation (401/403/200)
+// - POST /api/admin/logout - Admin logout with Origin check (CSRF protection)
+// Note: sessions/me must be registered BEFORE sessions/:id to avoid route conflict
+app.get('/api/admin/sessions/me', adminSessionStatusHandler);
+app.post('/api/admin/logout', adminLogoutHandler);
 
 // Admin Session Management endpoints (RESTful naming)
 app.get('/api/admin/sessions', adminSessionsListHandler);

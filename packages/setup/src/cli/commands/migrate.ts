@@ -7,6 +7,7 @@
 
 import chalk from 'chalk';
 import { confirm } from '@inquirer/prompts';
+import { t } from '../../i18n/index.js';
 import {
   getMigrationStatus,
   migrateToNewStructure,
@@ -44,7 +45,11 @@ export async function migrateCommand(options: MigrateCommandOptions): Promise<vo
   // Security: Validate environment name if provided
   if (options.env && !validateEnvName(options.env)) {
     console.error(chalk.red('Invalid environment name: ' + options.env));
-    console.log(chalk.gray('Environment name must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.'));
+    console.log(
+      chalk.gray(
+        'Environment name must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens.'
+      )
+    );
     process.exitCode = 1;
     return;
   }
@@ -94,12 +99,12 @@ export async function migrateCommand(options: MigrateCommandOptions): Promise<vo
   // Confirm migration
   if (!options.yes && !options.dryRun) {
     const confirmed = await confirm({
-      message: 'Proceed with migration?',
+      message: t('migrate.prompt'),
       default: true,
     });
 
     if (!confirmed) {
-      console.log(chalk.yellow('\nMigration cancelled.'));
+      console.log(chalk.yellow('\n' + t('migrate.cancelled')));
       return;
     }
   }
@@ -123,14 +128,19 @@ export async function migrateCommand(options: MigrateCommandOptions): Promise<vo
   console.log(chalk.bold('━━━ Migration ' + (options.dryRun ? 'Plan' : 'Results') + ' ━━━\n'));
 
   if (result.success) {
-    console.log(chalk.green('✓ Migration ' + (options.dryRun ? 'plan' : 'completed') + ' successfully!\n'));
+    console.log(
+      chalk.green('✓ Migration ' + (options.dryRun ? 'plan' : 'completed') + ' successfully!\n')
+    );
 
     if (result.backupPath) {
       console.log(chalk.cyan('Backup: ') + result.backupPath);
     }
 
     console.log(chalk.cyan('Environments migrated: ') + result.migratedEnvs.join(', '));
-    console.log(chalk.cyan('Files ' + (options.dryRun ? 'to be ' : '') + 'migrated: ') + result.migratedFiles.length);
+    console.log(
+      chalk.cyan('Files ' + (options.dryRun ? 'to be ' : '') + 'migrated: ') +
+        result.migratedFiles.length
+    );
 
     // Validate migration (if not dry run)
     if (!options.dryRun) {

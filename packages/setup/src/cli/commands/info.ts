@@ -7,6 +7,7 @@
 
 import chalk from 'chalk';
 import ora from 'ora';
+import { t } from '../../i18n/index.js';
 import {
   isWranglerInstalled,
   checkAuth,
@@ -104,7 +105,7 @@ export async function infoCommand(options: InfoCommandOptions): Promise<void> {
       // Interactive mode: ask which environment
       const { select } = await import('@inquirer/prompts');
       env = await select({
-        message: 'Select environment:',
+        message: t('manage.selectEnv'),
         choices: environments.map((e) => ({
           name: `${e.env} (${e.workers.length} workers, ${e.d1.length} D1, ${e.kv.length} KV)`,
           value: e.env,
