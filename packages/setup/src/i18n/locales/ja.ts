@@ -13,9 +13,6 @@ const ja: Translations = {
   // Banner
   'banner.title': 'Authrim セットアップ',
   'banner.subtitle': 'Cloudflare Workers上のOIDCプロバイダー',
-  'banner.warning': '警告: 開発中！',
-  'banner.warningDetail': 'このプロジェクトはまだ正しく動作しません。',
-  'banner.adminWarning': '管理画面は未完成でログインに対応していません。',
   'banner.exitHint': 'Ctrl+Cでいつでも終了できます',
 
   // Mode selection
@@ -925,6 +922,22 @@ const ja: Translations = {
   'web.envDetail.queues': 'Queues',
   'web.envDetail.r2Buckets': 'R2バケット',
   'web.envDetail.pagesProjects': 'Pagesプロジェクト',
+
+  // Web UI Worker Update Section
+  'web.envDetail.workerUpdate': 'Workerを更新',
+  'web.envDetail.workerName': 'Worker',
+  'web.envDetail.deployedVersion': 'デプロイ済み',
+  'web.envDetail.localVersion': 'ローカル',
+  'web.envDetail.updateStatus': 'ステータス',
+  'web.envDetail.needsUpdate': '更新あり',
+  'web.envDetail.upToDate': '最新',
+  'web.envDetail.notDeployed': '未デプロイ',
+  'web.envDetail.updateOnlyChanged': '変更されたもののみ更新',
+  'web.envDetail.updateAllWorkers': 'Workerを更新',
+  'web.envDetail.refreshVersions': '更新',
+  'web.envDetail.updateProgress': '更新状況:',
+  'web.envDetail.updatesAvailable': '{{count}}件の更新があります',
+  'web.envDetail.allUpToDate': 'すべて最新です',
 
   // Web UI Delete Section
   'web.delete.title': '環境を削除',

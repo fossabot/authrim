@@ -2545,6 +2545,55 @@ export function getHtmlTemplate(
           <div class="resource-list" id="detail-workers-list"></div>
         </div>
 
+        <!-- Worker Update Section -->
+        <div class="resource-section" id="worker-update-section" style="margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+          <div class="resource-section-title">
+            🔄 <span data-i18n="web.envDetail.workerUpdate">Update Workers</span>
+          </div>
+
+          <!-- Version comparison table -->
+          <div id="worker-version-table" style="margin-top: 1rem; overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+              <thead>
+                <tr style="border-bottom: 2px solid var(--border);">
+                  <th style="text-align: left; padding: 0.5rem;" data-i18n="web.envDetail.workerName">Worker</th>
+                  <th style="text-align: left; padding: 0.5rem;" data-i18n="web.envDetail.deployedVersion">Deployed</th>
+                  <th style="text-align: left; padding: 0.5rem;" data-i18n="web.envDetail.localVersion">Local</th>
+                  <th style="text-align: center; padding: 0.5rem;" data-i18n="web.envDetail.updateStatus">Status</th>
+                </tr>
+              </thead>
+              <tbody id="worker-version-tbody">
+                <tr><td colspan="4" style="text-align: center; padding: 1rem; color: var(--text-muted);" data-i18n="web.status.loading">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Update options -->
+          <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              <input type="checkbox" id="update-only-changed" checked style="width: 1rem; height: 1rem;">
+              <span data-i18n="web.envDetail.updateOnlyChanged">Update only changed versions</span>
+            </label>
+            <span id="update-summary" style="color: var(--text-muted); font-size: 0.875rem;"></span>
+          </div>
+
+          <!-- Action buttons -->
+          <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <button class="btn-primary" id="btn-update-workers" disabled>
+              🚀 <span data-i18n="web.envDetail.updateAllWorkers">Update Workers</span>
+            </button>
+            <button class="btn-secondary" id="btn-refresh-versions">
+              🔄 <span data-i18n="web.envDetail.refreshVersions">Refresh</span>
+            </button>
+          </div>
+
+          <!-- Progress log -->
+          <div id="worker-update-progress" class="hidden" style="margin-top: 1rem;">
+            <div style="font-weight: 500; margin-bottom: 0.5rem;" data-i18n="web.envDetail.updateProgress">Update Progress:</div>
+            <div id="worker-update-log" class="progress-log" style="max-height: 250px; overflow-y: auto; background: var(--bg); padding: 0.75rem; border-radius: 6px; font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.5;"></div>
+          </div>
+        </div>
+
         <!-- D1 Databases -->
         <div class="resource-section">
           <div class="resource-section-title">
@@ -4609,11 +4658,224 @@ export function getHtmlTemplate(
         checkAndShowAdminSetup(configKv.id);
       }
 
+      // Reset and load worker version comparison
+      resetWorkerUpdateUI();
+      loadWorkerVersionComparison(env.env);
+
       showSection('envDetail');
 
       // Load details asynchronously
       loadResourceDetails(env);
     }
+
+    // ===========================================
+    // Worker Update Functions
+    // ===========================================
+
+    let workerVersionComparison = [];
+    let currentEnvForUpdate = null;
+
+    // Reset worker update UI
+    function resetWorkerUpdateUI() {
+      workerVersionComparison = [];
+      const tbody = document.getElementById('worker-version-tbody');
+      tbody.textContent = '';
+      const loadingRow = document.createElement('tr');
+      const loadingCell = document.createElement('td');
+      loadingCell.colSpan = 4;
+      loadingCell.style.cssText = 'text-align: center; padding: 1rem; color: var(--text-muted);';
+      loadingCell.textContent = t('web.status.loading');
+      loadingRow.appendChild(loadingCell);
+      tbody.appendChild(loadingRow);
+      document.getElementById('update-summary').textContent = '';
+      document.getElementById('btn-update-workers').disabled = true;
+      document.getElementById('worker-update-progress').classList.add('hidden');
+      document.getElementById('worker-update-log').textContent = '';
+    }
+
+    // Load and compare worker versions
+    async function loadWorkerVersionComparison(envName) {
+      currentEnvForUpdate = envName;
+      const tbody = document.getElementById('worker-version-tbody');
+
+      try {
+        const response = await api('/update/compare/' + encodeURIComponent(envName));
+
+        if (response.success) {
+          workerVersionComparison = response.comparison;
+          renderVersionTable(response.comparison);
+
+          // Update summary
+          const summary = response.summary;
+          const summaryText = summary.needsUpdate > 0
+            ? (t('web.envDetail.updatesAvailable', { count: summary.needsUpdate }) || summary.needsUpdate + ' update(s) available')
+            : (t('web.envDetail.allUpToDate') || 'All up to date');
+          document.getElementById('update-summary').textContent = summaryText;
+
+          // Enable button if there are updates
+          document.getElementById('btn-update-workers').disabled = summary.needsUpdate === 0;
+        } else {
+          tbody.textContent = '';
+          const errorRow = document.createElement('tr');
+          const errorCell = document.createElement('td');
+          errorCell.colSpan = 4;
+          errorCell.style.cssText = 'color: var(--error); padding: 1rem;';
+          errorCell.textContent = response.error || 'Failed to load versions';
+          errorRow.appendChild(errorCell);
+          tbody.appendChild(errorRow);
+        }
+      } catch (error) {
+        console.error('Failed to load version comparison:', error);
+        tbody.textContent = '';
+        const errorRow = document.createElement('tr');
+        const errorCell = document.createElement('td');
+        errorCell.colSpan = 4;
+        errorCell.style.cssText = 'color: var(--error); padding: 1rem;';
+        errorCell.textContent = error.message;
+        errorRow.appendChild(errorCell);
+        tbody.appendChild(errorRow);
+      }
+    }
+
+    // Render version comparison table
+    function renderVersionTable(comparison) {
+      const tbody = document.getElementById('worker-version-tbody');
+      tbody.textContent = '';
+
+      if (comparison.length === 0) {
+        const emptyRow = document.createElement('tr');
+        const emptyCell = document.createElement('td');
+        emptyCell.colSpan = 4;
+        emptyCell.style.cssText = 'text-align: center; padding: 1rem; color: var(--text-muted);';
+        emptyCell.textContent = t('web.status.none');
+        emptyRow.appendChild(emptyCell);
+        tbody.appendChild(emptyRow);
+        return;
+      }
+
+      for (const item of comparison) {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border-light)';
+
+        // Worker name
+        const tdName = document.createElement('td');
+        tdName.style.cssText = 'padding: 0.5rem; font-weight: 500;';
+        tdName.textContent = item.component;
+        tr.appendChild(tdName);
+
+        // Deployed version
+        const tdDeployed = document.createElement('td');
+        tdDeployed.style.cssText = 'padding: 0.5rem; font-family: var(--font-mono);';
+        tdDeployed.textContent = item.deployedVersion || '-';
+        if (!item.deployedVersion) tdDeployed.style.color = 'var(--text-muted)';
+        tr.appendChild(tdDeployed);
+
+        // Local version
+        const tdLocal = document.createElement('td');
+        tdLocal.style.cssText = 'padding: 0.5rem; font-family: var(--font-mono);';
+        tdLocal.textContent = item.localVersion || '-';
+        tr.appendChild(tdLocal);
+
+        // Status
+        const tdStatus = document.createElement('td');
+        tdStatus.style.cssText = 'padding: 0.5rem; text-align: center;';
+
+        const badge = document.createElement('span');
+        badge.style.cssText = 'padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;';
+
+        if (item.needsUpdate) {
+          if (!item.deployedVersion) {
+            badge.textContent = t('web.envDetail.notDeployed') || 'Not Deployed';
+            badge.style.background = 'var(--error-bg)';
+            badge.style.color = 'var(--error)';
+          } else {
+            badge.textContent = t('web.envDetail.needsUpdate') || 'Update';
+            badge.style.background = 'var(--warning-bg)';
+            badge.style.color = 'var(--warning)';
+          }
+        } else {
+          badge.textContent = t('web.envDetail.upToDate') || 'Current';
+          badge.style.background = 'var(--success-bg)';
+          badge.style.color = 'var(--success)';
+        }
+
+        tdStatus.appendChild(badge);
+        tr.appendChild(tdStatus);
+
+        tbody.appendChild(tr);
+      }
+    }
+
+    // Start worker update
+    async function startWorkerUpdate() {
+      const btn = document.getElementById('btn-update-workers');
+      const progressDiv = document.getElementById('worker-update-progress');
+      const logDiv = document.getElementById('worker-update-log');
+      const onlyChanged = document.getElementById('update-only-changed').checked;
+
+      btn.disabled = true;
+      const btnSpan = btn.querySelector('span');
+      if (btnSpan) btnSpan.textContent = t('web.status.deploying') || 'Updating...';
+      progressDiv.classList.remove('hidden');
+      logDiv.textContent = '';
+
+      const addLog = (msg) => {
+        const line = document.createElement('div');
+        line.textContent = msg;
+        logDiv.appendChild(line);
+        logDiv.scrollTop = logDiv.scrollHeight;
+      };
+
+      try {
+        addLog('Starting worker update for ' + currentEnvForUpdate + '...');
+
+        const response = await api('/update/workers', {
+          method: 'POST',
+          body: JSON.stringify({
+            env: currentEnvForUpdate,
+            onlyChanged: onlyChanged
+          })
+        });
+
+        if (response.progress && Array.isArray(response.progress)) {
+          for (const msg of response.progress) {
+            addLog(msg);
+          }
+        }
+
+        if (response.success) {
+          addLog('');
+          addLog('✅ Update completed successfully!');
+          const summary = response.summary;
+          addLog('Summary: ' + summary.successCount + '/' + summary.totalComponents + ' workers updated');
+
+          // Refresh version table
+          await loadWorkerVersionComparison(currentEnvForUpdate);
+        } else {
+          addLog('');
+          addLog('❌ Update failed: ' + (response.error || 'Unknown error'));
+        }
+      } catch (error) {
+        addLog('❌ Error: ' + error.message);
+      } finally {
+        btn.disabled = false;
+        const btnSpan2 = btn.querySelector('span');
+        if (btnSpan2) btnSpan2.textContent = t('web.envDetail.updateAllWorkers') || 'Update Workers';
+      }
+    }
+
+    // Event listeners for Worker Update
+    document.getElementById('btn-update-workers')?.addEventListener('click', startWorkerUpdate);
+    document.getElementById('btn-refresh-versions')?.addEventListener('click', () => {
+      if (currentEnvForUpdate) {
+        resetWorkerUpdateUI();
+        loadWorkerVersionComparison(currentEnvForUpdate);
+      }
+    });
+
+    // ===========================================
+    // Admin Setup Functions
+    // ===========================================
 
     // Check admin setup status and show section if needed
     async function checkAndShowAdminSetup(kvNamespaceId) {

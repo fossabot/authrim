@@ -52,6 +52,11 @@ import {
   type DeployResult,
 } from '../core/deploy.js';
 import { getEnabledComponents, type WorkerComponent } from '../core/naming.js';
+import {
+  getLocalPackageVersions,
+  compareVersions,
+  getComponentsToUpdate,
+} from '../core/version.js';
 import { completeInitialSetup } from '../core/admin.js';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -508,16 +513,19 @@ export function createApiRoutes(): Hono {
     });
   });
 
+  // Common environment name validation schema
+  const EnvNameSchema = z
+    .string()
+    .min(1)
+    .max(32)
+    .regex(
+      /^[a-z][a-z0-9-]*$/,
+      'Environment name must start with lowercase letter and contain only lowercase alphanumeric and hyphens'
+    );
+
   // Provision request schema (with database config validation)
   const ProvisionRequestSchema = z.object({
-    env: z
-      .string()
-      .min(1)
-      .max(32)
-      .regex(
-        /^[a-z][a-z0-9-]*$/,
-        'Environment name must start with lowercase letter and contain only lowercase alphanumeric and hyphens'
-      ),
+    env: EnvNameSchema,
     databaseConfig: z
       .object({
         core: z
@@ -1094,6 +1102,206 @@ export function createApiRoutes(): Hono {
       }
     });
   });
+
+  // =============================================================================
+  // Worker Update
+  // =============================================================================
+
+  // Get version comparison for an environment (no auth required - read-only, localhost only)
+  api.get('/update/compare/:env', async (c) => {
+    try {
+      const envParam = c.req.param('env');
+
+      // Validate environment name to prevent path traversal
+      const parseResult = EnvNameSchema.safeParse(envParam);
+      if (!parseResult.success) {
+        return c.json({ success: false, error: 'Invalid environment name' }, 400);
+      }
+      const env = parseResult.data;
+      const rootDir = process.cwd();
+
+      // Load lock file to get deployed versions
+      const { loadLockFileAuto } = await import('../core/lock.js');
+      const { lock } = await loadLockFileAuto(rootDir, env);
+
+      if (!lock) {
+        return c.json({
+          success: false,
+          error: `Environment "${env}" not found. Lock file does not exist.`,
+        }, 404);
+      }
+
+      // Build deployed versions from lock file
+      const deployedVersions: Record<string, { version?: string; deployedAt?: string }> = {};
+      if (lock.workers) {
+        for (const [component, info] of Object.entries(lock.workers)) {
+          deployedVersions[component] = {
+            version: info.version,
+            deployedAt: info.deployedAt,
+          };
+        }
+      }
+
+      // Get local package versions
+      const localVersions = await getLocalPackageVersions(rootDir);
+
+      // Compare versions
+      const comparison = compareVersions(localVersions, deployedVersions);
+
+      return c.json({
+        success: true,
+        env,
+        comparison,
+        summary: {
+          total: comparison.length,
+          needsUpdate: comparison.filter((c) => c.needsUpdate).length,
+          upToDate: comparison.filter((c) => !c.needsUpdate).length,
+        },
+      });
+    } catch (error) {
+      return c.json({ success: false, error: sanitizeError(error) }, 500);
+    }
+  });
+
+  // Apply session validation to update endpoint
+  api.use('/update/workers', validateSession);
+
+  // Update workers for an environment (with lock)
+  api.post('/update/workers', async (c) => {
+    return withLock(async () => {
+      try {
+        const body = await c.req.json();
+        const { env: envParam, onlyChanged = true } = body;
+        const rootDir = process.cwd();
+
+        // Validate environment name to prevent path traversal
+        const parseResult = EnvNameSchema.safeParse(envParam);
+        if (!parseResult.success) {
+          return c.json({ success: false, error: 'Invalid environment name' }, 400);
+        }
+        const env = parseResult.data;
+
+        state.status = 'deploying';
+        clearProgress();
+        addProgress(`Starting worker update for environment: ${env}`);
+
+        // Load lock file
+        const { loadLockFileAuto, saveLockFile: saveLock } = await import('../core/lock.js');
+        const { lock, path: lockPath } = await loadLockFileAuto(rootDir, env);
+
+        if (!lock) {
+          state.status = 'error';
+          return c.json({
+            success: false,
+            error: `Environment "${env}" not found.`,
+          }, 404);
+        }
+
+        // Build deployed versions from lock file
+        const deployedVersions: Record<string, { version?: string; deployedAt?: string }> = {};
+        if (lock.workers) {
+          for (const [component, info] of Object.entries(lock.workers)) {
+            deployedVersions[component] = {
+              version: info.version,
+              deployedAt: info.deployedAt,
+            };
+          }
+        }
+
+        // Get local package versions
+        const localVersions = await getLocalPackageVersions(rootDir);
+
+        // Compare and get components to update
+        const comparison = compareVersions(localVersions, deployedVersions);
+        const componentsToUpdate = getComponentsToUpdate(comparison, !onlyChanged);
+
+        if (componentsToUpdate.length === 0) {
+          state.status = 'complete';
+          addProgress('All workers are up to date. No updates needed.');
+          return c.json({
+            success: true,
+            message: 'All workers are up to date',
+            summary: { totalComponents: 0, successCount: 0, failedCount: 0 },
+          });
+        }
+
+        addProgress(`${componentsToUpdate.length} worker(s) need updating`);
+
+        // Build packages
+        addProgress('Building packages...');
+        const buildResult = await buildApiPackages({
+          rootDir: resolve(rootDir),
+          onProgress: addProgress,
+        });
+
+        if (!buildResult.success) {
+          state.status = 'error';
+          state.error = `Build failed: ${buildResult.error}`;
+          return c.json({ success: false, error: state.error }, 500);
+        }
+
+        // Deploy workers
+        addProgress('Deploying workers...');
+        const summary = await deployAll(
+          {
+            env,
+            rootDir: resolve(rootDir),
+            onProgress: addProgress,
+            onError: (comp, error) => {
+              addProgress(`Error in ${comp}: ${sanitizeError(error)}`);
+            },
+          },
+          componentsToUpdate
+        );
+
+        // Update lock file with new versions
+        if (summary.successCount > 0) {
+          const workers = { ...lock.workers };
+          for (const result of summary.results) {
+            if (result.success && result.deployedAt) {
+              workers[result.component] = {
+                name: result.workerName,
+                deployedAt: result.deployedAt,
+                version: localVersions[result.component] || result.version,
+              };
+            }
+          }
+
+          const updatedLock = {
+            ...lock,
+            workers,
+            updatedAt: new Date().toISOString(),
+          };
+
+          await saveLock(updatedLock, lockPath);
+          addProgress(`Lock file updated: ${lockPath}`);
+        }
+
+        state.status = summary.failedCount === 0 ? 'complete' : 'error';
+
+        if (summary.failedCount === 0) {
+          addProgress(`Successfully updated ${summary.successCount} worker(s)`);
+        } else {
+          addProgress(`Updated ${summary.successCount}/${summary.totalComponents}, ${summary.failedCount} failed`);
+        }
+
+        return c.json({
+          success: summary.failedCount === 0,
+          summary,
+          updatedComponents: componentsToUpdate,
+          progress: state.progress,
+        });
+      } catch (error) {
+        state.status = 'error';
+        state.error = sanitizeError(error);
+        return c.json({ success: false, error: sanitizeError(error) }, 500);
+      }
+    });
+  });
+
+  // =============================================================================
+  // Resource Details
+  // =============================================================================
 
   // Get D1 database details (no auth required - read-only)
   api.get('/d1/:name/info', async (c) => {

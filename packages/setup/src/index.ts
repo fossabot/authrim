@@ -12,6 +12,7 @@ import { Command } from 'commander';
 import { createRequire } from 'node:module';
 import { initCommand } from './cli/commands/init.js';
 import { deployCommand, statusCommand } from './cli/commands/deploy.js';
+import { updateCommand } from './cli/commands/update.js';
 import { configCommand } from './cli/commands/config.js';
 import { deleteCommand } from './cli/commands/delete.js';
 import { infoCommand } from './cli/commands/info.js';
@@ -51,6 +52,16 @@ program
   .option('--skip-migrations', 'Skip D1 database migrations')
   .option('-y, --yes', 'Skip confirmation prompts')
   .action(deployCommand);
+
+program
+  .command('update')
+  .description('Update workers for an existing environment')
+  .option('--env <name>', 'Environment name (required)')
+  .option('--all', 'Update all workers regardless of version')
+  .option('--dry-run', 'Show what would be updated without deploying')
+  .option('--skip-build', 'Skip building packages')
+  .option('-y, --yes', 'Skip confirmation prompts')
+  .action(updateCommand);
 
 program
   .command('status')

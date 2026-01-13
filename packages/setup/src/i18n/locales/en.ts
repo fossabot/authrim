@@ -13,9 +13,6 @@ const en: Translations = {
   // Banner
   'banner.title': 'Authrim Setup',
   'banner.subtitle': 'OIDC Provider on Cloudflare Workers',
-  'banner.warning': 'WARNING: Under Development!',
-  'banner.warningDetail': 'This project does not work correctly yet.',
-  'banner.adminWarning': 'Admin UI is incomplete and does not support login.',
   'banner.exitHint': 'Press Ctrl+C at any time to exit',
 
   // Mode selection
@@ -930,6 +927,22 @@ const en: Translations = {
   'web.envDetail.queues': 'Queues',
   'web.envDetail.r2Buckets': 'R2 Buckets',
   'web.envDetail.pagesProjects': 'Pages Projects',
+
+  // Web UI Worker Update Section
+  'web.envDetail.workerUpdate': 'Update Workers',
+  'web.envDetail.workerName': 'Worker',
+  'web.envDetail.deployedVersion': 'Deployed',
+  'web.envDetail.localVersion': 'Local',
+  'web.envDetail.updateStatus': 'Status',
+  'web.envDetail.needsUpdate': 'Update',
+  'web.envDetail.upToDate': 'Current',
+  'web.envDetail.notDeployed': 'Not Deployed',
+  'web.envDetail.updateOnlyChanged': 'Update only changed versions',
+  'web.envDetail.updateAllWorkers': 'Update Workers',
+  'web.envDetail.refreshVersions': 'Refresh',
+  'web.envDetail.updateProgress': 'Update Progress:',
+  'web.envDetail.updatesAvailable': '{{count}} update(s) available',
+  'web.envDetail.allUpToDate': 'All up to date',
 
   // Web UI Delete Section
   'web.delete.title': 'Delete Environment',
