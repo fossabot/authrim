@@ -125,9 +125,20 @@ export function getSupportedLocales(): LocaleInfo[] {
  * Get available locales (only those with translation files)
  */
 export function getAvailableLocales(): LocaleInfo[] {
-  // For now, return only en and ja (initial implementation)
-  // This can be expanded as more translations are added
-  const availableCodes: Locale[] = ['en', 'ja'];
+  // Available locales with translation files
+  const availableCodes: Locale[] = [
+    'en',
+    'ja',
+    'zh-CN',
+    'zh-TW',
+    'es',
+    'pt',
+    'fr',
+    'de',
+    'ko',
+    'ru',
+    'id',
+  ];
   return SUPPORTED_LOCALES.filter((l) => availableCodes.includes(l.code));
 }
 

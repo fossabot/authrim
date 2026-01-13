@@ -79,6 +79,7 @@ import {
   adminUserConsentRevokeHandler,
   adminUserSuspendHandler,
   adminUserLockHandler,
+  adminUserActivateHandler,
   adminUserAnonymizeHandler,
   adminClientRegenerateSecretHandler,
   adminClientUsageHandler,
@@ -92,6 +93,13 @@ import {
   adminScimTokenRevokeHandler,
 } from './scim-tokens';
 import { adminIATListHandler, adminIATCreateHandler, adminIATRevokeHandler } from './iat-tokens';
+import {
+  adminExternalProvidersListHandler,
+  adminExternalProvidersCreateHandler,
+  adminExternalProvidersGetHandler,
+  adminExternalProvidersUpdateHandler,
+  adminExternalProvidersDeleteHandler,
+} from './external-providers';
 import { adminSessionStatusHandler, adminLogoutHandler } from './admin-session';
 import {
   adminOrganizationsListHandler,
@@ -731,11 +739,25 @@ app.use(
   '/api/admin/users/:id/lock',
   requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
 );
-// Idempotency support for suspend/lock (prevents duplicate status changes on retry)
+// Idempotency support for suspend/lock/activate (prevents duplicate status changes on retry)
 app.use('/api/admin/users/:id/suspend', idempotencyMiddleware());
 app.use('/api/admin/users/:id/lock', idempotencyMiddleware());
+app.use('/api/admin/users/:id/activate', idempotencyMiddleware());
 app.post('/api/admin/users/:id/suspend', adminUserSuspendHandler);
 app.post('/api/admin/users/:id/lock', adminUserLockHandler);
+// Admin User Activate endpoint (restore suspended/locked users)
+app.use('/api/admin/users/:id/activate', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'strict');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/admin/users/:id/activate'],
+  })(c, next);
+});
+app.use(
+  '/api/admin/users/:id/activate',
+  requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
+);
+app.post('/api/admin/users/:id/activate', adminUserActivateHandler);
 app.use('/api/admin/users/:id/anonymize', idempotencyMiddleware());
 app.post('/api/admin/users/:id/anonymize', adminUserAnonymizeHandler);
 // Phase 3: User activity log and send-email
@@ -998,6 +1020,14 @@ app.delete('/api/admin/scim-tokens/:tokenHash', adminScimTokenRevokeHandler);
 app.get('/api/admin/iat-tokens', adminIATListHandler);
 app.post('/api/admin/iat-tokens', adminIATCreateHandler);
 app.delete('/api/admin/iat-tokens/:tokenHash', adminIATRevokeHandler);
+
+// Admin External IdP Provider Management endpoints (proxy to ar-bridge)
+// Enables Admin UI to manage external identity providers (Google, GitHub, etc.)
+app.get('/api/admin/external-providers', adminExternalProvidersListHandler);
+app.post('/api/admin/external-providers', adminExternalProvidersCreateHandler);
+app.get('/api/admin/external-providers/:id', adminExternalProvidersGetHandler);
+app.put('/api/admin/external-providers/:id', adminExternalProvidersUpdateHandler);
+app.delete('/api/admin/external-providers/:id', adminExternalProvidersDeleteHandler);
 
 // Admin RBAC endpoints - Phase 1
 

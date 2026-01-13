@@ -354,7 +354,11 @@ CREATE TABLE IF NOT EXISTS users_pii_tombstone (
 
   -- Additional metadata (JSON)
   -- { request_id, ip_address, consent_reference, ... }
-  deletion_metadata TEXT
+  deletion_metadata TEXT,
+
+  -- Timestamps for BaseRepository compatibility
+  created_at INTEGER,
+  updated_at INTEGER
 );
 
 -- =============================================================================

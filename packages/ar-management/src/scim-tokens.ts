@@ -10,7 +10,7 @@ import { generateScimToken, revokeScimToken, listScimTokens } from '@authrim/ar-
 import {
   createErrorResponse,
   AR_ERROR_CODES,
-  createAuditLogFromContext,
+  scheduleAuditLogFromContext,
   getLogger,
 } from '@authrim/ar-lib-core';
 
@@ -141,11 +141,11 @@ export async function adminScimTokenCreateHandler(c: Context<{ Bindings: Env }>)
       enabled: true,
     });
 
-    // Audit log (non-blocking)
-    createAuditLogFromContext(c, 'scim.token.create', 'scim_token', tokenHash.slice(0, 8), {
+    // Audit log (non-blocking) - uses waitUntil for reliable completion
+    scheduleAuditLogFromContext(c, 'scim.token.create', 'scim_token', tokenHash.slice(0, 8), {
       description,
       expiresInDays,
-    }).catch(() => {});
+    });
 
     // Return the token only once (it won't be shown again)
     return c.json(
@@ -185,15 +185,8 @@ export async function adminScimTokenRevokeHandler(c: Context<{ Bindings: Env }>)
       return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
-    // Audit log (non-blocking) - severity: warning for revocation
-    createAuditLogFromContext(
-      c,
-      'scim.token.revoke',
-      'scim_token',
-      tokenHash.slice(0, 8),
-      {},
-      'warning'
-    ).catch(() => {});
+    // Audit log (non-blocking) - severity: warning for revocation - uses waitUntil for reliable completion
+    scheduleAuditLogFromContext(c, 'scim.token.revoke', 'scim_token', tokenHash.slice(0, 8), {}, 'warning');
 
     return c.json({
       message: 'Token revoked successfully',

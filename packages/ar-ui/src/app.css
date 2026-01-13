@@ -3,8 +3,8 @@
 
 /* Custom Base Styles */
 :root {
-	/* Color scheme */
-	color-scheme: light dark;
+	/* Color scheme - force light mode only */
+	color-scheme: light only;
 
 	/* Font smoothing */
 	-webkit-font-smoothing: antialiased;
@@ -17,13 +17,14 @@ body {
 	color: rgb(17, 24, 39); /* gray-900 */
 }
 
-/* Dark mode */
+/* Dark mode disabled - Admin UI is light-only for now
 @media (prefers-color-scheme: dark) {
 	body {
-		background-color: rgb(17, 24, 39); /* gray-900 */
-		color: rgb(255, 255, 255); /* white */
+		background-color: rgb(17, 24, 39);
+		color: rgb(255, 255, 255);
 	}
 }
+*/
 
 /* Screen reader only */
 .sr-only {

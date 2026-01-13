@@ -162,10 +162,6 @@ function printBanner(): void {
   console.log(chalk.gray(` ${subtitle}`));
   console.log(chalk.gray(` ${versionStr}`));
   console.log('');
-  console.log(chalk.bgYellow.black(` ⚠️  ${t('banner.warning')} `));
-  console.log(chalk.yellow(`  ${t('banner.warningDetail')}`));
-  console.log(chalk.yellow(`  ${t('banner.adminWarning')}`));
-  console.log('');
   console.log(chalk.gray(`  ${t('banner.exitHint')}`));
   console.log('');
 }

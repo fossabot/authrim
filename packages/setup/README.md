@@ -18,6 +18,34 @@ npx @authrim/setup --cli
 npx @authrim/setup manage
 ```
 
+## Supported Languages
+
+The setup tool supports the following 11 languages:
+
+| Code | Language | Native Name |
+|------|----------|-------------|
+| `en` | English | English |
+| `ja` | Japanese | 日本語 |
+| `zh-CN` | Chinese (Simplified) | 简体中文 |
+| `zh-TW` | Chinese (Traditional) | 繁體中文 |
+| `es` | Spanish | Español |
+| `pt` | Portuguese | Português |
+| `fr` | French | Français |
+| `de` | German | Deutsch |
+| `ko` | Korean | 한국어 |
+| `ru` | Russian | Русский |
+| `id` | Indonesian | Bahasa Indonesia |
+
+Language is automatically detected from your system locale or browser settings. You can also specify a language manually:
+
+```bash
+# CLI: Use --lang option
+npx @authrim/setup --lang=ja
+
+# Web UI: Use ?lang query parameter
+# http://localhost:3456/?lang=ja
+```
+
 ## Requirements
 
 - Node.js >= 20.0.0
@@ -33,6 +61,7 @@ npx @authrim/setup [options]
 
 Options:
   --cli              CLI mode instead of Web UI
+  --lang <code>      Language (en, ja, zh-CN, etc.)
   --config <path>    Load existing configuration
   --env <name>       Environment name (prod, staging, dev)
 ```
@@ -95,13 +124,28 @@ Options:
   --json       JSON output
 ```
 
-## Configuration Files
+## Configuration Structure
+
+Authrim uses a unified directory structure for each environment:
+
+```
+project/
+└── .authrim/
+    └── {env}/              # e.g., prod, staging, dev
+        ├── config.json     # Environment settings
+        ├── lock.json       # Provisioned resource IDs
+        ├── version.txt     # Setup tool version
+        ├── keys/           # Cryptographic keys (gitignored)
+        └── wrangler/       # Generated wrangler configs
+```
+
+### Configuration Files
 
 | File | Description |
 |------|-------------|
-| `authrim-config.json` | Environment settings |
-| `authrim-lock.json` | Provisioned resource IDs |
-| `.keys/{env}/` | Cryptographic keys (gitignored) |
+| `.authrim/{env}/config.json` | Environment settings |
+| `.authrim/{env}/lock.json` | Provisioned resource IDs |
+| `.authrim/{env}/keys/` | Cryptographic keys (gitignored) |
 
 ### Components
 
@@ -140,6 +184,7 @@ npx @authrim/setup info --env prod --json | jq '.d1[0].databaseSize'
 Environment variables:
 - `CLOUDFLARE_API_TOKEN` - API token
 - `CLOUDFLARE_ACCOUNT_ID` - Account ID
+- `AUTHRIM_LANG` - Default language (e.g., `ja`, `en`)
 
 ## Troubleshooting
 

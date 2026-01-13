@@ -17,7 +17,11 @@
 		{ path: '/admin/users', label: 'Users', exact: false },
 		{ path: '/admin/clients', label: 'Clients', exact: false },
 		{ path: '/admin/sessions', label: 'Sessions', exact: false },
-		{ path: '/admin/audit-logs', label: 'Audit Logs', exact: false }
+		{ path: '/admin/audit-logs', label: 'Audit Logs', exact: false },
+		// Phase 5: IdP・SCIM・IAT
+		{ path: '/admin/external-idp', label: 'External IdP', exact: false },
+		{ path: '/admin/scim-tokens', label: 'SCIM Tokens', exact: false },
+		{ path: '/admin/iat-tokens', label: 'IAT Tokens', exact: false }
 	];
 
 	// Check if nav item is active

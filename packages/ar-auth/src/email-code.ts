@@ -37,6 +37,8 @@ import {
   type SessionEventData,
   // Logging
   getLogger,
+  // Audit Log
+  createAuditLog,
 } from '@authrim/ar-lib-core';
 import { getEmailCodeHtml, getEmailCodeText } from './utils/email/templates';
 import {
@@ -672,6 +674,35 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
           err as Error
         );
       });
+
+      // Write audit log for email code login (non-blocking)
+      const ipAddress =
+        c.req.header('CF-Connecting-IP') ||
+        c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() ||
+        c.req.header('X-Real-IP') ||
+        'unknown';
+      const userAgent = c.req.header('User-Agent') || 'unknown';
+
+      // Schedule audit log with waitUntil to ensure it completes after response
+      const auditPromise = createAuditLog(c.env, {
+        tenantId,
+        userId: user.id as string,
+        action: 'user.login',
+        resource: 'session',
+        resourceId: sessionId,
+        ipAddress,
+        userAgent,
+        metadata: JSON.stringify({
+          method: 'email_code',
+          is_anonymous_upgrade: isAnonymousUpgrade,
+        }),
+        severity: 'info',
+      }).catch((err) => {
+        log.error('Failed to create audit log for email code login', {
+          action: 'audit_log',
+        }, err as Error);
+      });
+      c.executionCtx?.waitUntil(auditPromise);
 
       return c.json({
         success: true,

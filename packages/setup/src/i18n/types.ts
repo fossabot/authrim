@@ -3,7 +3,18 @@
  */
 
 // Supported locales
-export type Locale = 'en' | 'ja' | 'zh-CN' | 'zh-TW' | 'es' | 'pt' | 'fr' | 'de' | 'ko' | 'ru';
+export type Locale =
+  | 'en'
+  | 'ja'
+  | 'zh-CN'
+  | 'zh-TW'
+  | 'es'
+  | 'pt'
+  | 'fr'
+  | 'de'
+  | 'ko'
+  | 'ru'
+  | 'id';
 
 // Locale metadata for display
 export interface LocaleInfo {
@@ -25,6 +36,7 @@ export const SUPPORTED_LOCALES: LocaleInfo[] = [
   { code: 'de', name: 'German', nativeName: 'Deutsch' },
   { code: 'ko', name: 'Korean', nativeName: '한국어' },
   { code: 'ru', name: 'Russian', nativeName: 'Русский' },
+  { code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia' },
 ];
 
 // Default locale
@@ -39,9 +51,6 @@ export interface Translations {
   // Banner
   'banner.title': string;
   'banner.subtitle': string;
-  'banner.warning': string;
-  'banner.warningDetail': string;
-  'banner.adminWarning': string;
   'banner.exitHint': string;
 
   // Mode selection

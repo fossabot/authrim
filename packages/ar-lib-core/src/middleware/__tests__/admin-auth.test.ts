@@ -3,6 +3,18 @@ import { Hono } from 'hono';
 import { adminAuthMiddleware } from '../admin-auth';
 import type { Env } from '../../types/env';
 
+// Mock session helper functions
+vi.mock('../../utils/session-helper', () => ({
+  // Accept any generation (g1:, g2:, g3:, etc.) with region-sharded format
+  isRegionShardedSessionId: vi.fn((sessionId: string) => /^g\d+:/.test(sessionId)),
+  getSessionStoreBySessionId: vi.fn(),
+}));
+
+import {
+  isRegionShardedSessionId,
+  getSessionStoreBySessionId,
+} from '../../utils/session-helper';
+
 /**
  * Admin Authentication Middleware Tests
  *
@@ -165,18 +177,27 @@ describe('adminAuthMiddleware', () => {
 
   describe('Session Authentication', () => {
     it('should authenticate with valid session and admin role', async () => {
-      // Mock DB to return valid session and admin role
+      // Mock SessionStore to return valid session
+      const mockSessionStore = {
+        getSessionRpc: vi.fn().mockResolvedValue({
+          id: 'g1:apac:0:session_test123',
+          userId: 'user-123',
+          expiresAt: Date.now() + 3600000, // 1 hour from now
+          createdAt: Date.now() - 3600000,
+        }),
+      };
+
+      vi.mocked(getSessionStoreBySessionId).mockReturnValue({
+        stub: mockSessionStore as unknown as ReturnType<
+          typeof getSessionStoreBySessionId
+        >['stub'],
+        resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
+        instanceName: 'default:apac:s:0',
+      });
+
+      // Mock DB to return admin role and user info
       const mockDB = {
         prepare: vi.fn().mockImplementation((query: string) => {
-          if (query.includes('sessions')) {
-            return {
-              bind: vi.fn().mockReturnThis(),
-              first: vi.fn().mockResolvedValue({
-                user_id: 'user-123',
-                expires_at: Date.now() + 3600000, // 1 hour from now
-              }),
-            };
-          }
           // role_assignments JOIN roles query
           if (query.includes('role_assignments')) {
             return {
@@ -209,7 +230,7 @@ describe('adminAuthMiddleware', () => {
 
       const request = new Request('http://localhost/api/admin/test', {
         headers: {
-          Cookie: 'session_id=valid-session-id',
+          Cookie: 'authrim_session=g1:apac:0:session_test123',
         },
       });
 
@@ -223,30 +244,30 @@ describe('adminAuthMiddleware', () => {
     });
 
     it('should reject expired session', async () => {
-      const mockDB = {
-        prepare: vi.fn().mockImplementation((query: string) => {
-          if (query.includes('sessions')) {
-            return {
-              bind: vi.fn().mockReturnThis(),
-              first: vi.fn().mockResolvedValue({
-                user_id: 'user-123',
-                expires_at: Date.now() - 3600000, // 1 hour ago (expired)
-              }),
-            };
-          }
-          return {
-            bind: vi.fn().mockReturnThis(),
-            first: vi.fn().mockResolvedValue(null),
-          };
+      // Mock SessionStore to return expired session
+      const mockSessionStore = {
+        getSessionRpc: vi.fn().mockResolvedValue({
+          id: 'g1:apac:0:session_expired',
+          userId: 'user-123',
+          expiresAt: Date.now() - 3600000, // 1 hour ago (expired)
+          createdAt: Date.now() - 7200000,
         }),
       };
 
-      const env = createMockEnv({ DB: mockDB as unknown as D1Database });
+      vi.mocked(getSessionStoreBySessionId).mockReturnValue({
+        stub: mockSessionStore as unknown as ReturnType<
+          typeof getSessionStoreBySessionId
+        >['stub'],
+        resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
+        instanceName: 'default:apac:s:0',
+      });
+
+      const env = createMockEnv();
       const app = createTestApp(env);
 
       const request = new Request('http://localhost/api/admin/test', {
         headers: {
-          Cookie: 'session_id=expired-session-id',
+          Cookie: 'authrim_session=g1:apac:0:session_expired',
         },
       });
 
@@ -255,27 +276,40 @@ describe('adminAuthMiddleware', () => {
     });
 
     it('should reject session without admin role', async () => {
+      // Mock SessionStore to return valid session
+      const mockSessionStore = {
+        getSessionRpc: vi.fn().mockResolvedValue({
+          id: 'g1:apac:0:session_nonadmin',
+          userId: 'user-123',
+          expiresAt: Date.now() + 3600000,
+          createdAt: Date.now() - 3600000,
+        }),
+      };
+
+      vi.mocked(getSessionStoreBySessionId).mockReturnValue({
+        stub: mockSessionStore as unknown as ReturnType<
+          typeof getSessionStoreBySessionId
+        >['stub'],
+        resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
+        instanceName: 'default:apac:s:0',
+      });
+
+      // Mock DB to return no admin role
       const mockDB = {
         prepare: vi.fn().mockImplementation((query: string) => {
-          if (query.includes('sessions')) {
+          // role_assignments returns no admin roles
+          if (query.includes('role_assignments')) {
             return {
               bind: vi.fn().mockReturnThis(),
-              first: vi.fn().mockResolvedValue({
-                user_id: 'user-123',
-                expires_at: Date.now() + 3600000,
+              all: vi.fn().mockResolvedValue({
+                results: [{ name: 'end_user' }], // No admin role
               }),
-            };
-          }
-          // User has no admin role
-          if (query.includes('user_roles')) {
-            return {
-              bind: vi.fn().mockReturnThis(),
-              first: vi.fn().mockResolvedValue(null), // No admin role
             };
           }
           return {
             bind: vi.fn().mockReturnThis(),
             first: vi.fn().mockResolvedValue(null),
+            all: vi.fn().mockResolvedValue({ results: [] }),
           };
         }),
       };
@@ -285,7 +319,7 @@ describe('adminAuthMiddleware', () => {
 
       const request = new Request('http://localhost/api/admin/test', {
         headers: {
-          Cookie: 'session_id=non-admin-session-id',
+          Cookie: 'authrim_session=g1:apac:0:session_nonadmin',
         },
       });
 
@@ -294,19 +328,25 @@ describe('adminAuthMiddleware', () => {
     });
 
     it('should reject invalid session', async () => {
-      const mockDB = {
-        prepare: vi.fn().mockReturnValue({
-          bind: vi.fn().mockReturnThis(),
-          first: vi.fn().mockResolvedValue(null), // Session not found
-        }),
+      // Mock SessionStore to return null (session not found)
+      const mockSessionStore = {
+        getSessionRpc: vi.fn().mockResolvedValue(null),
       };
 
-      const env = createMockEnv({ DB: mockDB as unknown as D1Database });
+      vi.mocked(getSessionStoreBySessionId).mockReturnValue({
+        stub: mockSessionStore as unknown as ReturnType<
+          typeof getSessionStoreBySessionId
+        >['stub'],
+        resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
+        instanceName: 'default:apac:s:0',
+      });
+
+      const env = createMockEnv();
       const app = createTestApp(env);
 
       const request = new Request('http://localhost/api/admin/test', {
         headers: {
-          Cookie: 'session_id=invalid-session-id',
+          Cookie: 'authrim_session=g1:apac:0:session_invalid',
         },
       });
 
@@ -315,10 +355,30 @@ describe('adminAuthMiddleware', () => {
     });
 
     it('should handle DB errors gracefully', async () => {
+      // Mock SessionStore to return valid session
+      const mockSessionStore = {
+        getSessionRpc: vi.fn().mockResolvedValue({
+          id: 'g1:apac:0:session_test',
+          userId: 'user-123',
+          expiresAt: Date.now() + 3600000,
+          createdAt: Date.now() - 3600000,
+        }),
+      };
+
+      vi.mocked(getSessionStoreBySessionId).mockReturnValue({
+        stub: mockSessionStore as unknown as ReturnType<
+          typeof getSessionStoreBySessionId
+        >['stub'],
+        resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
+        instanceName: 'default:apac:s:0',
+      });
+
+      // Mock DB to throw error on role lookup
       const mockDB = {
         prepare: vi.fn().mockReturnValue({
           bind: vi.fn().mockReturnThis(),
           first: vi.fn().mockRejectedValue(new Error('DB connection failed')),
+          all: vi.fn().mockRejectedValue(new Error('DB connection failed')),
         }),
       };
 
@@ -327,29 +387,133 @@ describe('adminAuthMiddleware', () => {
 
       const request = new Request('http://localhost/api/admin/test', {
         headers: {
-          Cookie: 'session_id=some-session-id',
+          Cookie: 'authrim_session=g1:apac:0:session_test',
         },
       });
 
       const response = await app.fetch(request);
       expect(response.status).toBe(401);
     });
+
+    it('should authenticate with URL-encoded session ID (Safari browser behavior)', async () => {
+      // Safari and some browsers URL-encode cookie values containing special characters like ':'
+      const rawSessionId = 'g3:apac:14:session_WlS-BmKP2V1LqohaYXla_w';
+      const encodedSessionId = encodeURIComponent(rawSessionId);
+
+      // Mock SessionStore to return valid session
+      const mockSessionStore = {
+        getSessionRpc: vi.fn().mockResolvedValue({
+          id: rawSessionId,
+          userId: 'user-safari',
+          expiresAt: Date.now() + 3600000,
+          createdAt: Date.now() - 3600000,
+        }),
+      };
+
+      vi.mocked(getSessionStoreBySessionId).mockReturnValue({
+        stub: mockSessionStore as unknown as ReturnType<
+          typeof getSessionStoreBySessionId
+        >['stub'],
+        resolution: { generation: 3, regionKey: 'apac', shardIndex: 14 },
+        instanceName: 'default:apac:s:14',
+      });
+
+      // Mock DB to return admin role
+      const mockDB = {
+        prepare: vi.fn().mockImplementation((query: string) => {
+          if (query.includes('role_assignments')) {
+            return {
+              bind: vi.fn().mockReturnThis(),
+              all: vi.fn().mockResolvedValue({
+                results: [{ name: 'admin' }],
+              }),
+            };
+          }
+          if (query.includes('users')) {
+            return {
+              bind: vi.fn().mockReturnThis(),
+              first: vi.fn().mockResolvedValue({
+                user_type: 'end_user',
+                org_id: null,
+              }),
+            };
+          }
+          return {
+            bind: vi.fn().mockReturnThis(),
+            first: vi.fn().mockResolvedValue(null),
+            all: vi.fn().mockResolvedValue({ results: [] }),
+          };
+        }),
+      };
+
+      const env = createMockEnv({ DB: mockDB as unknown as D1Database });
+      const app = createTestApp(env);
+
+      // Send URL-encoded session ID (as Safari would)
+      const request = new Request('http://localhost/api/admin/test', {
+        headers: {
+          Cookie: `authrim_session=${encodedSessionId}`,
+        },
+      });
+
+      const response = await app.fetch(request);
+      expect(response.status).toBe(200);
+
+      const data = (await response.json()) as Record<string, unknown>;
+      expect(data.adminAuth.userId).toBe('user-safari');
+      expect(data.adminAuth.authMethod).toBe('session');
+
+      // Verify that getSessionStoreBySessionId was called with the decoded session ID
+      expect(getSessionStoreBySessionId).toHaveBeenCalledWith(
+        expect.anything(), // env
+        rawSessionId // decoded session ID
+      );
+    });
+
+    it('should reject malformed URL-encoded session ID gracefully', async () => {
+      // Malformed URL encoding (e.g., %ZZ is invalid)
+      const malformedSessionId = 'g3%ZZapac%3A14%3Asession_test';
+
+      const env = createMockEnv();
+      const app = createTestApp(env);
+
+      const request = new Request('http://localhost/api/admin/test', {
+        headers: {
+          Cookie: `authrim_session=${malformedSessionId}`,
+        },
+      });
+
+      const response = await app.fetch(request);
+      expect(response.status).toBe(401);
+
+      const data = (await response.json()) as Record<string, unknown>;
+      expect(data.error).toBe('invalid_token');
+    });
   });
 
   describe('Authentication Fallback', () => {
     it('should try Bearer auth first, then session', async () => {
       // Both Bearer and session provided, but Bearer is invalid
+      // Mock SessionStore to return valid session
+      const mockSessionStore = {
+        getSessionRpc: vi.fn().mockResolvedValue({
+          id: 'g1:apac:0:session_fallback',
+          userId: 'user-123',
+          expiresAt: Date.now() + 3600000,
+          createdAt: Date.now() - 3600000,
+        }),
+      };
+
+      vi.mocked(getSessionStoreBySessionId).mockReturnValue({
+        stub: mockSessionStore as unknown as ReturnType<
+          typeof getSessionStoreBySessionId
+        >['stub'],
+        resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
+        instanceName: 'default:apac:s:0',
+      });
+
       const mockDB = {
         prepare: vi.fn().mockImplementation((query: string) => {
-          if (query.includes('sessions')) {
-            return {
-              bind: vi.fn().mockReturnThis(),
-              first: vi.fn().mockResolvedValue({
-                user_id: 'user-123',
-                expires_at: Date.now() + 3600000,
-              }),
-            };
-          }
           // role_assignments JOIN roles query
           if (query.includes('role_assignments')) {
             return {
@@ -383,7 +547,7 @@ describe('adminAuthMiddleware', () => {
       const request = new Request('http://localhost/api/admin/test', {
         headers: {
           Authorization: 'Bearer invalid-token',
-          Cookie: 'session_id=valid-session-id',
+          Cookie: 'authrim_session=g1:apac:0:session_fallback',
         },
       });
 
@@ -401,7 +565,7 @@ describe('adminAuthMiddleware', () => {
       const request = new Request('http://localhost/api/admin/test', {
         headers: {
           Authorization: 'Bearer test-admin-secret',
-          Cookie: 'session_id=some-session-id',
+          Cookie: 'authrim_session=g1:apac:0:session_test',
         },
       });
 
@@ -463,18 +627,27 @@ describe('adminAuthMiddleware', () => {
   });
 
   describe('Cookie Parsing', () => {
-    it('should parse session_id from cookie string correctly', async () => {
+    it('should parse authrim_session from cookie string correctly', async () => {
+      // Mock SessionStore to return valid session
+      const mockSessionStore = {
+        getSessionRpc: vi.fn().mockResolvedValue({
+          id: 'g1:apac:0:session_cookie123',
+          userId: 'user-123',
+          expiresAt: Date.now() + 3600000,
+          createdAt: Date.now() - 3600000,
+        }),
+      };
+
+      vi.mocked(getSessionStoreBySessionId).mockReturnValue({
+        stub: mockSessionStore as unknown as ReturnType<
+          typeof getSessionStoreBySessionId
+        >['stub'],
+        resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
+        instanceName: 'default:apac:s:0',
+      });
+
       const mockDB = {
         prepare: vi.fn().mockImplementation((query: string) => {
-          if (query.includes('sessions')) {
-            return {
-              bind: vi.fn().mockReturnThis(),
-              first: vi.fn().mockResolvedValue({
-                user_id: 'user-123',
-                expires_at: Date.now() + 3600000,
-              }),
-            };
-          }
           // role_assignments JOIN roles query
           if (query.includes('role_assignments')) {
             return {
@@ -508,7 +681,7 @@ describe('adminAuthMiddleware', () => {
       // Cookie with multiple values
       const request = new Request('http://localhost/api/admin/test', {
         headers: {
-          Cookie: 'other_cookie=value; session_id=valid-session-123; another=thing',
+          Cookie: 'other_cookie=value; authrim_session=g1:apac:0:session_cookie123; another=thing',
         },
       });
 
@@ -516,7 +689,7 @@ describe('adminAuthMiddleware', () => {
       expect(response.status).toBe(200);
     });
 
-    it('should handle cookie without session_id', async () => {
+    it('should handle cookie without authrim_session', async () => {
       const app = createTestApp(mockEnv);
 
       const request = new Request('http://localhost/api/admin/test', {

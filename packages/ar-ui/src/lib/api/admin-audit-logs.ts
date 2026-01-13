@@ -58,25 +58,63 @@ export interface AuditLogListParams {
 
 /**
  * Common action types for filtering
+ *
+ * Grouped by category for better organization in the dropdown.
  */
 export const AUDIT_ACTION_TYPES = [
-	// User actions
+	// ── User Management ──
+	{ value: 'user.login', label: 'User Login' },
+	{ value: 'user.logout', label: 'User Logout' },
 	{ value: 'user.created', label: 'User Created' },
 	{ value: 'user.updated', label: 'User Updated' },
 	{ value: 'user.deleted', label: 'User Deleted' },
 	{ value: 'user.suspend', label: 'User Suspended' },
 	{ value: 'user.lock', label: 'User Locked' },
 	{ value: 'user.activate', label: 'User Activated' },
-	// Client actions
+	{ value: 'user.anonymized', label: 'User Anonymized (GDPR)' },
+
+	// ── Client Management ──
 	{ value: 'client.created', label: 'Client Created' },
 	{ value: 'client.updated', label: 'Client Updated' },
 	{ value: 'client.deleted', label: 'Client Deleted' },
-	// Session actions
+	{ value: 'client.config.updated', label: 'Client Config Updated' },
+	{ value: 'client.config.deleted', label: 'Client Config Deleted' },
+	{ value: 'client.secret_regenerate', label: 'Client Secret Regenerated' },
+
+	// ── Session Management ──
 	{ value: 'session.created', label: 'Session Created' },
 	{ value: 'session.revoked', label: 'Session Revoked' },
-	// Security actions
-	{ value: 'signing_keys.rotate', label: 'Signing Keys Rotated' },
-	{ value: 'signing_keys.rotate.emergency', label: 'Emergency Key Rotation' }
+
+	// ── Token Management ──
+	{ value: 'scim.token.create', label: 'SCIM Token Created' },
+	{ value: 'scim.token.revoke', label: 'SCIM Token Revoked' },
+	{ value: 'ai_grant.create', label: 'AI Grant Created' },
+	{ value: 'ai_grant.update', label: 'AI Grant Updated' },
+	{ value: 'ai_grant.revoke', label: 'AI Grant Revoked' },
+
+	// ── Webhook Management ──
+	{ value: 'webhook.created', label: 'Webhook Created' },
+	{ value: 'webhook.updated', label: 'Webhook Updated' },
+	{ value: 'webhook.test', label: 'Webhook Test Sent' },
+	{ value: 'webhook.test_failed', label: 'Webhook Test Failed' },
+	{ value: 'webhook.replay', label: 'Webhook Replayed' },
+	{ value: 'webhook.replay_failed', label: 'Webhook Replay Failed' },
+
+	// ── Role & Access Control ──
+	{ value: 'role.created', label: 'Role Created' },
+	{ value: 'access_review.created', label: 'Access Review Created' },
+
+	// ── Security & Signing Keys ──
+	{ value: 'signing_keys.status.read', label: 'Signing Keys Status Read' },
+	{ value: 'signing_keys.rotate.normal', label: 'Signing Keys Rotated' },
+	{ value: 'signing_keys.rotate.emergency', label: 'Emergency Key Rotation' },
+	{ value: 'security_alert.acknowledge', label: 'Security Alert Acknowledged' },
+	{ value: 'security.ip_reputation_check', label: 'IP Reputation Checked' },
+
+	// ── System Administration ──
+	{ value: 'tenant.cloned', label: 'Tenant Cloned' },
+	{ value: 'job.created', label: 'Job Created' },
+	{ value: 'email.queued', label: 'Email Queued' }
 ] as const;
 
 /**

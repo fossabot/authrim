@@ -1784,6 +1784,12 @@ export function getHtmlTemplate(
 
         // Update all translatable elements
         updateAllTranslations();
+
+        // Update the language selector dropdown to reflect the new language
+        const langSelect = document.getElementById('lang-select');
+        if (langSelect) {
+          langSelect.value = locale;
+        }
       } catch (error) {
         console.error('Failed to change language:', error);
         // Fallback: reload the page
@@ -1808,6 +1814,13 @@ export function getHtmlTemplate(
         // Apply translations for the current locale immediately
         // This ensures ?lang=ja works on initial page load
         updateAllTranslations();
+      }
+
+      // Ensure the language selector displays the current language
+      // This is needed in case the HTML selected attribute isn't being honored
+      const langSelect = document.getElementById('lang-select');
+      if (langSelect) {
+        langSelect.value = _currentLocale;
       }
     })();
   </script>

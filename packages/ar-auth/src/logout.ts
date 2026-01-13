@@ -53,6 +53,8 @@ import {
   // Logging
   getLogger,
   createLogger,
+  // Audit Log
+  createAuditLog,
 } from '@authrim/ar-lib-core';
 import type {
   BackchannelLogoutConfig,
@@ -472,6 +474,30 @@ export async function frontChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
           err as Error
         );
       });
+
+      // Write audit log for user logout (non-blocking)
+      const ipAddress =
+        c.req.header('CF-Connecting-IP') ||
+        c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() ||
+        c.req.header('X-Real-IP') ||
+        'unknown';
+      const userAgent = c.req.header('User-Agent') || 'unknown';
+
+      // Schedule audit log with waitUntil to ensure it completes after response
+      const auditPromise = createAuditLog(c.env, {
+        tenantId,
+        userId: effectiveUserId,
+        action: 'user.logout',
+        resource: 'session',
+        resourceId: deletedSessionId,
+        ipAddress,
+        userAgent,
+        metadata: JSON.stringify({ client_id: clientId, reason: 'frontchannel_logout' }),
+        severity: 'info',
+      }).catch((err) => {
+        log.error('Failed to create audit log for logout', { action: 'audit_log' }, err as Error);
+      });
+      c.executionCtx?.waitUntil(auditPromise);
     }
 
     // ========================================
@@ -1202,6 +1228,34 @@ export async function backChannelLogoutHandler(c: Context<{ Bindings: Env }>) {
           err as Error
         );
       });
+
+      // Write audit log for backchannel logout (non-blocking)
+      const ipAddress =
+        c.req.header('CF-Connecting-IP') ||
+        c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() ||
+        c.req.header('X-Real-IP') ||
+        'unknown';
+      const userAgent = c.req.header('User-Agent') || 'unknown';
+
+      // Schedule audit log with waitUntil to ensure it completes after response
+      const auditPromise = createAuditLog(c.env, {
+        tenantId: tenantIdForEvent,
+        userId,
+        action: 'user.logout',
+        resource: 'session',
+        resourceId: sessionId,
+        ipAddress,
+        userAgent,
+        metadata: JSON.stringify({ client_id: clientId, reason: 'backchannel_logout' }),
+        severity: 'info',
+      }).catch((err) => {
+        log.error(
+          'Failed to create audit log for backchannel logout',
+          { action: 'audit_log' },
+          err as Error
+        );
+      });
+      c.executionCtx?.waitUntil(auditPromise);
     }
 
     // Log the logout event

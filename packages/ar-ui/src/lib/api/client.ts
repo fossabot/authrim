@@ -936,7 +936,7 @@ export const externalIdpAPI = {
 /**
  * External IdP Provider (Admin view with full details)
  */
-interface ExternalIdPProviderAdmin {
+export interface ExternalIdPProviderAdmin {
 	id: string;
 	slug?: string; // User-friendly identifier (e.g., "google")
 	tenantId: string;
@@ -966,7 +966,7 @@ interface ExternalIdPProviderAdmin {
 /**
  * Create Provider Request
  */
-interface CreateProviderRequest {
+export interface CreateProviderRequest {
 	slug?: string; // User-friendly identifier (e.g., "google")
 	name: string;
 	provider_type?: 'oidc' | 'oauth2';
@@ -993,7 +993,7 @@ interface CreateProviderRequest {
 /**
  * Update Provider Request
  */
-interface UpdateProviderRequest {
+export interface UpdateProviderRequest {
 	slug?: string; // User-friendly identifier (e.g., "google")
 	name?: string;
 	provider_type?: 'oidc' | 'oauth2';

@@ -74,6 +74,9 @@ export interface Env {
   SAML_REQUEST_STORE: DurableObjectNamespace; // SAML 2.0 request/artifact store
   PERMISSION_CHANGE_HUB?: DurableObjectNamespace; // Phase 8.3: Real-time permission change notifications
 
+  // Service Bindings (Worker-to-Worker communication)
+  EXTERNAL_IDP?: Fetcher; // External IdP worker (ar-bridge) for social login and enterprise IdP
+
   // ============================================================
   // Environment Variables - Token/Auth Expiry (unit: seconds)
   // ============================================================

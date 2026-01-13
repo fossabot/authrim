@@ -320,6 +320,7 @@
 					margin: 0;
 					white-space: pre-wrap;
 					word-break: break-word;
+					color: #1f2937;
 				">{formatMetadata(entry.metadata)}</pre>
 			{:else}
 				<p style="margin: 0; color: #9ca3af; font-style: italic;">

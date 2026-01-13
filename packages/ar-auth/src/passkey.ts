@@ -27,6 +27,8 @@ import {
   // Logging
   getLogger,
   createLogger,
+  // Audit Log
+  createAuditLog,
 } from '@authrim/ar-lib-core';
 
 // ===== Module-level Logger for Helper Functions =====
@@ -862,6 +864,33 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
         errorType: err instanceof Error ? err.name : 'Unknown',
       });
     });
+
+    // Write audit log for passkey login (non-blocking)
+    const ipAddress =
+      c.req.header('CF-Connecting-IP') ||
+      c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() ||
+      c.req.header('X-Real-IP') ||
+      'unknown';
+    const userAgent = c.req.header('User-Agent') || 'unknown';
+
+    // Schedule audit log with waitUntil to ensure it completes after response
+    const auditPromise = createAuditLog(c.env, {
+      tenantId,
+      userId: passkey.user_id,
+      action: 'user.login',
+      resource: 'session',
+      resourceId: sessionData.id,
+      ipAddress,
+      userAgent,
+      metadata: JSON.stringify({ method: 'passkey', passkey_id: passkey.id }),
+      severity: 'info',
+    }).catch((err) => {
+      log.error('Failed to create audit log for passkey login', {
+        action: 'audit_log',
+        errorType: err instanceof Error ? err.name : 'Unknown',
+      });
+    });
+    c.executionCtx?.waitUntil(auditPromise);
 
     // Set session cookie for Admin UI
     // This enables session-based authentication via adminAuthMiddleware

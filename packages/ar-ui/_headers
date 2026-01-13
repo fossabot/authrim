@@ -1,0 +1,14 @@
+# Security Headers for ar-ui
+# https://developers.cloudflare.com/pages/configuration/headers/
+
+/*
+  # Content Security Policy
+  # - img-src: Allow same-origin, all HTTPS, and data URIs for QR codes/dynamic images
+  # - frame-ancestors: Prevent clickjacking by disallowing embedding
+  Content-Security-Policy: img-src 'self' https: data:; frame-ancestors 'self';
+
+  # Prevent MIME type sniffing
+  X-Content-Type-Options: nosniff
+
+  # Referrer Policy - send origin only for cross-origin requests
+  Referrer-Policy: strict-origin-when-cross-origin

@@ -36,6 +36,8 @@ import {
   type SessionEventData,
   // Logger
   getLogger,
+  // Audit Log
+  createAuditLog,
 } from '@authrim/ar-lib-core';
 import { jwtVerify, importJWK, decodeProtectedHeader } from 'jose';
 
@@ -340,6 +342,33 @@ export async function didAuthVerifyHandler(c: Context<{ Bindings: Env }>): Promi
     }).catch((err: unknown) => {
       log.warn('Failed to publish session.user.created event', { action: 'event_publish' });
     });
+
+    // Write audit log for DID login (non-blocking)
+    const ipAddress =
+      c.req.header('CF-Connecting-IP') ||
+      c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() ||
+      c.req.header('X-Real-IP') ||
+      'unknown';
+    const userAgent = c.req.header('User-Agent') || 'unknown';
+
+    // Schedule audit log with waitUntil to ensure it completes after response
+    const auditPromise = createAuditLog(c.env, {
+      tenantId: 'default',
+      userId: linkedIdentity.user_id,
+      action: 'user.login',
+      resource: 'session',
+      resourceId: sessionId,
+      ipAddress,
+      userAgent,
+      metadata: JSON.stringify({
+        method: 'did',
+        did,
+      }),
+      severity: 'info',
+    }).catch((err: unknown) => {
+      log.warn('Failed to create audit log for DID login', { action: 'audit_log' });
+    });
+    c.executionCtx?.waitUntil(auditPromise);
 
     return c.json({
       session_id: sessionId,

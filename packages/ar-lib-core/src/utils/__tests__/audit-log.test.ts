@@ -442,7 +442,8 @@ describe('createAuditLogFromContext', () => {
 
     // Should log error and not call DB
     expect(mockLogger.error).toHaveBeenCalledWith(
-      'Cannot create audit log: adminAuth context not found'
+      'Cannot create audit log: adminAuth context not found',
+      { action: 'test.action', resource: 'resource', resourceId: 'id-1' }
     );
     expect(mockEnv.DB.prepare).not.toHaveBeenCalled();
   });

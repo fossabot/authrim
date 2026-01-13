@@ -37,13 +37,16 @@ export async function createAuditLog(
   try {
     const id = generateSecureRandomString(16);
     const tenantId = entry.tenantId || DEFAULT_TENANT_ID;
-    const createdAt = Date.now();
+    // Use seconds (not milliseconds) for consistency with other audit log writers
+    const createdAt = Math.floor(Date.now() / 1000);
+
+    log.info('createAuditLog: Starting INSERT', { id, action: entry.action, tenantId, createdAt });
 
     const coreAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB });
     await coreAdapter.execute(
       `INSERT INTO audit_log (
-        id, tenant_id, user_id, action, resource, resource_id,
-        ip_address, user_agent, metadata, severity, created_at
+        id, tenant_id, user_id, action, resource_type, resource_id,
+        ip_address, user_agent, metadata_json, severity, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
@@ -59,6 +62,8 @@ export async function createAuditLog(
         createdAt,
       ]
     );
+
+    log.info('createAuditLog: INSERT completed successfully', { id, action: entry.action });
 
     // Log critical operations to console for immediate visibility
     // PII Protection: Only log safe fields (no metadata which may contain PII)
@@ -100,13 +105,18 @@ export async function createAuditLogFromContext(
   metadata: Record<string, unknown>,
   severity: 'info' | 'warning' | 'critical' = 'info'
 ): Promise<void> {
+  // Debug: Log that we're attempting to create audit log
+  log.info('Creating audit log from context', { action, resource, resourceId });
+
   // Get admin auth context (set by adminAuthMiddleware)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adminAuth = (c as any).get('adminAuth') as { userId: string } | undefined;
   if (!adminAuth) {
-    log.error('Cannot create audit log: adminAuth context not found');
+    log.error('Cannot create audit log: adminAuth context not found', { action, resource, resourceId });
     return;
   }
+
+  log.info('Admin auth found', { userId: adminAuth.userId, action });
 
   // Get tenantId from request context (set by requestContextMiddleware)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,4 +143,58 @@ export async function createAuditLogFromContext(
     metadata: JSON.stringify(metadata),
     severity,
   });
+}
+
+/**
+ * Safely schedule audit log creation with waitUntil
+ *
+ * Handles cases where executionCtx may be undefined (tests, local dev, Node runtime).
+ * This ensures audit logs are written even after the response is sent,
+ * without blocking the main request handling.
+ *
+ * @param executionCtx - Cloudflare Workers execution context (may be undefined in tests)
+ * @param auditLogPromise - Promise that creates the audit log entry
+ */
+export function scheduleAuditLog(
+  executionCtx: ExecutionContext | undefined,
+  auditLogPromise: Promise<void>
+): void {
+  if (executionCtx) {
+    executionCtx.waitUntil(auditLogPromise);
+  }
+  // If no executionCtx, the promise runs but may be cut off after response
+  // This is acceptable for test environments where D1 writes are mocked
+}
+
+/**
+ * Helper to create and schedule audit log from Hono context
+ *
+ * Combines createAuditLogFromContext with waitUntil scheduling.
+ * This is the recommended way to create audit logs in admin handlers
+ * as it ensures the log is written even after the response is sent.
+ *
+ * Note: This function is designed for future policy engine integration.
+ * The scheduling logic can be extended to include policy checks before logging.
+ *
+ * @param c - Hono context with Cloudflare Workers bindings
+ * @param action - Action performed (e.g., 'user.created', 'client.deleted')
+ * @param resource - Resource type (e.g., 'user', 'client', 'session')
+ * @param resourceId - Resource identifier
+ * @param metadata - Additional metadata object (will be JSON stringified)
+ * @param severity - Severity level (default: 'info')
+ */
+export function scheduleAuditLogFromContext(
+  c: Context<{ Bindings: Env }>,
+  action: string,
+  resource: string,
+  resourceId: string,
+  metadata: Record<string, unknown>,
+  severity: 'info' | 'warning' | 'critical' = 'info'
+): void {
+  const promise = createAuditLogFromContext(c, action, resource, resourceId, metadata, severity)
+    .catch((err: unknown) => {
+      log.error('Failed to create audit log', { action }, err as Error);
+    });
+
+  scheduleAuditLog(c.executionCtx, promise);
 }

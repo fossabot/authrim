@@ -25,6 +25,8 @@ import {
   SESSION_EVENTS,
   type AuthEventData,
   type SessionEventData,
+  // Audit Log
+  createAuditLog,
 } from '@authrim/ar-lib-core';
 import {
   parseXml,
@@ -170,6 +172,33 @@ export async function handleSPACS(c: Context<{ Bindings: Env }>): Promise<Respon
     }).catch((err: unknown) => {
       log.error('Failed to publish session.user.created event', {}, err as Error);
     });
+
+    // Write audit log for SAML login (non-blocking)
+    const ipAddress =
+      c.req.header('CF-Connecting-IP') ||
+      c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() ||
+      c.req.header('X-Real-IP') ||
+      'unknown';
+    const userAgent = c.req.header('User-Agent') || 'unknown';
+
+    // Schedule audit log with waitUntil to ensure it completes after response
+    const auditPromise = createAuditLog(env, {
+      tenantId,
+      userId,
+      action: 'user.login',
+      resource: 'session',
+      resourceId: sessionId,
+      ipAddress,
+      userAgent,
+      metadata: JSON.stringify({
+        method: 'saml',
+        idp_entity_id: issuer,
+      }),
+      severity: 'info',
+    }).catch((err: unknown) => {
+      log.error('Failed to create audit log for SAML login', {}, err as Error);
+    });
+    c.executionCtx?.waitUntil(auditPromise);
 
     // Determine redirect URL
     let returnUrl = relayState;

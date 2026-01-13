@@ -18,6 +18,11 @@ import type { AdminAuthContext } from '../types/admin';
 import { D1Adapter } from '../db/adapters/d1-adapter';
 import type { DatabaseAdapter } from '../db/adapter';
 import { createLogger } from '../utils/logger';
+import {
+  getSessionStoreBySessionId,
+  isRegionShardedSessionId,
+} from '../utils/session-helper';
+import type { Session } from '../durable-objects/SessionStore';
 
 const log = createLogger().module('ADMIN-AUTH');
 
@@ -112,24 +117,27 @@ async function authenticateSession(
   requiredRoles: string[] = ['system_admin', 'distributor_admin', 'org_admin', 'admin']
 ): Promise<AdminAuthContext | null> {
   try {
-    // Create adapter for database access
-    const coreAdapter: DatabaseAdapter = new D1Adapter({ db: c.env.DB });
+    // Validate session ID format (must be region-sharded format)
+    if (!isRegionShardedSessionId(sessionId)) {
+      log.warn('Invalid session ID format', { sessionId: sessionId.substring(0, 30) });
+      return null;
+    }
 
-    // Fetch session from D1 database
-    const session = await coreAdapter.queryOne<{ user_id: string; expires_at: number }>(
-      'SELECT user_id, expires_at FROM sessions WHERE id = ?',
-      [sessionId]
-    );
+    // Fetch session from SessionStore Durable Object
+    const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sessionId);
+    const session = (await sessionStore.getSessionRpc(sessionId)) as Session | null;
 
     if (!session) {
       return null;
     }
 
     // Check if session is expired (sessions use milliseconds)
-    if (session.expires_at < Date.now()) {
+    if (session.expiresAt <= Date.now()) {
       return null;
     }
 
+    // Create adapter for database access (for role lookup)
+    const coreAdapter: DatabaseAdapter = new D1Adapter({ db: c.env.DB });
     const now = Math.floor(Date.now() / 1000); // UNIX seconds for role_assignments
 
     // Fetch all effective roles for this user from role_assignments
@@ -143,7 +151,7 @@ async function authenticateSession(
        WHERE ra.subject_id = ?
          AND (ra.expires_at IS NULL OR ra.expires_at > ?)
        ORDER BY r.name ASC`,
-      [session.user_id, now]
+      [session.userId, now]
     );
 
     const roles = rolesResult.map((r) => r.name);
@@ -165,11 +173,11 @@ async function authenticateSession(
        FROM users_core u
        LEFT JOIN subject_org_membership m ON u.id = m.subject_id AND m.is_primary = 1
        WHERE u.id = ? AND u.is_active = 1`,
-      [session.user_id]
+      [session.userId]
     );
 
     return {
-      userId: session.user_id,
+      userId: session.userId,
       authMethod: 'session',
       roles,
       // Phase 1 RBAC extensions (optional fields)
@@ -223,7 +231,21 @@ export function adminAuthMiddleware(options: AdminAuthOptions = {}) {
     if (cookieHeader) {
       const sessionMatch = cookieHeader.match(/authrim_session=([^;]+)/);
       if (sessionMatch) {
-        const sessionId = sessionMatch[1];
+        // URL decode the session ID (Safari and some browsers encode special characters like ':')
+        // Use try-catch to handle malformed URL-encoded strings gracefully
+        let sessionId: string;
+        try {
+          sessionId = decodeURIComponent(sessionMatch[1]);
+        } catch {
+          // Invalid URL encoding - reject silently
+          return c.json(
+            {
+              error: 'invalid_token',
+              error_description: 'Admin authentication required. Use Bearer token or valid session.',
+            },
+            401
+          );
+        }
         const authContext = await authenticateSession(c, sessionId, requiredRoles);
         if (authContext) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

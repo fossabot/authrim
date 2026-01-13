@@ -25,6 +25,8 @@ import {
   // Logger
   getLogger,
   createLogger,
+  // Audit Log
+  createAuditLog,
 } from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
@@ -304,6 +306,34 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
     }).catch((err: unknown) => {
       log.error('Failed to publish session.user.created', {}, err as Error);
     });
+
+    // Write audit log for external IdP login (non-blocking)
+    const ipAddress =
+      c.req.header('CF-Connecting-IP') ||
+      c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() ||
+      c.req.header('X-Real-IP') ||
+      'unknown';
+    const userAgent = c.req.header('User-Agent') || 'unknown';
+
+    // Schedule audit log with waitUntil to ensure it completes after response
+    const auditPromise = createAuditLog(c.env, {
+      tenantId: authState.tenantId,
+      userId: result.userId,
+      action: 'user.login',
+      resource: 'session',
+      resourceId: sessionId,
+      ipAddress,
+      userAgent,
+      metadata: JSON.stringify({
+        method: 'external_idp',
+        provider: provider.id,
+        is_new_user: result.isNewUser,
+      }),
+      severity: 'info',
+    }).catch((err: unknown) => {
+      log.error('Failed to create audit log for external idp login', {}, err as Error);
+    });
+    c.executionCtx?.waitUntil(auditPromise);
 
     // 10. Build redirect URL with success
     const redirectUrl = new URL(authState.redirectUri);

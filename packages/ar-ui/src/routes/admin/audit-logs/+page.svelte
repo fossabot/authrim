@@ -109,18 +109,48 @@
 	}
 
 	function getActionBadgeStyle(action: string): string {
-		if (action.includes('delete') || action.includes('revoke')) {
+		// Critical/Danger actions (red)
+		if (
+			action.includes('delete') ||
+			action.includes('revoke') ||
+			action.includes('emergency') ||
+			action.includes('failed') ||
+			action.includes('anonymize')
+		) {
 			return 'background-color: #fee2e2; color: #991b1b;';
 		}
-		if (action.includes('create')) {
+		// Success/Create/Login actions (green)
+		if (action.includes('create') || action.includes('queued') || action.includes('login')) {
 			return 'background-color: #d1fae5; color: #065f46;';
 		}
-		if (action.includes('update') || action.includes('rotate')) {
+		// Logout actions (light cyan/teal)
+		if (action.includes('logout')) {
+			return 'background-color: #ccfbf1; color: #0f766e;';
+		}
+		// Update/Change actions (blue)
+		if (
+			action.includes('update') ||
+			action.includes('rotate') ||
+			action.includes('regenerate') ||
+			action.includes('replay') ||
+			action.includes('cloned')
+		) {
 			return 'background-color: #dbeafe; color: #1e40af;';
 		}
-		if (action.includes('suspend') || action.includes('lock')) {
+		// Warning actions (amber)
+		if (
+			action.includes('suspend') ||
+			action.includes('lock') ||
+			action.includes('alert') ||
+			action.includes('acknowledge')
+		) {
 			return 'background-color: #fef3c7; color: #92400e;';
 		}
+		// Info/Read actions (purple)
+		if (action.includes('read') || action.includes('check') || action.includes('test')) {
+			return 'background-color: #ede9fe; color: #5b21b6;';
+		}
+		// Default (gray)
 		return 'background-color: #e5e7eb; color: #374151;';
 	}
 

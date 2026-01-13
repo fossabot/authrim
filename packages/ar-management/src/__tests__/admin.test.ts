@@ -9,6 +9,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Env } from '@authrim/ar-lib-core';
+
+// Mock scheduleAuditLogFromContext to avoid ESM import issues
+import * as arLibCore from '@authrim/ar-lib-core';
+vi.spyOn(arLibCore, 'scheduleAuditLogFromContext').mockImplementation(() => {});
+
 import {
   adminStatsHandler,
   adminUsersListHandler,

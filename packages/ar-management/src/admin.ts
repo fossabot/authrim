@@ -26,6 +26,7 @@ import {
   validateAllowedOrigins,
   escapeLikePattern,
   createAuditLogFromContext,
+  scheduleAuditLogFromContext,
   getLogger,
   // Event System
   publishEvent,
@@ -931,6 +932,11 @@ export async function adminUserCreateHandler(c: Context<{ Bindings: Env }>) {
       log.error('Failed to publish user.created event', { action: 'publish_event' }, err as Error);
     });
 
+    // Write audit log (non-blocking, PII excluded) - uses waitUntil for reliable completion
+    scheduleAuditLogFromContext(c, 'user.created', 'user', userId, {
+      user_type: userCore?.user_type,
+    });
+
     return c.json(
       {
         user: createdUser,
@@ -1100,6 +1106,11 @@ export async function adminUserUpdateHandler(c: Context<{ Bindings: Env }>) {
       log.error('Failed to publish user.updated event', { action: 'publish_event' }, err as Error);
     });
 
+    // Write audit log (non-blocking, PII excluded) - uses waitUntil for reliable completion
+    scheduleAuditLogFromContext(c, 'user.updated', 'user', userId, {
+      user_type: updatedCore?.user_type,
+    });
+
     return c.json({
       user: updatedUser,
     });
@@ -1194,6 +1205,9 @@ export async function adminUserDeleteHandler(c: Context<{ Bindings: Env }>) {
     }).catch((err: unknown) => {
       log.error('Failed to publish user.deleted event', { action: 'publish_event' }, err as Error);
     });
+
+    // Write audit log (non-blocking, critical severity for deletion) - uses waitUntil for reliable completion
+    scheduleAuditLogFromContext(c, 'user.deleted', 'user', userId, {});
 
     return c.json({
       success: true,
@@ -1664,6 +1678,12 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       );
     });
 
+    // Write audit log (non-blocking, client_secret excluded) - uses waitUntil for reliable completion
+    scheduleAuditLogFromContext(c, 'client.created', 'client', client.client_id, {
+      client_name: client.client_name,
+      grant_types: client.grant_types,
+    });
+
     // Return the created client (including client_secret only on creation)
     return c.json(
       {
@@ -1949,6 +1969,11 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       );
     });
 
+    // Write audit log (non-blocking) - uses waitUntil for reliable completion
+    scheduleAuditLogFromContext(c, 'client.updated', 'client', clientId, {
+      client_name: updatedClient?.client_name,
+    });
+
     return c.json({
       success: true,
       client: updatedClient,
@@ -2014,6 +2039,9 @@ export async function adminClientDeleteHandler(c: Context<{ Bindings: Env }>) {
         err as Error
       );
     });
+
+    // Write audit log (non-blocking, critical severity for deletion) - uses waitUntil for reliable completion
+    scheduleAuditLogFromContext(c, 'client.deleted', 'client', clientId, {});
 
     return c.json({
       success: true,
@@ -3183,6 +3211,174 @@ export async function adminUserLockHandler(c: Context<{ Bindings: Env }>) {
     });
   } catch (error) {
     logSanitizedError('Admin lock user error', error);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+  }
+}
+
+// =============================================================================
+// User Activate (Restore from Suspended/Locked)
+// =============================================================================
+
+/**
+ * Pre-defined reason codes for activate operations
+ */
+const ACTIVATE_REASON_CODES = new Set([
+  'investigation_cleared', // Security investigation completed, no issues found
+  'suspension_expired', // Suspension period ended
+  'appeal_approved', // User appeal was approved
+  'admin_action', // Admin decided to restore
+  'false_positive', // Initial action was a false positive
+  'compliance_cleared', // Compliance issue resolved
+  'other',
+]);
+
+/**
+ * POST /api/admin/users/:id/activate
+ * Activate (restore) a suspended or locked user account
+ *
+ * Security:
+ * - RBAC: tenant_admin or higher
+ * - Tenant isolation: operation scoped to tenant
+ * - Audit: reason_code logged (not reason_detail for privacy)
+ *
+ * Side effects:
+ * - User status set to 'active'
+ * - Clears suspended_at, suspended_until, locked_at, locked_until
+ * - Audit log entry created
+ */
+export async function adminUserActivateHandler(c: Context<{ Bindings: Env }>) {
+  const log = getLogger(c).module('ADMIN-USER');
+  const tenantId = getTenantIdFromContext(c);
+  const userId = c.req.param('id');
+
+  if (!userId) {
+    return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_REQUIRED_FIELD, {
+      variables: { field: 'id' },
+    });
+  }
+
+  try {
+    const body = await c.req.json<{
+      reason_code: string;
+      reason_detail?: string;
+      notify_user?: boolean;
+    }>();
+
+    // Validate reason_code
+    if (!body.reason_code || !ACTIVATE_REASON_CODES.has(body.reason_code)) {
+      return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE, {
+        variables: {
+          field: 'reason_code',
+          reason: `Must be one of: ${Array.from(ACTIVATE_REASON_CODES).join(', ')}`,
+        },
+      });
+    }
+
+    const adapter = new D1Adapter({ db: c.env.DB });
+
+    // Get current user state (verify tenant ownership)
+    const user = await adapter.queryOne<{
+      id: string;
+      tenant_id: string;
+      status: string;
+      suspended_at: number | null;
+      locked_at: number | null;
+    }>(
+      'SELECT id, tenant_id, status, suspended_at, locked_at FROM users_core WHERE id = ? AND tenant_id = ?',
+      [userId, tenantId]
+    );
+
+    if (!user) {
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
+    }
+
+    // Check if user is already active
+    if (user.status === 'active') {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'User is already active',
+        },
+        400
+      );
+    }
+
+    // Check if user is deleted (cannot activate deleted users)
+    if (user.status === 'deleted') {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'Cannot activate a deleted user',
+        },
+        400
+      );
+    }
+
+    const previousStatus = user.status;
+    const nowTs = Math.floor(Date.now() / 1000);
+
+    // Update user status to active and clear suspension/lock timestamps
+    await adapter.execute(
+      `UPDATE users_core SET
+        status = ?,
+        suspended_at = NULL,
+        suspended_until = NULL,
+        locked_at = NULL,
+        locked_until = NULL,
+        updated_at = ?
+      WHERE id = ? AND tenant_id = ?`,
+      ['active', nowTs, userId, tenantId]
+    );
+
+    // Write audit log (reason_code only, not reason_detail for privacy)
+    await createAuditLogFromContext(c, 'user.activate', 'user', userId, {
+      reason_code: body.reason_code,
+      previous_status: previousStatus,
+    });
+
+    // Store reason_detail to operational_logs if provided (encrypted, short retention)
+    if (body.reason_detail && c.env.PII_ENCRYPTION_KEY) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const adminAuth = (c as any).get('adminAuth') as { userId: string } | undefined;
+        const actorId = adminAuth?.userId ?? 'unknown';
+        const requestId = c.req.header('X-Request-ID');
+
+        // Get retention days from tenant config (default: 90)
+        const retentionDays = await getOperationalLogRetentionDays(c.env.AUTHRIM_CONFIG, tenantId);
+
+        await storeOperationalLog(adapter, c.env.PII_ENCRYPTION_KEY, {
+          tenantId,
+          subjectType: 'user',
+          subjectId: userId,
+          actorId,
+          action: 'user.activate',
+          reasonDetail: body.reason_detail,
+          requestId,
+          retentionDays,
+        });
+      } catch (opLogError) {
+        // Non-blocking: log error but don't fail the main operation
+        log.warn('Failed to store operational log for activate', { userId }, opLogError as Error);
+      }
+    }
+
+    log.info('User activated', {
+      action: 'user_activate',
+      userId,
+      reasonCode: body.reason_code,
+      previousStatus,
+    });
+
+    return c.json({
+      user_id: userId,
+      status: 'active',
+      previous_status: previousStatus,
+      effective_at: new Date(nowTs * 1000).toISOString(),
+      reason_code: body.reason_code,
+    });
+  } catch (error) {
+    logSanitizedError('Admin activate user error', error);
     return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 }

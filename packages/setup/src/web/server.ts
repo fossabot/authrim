@@ -15,6 +15,7 @@ import {
   detectBrowserLocale,
   getTranslationsForWeb,
   getAvailableLocales,
+  loadTranslations,
   type Locale,
   DEFAULT_LOCALE,
 } from '../i18n/index.js';
@@ -64,7 +65,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
   app.route('/api', apiRoutes);
 
   // Serve UI with embedded session token and locale-aware translations
-  app.get('/', (c) => {
+  app.get('/', async (c) => {
     // Detect locale from query param, then Accept-Language header
     const queryLang = c.req.query('lang');
     let locale: Locale = DEFAULT_LOCALE;
@@ -79,6 +80,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
       locale = detectBrowserLocale(acceptLanguage);
     }
 
+    // Load translations for the detected locale (if not already cached)
+    await loadTranslations(locale);
+
     // Get translations for the detected locale
     const translations = getTranslationsForWeb(locale);
     const availableLocales = getAvailableLocales();
@@ -92,7 +96,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
   app.get('/health', (c) => c.json({ status: 'ok' }));
 
   // Translations API - for client-side language switching without reload
-  app.get('/api/translations/:locale', (c) => {
+  app.get('/api/translations/:locale', async (c) => {
     const requestedLocale = c.req.param('locale');
     const availableLocales = getAvailableLocales();
 
@@ -100,6 +104,9 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<vo
     if (!availableLocales.some((l) => l.code === requestedLocale)) {
       return c.json({ error: 'Invalid locale' }, 400);
     }
+
+    // Load translations if not already cached
+    await loadTranslations(requestedLocale as Locale);
 
     const translations = getTranslationsForWeb(requestedLocale as Locale);
     return c.json({ locale: requestedLocale, translations });
