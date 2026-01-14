@@ -186,7 +186,14 @@ export async function adminScimTokenRevokeHandler(c: Context<{ Bindings: Env }>)
     }
 
     // Audit log (non-blocking) - severity: warning for revocation - uses waitUntil for reliable completion
-    scheduleAuditLogFromContext(c, 'scim.token.revoke', 'scim_token', tokenHash.slice(0, 8), {}, 'warning');
+    scheduleAuditLogFromContext(
+      c,
+      'scim.token.revoke',
+      'scim_token',
+      tokenHash.slice(0, 8),
+      {},
+      'warning'
+    );
 
     return c.json({
       message: 'Token revoked successfully',

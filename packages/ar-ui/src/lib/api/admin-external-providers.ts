@@ -79,7 +79,12 @@ export const PROVIDER_TEMPLATES: ProviderTemplateInfo[] = [
 		description: 'Microsoft Entra ID (OIDC)',
 		providerType: 'oidc'
 	},
-	{ id: 'linkedin', name: 'LinkedIn', description: 'LinkedIn OpenID Connect', providerType: 'oidc' },
+	{
+		id: 'linkedin',
+		name: 'LinkedIn',
+		description: 'LinkedIn OpenID Connect',
+		providerType: 'oidc'
+	},
 	{ id: 'facebook', name: 'Facebook', description: 'Facebook OAuth 2.0', providerType: 'oauth2' },
 	{ id: 'twitter', name: 'Twitter', description: 'Twitter OAuth 2.0', providerType: 'oauth2' },
 	{ id: 'apple', name: 'Apple', description: 'Sign in with Apple (OIDC)', providerType: 'oidc' }

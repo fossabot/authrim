@@ -1792,6 +1792,47 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
     default: 'auto',
   });
 
+  // Step 10: Security Configuration
+  console.log('');
+  console.log(chalk.blue('━━━ ' + t('security.title') + ' ━━━'));
+  console.log(chalk.yellow('⚠️  ' + t('security.warning')));
+  console.log('');
+
+  console.log(chalk.gray('  ' + t('security.description')));
+  const piiEncryptionEnabled = await select({
+    message: t('security.piiEncryption'),
+    choices: [
+      {
+        name: t('security.piiEncryptionEnabled'),
+        value: true,
+        description: t('security.piiEncryptionEnabledDesc'),
+      },
+      {
+        name: t('security.piiEncryptionDisabled'),
+        value: false,
+        description: t('security.piiEncryptionDisabledDesc'),
+      },
+    ],
+    default: true,
+  });
+
+  const domainHashEnabled = await select({
+    message: t('security.domainHash'),
+    choices: [
+      {
+        name: t('security.domainHashEnabled'),
+        value: true,
+        description: t('security.domainHashEnabledDesc'),
+      },
+      {
+        name: t('security.domainHashDisabled'),
+        value: false,
+        description: t('security.domainHashDisabledDesc'),
+      },
+    ],
+    default: true,
+  });
+
   // Parse location vs jurisdiction
   function parseDbLocationNormal(value: string) {
     if (value === 'eu') {
@@ -1858,6 +1899,10 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
       fromName: emailConfigNormal.fromName,
       configured: emailConfigNormal.provider === 'resend',
     },
+  };
+  config.security = {
+    piiEncryptionEnabled,
+    domainHashEnabled,
   };
 
   // Show summary

@@ -22,6 +22,11 @@ export * from './credentials';
 export * from './federation';
 export * from './client';
 export * from './encryption';
+export * from './cache';
+export * from './feature-flags';
+export * from './limits';
+export * from './tenant';
+export * from './verifiable-credentials';
 
 // Re-export SettingsManager types
 export type {
@@ -61,6 +66,11 @@ import { CREDENTIALS_CATEGORY_META } from './credentials';
 import { FEDERATION_CATEGORY_META } from './federation';
 import { CLIENT_CATEGORY_META } from './client';
 import { ENCRYPTION_CATEGORY_META } from './encryption';
+import { CACHE_CATEGORY_META } from './cache';
+import { FEATURE_FLAGS_CATEGORY_META } from './feature-flags';
+import { LIMITS_CATEGORY_META } from './limits';
+import { TENANT_CATEGORY_META } from './tenant';
+import { VC_CATEGORY_META } from './verifiable-credentials';
 
 /**
  * All category metadata for easy registration
@@ -80,6 +90,16 @@ export const ALL_CATEGORY_META = {
   federation: FEDERATION_CATEGORY_META,
   // Client Settings
   client: CLIENT_CATEGORY_META,
+  // Cache Settings
+  cache: CACHE_CATEGORY_META,
+  // Feature Flags
+  'feature-flags': FEATURE_FLAGS_CATEGORY_META,
+  // Limits
+  limits: LIMITS_CATEGORY_META,
+  // Tenant
+  tenant: TENANT_CATEGORY_META,
+  // Verifiable Credentials
+  vc: VC_CATEGORY_META,
   // Platform Settings (read-only)
   infrastructure: INFRASTRUCTURE_CATEGORY_META,
   encryption: ENCRYPTION_CATEGORY_META,

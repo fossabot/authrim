@@ -624,7 +624,11 @@ export async function anonLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
         }),
         severity: 'info',
       }).catch((err) => {
-        log.error('Failed to create audit log for anonymous login', { action: 'audit_log' }, err as Error);
+        log.error(
+          'Failed to create audit log for anonymous login',
+          { action: 'audit_log' },
+          err as Error
+        );
       });
       c.executionCtx?.waitUntil(auditPromise);
 

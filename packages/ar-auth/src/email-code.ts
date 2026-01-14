@@ -698,9 +698,13 @@ export async function emailCodeVerifyHandler(c: Context<{ Bindings: Env }>) {
         }),
         severity: 'info',
       }).catch((err) => {
-        log.error('Failed to create audit log for email code login', {
-          action: 'audit_log',
-        }, err as Error);
+        log.error(
+          'Failed to create audit log for email code login',
+          {
+            action: 'audit_log',
+          },
+          err as Error
+        );
       });
       c.executionCtx?.waitUntil(auditPromise);
 

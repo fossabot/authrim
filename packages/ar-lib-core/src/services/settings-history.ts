@@ -361,6 +361,13 @@ export class SettingsHistoryManager {
    * Rollback to a specific version
    *
    * This creates a new version with the restored snapshot.
+   *
+   * Execution order is designed for error recovery:
+   * 1. Read target version from DB
+   * 2. Read current snapshot from KV
+   * 3. Record rollback to DB first (can be compensated if KV fails)
+   * 4. Apply snapshot to KV
+   * 5. If KV fails, delete the DB entry (compensation)
    */
   async rollback(
     category: string,
@@ -381,10 +388,8 @@ export class SettingsHistoryManager {
     const latestEntry = await this.getLatestVersion(category);
     const previousVersion = latestEntry?.version ?? 0;
 
-    // Apply the restored snapshot
-    await applySnapshot(targetEntry.snapshot);
-
-    // Record the rollback as a new version
+    // Record the rollback to DB first (before KV write)
+    // This allows compensation if KV write fails
     const newEntry = await this.recordChange({
       category,
       previousSnapshot: currentSnapshot,
@@ -395,12 +400,33 @@ export class SettingsHistoryManager {
       changeSource: 'rollback',
     });
 
+    // Apply the restored snapshot to KV
+    // If this fails, we compensate by deleting the DB entry
+    try {
+      await applySnapshot(targetEntry.snapshot);
+    } catch (error) {
+      // Compensation: delete the newly created history entry
+      await this.deleteVersion(category, newEntry.version);
+      throw error;
+    }
+
     return {
       success: true,
       previousVersion,
       currentVersion: newEntry.version,
       restoredSnapshot: targetEntry.snapshot,
     };
+  }
+
+  /**
+   * Delete a specific version entry (used for compensation on rollback failure)
+   * @internal
+   */
+  private async deleteVersion(category: string, version: number): Promise<void> {
+    await this.adapter.execute(
+      `DELETE FROM settings_history WHERE tenant_id = ? AND category = ? AND version = ?`,
+      [this.tenantId, category, version]
+    );
   }
 
   /**

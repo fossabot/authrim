@@ -352,6 +352,21 @@ export interface Translations {
   'migrate.backup': string;
   'migrate.backupCreated': string;
 
+  // Security configuration
+  'security.title': string;
+  'security.description': string;
+  'security.piiEncryption': string;
+  'security.piiEncryptionEnabled': string;
+  'security.piiEncryptionEnabledDesc': string;
+  'security.piiEncryptionDisabled': string;
+  'security.piiEncryptionDisabledDesc': string;
+  'security.domainHash': string;
+  'security.domainHashEnabled': string;
+  'security.domainHashEnabledDesc': string;
+  'security.domainHashDisabled': string;
+  'security.domainHashDisabledDesc': string;
+  'security.warning': string;
+
   // Manage command
   'manage.title': string;
   'manage.loading': string;

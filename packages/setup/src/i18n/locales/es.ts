@@ -596,6 +596,23 @@ const es: Translations = {
   'migrate.backup': 'Creando respaldo...',
   'migrate.backupCreated': 'Respaldo creado en {{path}}',
 
+  // Security configuration
+  'security.title': 'Configuración de Seguridad',
+  'security.description':
+    'Configura los ajustes de protección de datos. Estos no pueden cambiarse después de almacenar los datos iniciales.',
+  'security.piiEncryption': 'Cifrado de PII',
+  'security.piiEncryptionEnabled': 'Cifrado a nivel de aplicación (Recomendado)',
+  'security.piiEncryptionEnabledDesc':
+    'Cifrar datos PII a nivel de aplicación (recomendado para D1)',
+  'security.piiEncryptionDisabled': 'Solo cifrado a nivel de base de datos',
+  'security.piiEncryptionDisabledDesc': 'Usar cifrado de BD administrada (para Aurora, etc.)',
+  'security.domainHash': 'Hash de Dominio de Email',
+  'security.domainHashEnabled': 'Activar hash de dominio (Recomendado)',
+  'security.domainHashEnabledDesc': 'Aplicar hash a dominios de email para privacidad en análisis',
+  'security.domainHashDisabled': 'Almacenar dominios en texto plano',
+  'security.domainHashDisabledDesc': 'Almacenar dominios de email sin hash',
+  'security.warning': '⚠️ Estos ajustes no pueden cambiarse después de almacenar los datos',
+
   // Manage command
   'manage.commandTitle': 'Gestor de Entornos de Authrim',
 

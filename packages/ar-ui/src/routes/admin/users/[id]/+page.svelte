@@ -17,7 +17,9 @@
 
 	// Confirmation dialog state
 	let showConfirmDialog = $state(false);
-	let confirmAction = $state<'suspend' | 'lock' | 'delete' | 'activate' | 'revoke-sessions' | null>(null);
+	let confirmAction = $state<'suspend' | 'lock' | 'delete' | 'activate' | 'revoke-sessions' | null>(
+		null
+	);
 	let confirmLoading = $state(false);
 	let revokedSessionsCount = $state<number | null>(null);
 
@@ -87,7 +89,9 @@
 		}
 	}
 
-	function openConfirmDialog(action: 'suspend' | 'lock' | 'delete' | 'activate' | 'revoke-sessions') {
+	function openConfirmDialog(
+		action: 'suspend' | 'lock' | 'delete' | 'activate' | 'revoke-sessions'
+	) {
 		confirmAction = action;
 		showConfirmDialog = true;
 		actionError = '';
@@ -711,7 +715,9 @@
 				<div
 					style="background-color: #d1fae5; border: 1px solid #10b981; color: #065f46; padding: 12px; border-radius: 6px; margin-bottom: 16px;"
 				>
-					Successfully revoked {revokedSessionsCount} session{revokedSessionsCount === 1 ? '' : 's'}.
+					Successfully revoked {revokedSessionsCount} session{revokedSessionsCount === 1
+						? ''
+						: 's'}.
 					{#if revokedSessionsCount > 0}
 						Active sessions in memory will expire naturally.
 					{/if}

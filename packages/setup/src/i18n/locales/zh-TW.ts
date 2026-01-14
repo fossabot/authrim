@@ -585,6 +585,21 @@ const zhTW: Translations = {
   'migrate.backup': '正在建立備份...',
   'migrate.backupCreated': '備份已建立於 {{path}}',
 
+  // Security configuration
+  'security.title': '安全設定',
+  'security.description': '設定資料保護選項。初始資料儲存後這些設定將無法更改。',
+  'security.piiEncryption': 'PII 加密',
+  'security.piiEncryptionEnabled': '應用程式層級加密（建議）',
+  'security.piiEncryptionEnabledDesc': '在應用程式層級加密 PII 資料（D1 建議使用）',
+  'security.piiEncryptionDisabled': '僅資料庫層級加密',
+  'security.piiEncryptionDisabledDesc': '依賴託管資料庫加密（適用於 Aurora 等）',
+  'security.domainHash': '電子郵件網域雜湊',
+  'security.domainHashEnabled': '啟用網域雜湊（建議）',
+  'security.domainHashEnabledDesc': '對電子郵件網域進行雜湊處理以保護分析中的隱私',
+  'security.domainHashDisabled': '以明文儲存網域',
+  'security.domainHashDisabledDesc': '不進行雜湊處理直接儲存電子郵件網域',
+  'security.warning': '⚠️ 這些設定在資料儲存後將無法更改',
+
   // Manage command
   'manage.commandTitle': 'Authrim 環境管理器',
 

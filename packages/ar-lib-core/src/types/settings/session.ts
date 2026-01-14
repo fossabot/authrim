@@ -18,6 +18,7 @@ export interface SessionSettings {
   'session.min_ttl': number;
   'session.refresh_default': boolean;
   'session.token_ttl': number;
+  'session.tombstone_ttl': number;
 
   // Logout Configuration
   'session.backchannel_logout_token_exp': number;
@@ -89,6 +90,18 @@ export const SESSION_SETTINGS_META: Record<keyof SessionSettings, SettingMeta> =
     min: 60,
     max: 3600,
     unit: 'seconds',
+    visibility: 'admin',
+  },
+  'session.tombstone_ttl': {
+    key: 'session.tombstone_ttl',
+    type: 'duration',
+    default: 86400000,
+    envKey: 'SESSION_TOMBSTONE_TTL',
+    label: 'Tombstone TTL',
+    description: 'How long to keep deleted session markers in milliseconds (24 hours)',
+    min: 3600000,
+    max: 604800000,
+    unit: 'ms',
     visibility: 'admin',
   },
 
@@ -194,6 +207,7 @@ export const SESSION_DEFAULTS: SessionSettings = {
   'session.min_ttl': 60000,
   'session.refresh_default': true,
   'session.token_ttl': 300,
+  'session.tombstone_ttl': 86400000,
   'session.backchannel_logout_token_exp': 120,
   'session.backchannel_request_timeout_ms': 10000,
   'session.backchannel_retry_max_attempts': 3,

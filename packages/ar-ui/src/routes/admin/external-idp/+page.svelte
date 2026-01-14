@@ -100,7 +100,9 @@
 	<div
 		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
 	>
-		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">External Identity Providers</h1>
+		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">
+			External Identity Providers
+		</h1>
 		<button
 			onclick={navigateToNew}
 			style="
@@ -160,22 +162,34 @@
 			<table style="width: 100%; border-collapse: collapse;">
 				<thead>
 					<tr style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Name
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Type
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Status
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Priority
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Client ID
 						</th>
-						<th style="text-align: right; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: right; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Actions
 						</th>
 					</tr>
@@ -301,8 +315,8 @@
 			{/if}
 
 			<p style="color: #6b7280; margin: 0 0 16px 0;">
-				Are you sure you want to delete this external IdP provider? This action cannot be undone
-				and users will no longer be able to sign in with this provider.
+				Are you sure you want to delete this external IdP provider? This action cannot be undone and
+				users will no longer be able to sign in with this provider.
 			</p>
 
 			<div

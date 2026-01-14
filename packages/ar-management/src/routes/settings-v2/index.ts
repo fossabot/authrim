@@ -48,6 +48,8 @@ import {
   getRateLimitProfileAsync,
   // Logger
   createLogger,
+  // Security
+  sanitizeObject,
 } from '@authrim/ar-lib-core';
 
 // Module-level logger for settings audit
@@ -60,30 +62,6 @@ interface AdminUser {
   id: string;
   email?: string;
   role?: string;
-}
-
-/**
- * Dangerous keys that could be used for prototype pollution attacks
- */
-const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
-
-/**
- * Sanitize object to prevent prototype pollution
- * Removes dangerous keys like __proto__, constructor, prototype
- */
-function sanitizeObject(obj: unknown): Record<string, unknown> {
-  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
-    return {};
-  }
-
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (!DANGEROUS_KEYS.includes(key)) {
-      result[key] = value;
-    }
-  }
-
-  return result;
 }
 
 /**
@@ -158,6 +136,60 @@ function errorResponse(
 ) {
   return c.json({ error, message, ...details }, status);
 }
+
+// =============================================================================
+// Rate Limiting for Settings Endpoints
+// =============================================================================
+
+// Tenant settings - lenient for GET, moderate for PATCH
+settingsV2.use('/tenants/:tenantId/settings/:category', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(
+    c.env,
+    c.req.method === 'PATCH' ? 'moderate' : 'lenient'
+  );
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/tenants/:tenantId/settings/:category'],
+  })(c as unknown as RateLimitContext, next);
+});
+
+// Client settings - lenient for GET, moderate for PATCH
+settingsV2.use('/clients/:clientId/settings', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(
+    c.env,
+    c.req.method === 'PATCH' ? 'moderate' : 'lenient'
+  );
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/clients/:clientId/settings'],
+  })(c as unknown as RateLimitContext, next);
+});
+
+// Platform settings - lenient (read-only)
+settingsV2.use('/platform/settings/:category', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/platform/settings/:category'],
+  })(c as unknown as RateLimitContext, next);
+});
+
+// Meta endpoints - lenient
+settingsV2.use('/settings/meta', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/settings/meta'],
+  })(c as unknown as RateLimitContext, next);
+});
+
+settingsV2.use('/settings/meta/:category', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/settings/meta/:category'],
+  })(c as unknown as RateLimitContext, next);
+});
 
 // =============================================================================
 // Tenant Settings Routes

@@ -1125,10 +1125,13 @@ export function createApiRoutes(): Hono {
       const { lock } = await loadLockFileAuto(rootDir, env);
 
       if (!lock) {
-        return c.json({
-          success: false,
-          error: `Environment "${env}" not found. Lock file does not exist.`,
-        }, 404);
+        return c.json(
+          {
+            success: false,
+            error: `Environment "${env}" not found. Lock file does not exist.`,
+          },
+          404
+        );
       }
 
       // Build deployed versions from lock file
@@ -1191,10 +1194,13 @@ export function createApiRoutes(): Hono {
 
         if (!lock) {
           state.status = 'error';
-          return c.json({
-            success: false,
-            error: `Environment "${env}" not found.`,
-          }, 404);
+          return c.json(
+            {
+              success: false,
+              error: `Environment "${env}" not found.`,
+            },
+            404
+          );
         }
 
         // Build deployed versions from lock file
@@ -1282,7 +1288,9 @@ export function createApiRoutes(): Hono {
         if (summary.failedCount === 0) {
           addProgress(`Successfully updated ${summary.successCount} worker(s)`);
         } else {
-          addProgress(`Updated ${summary.successCount}/${summary.totalComponents}, ${summary.failedCount} failed`);
+          addProgress(
+            `Updated ${summary.successCount}/${summary.totalComponents}, ${summary.failedCount} failed`
+          );
         }
 
         return c.json({

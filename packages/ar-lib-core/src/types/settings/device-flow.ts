@@ -16,6 +16,13 @@ export interface DeviceFlowSettings {
   'device_flow.expires_in': number;
   'device_flow.poll_interval': number;
   'device_flow.max_poll_count': number;
+  'device_flow.slow_down_increment': number;
+
+  // Expiry Limits (for client configuration)
+  'device_flow.min_expires_in': number;
+  'device_flow.max_expires_in': number;
+  'device_flow.min_interval': number;
+  'device_flow.max_interval': number;
 
   // User Code Settings
   'device_flow.user_code_charset': 'BASE20' | 'NUMERIC';
@@ -61,6 +68,68 @@ export const DEVICE_FLOW_SETTINGS_META: Record<keyof DeviceFlowSettings, Setting
     max: 500,
     visibility: 'admin',
   },
+  'device_flow.slow_down_increment': {
+    key: 'device_flow.slow_down_increment',
+    type: 'duration',
+    default: 5,
+    envKey: 'DEVICE_FLOW_SLOW_DOWN_INCREMENT',
+    label: 'Slow Down Increment',
+    description: 'Seconds to add to interval on slow_down error (RFC 8628)',
+    min: 1,
+    max: 30,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+
+  // Expiry Limits (for client configuration)
+  'device_flow.min_expires_in': {
+    key: 'device_flow.min_expires_in',
+    type: 'duration',
+    default: 300,
+    envKey: 'DEVICE_FLOW_MIN_EXPIRES_IN',
+    label: 'Min Expiry',
+    description: 'Minimum device code lifetime allowed for clients',
+    min: 60,
+    max: 1800,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+  'device_flow.max_expires_in': {
+    key: 'device_flow.max_expires_in',
+    type: 'duration',
+    default: 1800,
+    envKey: 'DEVICE_FLOW_MAX_EXPIRES_IN',
+    label: 'Max Expiry',
+    description: 'Maximum device code lifetime allowed for clients',
+    min: 300,
+    max: 3600,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+  'device_flow.min_interval': {
+    key: 'device_flow.min_interval',
+    type: 'duration',
+    default: 5,
+    envKey: 'DEVICE_FLOW_MIN_INTERVAL',
+    label: 'Min Poll Interval',
+    description: 'Minimum polling interval clients can request',
+    min: 1,
+    max: 60,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+  'device_flow.max_interval': {
+    key: 'device_flow.max_interval',
+    type: 'duration',
+    default: 60,
+    envKey: 'DEVICE_FLOW_MAX_INTERVAL',
+    label: 'Max Poll Interval',
+    description: 'Maximum polling interval allowed for clients',
+    min: 5,
+    max: 300,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
   'device_flow.user_code_charset': {
     key: 'device_flow.user_code_charset',
     type: 'enum',
@@ -101,6 +170,11 @@ export const DEVICE_FLOW_DEFAULTS: DeviceFlowSettings = {
   'device_flow.expires_in': 600,
   'device_flow.poll_interval': 5,
   'device_flow.max_poll_count': 120,
+  'device_flow.slow_down_increment': 5,
+  'device_flow.min_expires_in': 300,
+  'device_flow.max_expires_in': 1800,
+  'device_flow.min_interval': 5,
+  'device_flow.max_interval': 60,
   'device_flow.user_code_charset': 'BASE20',
   'device_flow.user_code_length': 8,
 };

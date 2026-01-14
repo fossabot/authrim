@@ -588,6 +588,22 @@ const ko: Translations = {
   'migrate.backup': '백업 생성 중...',
   'migrate.backupCreated': '백업이 {{path}}에 생성됨',
 
+  // Security configuration
+  'security.title': '보안 설정',
+  'security.description':
+    '데이터 보호 설정을 구성합니다. 초기 데이터 저장 후에는 변경할 수 없습니다.',
+  'security.piiEncryption': 'PII 암호화',
+  'security.piiEncryptionEnabled': '애플리케이션 레벨 암호화 (권장)',
+  'security.piiEncryptionEnabledDesc': '애플리케이션 레벨에서 PII 데이터 암호화 (D1에 권장)',
+  'security.piiEncryptionDisabled': '데이터베이스 레벨 암호화만',
+  'security.piiEncryptionDisabledDesc': '관리형 DB 암호화에 의존 (Aurora 등)',
+  'security.domainHash': '이메일 도메인 해싱',
+  'security.domainHashEnabled': '도메인 해싱 활성화 (권장)',
+  'security.domainHashEnabledDesc': '분석에서 개인정보 보호를 위해 이메일 도메인 해싱',
+  'security.domainHashDisabled': '도메인을 평문으로 저장',
+  'security.domainHashDisabledDesc': '이메일 도메인을 해싱 없이 저장',
+  'security.warning': '⚠️ 이 설정은 데이터 저장 후 변경할 수 없습니다',
+
   // Manage command
   'manage.commandTitle': 'Authrim 환경 관리자',
 

@@ -207,8 +207,7 @@
 			<div style="min-width: 150px;">
 				<label
 					for="status"
-					style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-					>Status</label
+					style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;">Status</label
 				>
 				<select
 					id="status"

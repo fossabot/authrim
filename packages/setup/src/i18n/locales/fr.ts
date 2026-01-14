@@ -602,6 +602,26 @@ const fr: Translations = {
   'migrate.backup': 'Création de la sauvegarde...',
   'migrate.backupCreated': 'Sauvegarde créée dans {{path}}',
 
+  // Security configuration
+  'security.title': 'Paramètres de Sécurité',
+  'security.description':
+    'Configurer les paramètres de protection des données. Ils ne peuvent pas être modifiés après le stockage initial des données.',
+  'security.piiEncryption': 'Chiffrement des PII',
+  'security.piiEncryptionEnabled': 'Chiffrement au niveau application (Recommandé)',
+  'security.piiEncryptionEnabledDesc':
+    'Chiffrer les données PII au niveau application (recommandé pour D1)',
+  'security.piiEncryptionDisabled': 'Chiffrement au niveau base de données uniquement',
+  'security.piiEncryptionDisabledDesc':
+    'Utiliser le chiffrement de la BD managée (pour Aurora, etc.)',
+  'security.domainHash': 'Hachage des Domaines Email',
+  'security.domainHashEnabled': 'Activer le hachage des domaines (Recommandé)',
+  'security.domainHashEnabledDesc':
+    'Hacher les domaines email pour la confidentialité dans les analyses',
+  'security.domainHashDisabled': 'Stocker les domaines en clair',
+  'security.domainHashDisabledDesc': 'Stocker les domaines email sans hachage',
+  'security.warning':
+    '⚠️ Ces paramètres ne peuvent pas être modifiés après le stockage des données',
+
   // Manage command
   'manage.commandTitle': "Gestionnaire d'Environnements Authrim",
 

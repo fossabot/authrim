@@ -16,40 +16,12 @@
 
 import { Hono, type Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
-import { getLogger } from '@authrim/ar-lib-core';
+import { getLogger, sanitizeObject } from '@authrim/ar-lib-core';
 
 /**
  * Base context type for getLogger compatibility
  */
 type BaseContext = Context<{ Bindings: Env }>;
-
-// =============================================================================
-// Security Utilities
-// =============================================================================
-
-/**
- * Dangerous keys that could be used for prototype pollution attacks
- */
-const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
-
-/**
- * Sanitize object to prevent prototype pollution
- * Removes dangerous keys like __proto__, constructor, prototype
- */
-function sanitizeObject(obj: unknown): Record<string, unknown> {
-  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
-    return {};
-  }
-
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (!DANGEROUS_KEYS.includes(key)) {
-      result[key] = value;
-    }
-  }
-
-  return result;
-}
 
 // =============================================================================
 // Types

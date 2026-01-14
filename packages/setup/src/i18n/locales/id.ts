@@ -590,6 +590,23 @@ const id: Translations = {
   'migrate.backup': 'Membuat backup...',
   'migrate.backupCreated': 'Backup dibuat di {{path}}',
 
+  // Security configuration
+  'security.title': 'Pengaturan Keamanan',
+  'security.description':
+    'Konfigurasikan pengaturan perlindungan data. Pengaturan ini tidak dapat diubah setelah data awal disimpan.',
+  'security.piiEncryption': 'Enkripsi PII',
+  'security.piiEncryptionEnabled': 'Enkripsi tingkat aplikasi (Direkomendasikan)',
+  'security.piiEncryptionEnabledDesc':
+    'Enkripsi data PII di tingkat aplikasi (direkomendasikan untuk D1)',
+  'security.piiEncryptionDisabled': 'Hanya enkripsi tingkat database',
+  'security.piiEncryptionDisabledDesc': 'Mengandalkan enkripsi DB terkelola (untuk Aurora, dll.)',
+  'security.domainHash': 'Hash Domain Email',
+  'security.domainHashEnabled': 'Aktifkan hash domain (Direkomendasikan)',
+  'security.domainHashEnabledDesc': 'Hash domain email untuk privasi dalam analitik',
+  'security.domainHashDisabled': 'Simpan domain dalam teks biasa',
+  'security.domainHashDisabledDesc': 'Simpan domain email tanpa hash',
+  'security.warning': '⚠️ Pengaturan ini tidak dapat diubah setelah data disimpan',
+
   // Manage command
   'manage.commandTitle': 'Manajer Environment Authrim',
 

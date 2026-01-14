@@ -262,7 +262,14 @@ export async function adminIATRevokeHandler(c: Context<{ Bindings: Env }>) {
     await c.env.INITIAL_ACCESS_TOKENS.delete(`iat:${tokenHash}`);
 
     // Write audit log (non-blocking) - uses waitUntil for reliable completion
-    scheduleAuditLogFromContext(c, 'iat.token.revoke', 'iat_token', tokenHash.slice(0, 8), {}, 'warning');
+    scheduleAuditLogFromContext(
+      c,
+      'iat.token.revoke',
+      'iat_token',
+      tokenHash.slice(0, 8),
+      {},
+      'warning'
+    );
 
     return c.json({
       message: 'Token revoked successfully',

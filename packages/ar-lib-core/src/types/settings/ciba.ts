@@ -16,6 +16,13 @@ export interface CIBASettings {
   'ciba.expires_in': number;
   'ciba.poll_interval': number;
   'ciba.max_poll_count': number;
+  'ciba.slow_down_increment': number;
+
+  // Expiry Limits (for client configuration)
+  'ciba.min_expires_in': number;
+  'ciba.max_expires_in': number;
+  'ciba.min_interval': number;
+  'ciba.max_interval': number;
 
   // Message Settings
   'ciba.max_binding_message_length': number;
@@ -24,6 +31,13 @@ export interface CIBASettings {
   // Feature Settings
   'ciba.user_code_enabled': boolean;
   'ciba.auth_request_ttl': number;
+
+  // Notification Timeout Settings
+  'ciba.ping_notification_timeout_ms': number;
+  'ciba.push_notification_timeout_ms': number;
+  'ciba.notifier_default_timeout_ms': number;
+  'ciba.notifier_max_timeout_ms': number;
+  'ciba.notifier_retry_delay_base_ms': number;
 }
 
 /**
@@ -63,6 +77,68 @@ export const CIBA_SETTINGS_META: Record<keyof CIBASettings, SettingMeta> = {
     description: 'Maximum number of polling attempts',
     min: 10,
     max: 500,
+    visibility: 'admin',
+  },
+  'ciba.slow_down_increment': {
+    key: 'ciba.slow_down_increment',
+    type: 'duration',
+    default: 5,
+    envKey: 'CIBA_SLOW_DOWN_INCREMENT',
+    label: 'Slow Down Increment',
+    description: 'Seconds to add to interval on slow_down error',
+    min: 1,
+    max: 30,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+
+  // Expiry Limits
+  'ciba.min_expires_in': {
+    key: 'ciba.min_expires_in',
+    type: 'duration',
+    default: 60,
+    envKey: 'CIBA_MIN_EXPIRES_IN',
+    label: 'Min Expiry',
+    description: 'Minimum CIBA request lifetime allowed for clients',
+    min: 30,
+    max: 600,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+  'ciba.max_expires_in': {
+    key: 'ciba.max_expires_in',
+    type: 'duration',
+    default: 600,
+    envKey: 'CIBA_MAX_EXPIRES_IN',
+    label: 'Max Expiry',
+    description: 'Maximum CIBA request lifetime allowed for clients',
+    min: 60,
+    max: 3600,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+  'ciba.min_interval': {
+    key: 'ciba.min_interval',
+    type: 'duration',
+    default: 2,
+    envKey: 'CIBA_MIN_INTERVAL',
+    label: 'Min Poll Interval',
+    description: 'Minimum polling interval clients can request',
+    min: 1,
+    max: 60,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+  'ciba.max_interval': {
+    key: 'ciba.max_interval',
+    type: 'duration',
+    default: 60,
+    envKey: 'CIBA_MAX_INTERVAL',
+    label: 'Max Poll Interval',
+    description: 'Maximum polling interval allowed for clients',
+    min: 5,
+    max: 300,
+    unit: 'seconds',
     visibility: 'admin',
   },
   'ciba.max_binding_message_length': {
@@ -106,6 +182,68 @@ export const CIBA_SETTINGS_META: Record<keyof CIBASettings, SettingMeta> = {
     unit: 'seconds',
     visibility: 'admin',
   },
+
+  // Notification Timeout Settings
+  'ciba.ping_notification_timeout_ms': {
+    key: 'ciba.ping_notification_timeout_ms',
+    type: 'duration',
+    default: 5000,
+    envKey: 'PING_NOTIFICATION_TIMEOUT_MS',
+    label: 'Ping Notification Timeout',
+    description: 'Timeout for CIBA ping mode notifications in milliseconds',
+    min: 1000,
+    max: 30000,
+    unit: 'ms',
+    visibility: 'admin',
+  },
+  'ciba.push_notification_timeout_ms': {
+    key: 'ciba.push_notification_timeout_ms',
+    type: 'duration',
+    default: 5000,
+    envKey: 'PUSH_NOTIFICATION_TIMEOUT_MS',
+    label: 'Push Notification Timeout',
+    description: 'Timeout for CIBA push mode notifications in milliseconds',
+    min: 1000,
+    max: 30000,
+    unit: 'ms',
+    visibility: 'admin',
+  },
+  'ciba.notifier_default_timeout_ms': {
+    key: 'ciba.notifier_default_timeout_ms',
+    type: 'duration',
+    default: 10000,
+    envKey: 'NOTIFIER_DEFAULT_TIMEOUT_MS',
+    label: 'Notifier Default Timeout',
+    description: 'Default timeout for CIBA notifier in milliseconds',
+    min: 1000,
+    max: 60000,
+    unit: 'ms',
+    visibility: 'admin',
+  },
+  'ciba.notifier_max_timeout_ms': {
+    key: 'ciba.notifier_max_timeout_ms',
+    type: 'duration',
+    default: 30000,
+    envKey: 'NOTIFIER_MAX_TIMEOUT_MS',
+    label: 'Notifier Max Timeout',
+    description: 'Maximum timeout for CIBA notifier in milliseconds',
+    min: 5000,
+    max: 120000,
+    unit: 'ms',
+    visibility: 'admin',
+  },
+  'ciba.notifier_retry_delay_base_ms': {
+    key: 'ciba.notifier_retry_delay_base_ms',
+    type: 'duration',
+    default: 1000,
+    envKey: 'NOTIFIER_RETRY_DELAY_BASE_MS',
+    label: 'Notifier Retry Delay Base',
+    description: 'Base delay for CIBA notifier retries in milliseconds',
+    min: 100,
+    max: 10000,
+    unit: 'ms',
+    visibility: 'admin',
+  },
 };
 
 /**
@@ -125,8 +263,21 @@ export const CIBA_DEFAULTS: CIBASettings = {
   'ciba.expires_in': 300,
   'ciba.poll_interval': 5,
   'ciba.max_poll_count': 120,
+  'ciba.slow_down_increment': 5,
+  // Expiry Limits
+  'ciba.min_expires_in': 60,
+  'ciba.max_expires_in': 600,
+  'ciba.min_interval': 2,
+  'ciba.max_interval': 60,
+  // Message Settings
   'ciba.max_binding_message_length': 140,
   'ciba.binding_message_required': false,
   'ciba.user_code_enabled': false,
   'ciba.auth_request_ttl': 300,
+  // Notification Timeouts
+  'ciba.ping_notification_timeout_ms': 5000,
+  'ciba.push_notification_timeout_ms': 5000,
+  'ciba.notifier_default_timeout_ms': 10000,
+  'ciba.notifier_max_timeout_ms': 30000,
+  'ciba.notifier_retry_delay_base_ms': 1000,
 };

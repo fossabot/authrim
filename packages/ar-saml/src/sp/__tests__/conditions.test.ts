@@ -207,13 +207,18 @@ describe('Conditions Validation - SAML 2.0 Core Section 2.5', () => {
     const formData = new FormData();
     formData.append('SAMLResponse', samlResponse);
 
+    // Create minimal Hono-like context with all required properties
     const context = {
       env: mockEnv,
       req: {
         formData: async () => formData,
+        header: vi.fn().mockReturnValue(undefined), // Mock header() for IP/UA extraction
       },
       json: (data: unknown, status: number) => new Response(JSON.stringify(data), { status }),
       get: vi.fn().mockReturnValue('default'), // Mock Hono's c.get() for tenantId
+      executionCtx: {
+        waitUntil: vi.fn(), // Mock waitUntil for async operations
+      },
     };
 
     return handleSPACS(context as unknown as Parameters<typeof handleSPACS>[0]);

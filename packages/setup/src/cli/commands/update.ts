@@ -49,9 +49,7 @@ function displayVersionTable(comparisons: VersionComparison[]): void {
   console.log(chalk.bold('\nVersion Comparison:'));
   console.log('─'.repeat(70));
   console.log(
-    chalk.gray(
-      `${'Worker'.padEnd(18)} ${'Deployed'.padEnd(14)} ${'Local'.padEnd(14)} Status`
-    )
+    chalk.gray(`${'Worker'.padEnd(18)} ${'Deployed'.padEnd(14)} ${'Local'.padEnd(14)} Status`)
   );
   console.log('─'.repeat(70));
 
@@ -202,9 +200,7 @@ export async function updateCommand(options: UpdateCommandOptions): Promise<void
   // Confirm update
   if (!options.yes) {
     const confirmed = await confirm({
-      message: options.dryRun
-        ? `Show what would be updated?`
-        : `Update ${updateCount} worker(s)?`,
+      message: options.dryRun ? `Show what would be updated?` : `Update ${updateCount} worker(s)?`,
       default: true,
     });
 
@@ -266,11 +262,7 @@ export async function updateCommand(options: UpdateCommandOptions): Promise<void
 
   // Update lock file with new versions
   if (summary.successCount > 0) {
-    const updatedLock = updateLockWithDeploymentsAndVersions(
-      lock,
-      summary.results,
-      localVersions
-    );
+    const updatedLock = updateLockWithDeploymentsAndVersions(lock, summary.results, localVersions);
     await saveLockFile(updatedLock, lockPath);
     console.log(chalk.gray(`\n  Lock file updated: ${lockPath}`));
   }

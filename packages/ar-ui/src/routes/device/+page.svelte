@@ -277,6 +277,8 @@
 <style>
 	/* Additional styling for pin input cells */
 	:global(.pin-input-cell:focus) {
-		@apply ring-2 ring-primary-500 border-primary-500;
+		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+		border-color: #3b82f6;
+		outline: none;
 	}
 </style>

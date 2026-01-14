@@ -588,6 +588,21 @@ const ja: Translations = {
   'migrate.backup': 'バックアップを作成中...',
   'migrate.backupCreated': 'バックアップを作成しました: {{path}}',
 
+  // Security configuration
+  'security.title': 'セキュリティ設定',
+  'security.description': 'データ保護設定を構成します。初期データ保存後は変更できません。',
+  'security.piiEncryption': 'PII暗号化',
+  'security.piiEncryptionEnabled': 'アプリケーションレベル暗号化（推奨）',
+  'security.piiEncryptionEnabledDesc': 'PIIデータをアプリケーションレベルで暗号化（D1推奨）',
+  'security.piiEncryptionDisabled': 'データベースレベル暗号化のみ',
+  'security.piiEncryptionDisabledDesc': 'マネージドDB暗号化に依存（Aurora等）',
+  'security.domainHash': 'メールドメインハッシュ化',
+  'security.domainHashEnabled': 'ドメインハッシュを有効化（推奨）',
+  'security.domainHashEnabledDesc': '分析用にメールドメインをハッシュ化してプライバシー保護',
+  'security.domainHashDisabled': 'ドメインを平文で保存',
+  'security.domainHashDisabledDesc': 'メールドメインをハッシュ化せずに保存',
+  'security.warning': '⚠️ これらの設定はデータ保存後に変更できません',
+
   // Manage command
   'manage.commandTitle': 'Authrim環境マネージャー',
 

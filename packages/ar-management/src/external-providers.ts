@@ -135,12 +135,7 @@ export async function adminExternalProvidersUpdateHandler(c: Context<{ Bindings:
     });
   }
   const body = await c.req.text();
-  return proxyToExternalIdp(
-    c,
-    `${EXTERNAL_IDP_ADMIN_PATH}/${encodeURIComponent(id)}`,
-    'PUT',
-    body
-  );
+  return proxyToExternalIdp(c, `${EXTERNAL_IDP_ADMIN_PATH}/${encodeURIComponent(id)}`, 'PUT', body);
 }
 
 /**

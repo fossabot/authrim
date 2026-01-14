@@ -593,6 +593,25 @@ const de: Translations = {
   'migrate.backup': 'Erstelle Backup...',
   'migrate.backupCreated': 'Backup erstellt in {{path}}',
 
+  // Security configuration
+  'security.title': 'Sicherheitseinstellungen',
+  'security.description':
+    'Datenschutzeinstellungen konfigurieren. Diese können nach der ersten Datenspeicherung nicht mehr geändert werden.',
+  'security.piiEncryption': 'PII-Verschlüsselung',
+  'security.piiEncryptionEnabled': 'Anwendungsebene Verschlüsselung (Empfohlen)',
+  'security.piiEncryptionEnabledDesc':
+    'PII-Daten auf Anwendungsebene verschlüsseln (empfohlen für D1)',
+  'security.piiEncryptionDisabled': 'Nur Datenbankebene Verschlüsselung',
+  'security.piiEncryptionDisabledDesc':
+    'Auf verwaltete DB-Verschlüsselung verlassen (für Aurora, etc.)',
+  'security.domainHash': 'E-Mail-Domain-Hashing',
+  'security.domainHashEnabled': 'Domain-Hashing aktivieren (Empfohlen)',
+  'security.domainHashEnabledDesc': 'E-Mail-Domains für Datenschutz in Analysen hashen',
+  'security.domainHashDisabled': 'Domains im Klartext speichern',
+  'security.domainHashDisabledDesc': 'E-Mail-Domains ohne Hashing speichern',
+  'security.warning':
+    '⚠️ Diese Einstellungen können nach der Datenspeicherung nicht mehr geändert werden',
+
   // Manage command
   'manage.commandTitle': 'Authrim Umgebungsverwaltung',
 

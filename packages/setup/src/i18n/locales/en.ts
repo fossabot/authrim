@@ -590,6 +590,22 @@ const en: Translations = {
   'migrate.backup': 'Creating backup...',
   'migrate.backupCreated': 'Backup created at {{path}}',
 
+  // Security configuration
+  'security.title': 'Security Settings',
+  'security.description':
+    'Configure data protection settings. These cannot be changed after initial data is stored.',
+  'security.piiEncryption': 'PII Encryption',
+  'security.piiEncryptionEnabled': 'Application-level encryption (Recommended)',
+  'security.piiEncryptionEnabledDesc': 'Encrypt PII data at application level (recommended for D1)',
+  'security.piiEncryptionDisabled': 'Database-level encryption only',
+  'security.piiEncryptionDisabledDesc': 'Rely on managed DB encryption (for Aurora, etc.)',
+  'security.domainHash': 'Email Domain Hashing',
+  'security.domainHashEnabled': 'Enable domain hashing (Recommended)',
+  'security.domainHashEnabledDesc': 'Hash email domains for privacy in analytics',
+  'security.domainHashDisabled': 'Store domains in plain text',
+  'security.domainHashDisabledDesc': 'Store email domains without hashing',
+  'security.warning': '⚠️ These settings cannot be changed after data is stored',
+
   // Manage command
   'manage.commandTitle': 'Authrim Environment Manager',
 

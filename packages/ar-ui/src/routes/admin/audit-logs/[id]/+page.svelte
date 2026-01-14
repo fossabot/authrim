@@ -154,10 +154,12 @@
 				Basic Information
 			</h2>
 
-			<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+			<div
+				style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;"
+			>
 				<div>
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Entry ID</label
+					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
+						>Entry ID</span
 					>
 					<p style="margin: 0; font-size: 14px; color: #1f2937; font-family: monospace;">
 						{entry.id}
@@ -165,8 +167,8 @@
 				</div>
 
 				<div>
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Action</label
+					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
+						>Action</span
 					>
 					<p style="margin: 0; font-size: 14px; color: #1f2937; font-family: monospace;">
 						{entry.action}
@@ -174,8 +176,8 @@
 				</div>
 
 				<div>
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Date/Time</label
+					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
+						>Date/Time</span
 					>
 					<p style="margin: 0; font-size: 14px; color: #1f2937;">
 						{formatDateTime(entry.createdAt)}
@@ -194,10 +196,12 @@
 				Actor Information
 			</h2>
 
-			<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+			<div
+				style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;"
+			>
 				<div>
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>User ID</label
+					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
+						>User ID</span
 					>
 					{#if entry.userId}
 						<a
@@ -212,8 +216,8 @@
 				</div>
 
 				<div>
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>IP Address</label
+					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
+						>IP Address</span
 					>
 					<p style="margin: 0; font-size: 14px; color: #1f2937;">
 						{entry.ipAddress || '-'}
@@ -223,8 +227,8 @@
 				{#if entry.userAgent}
 					{@const parsedUA = parseUserAgent(entry.userAgent)}
 					<div>
-						<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-							>Browser / OS</label
+						<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
+							>Browser / OS</span
 						>
 						<p style="margin: 0; font-size: 14px; color: #1f2937;">
 							{parsedUA ? `${parsedUA.browser} on ${parsedUA.os}` : '-'}
@@ -235,8 +239,8 @@
 
 			{#if entry.userAgent}
 				<div style="margin-top: 16px;">
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Full User Agent</label
+					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
+						>Full User Agent</span
 					>
 					<p
 						style="margin: 0; font-size: 12px; color: #6b7280; font-family: monospace; word-break: break-all;"
@@ -257,10 +261,12 @@
 				Resource Information
 			</h2>
 
-			<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
+			<div
+				style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;"
+			>
 				<div>
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Resource Type</label
+					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
+						>Resource Type</span
 					>
 					<p style="margin: 0; font-size: 14px; color: #1f2937;">
 						{entry.resourceType || '-'}
@@ -268,8 +274,8 @@
 				</div>
 
 				<div>
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Resource ID</label
+					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
+						>Resource ID</span
 					>
 					{#if entry.resourceId}
 						{#if entry.resourceType === 'user'}

@@ -40,6 +40,10 @@ export interface InfrastructureSettings {
 
   // Timeout Configuration
   'infra.default_fetch_timeout_ms': number;
+
+  // Supported Algorithms (platform-level, read-only)
+  'infra.supported_signing_algs': string;
+  'infra.dpop_signing_alg_values_supported': string;
 }
 
 /**
@@ -56,7 +60,7 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     description: 'Number of Durable Object shards for authorization codes',
     min: 1,
     max: 256,
-    visibility: 'internal',
+    visibility: 'admin',
   },
   'infra.session_shards': {
     key: 'infra.session_shards',
@@ -67,7 +71,7 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     description: 'Number of Durable Object shards for sessions',
     min: 1,
     max: 256,
-    visibility: 'internal',
+    visibility: 'admin',
   },
   'infra.challenge_shards': {
     key: 'infra.challenge_shards',
@@ -78,7 +82,7 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     description: 'Number of Durable Object shards for challenges',
     min: 1,
     max: 256,
-    visibility: 'internal',
+    visibility: 'admin',
   },
   'infra.revocation_shards': {
     key: 'infra.revocation_shards',
@@ -89,7 +93,7 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     description: 'Number of Durable Object shards for token revocation',
     min: 1,
     max: 256,
-    visibility: 'internal',
+    visibility: 'admin',
   },
 
   // Region Sharding
@@ -102,7 +106,7 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     description: 'Total number of shards for region-based distribution',
     min: 10,
     max: 1000,
-    visibility: 'internal',
+    visibility: 'admin',
   },
   'infra.region_enam_percent': {
     key: 'infra.region_enam_percent',
@@ -113,7 +117,7 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     description: 'Percentage of shards for Eastern North America',
     min: 0,
     max: 100,
-    visibility: 'internal',
+    visibility: 'admin',
   },
   'infra.region_weur_percent': {
     key: 'infra.region_weur_percent',
@@ -124,7 +128,7 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     description: 'Percentage of shards for Western Europe',
     min: 0,
     max: 100,
-    visibility: 'internal',
+    visibility: 'admin',
   },
   'infra.region_apac_percent': {
     key: 'infra.region_apac_percent',
@@ -135,7 +139,7 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     description: 'Percentage of shards for Asia Pacific',
     min: 0,
     max: 100,
-    visibility: 'internal',
+    visibility: 'admin',
   },
   'infra.region_generation': {
     key: 'infra.region_generation',
@@ -146,7 +150,7 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     description: 'Generation number for shard migration',
     min: 1,
     max: 100,
-    visibility: 'internal',
+    visibility: 'admin',
   },
 
   // Cache Configuration
@@ -272,6 +276,26 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     unit: 'ms',
     visibility: 'admin',
   },
+
+  // Supported Algorithms (platform-level, read-only)
+  'infra.supported_signing_algs': {
+    key: 'infra.supported_signing_algs',
+    type: 'string',
+    default: 'RS256,RS384,RS512,ES256,ES384,ES512,PS256,PS384,PS512,EdDSA',
+    envKey: 'SUPPORTED_SIGNING_ALGS',
+    label: 'Supported Signing Algorithms',
+    description: 'Platform-supported JWS signing algorithms (comma-separated)',
+    visibility: 'internal',
+  },
+  'infra.dpop_signing_alg_values_supported': {
+    key: 'infra.dpop_signing_alg_values_supported',
+    type: 'string',
+    default: 'RS256,ES256,ES384,EdDSA',
+    envKey: 'DPOP_SIGNING_ALG_VALUES_SUPPORTED',
+    label: 'DPoP Signing Algorithms',
+    description: 'Supported algorithms for DPoP proofs (comma-separated)',
+    visibility: 'internal',
+  },
 };
 
 /**
@@ -307,4 +331,6 @@ export const INFRASTRUCTURE_DEFAULTS: InfrastructureSettings = {
   'infra.retry_max_delay': 5000,
   'infra.backoff_multiplier': 2,
   'infra.default_fetch_timeout_ms': 5000,
+  'infra.supported_signing_algs': 'RS256,RS384,RS512,ES256,ES384,ES512,PS256,PS384,PS512,EdDSA',
+  'infra.dpop_signing_alg_values_supported': 'RS256,ES256,ES384,EdDSA',
 };

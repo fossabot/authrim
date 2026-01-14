@@ -150,7 +150,9 @@
 	<div
 		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
 	>
-		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">Initial Access Tokens</h1>
+		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">
+			Initial Access Tokens
+		</h1>
 		<button
 			onclick={openCreateDialog}
 			style="
@@ -168,8 +170,8 @@
 	</div>
 
 	<p style="color: #6b7280; margin-bottom: 24px;">
-		Initial Access Tokens (IAT) are used for Dynamic Client Registration (RFC 7591). Clients can
-		use these tokens to register themselves programmatically.
+		Initial Access Tokens (IAT) are used for Dynamic Client Registration (RFC 7591). Clients can use
+		these tokens to register themselves programmatically.
 	</p>
 
 	{#if error}
@@ -196,22 +198,34 @@
 			<table style="width: 100%; border-collapse: collapse;">
 				<thead>
 					<tr style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Token Hash
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Description
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Created
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Expires
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Single Use
 						</th>
-						<th style="text-align: right; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: right; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Actions
 						</th>
 					</tr>
@@ -219,7 +233,9 @@
 				<tbody>
 					{#each tokens as token (token.tokenHash)}
 						<tr style="border-bottom: 1px solid #e5e7eb;">
-							<td style="padding: 12px 16px; font-size: 14px; font-family: monospace; color: #374151;">
+							<td
+								style="padding: 12px 16px; font-size: 14px; font-family: monospace; color: #374151;"
+							>
 								{formatTokenHash(token.tokenHash)}
 							</td>
 							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
@@ -230,9 +246,7 @@
 							</td>
 							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
 								{#if token.expiresAt}
-									<span
-										style="color: {isExpired(token.expiresAt) ? '#dc2626' : '#374151'};"
-									>
+									<span style="color: {isExpired(token.expiresAt) ? '#dc2626' : '#374151'};">
 										{formatDateTime(token.expiresAt)}
 										{#if isExpired(token.expiresAt)}
 											<span style="color: #dc2626;">(Expired)</span>
@@ -339,9 +353,7 @@
 					bind:value={newTokenExpiresInDays}
 					style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; background-color: white; color: #1f2937;"
 				/>
-				<p style="font-size: 12px; color: #6b7280; margin: 4px 0 0 0;">
-					Valid range: 1-365 days
-				</p>
+				<p style="font-size: 12px; color: #6b7280; margin: 4px 0 0 0;">Valid range: 1-365 days</p>
 			</div>
 
 			<div style="margin-bottom: 24px;">
@@ -413,13 +425,13 @@
 				style="padding: 12px 16px; background-color: #fef3c7; color: #92400e; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;"
 			>
 				<span style="font-size: 18px;">&#9888;</span>
-				<span style="font-size: 14px;"
-					>Save this token now - it will not be shown again!</span
-				>
+				<span style="font-size: 14px;">Save this token now - it will not be shown again!</span>
 			</div>
 
 			<div style="margin-bottom: 16px;">
-				<label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: #374151;">
+				<label
+					style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: #374151;"
+				>
 					Initial Access Token
 				</label>
 				<div
@@ -511,8 +523,8 @@
 			{/if}
 
 			<p style="color: #6b7280; margin: 0 0 16px 0;">
-				Are you sure you want to revoke this Initial Access Token? This action cannot be undone
-				and will prevent any new client registrations using this token.
+				Are you sure you want to revoke this Initial Access Token? This action cannot be undone and
+				will prevent any new client registrations using this token.
 			</p>
 
 			<div

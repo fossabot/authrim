@@ -37,6 +37,12 @@ export interface ConsentSettings {
   'consent.data_export_enabled': boolean;
   'consent.data_export_retention_days': number;
   'consent.data_export_sync_threshold_kb': number;
+
+  // Additional Settings
+  'consent.record_retention': number;
+  'consent.require_on_scope_change': boolean;
+  'consent.supported_display_types': string;
+  'consent.ui_locales': string;
 }
 
 /**
@@ -181,6 +187,47 @@ export const CONSENT_SETTINGS_META: Record<keyof ConsentSettings, SettingMeta> =
     max: 2048,
     visibility: 'admin',
   },
+
+  // Additional Settings
+  'consent.record_retention': {
+    key: 'consent.record_retention',
+    type: 'duration',
+    default: 31536000,
+    envKey: 'CONSENT_RECORD_RETENTION',
+    label: 'Record Retention',
+    description: 'Consent record retention period in seconds (default: 1 year)',
+    min: 2592000,
+    max: 157680000,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
+  'consent.require_on_scope_change': {
+    key: 'consent.require_on_scope_change',
+    type: 'boolean',
+    default: true,
+    envKey: 'CONSENT_REQUIRE_ON_SCOPE_CHANGE',
+    label: 'Require on Scope Change',
+    description: 'Re-prompt consent when requested scopes change',
+    visibility: 'public',
+  },
+  'consent.supported_display_types': {
+    key: 'consent.supported_display_types',
+    type: 'string',
+    default: 'page,popup,touch,wap',
+    envKey: 'SUPPORTED_DISPLAY_TYPES',
+    label: 'Supported Display Types',
+    description: 'Comma-separated list of supported OIDC display types',
+    visibility: 'admin',
+  },
+  'consent.ui_locales': {
+    key: 'consent.ui_locales',
+    type: 'string',
+    default: 'en,ja',
+    envKey: 'CONSENT_UI_LOCALES',
+    label: 'UI Locales',
+    description: 'Comma-separated list of supported UI locales',
+    visibility: 'public',
+  },
 };
 
 /**
@@ -211,4 +258,9 @@ export const CONSENT_DEFAULTS: ConsentSettings = {
   'consent.data_export_enabled': true,
   'consent.data_export_retention_days': 7,
   'consent.data_export_sync_threshold_kb': 512,
+  // Additional Settings
+  'consent.record_retention': 31536000,
+  'consent.require_on_scope_change': true,
+  'consent.supported_display_types': 'page,popup,touch,wap',
+  'consent.ui_locales': 'en,ja',
 };

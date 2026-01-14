@@ -147,10 +147,17 @@
 		>
 			&larr; Back
 		</button>
-		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">Add External Identity Provider</h1>
+		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">
+			Add External Identity Provider
+		</h1>
 	</div>
 
-	<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+	<form
+		onsubmit={(e) => {
+			e.preventDefault();
+			handleSubmit();
+		}}
+	>
 		{#if error}
 			<div
 				style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
@@ -176,7 +183,10 @@
 			>
 				<button
 					type="button"
-					onclick={() => { selectedTemplate = 'custom'; handleTemplateChange(); }}
+					onclick={() => {
+						selectedTemplate = 'custom';
+						handleTemplateChange();
+					}}
 					style="
 						padding: 16px;
 						border: 2px solid {selectedTemplate === 'custom' ? '#3b82f6' : '#e5e7eb'};
@@ -193,7 +203,10 @@
 				{#each PROVIDER_TEMPLATES as template (template.id)}
 					<button
 						type="button"
-						onclick={() => { selectedTemplate = template.id; handleTemplateChange(); }}
+						onclick={() => {
+							selectedTemplate = template.id;
+							handleTemplateChange();
+						}}
 						style="
 							padding: 16px;
 							border: 2px solid {selectedTemplate === template.id ? '#3b82f6' : '#e5e7eb'};
@@ -204,7 +217,9 @@
 						"
 					>
 						<div style="font-weight: 500; color: #1f2937;">{template.name}</div>
-						<div style="font-size: 12px; color: #6b7280;">{template.providerType.toUpperCase()}</div>
+						<div style="font-size: 12px; color: #6b7280;">
+							{template.providerType.toUpperCase()}
+						</div>
 					</button>
 				{/each}
 			</div>
@@ -214,7 +229,9 @@
 		<div
 			style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 24px; margin-bottom: 24px;"
 		>
-			<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">Basic Information</h2>
+			<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">
+				Basic Information
+			</h2>
 
 			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
 				<div>
@@ -285,7 +302,9 @@
 			</div>
 
 			<div style="margin-top: 16px;">
-				<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+				<label
+					style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+				>
 					<input type="checkbox" bind:checked={enabled} />
 					<span>Enabled</span>
 				</label>
@@ -451,10 +470,14 @@
 		<div
 			style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 24px; margin-bottom: 24px;"
 		>
-			<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">Behavior Settings</h2>
+			<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">
+				Behavior Settings
+			</h2>
 
 			<div style="display: flex; flex-direction: column; gap: 12px;">
-				<label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+				<label
+					style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+				>
 					<input type="checkbox" bind:checked={autoLinkEmail} style="margin-top: 2px;" />
 					<div>
 						<strong style="color: #1f2937;">Auto Link Email</strong>
@@ -464,7 +487,9 @@
 					</div>
 				</label>
 
-				<label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+				<label
+					style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+				>
 					<input type="checkbox" bind:checked={jitProvisioning} style="margin-top: 2px;" />
 					<div>
 						<strong style="color: #1f2937;">JIT Provisioning</strong>
@@ -474,7 +499,9 @@
 					</div>
 				</label>
 
-				<label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+				<label
+					style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+				>
 					<input type="checkbox" bind:checked={requireEmailVerified} style="margin-top: 2px;" />
 					<div>
 						<strong style="color: #1f2937;">Require Email Verified</strong>
@@ -484,7 +511,9 @@
 					</div>
 				</label>
 
-				<label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+				<label
+					style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+				>
 					<input type="checkbox" bind:checked={alwaysFetchUserinfo} style="margin-top: 2px;" />
 					<div>
 						<strong style="color: #1f2937;">Always Fetch Userinfo</strong>
@@ -500,7 +529,9 @@
 		<div
 			style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 24px; margin-bottom: 24px;"
 		>
-			<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">UI Customization</h2>
+			<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">
+				UI Customization
+			</h2>
 
 			<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
 				<div>

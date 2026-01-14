@@ -166,7 +166,12 @@
 	{#if loading}
 		<div style="text-align: center; padding: 48px; color: #6b7280;">Loading...</div>
 	{:else if provider}
-		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				handleSubmit();
+			}}
+		>
 			{#if saveError}
 				<div
 					style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
@@ -187,7 +192,9 @@
 			<div
 				style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 24px; margin-bottom: 24px;"
 			>
-				<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">Basic Information</h2>
+				<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">
+					Basic Information
+				</h2>
 
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
 					<div>
@@ -260,7 +267,9 @@
 				</div>
 
 				<div style="margin-top: 16px;">
-					<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+					<label
+						style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+					>
 						<input type="checkbox" bind:checked={enabled} />
 						<span>Enabled</span>
 					</label>
@@ -420,10 +429,14 @@
 			<div
 				style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 24px; margin-bottom: 24px;"
 			>
-				<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">Behavior Settings</h2>
+				<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">
+					Behavior Settings
+				</h2>
 
 				<div style="display: flex; flex-direction: column; gap: 12px;">
-					<label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+					<label
+						style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+					>
 						<input type="checkbox" bind:checked={autoLinkEmail} style="margin-top: 2px;" />
 						<div>
 							<strong style="color: #1f2937;">Auto Link Email</strong>
@@ -433,7 +446,9 @@
 						</div>
 					</label>
 
-					<label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+					<label
+						style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+					>
 						<input type="checkbox" bind:checked={jitProvisioning} style="margin-top: 2px;" />
 						<div>
 							<strong style="color: #1f2937;">JIT Provisioning</strong>
@@ -443,7 +458,9 @@
 						</div>
 					</label>
 
-					<label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+					<label
+						style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+					>
 						<input type="checkbox" bind:checked={requireEmailVerified} style="margin-top: 2px;" />
 						<div>
 							<strong style="color: #1f2937;">Require Email Verified</strong>
@@ -453,7 +470,9 @@
 						</div>
 					</label>
 
-					<label style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;">
+					<label
+						style="display: flex; align-items: flex-start; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
+					>
 						<input type="checkbox" bind:checked={alwaysFetchUserinfo} style="margin-top: 2px;" />
 						<div>
 							<strong style="color: #1f2937;">Always Fetch Userinfo</strong>
@@ -469,7 +488,9 @@
 			<div
 				style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 24px; margin-bottom: 24px;"
 			>
-				<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">UI Customization</h2>
+				<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">
+					UI Customization
+				</h2>
 
 				<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
 					<div>

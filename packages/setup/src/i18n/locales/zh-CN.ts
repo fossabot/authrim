@@ -585,6 +585,21 @@ const zhCN: Translations = {
   'migrate.backup': '创建备份...',
   'migrate.backupCreated': '备份已创建于 {{path}}',
 
+  // Security configuration
+  'security.title': '安全设置',
+  'security.description': '配置数据保护设置。初始数据存储后这些设置将无法更改。',
+  'security.piiEncryption': 'PII 加密',
+  'security.piiEncryptionEnabled': '应用层加密（推荐）',
+  'security.piiEncryptionEnabledDesc': '在应用层加密 PII 数据（D1 推荐使用）',
+  'security.piiEncryptionDisabled': '仅数据库层加密',
+  'security.piiEncryptionDisabledDesc': '依赖托管数据库加密（适用于 Aurora 等）',
+  'security.domainHash': '邮箱域名哈希',
+  'security.domainHashEnabled': '启用域名哈希（推荐）',
+  'security.domainHashEnabledDesc': '对邮箱域名进行哈希处理以保护分析中的隐私',
+  'security.domainHashDisabled': '以明文存储域名',
+  'security.domainHashDisabledDesc': '不进行哈希处理直接存储邮箱域名',
+  'security.warning': '⚠️ 这些设置在数据存储后将无法更改',
+
   // Manage command
   'manage.commandTitle': 'Authrim 环境管理器',
 

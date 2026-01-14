@@ -10,10 +10,7 @@ vi.mock('../../utils/session-helper', () => ({
   getSessionStoreBySessionId: vi.fn(),
 }));
 
-import {
-  isRegionShardedSessionId,
-  getSessionStoreBySessionId,
-} from '../../utils/session-helper';
+import { isRegionShardedSessionId, getSessionStoreBySessionId } from '../../utils/session-helper';
 
 /**
  * Admin Authentication Middleware Tests
@@ -188,9 +185,7 @@ describe('adminAuthMiddleware', () => {
       };
 
       vi.mocked(getSessionStoreBySessionId).mockReturnValue({
-        stub: mockSessionStore as unknown as ReturnType<
-          typeof getSessionStoreBySessionId
-        >['stub'],
+        stub: mockSessionStore as unknown as ReturnType<typeof getSessionStoreBySessionId>['stub'],
         resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
         instanceName: 'default:apac:s:0',
       });
@@ -255,9 +250,7 @@ describe('adminAuthMiddleware', () => {
       };
 
       vi.mocked(getSessionStoreBySessionId).mockReturnValue({
-        stub: mockSessionStore as unknown as ReturnType<
-          typeof getSessionStoreBySessionId
-        >['stub'],
+        stub: mockSessionStore as unknown as ReturnType<typeof getSessionStoreBySessionId>['stub'],
         resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
         instanceName: 'default:apac:s:0',
       });
@@ -287,9 +280,7 @@ describe('adminAuthMiddleware', () => {
       };
 
       vi.mocked(getSessionStoreBySessionId).mockReturnValue({
-        stub: mockSessionStore as unknown as ReturnType<
-          typeof getSessionStoreBySessionId
-        >['stub'],
+        stub: mockSessionStore as unknown as ReturnType<typeof getSessionStoreBySessionId>['stub'],
         resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
         instanceName: 'default:apac:s:0',
       });
@@ -334,9 +325,7 @@ describe('adminAuthMiddleware', () => {
       };
 
       vi.mocked(getSessionStoreBySessionId).mockReturnValue({
-        stub: mockSessionStore as unknown as ReturnType<
-          typeof getSessionStoreBySessionId
-        >['stub'],
+        stub: mockSessionStore as unknown as ReturnType<typeof getSessionStoreBySessionId>['stub'],
         resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
         instanceName: 'default:apac:s:0',
       });
@@ -366,9 +355,7 @@ describe('adminAuthMiddleware', () => {
       };
 
       vi.mocked(getSessionStoreBySessionId).mockReturnValue({
-        stub: mockSessionStore as unknown as ReturnType<
-          typeof getSessionStoreBySessionId
-        >['stub'],
+        stub: mockSessionStore as unknown as ReturnType<typeof getSessionStoreBySessionId>['stub'],
         resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
         instanceName: 'default:apac:s:0',
       });
@@ -411,9 +398,7 @@ describe('adminAuthMiddleware', () => {
       };
 
       vi.mocked(getSessionStoreBySessionId).mockReturnValue({
-        stub: mockSessionStore as unknown as ReturnType<
-          typeof getSessionStoreBySessionId
-        >['stub'],
+        stub: mockSessionStore as unknown as ReturnType<typeof getSessionStoreBySessionId>['stub'],
         resolution: { generation: 3, regionKey: 'apac', shardIndex: 14 },
         instanceName: 'default:apac:s:14',
       });
@@ -505,9 +490,7 @@ describe('adminAuthMiddleware', () => {
       };
 
       vi.mocked(getSessionStoreBySessionId).mockReturnValue({
-        stub: mockSessionStore as unknown as ReturnType<
-          typeof getSessionStoreBySessionId
-        >['stub'],
+        stub: mockSessionStore as unknown as ReturnType<typeof getSessionStoreBySessionId>['stub'],
         resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
         instanceName: 'default:apac:s:0',
       });
@@ -639,9 +622,7 @@ describe('adminAuthMiddleware', () => {
       };
 
       vi.mocked(getSessionStoreBySessionId).mockReturnValue({
-        stub: mockSessionStore as unknown as ReturnType<
-          typeof getSessionStoreBySessionId
-        >['stub'],
+        stub: mockSessionStore as unknown as ReturnType<typeof getSessionStoreBySessionId>['stub'],
         resolution: { generation: 1, regionKey: 'apac', shardIndex: 0 },
         instanceName: 'default:apac:s:0',
       });

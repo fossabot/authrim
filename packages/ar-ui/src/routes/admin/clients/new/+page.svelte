@@ -1,9 +1,5 @@
 <script lang="ts">
-	import {
-		adminClientsAPI,
-		type Client,
-		type CreateClientInput
-	} from '$lib/api/admin-clients';
+	import { adminClientsAPI, type Client, type CreateClientInput } from '$lib/api/admin-clients';
 
 	// Preset configuration
 	interface PresetConfig {
@@ -143,7 +139,7 @@
 
 	function toggleGrantType(grantType: string) {
 		if (grantTypes.includes(grantType)) {
-			grantTypes = grantTypes.filter(gt => gt !== grantType);
+			grantTypes = grantTypes.filter((gt) => gt !== grantType);
 		} else {
 			grantTypes = [...grantTypes, grantType];
 		}
@@ -160,7 +156,7 @@
 			return;
 		}
 
-		const validRedirectUris = redirectUris.filter(uri => uri.trim());
+		const validRedirectUris = redirectUris.filter((uri) => uri.trim());
 		if (selectedPreset?.requiresRedirectUri && validRedirectUris.length === 0) {
 			error = 'At least one redirect URI is required';
 			return;
@@ -201,10 +197,7 @@
 
 <div style="max-width: 800px;">
 	<div style="margin-bottom: 24px;">
-		<a
-			href="/admin/clients"
-			style="color: #6b7280; text-decoration: none; font-size: 14px;"
-		>
+		<a href="/admin/clients" style="color: #6b7280; text-decoration: none; font-size: 14px;">
 			← Back to Clients
 		</a>
 	</div>
@@ -215,7 +208,9 @@
 
 	{#if step === 1}
 		<!-- Step 1: Preset Selection -->
-		<div style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+		<div
+			style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
+		>
 			<h2 style="font-size: 18px; font-weight: 600; color: #1f2937; margin: 0 0 8px 0;">
 				Step 1: Select Application Type
 			</h2>
@@ -223,7 +218,9 @@
 				Choose the type that best matches your application. This will configure optimal defaults.
 			</p>
 
-			<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
+			<div
+				style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;"
+			>
 				{#each PRESET_CONFIGS as preset (preset.id)}
 					<button
 						onclick={() => selectPreset(preset)}
@@ -236,8 +233,8 @@
 							text-align: left;
 							transition: border-color 0.2s;
 						"
-						onmouseenter={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
-						onmouseleave={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+						onmouseenter={(e) => (e.currentTarget.style.borderColor = '#3b82f6')}
+						onmouseleave={(e) => (e.currentTarget.style.borderColor = '#e5e7eb')}
 					>
 						<div style="font-size: 32px; margin-bottom: 12px;">{preset.icon}</div>
 						<div style="font-size: 16px; font-weight: 600; color: #1f2937; margin-bottom: 4px;">
@@ -247,7 +244,8 @@
 							{preset.description}
 						</div>
 						<div style="margin-top: 8px;">
-							<span style="
+							<span
+								style="
 								display: inline-block;
 								padding: 2px 8px;
 								border-radius: 12px;
@@ -255,7 +253,8 @@
 								font-weight: 500;
 								background-color: {preset.clientType === 'confidential' ? '#dbeafe' : '#e0e7ff'};
 								color: {preset.clientType === 'confidential' ? '#1e40af' : '#3730a3'};
-							">
+							"
+							>
 								{preset.clientType}
 							</span>
 						</div>
@@ -263,11 +262,14 @@
 				{/each}
 			</div>
 		</div>
-
 	{:else if step === 2}
 		<!-- Step 2: Configuration -->
-		<div style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-			<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+		<div
+			style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
+		>
+			<div
+				style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
+			>
 				<div>
 					<h2 style="font-size: 18px; font-weight: 600; color: #1f2937; margin: 0 0 4px 0;">
 						Step 2: Configure {selectedPreset?.name} Client
@@ -277,7 +279,10 @@
 					</p>
 				</div>
 				<button
-					onclick={() => { step = 1; selectedPreset = null; }}
+					onclick={() => {
+						step = 1;
+						selectedPreset = null;
+					}}
 					style="
 						padding: 8px 16px;
 						border: 1px solid #d1d5db;
@@ -293,15 +298,25 @@
 			</div>
 
 			{#if error}
-				<div style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+				<div
+					style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;"
+				>
 					{error}
 				</div>
 			{/if}
 
-			<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+			<form
+				onsubmit={(e) => {
+					e.preventDefault();
+					handleSubmit();
+				}}
+			>
 				<!-- Client Name -->
 				<div style="margin-bottom: 20px;">
-					<label for="clientName" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">
+					<label
+						for="clientName"
+						style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;"
+					>
 						Client Name <span style="color: #ef4444;">*</span>
 					</label>
 					<input
@@ -324,7 +339,9 @@
 				<!-- Redirect URIs -->
 				{#if selectedPreset?.requiresRedirectUri}
 					<div style="margin-bottom: 20px;">
-						<label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">
+						<label
+							style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;"
+						>
 							Redirect URIs <span style="color: #ef4444;">*</span>
 						</label>
 						<p style="color: #6b7280; font-size: 12px; margin: 0 0 8px 0;">
@@ -381,7 +398,9 @@
 						</button>
 					</div>
 				{:else}
-					<div style="margin-bottom: 20px; padding: 12px; background-color: #f3f4f6; border-radius: 6px;">
+					<div
+						style="margin-bottom: 20px; padding: 12px; background-color: #f3f4f6; border-radius: 6px;"
+					>
 						<p style="color: #6b7280; font-size: 14px; margin: 0;">
 							ℹ️ {selectedPreset?.name} clients don't require redirect URIs
 						</p>
@@ -389,7 +408,9 @@
 				{/if}
 
 				<!-- Preset-applied settings (read-only display) -->
-				<div style="margin-bottom: 20px; padding: 16px; background-color: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb;">
+				<div
+					style="margin-bottom: 20px; padding: 16px; background-color: #f9fafb; border-radius: 6px; border: 1px solid #e5e7eb;"
+				>
 					<h3 style="font-size: 14px; font-weight: 600; color: #374151; margin: 0 0 12px 0;">
 						Applied Settings
 					</h3>
@@ -397,7 +418,9 @@
 						<div>
 							<span style="color: #6b7280;">Grant Types:</span>
 							<span style="color: #1f2937; margin-left: 4px;">
-								{grantTypes.map(gt => gt.replace('urn:ietf:params:oauth:grant-type:', '')).join(', ')}
+								{grantTypes
+									.map((gt) => gt.replace('urn:ietf:params:oauth:grant-type:', ''))
+									.join(', ')}
 							</span>
 						</div>
 						<div>
@@ -406,7 +429,9 @@
 						</div>
 						<div>
 							<span style="color: #6b7280;">PKCE:</span>
-							<span style="color: #1f2937; margin-left: 4px;">{requirePkce ? 'Required' : 'Optional'}</span>
+							<span style="color: #1f2937; margin-left: 4px;"
+								>{requirePkce ? 'Required' : 'Optional'}</span
+							>
 						</div>
 						<div>
 							<span style="color: #6b7280;">Auth Method:</span>
@@ -419,7 +444,7 @@
 				<div style="margin-bottom: 20px;">
 					<button
 						type="button"
-						onclick={() => showAdvanced = !showAdvanced}
+						onclick={() => (showAdvanced = !showAdvanced)}
 						style="
 							display: flex;
 							align-items: center;
@@ -432,24 +457,25 @@
 							font-size: 14px;
 						"
 					>
-						<span style="transform: rotate({showAdvanced ? 90 : 0}deg); transition: transform 0.2s;">▶</span>
+						<span style="transform: rotate({showAdvanced ? 90 : 0}deg); transition: transform 0.2s;"
+							>▶</span
+						>
 						Advanced Settings
 					</button>
 
 					{#if showAdvanced}
-						<div style="margin-top: 16px; padding: 16px; border: 1px solid #e5e7eb; border-radius: 6px;">
+						<div
+							style="margin-top: 16px; padding: 16px; border: 1px solid #e5e7eb; border-radius: 6px;"
+						>
 							<!-- Grant Types -->
 							<div style="margin-bottom: 16px;">
-								<label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
+								<label
+									style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;"
+								>
 									Grant Types
 								</label>
 								<div style="display: flex; flex-wrap: wrap; gap: 12px;">
-									{#each [
-										{ id: 'authorization_code', label: 'Authorization Code' },
-										{ id: 'refresh_token', label: 'Refresh Token' },
-										{ id: 'client_credentials', label: 'Client Credentials' },
-										{ id: 'urn:ietf:params:oauth:grant-type:device_code', label: 'Device Code' }
-									] as grant (grant.id)}
+									{#each [{ id: 'authorization_code', label: 'Authorization Code' }, { id: 'refresh_token', label: 'Refresh Token' }, { id: 'client_credentials', label: 'Client Credentials' }, { id: 'urn:ietf:params:oauth:grant-type:device_code', label: 'Device Code' }] as grant (grant.id)}
 										<label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
 											<input
 												type="checkbox"
@@ -465,27 +491,29 @@
 							<!-- Response Types (with warning for implicit) -->
 							{#if selectedPreset?.id === 'custom'}
 								<div style="margin-bottom: 16px;">
-									<label style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
+									<label
+										style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;"
+									>
 										Response Types
 									</label>
-									<div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+									<div
+										style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 12px;"
+									>
 										<p style="color: #92400e; font-size: 13px; margin: 0;">
-											⚠️ <code>token</code> and <code>id_token</code> response types use implicit flow. For security reasons, we recommend using <code>code</code> only unless you have specific requirements.
+											⚠️ <code>token</code> and <code>id_token</code> response types use implicit
+											flow. For security reasons, we recommend using <code>code</code> only unless you
+											have specific requirements.
 										</p>
 									</div>
 									<div style="display: flex; flex-wrap: wrap; gap: 12px;">
-										{#each [
-											{ id: 'code', label: 'code (recommended)' },
-											{ id: 'token', label: 'token (implicit)' },
-											{ id: 'id_token', label: 'id_token (implicit)' }
-										] as response (response.id)}
+										{#each [{ id: 'code', label: 'code (recommended)' }, { id: 'token', label: 'token (implicit)' }, { id: 'id_token', label: 'id_token (implicit)' }] as response (response.id)}
 											<label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
 												<input
 													type="checkbox"
 													checked={responseTypes.includes(response.id)}
 													onchange={() => {
 														if (responseTypes.includes(response.id)) {
-															responseTypes = responseTypes.filter(r => r !== response.id);
+															responseTypes = responseTypes.filter((r) => r !== response.id);
 														} else {
 															responseTypes = [...responseTypes, response.id];
 														}
@@ -502,10 +530,7 @@
 							{#if grantTypes.includes('authorization_code')}
 								<div style="margin-bottom: 16px;">
 									<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-										<input
-											type="checkbox"
-											bind:checked={requirePkce}
-										/>
+										<input type="checkbox" bind:checked={requirePkce} />
 										<span style="font-size: 14px; color: #374151;">Require PKCE</span>
 									</label>
 									<p style="color: #6b7280; font-size: 12px; margin: 4px 0 0 24px;">
@@ -516,7 +541,10 @@
 
 							<!-- Scope -->
 							<div>
-								<label for="scope" style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;">
+								<label
+									for="scope"
+									style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;"
+								>
 									Default Scope
 								</label>
 								<input
@@ -539,7 +567,9 @@
 				</div>
 
 				<!-- Submit -->
-				<div style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+				<div
+					style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 16px; border-top: 1px solid #e5e7eb;"
+				>
 					<a
 						href="/admin/clients"
 						style="
@@ -573,10 +603,11 @@
 				</div>
 			</form>
 		</div>
-
 	{:else if step === 3 && createdClient}
 		<!-- Step 3: Success -->
-		<div style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+		<div
+			style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
+		>
 			<div style="text-align: center; margin-bottom: 24px;">
 				<div style="font-size: 48px; margin-bottom: 16px;">✅</div>
 				<h2 style="font-size: 20px; font-weight: 600; color: #1f2937; margin: 0 0 8px 0;">
@@ -589,7 +620,9 @@
 
 			<!-- Client ID -->
 			<div style="margin-bottom: 16px;">
-				<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+				<label
+					style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+				>
 					Client ID
 				</label>
 				<div style="display: flex; gap: 8px;">
@@ -627,10 +660,14 @@
 			<!-- Client Secret -->
 			{#if createdClient.client_secret}
 				<div style="margin-bottom: 24px;">
-					<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+					<label
+						style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+					>
 						Client Secret
 					</label>
-					<div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+					<div
+						style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 8px;"
+					>
 						<p style="color: #92400e; font-size: 13px; margin: 0;">
 							⚠️ <strong>Save this secret now!</strong> It will not be shown again.
 						</p>

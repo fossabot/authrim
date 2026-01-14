@@ -25,10 +25,20 @@ export interface EncryptionSettings {
   // PII Encryption
   'encryption.pii_encryption_enabled': boolean;
   'encryption.pii_key_derivation': string;
+  'encryption.pii_algorithm': string;
+  'encryption.pii_fields': string;
+  'encryption.pii_key_version': string;
+
+  // RP Token Encryption
+  'encryption.rp_token_encryption_enabled': boolean;
 
   // Domain Hash
   'encryption.domain_hash_enabled': boolean;
   'encryption.domain_hash_salt_rotation': number;
+
+  // Password Hashing (read-only, informational)
+  'encryption.password_iterations': number;
+  'encryption.password_version': string;
 }
 
 /**
@@ -134,6 +144,69 @@ export const ENCRYPTION_SETTINGS_META: Record<keyof EncryptionSettings, SettingM
     unit: 'seconds',
     visibility: 'internal',
   },
+
+  // PII Encryption Extended
+  'encryption.pii_algorithm': {
+    key: 'encryption.pii_algorithm',
+    type: 'enum',
+    default: 'AES-256-GCM',
+    envKey: 'PII_ENCRYPTION_ALGORITHM',
+    label: 'PII Encryption Algorithm',
+    description: 'Algorithm for PII field encryption',
+    enum: ['AES-256-GCM', 'AES-256-CBC'],
+    visibility: 'admin',
+  },
+  'encryption.pii_fields': {
+    key: 'encryption.pii_fields',
+    type: 'string',
+    default: 'email,phone_number,name,given_name,family_name',
+    envKey: 'PII_ENCRYPTION_FIELDS',
+    label: 'PII Encrypted Fields',
+    description: 'Comma-separated list of fields to encrypt (email, phone_number, name, etc.)',
+    visibility: 'admin',
+  },
+  'encryption.pii_key_version': {
+    key: 'encryption.pii_key_version',
+    type: 'string',
+    default: '1',
+    envKey: 'PII_ENCRYPTION_KEY_VERSION',
+    label: 'PII Key Version',
+    description: 'Current encryption key version for key rotation tracking',
+    visibility: 'admin',
+  },
+
+  // RP Token Encryption
+  'encryption.rp_token_encryption_enabled': {
+    key: 'encryption.rp_token_encryption_enabled',
+    type: 'boolean',
+    default: true,
+    envKey: 'RP_TOKEN_ENCRYPTION_ENABLED',
+    label: 'RP Token Encryption Enabled',
+    description: 'Enable encryption of external IdP tokens at rest',
+    visibility: 'admin',
+  },
+
+  // Password Hashing (informational, internal)
+  'encryption.password_iterations': {
+    key: 'encryption.password_iterations',
+    type: 'number',
+    default: 600000,
+    envKey: 'PASSWORD_ITERATIONS',
+    label: 'Password Hash Iterations',
+    description: 'PBKDF2 iteration count (OWASP 2023 recommended)',
+    min: 100000,
+    max: 1000000,
+    visibility: 'internal',
+  },
+  'encryption.password_version': {
+    key: 'encryption.password_version',
+    type: 'string',
+    default: 'pbkdf2v1',
+    envKey: 'PASSWORD_VERSION',
+    label: 'Password Hash Version',
+    description: 'Password hashing algorithm version identifier',
+    visibility: 'internal',
+  },
 };
 
 /**
@@ -158,6 +231,12 @@ export const ENCRYPTION_DEFAULTS: EncryptionSettings = {
   'encryption.default_encryption_enc': 'A256GCM',
   'encryption.pii_encryption_enabled': true,
   'encryption.pii_key_derivation': 'HKDF-SHA256',
+  'encryption.pii_algorithm': 'AES-256-GCM',
+  'encryption.pii_fields': 'email,phone_number,name,given_name,family_name',
+  'encryption.pii_key_version': '1',
+  'encryption.rp_token_encryption_enabled': true,
   'encryption.domain_hash_enabled': true,
   'encryption.domain_hash_salt_rotation': 2592000,
+  'encryption.password_iterations': 600000,
+  'encryption.password_version': 'pbkdf2v1',
 };

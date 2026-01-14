@@ -18,10 +18,7 @@ import type { AdminAuthContext } from '../types/admin';
 import { D1Adapter } from '../db/adapters/d1-adapter';
 import type { DatabaseAdapter } from '../db/adapter';
 import { createLogger } from '../utils/logger';
-import {
-  getSessionStoreBySessionId,
-  isRegionShardedSessionId,
-} from '../utils/session-helper';
+import { getSessionStoreBySessionId, isRegionShardedSessionId } from '../utils/session-helper';
 import type { Session } from '../durable-objects/SessionStore';
 
 const log = createLogger().module('ADMIN-AUTH');
@@ -241,7 +238,8 @@ export function adminAuthMiddleware(options: AdminAuthOptions = {}) {
           return c.json(
             {
               error: 'invalid_token',
-              error_description: 'Admin authentication required. Use Bearer token or valid session.',
+              error_description:
+                'Admin authentication required. Use Bearer token or valid session.',
             },
             401
           );

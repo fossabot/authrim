@@ -2,11 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { SvelteSet } from 'svelte/reactivity';
-	import {
-		adminClientsAPI,
-		type Client,
-		type ClientListParams
-	} from '$lib/api/admin-clients';
+	import { adminClientsAPI, type Client, type ClientListParams } from '$lib/api/admin-clients';
 
 	interface Pagination {
 		page: number;
@@ -77,7 +73,7 @@
 		const savedPageSize = localStorage.getItem(PAGE_SIZE_KEY);
 		if (savedPageSize) {
 			const parsed = parseInt(savedPageSize, 10);
-			if (PAGE_SIZE_OPTIONS.includes(parsed as typeof PAGE_SIZE_OPTIONS[number])) {
+			if (PAGE_SIZE_OPTIONS.includes(parsed as (typeof PAGE_SIZE_OPTIONS)[number])) {
 				limit = parsed;
 			}
 		}
@@ -113,12 +109,12 @@
 
 	function formatGrantTypes(grantTypes: string[]): string {
 		const shortNames: Record<string, string> = {
-			'authorization_code': 'Auth Code',
-			'refresh_token': 'Refresh',
-			'client_credentials': 'Client Creds',
+			authorization_code: 'Auth Code',
+			refresh_token: 'Refresh',
+			client_credentials: 'Client Creds',
 			'urn:ietf:params:oauth:grant-type:device_code': 'Device'
 		};
-		return grantTypes.map(gt => shortNames[gt] || gt).join(', ');
+		return grantTypes.map((gt) => shortNames[gt] || gt).join(', ');
 	}
 
 	function getClientTypeBadgeStyle(grantTypes: string[]): string {
@@ -137,7 +133,7 @@
 			selectedIds.clear();
 		} else {
 			selectedIds.clear();
-			clients.forEach(c => selectedIds.add(c.client_id));
+			clients.forEach((c) => selectedIds.add(c.client_id));
 		}
 	}
 
@@ -197,7 +193,7 @@
 	}
 
 	function getSelectedClients(): Client[] {
-		return clients.filter(c => selectedIds.has(c.client_id));
+		return clients.filter((c) => selectedIds.has(c.client_id));
 	}
 </script>
 
@@ -368,9 +364,14 @@
 				<tbody>
 					{#each clients as client (client.client_id)}
 						<tr
-							style="border-bottom: 1px solid #e5e7eb; cursor: pointer; {selectedIds.has(client.client_id) ? 'background-color: #eff6ff;' : ''}"
+							style="border-bottom: 1px solid #e5e7eb; cursor: pointer; {selectedIds.has(
+								client.client_id
+							)
+								? 'background-color: #eff6ff;'
+								: ''}"
 							onclick={() => goto(`/admin/clients/${encodeURIComponent(client.client_id)}`)}
-							onkeydown={(e) => e.key === 'Enter' && goto(`/admin/clients/${encodeURIComponent(client.client_id)}`)}
+							onkeydown={(e) =>
+								e.key === 'Enter' && goto(`/admin/clients/${encodeURIComponent(client.client_id)}`)}
 							tabindex="0"
 							role="button"
 						>
@@ -383,8 +384,12 @@
 									aria-label="Select {client.client_name || client.client_id}"
 								/>
 							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #1f2937; font-family: monospace;">
-								{client.client_id.length > 20 ? client.client_id.substring(0, 20) + '...' : client.client_id}
+							<td
+								style="padding: 12px 16px; font-size: 14px; color: #1f2937; font-family: monospace;"
+							>
+								{client.client_id.length > 20
+									? client.client_id.substring(0, 20) + '...'
+									: client.client_id}
 							</td>
 							<td style="padding: 12px 16px; font-size: 14px; color: #1f2937;">
 								{client.client_name || '-'}
@@ -499,7 +504,10 @@
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<h2 id="bulk-delete-dialog-title" style="margin: 0 0 16px 0; font-size: 20px; color: #1f2937;">
+			<h2
+				id="bulk-delete-dialog-title"
+				style="margin: 0 0 16px 0; font-size: 20px; color: #1f2937;"
+			>
 				Delete {selectedIds.size} Client(s)
 			</h2>
 
@@ -507,7 +515,9 @@
 				<!-- Progress View -->
 				<div>
 					<p style="color: #6b7280; margin-bottom: 16px;">Deleting clients...</p>
-					<div style="background-color: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 8px;">
+					<div
+						style="background-color: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 8px;"
+					>
 						<div
 							style="
 								background-color: {bulkDeleteProgress.failed > 0 ? '#f59e0b' : '#3b82f6'};
@@ -528,14 +538,22 @@
 				<!-- Confirmation View -->
 				<p style="color: #6b7280; margin-bottom: 16px;">
 					Are you sure you want to delete the following OAuth clients? This action cannot be undone.
-					<strong style="color: #dc2626;">All tokens issued by these clients will become invalid.</strong>
+					<strong style="color: #dc2626;"
+						>All tokens issued by these clients will become invalid.</strong
+					>
 				</p>
 
-				<div style="background-color: #f9fafb; border-radius: 6px; padding: 12px; margin-bottom: 16px; max-height: 200px; overflow-y: auto;">
+				<div
+					style="background-color: #f9fafb; border-radius: 6px; padding: 12px; margin-bottom: 16px; max-height: 200px; overflow-y: auto;"
+				>
 					<ul style="margin: 0; padding-left: 20px; color: #374151;">
 						{#each getSelectedClients() as client (client.client_id)}
 							<li style="margin-bottom: 4px;">
-								<strong style="font-family: monospace;">{client.client_id.length > 30 ? client.client_id.substring(0, 30) + '...' : client.client_id}</strong>
+								<strong style="font-family: monospace;"
+									>{client.client_id.length > 30
+										? client.client_id.substring(0, 30) + '...'
+										: client.client_id}</strong
+								>
 								{#if client.client_name}
 									<span style="color: #6b7280;">({client.client_name})</span>
 								{/if}
@@ -545,7 +563,9 @@
 				</div>
 
 				{#if bulkDeleteError}
-					<div style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+					<div
+						style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;"
+					>
 						{bulkDeleteError}
 					</div>
 				{/if}

@@ -21,7 +21,9 @@
 		// Phase 5: IdP・SCIM・IAT
 		{ path: '/admin/external-idp', label: 'External IdP', exact: false },
 		{ path: '/admin/scim-tokens', label: 'SCIM Tokens', exact: false },
-		{ path: '/admin/iat-tokens', label: 'IAT Tokens', exact: false }
+		{ path: '/admin/iat-tokens', label: 'IAT Tokens', exact: false },
+		// Phase 6: Settings
+		{ path: '/admin/settings', label: 'Settings', exact: false }
 	];
 
 	// Check if nav item is active

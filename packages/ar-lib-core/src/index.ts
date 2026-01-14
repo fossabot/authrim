@@ -120,6 +120,7 @@ export * from './utils/system-init';
 export * from './utils/contract-loader';
 export * from './utils/health-check';
 export * from './utils/dns-verification';
+export * from './utils/security';
 
 // Settings History (Configuration Rollback)
 export * from './services/settings-history';

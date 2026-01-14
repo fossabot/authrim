@@ -184,19 +184,29 @@
 			<table style="width: 100%; border-collapse: collapse;">
 				<thead>
 					<tr style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Token Hash
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Description
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Expires In (Days)
 						</th>
-						<th style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Status
 						</th>
-						<th style="text-align: right; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;">
+						<th
+							style="text-align: right; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+						>
 							Actions
 						</th>
 					</tr>
@@ -204,7 +214,9 @@
 				<tbody>
 					{#each tokens as token (token.tokenHash)}
 						<tr style="border-bottom: 1px solid #e5e7eb;">
-							<td style="padding: 12px 16px; font-size: 14px; font-family: monospace; color: #374151;">
+							<td
+								style="padding: 12px 16px; font-size: 14px; font-family: monospace; color: #374151;"
+							>
 								{formatTokenHash(token.tokenHash)}
 							</td>
 							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
@@ -267,7 +279,9 @@
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;">Create SCIM Token</h2>
+			<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;">
+				Create SCIM Token
+			</h2>
 
 			{#if createError}
 				<div
@@ -370,13 +384,13 @@
 				style="padding: 12px 16px; background-color: #fef3c7; color: #92400e; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;"
 			>
 				<span style="font-size: 18px;">&#9888;</span>
-				<span style="font-size: 14px;"
-					>Save this token now - it will not be shown again!</span
-				>
+				<span style="font-size: 14px;">Save this token now - it will not be shown again!</span>
 			</div>
 
 			<div style="margin-bottom: 16px;">
-				<label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: #374151;">
+				<label
+					style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: #374151;"
+				>
 					SCIM Token
 				</label>
 				<div
@@ -451,7 +465,9 @@
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;">Revoke SCIM Token</h2>
+			<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;">
+				Revoke SCIM Token
+			</h2>
 
 			{#if revokeError}
 				<div

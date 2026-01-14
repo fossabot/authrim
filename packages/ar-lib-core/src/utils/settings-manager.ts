@@ -18,6 +18,7 @@
 
 import { createHash } from 'node:crypto';
 import { createLogger } from './logger';
+import { sanitizeObject } from './security';
 
 const log = createLogger().module('SETTINGS_MANAGER');
 
@@ -43,30 +44,6 @@ export type SettingSource = 'env' | 'kv' | 'default';
  * Use this instead of null to explicitly disable a setting
  */
 export const DISABLED_MARKER = '__DISABLED__';
-
-/**
- * Dangerous keys that could be used for prototype pollution attacks
- */
-const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
-
-/**
- * Sanitize object to prevent prototype pollution
- * Removes dangerous keys like __proto__, constructor, prototype
- */
-function sanitizeObject(obj: unknown): Record<string, unknown> {
-  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
-    return {};
-  }
-
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (!DANGEROUS_KEYS.includes(key)) {
-      result[key] = value;
-    }
-  }
-
-  return result;
-}
 
 /**
  * Setting metadata for validation and UI
@@ -398,12 +375,9 @@ export class SettingsManager {
       throw new Error('Platform settings are read-only');
     }
 
-    // Invalidate cache before loading to prevent TOCTOU race conditions
-    // This ensures we read the latest KV data for version checking
-    this.invalidateCache(category, scope);
-
-    // Load current KV data
-    const kvData = await this.loadKVData(category, scope);
+    // Load current KV data directly from KV (skip cache to prevent TOCTOU race conditions)
+    // This ensures we always read the latest KV data for version checking
+    const kvData = await this.loadKVData(category, scope, true);
     const currentVersion = generateVersion(kvData);
 
     // Check optimistic lock
@@ -598,20 +572,25 @@ export class SettingsManager {
 
   /**
    * Load KV data for a category and scope
+   * @param skipCache - If true, bypass cache and read directly from KV (used for patch operations)
    */
   private async loadKVData(
     category: string,
-    scope: SettingScope
+    scope: SettingScope,
+    skipCache = false
   ): Promise<Record<string, unknown>> {
     if (!this.kv) {
       return {};
     }
 
     const cacheKey = getKVKey(category, scope);
-    const cached = this.cache.get(cacheKey);
 
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.data;
+    // Check cache unless explicitly skipped (for TOCTOU safety in patch operations)
+    if (!skipCache) {
+      const cached = this.cache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.data;
+      }
     }
 
     try {

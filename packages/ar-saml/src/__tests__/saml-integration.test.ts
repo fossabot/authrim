@@ -39,6 +39,33 @@ vi.mock('../common/key-utils', () => ({
   getSigningCertificate: vi.fn().mockResolvedValue('mock-cert'),
 }));
 
+// Mock structured logger and event publisher
+vi.mock('@authrim/ar-lib-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@authrim/ar-lib-core')>();
+  const { vi } = await import('vitest');
+  return {
+    ...actual,
+    getLogger: () => ({
+      module: () => ({
+        info: vi.fn(),
+        debug: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      }),
+    }),
+    publishEvent: vi.fn().mockResolvedValue(undefined),
+    // Mock getSessionStoreForNewSession to avoid crypto dependency issues in tests
+    getSessionStoreForNewSession: vi.fn().mockResolvedValue({
+      stub: {
+        fetch: vi
+          .fn()
+          .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 })),
+      },
+      sessionId: 'mock-session-id-12345',
+    }),
+  };
+});
+
 // Helper to create base64-encoded SAML Response
 function createMockSAMLResponse(
   options: {
@@ -264,6 +291,34 @@ describe('SAML Integration', () => {
     });
   });
 
+  /**
+   * Helper to call ACS handler directly (for success path tests)
+   * This bypasses Hono to ensure mocks are properly applied
+   */
+  async function callACSDirectly(samlResponse: string, relayState?: string): Promise<Response> {
+    const formData = new FormData();
+    formData.append('SAMLResponse', samlResponse);
+    if (relayState) {
+      formData.append('RelayState', relayState);
+    }
+
+    // Create minimal Hono-like context with all required properties
+    const context = {
+      env: mockEnv,
+      req: {
+        formData: async () => formData,
+        header: vi.fn().mockReturnValue(undefined),
+      },
+      json: (data: unknown, status: number) => new Response(JSON.stringify(data), { status }),
+      get: vi.fn().mockReturnValue('default'),
+      executionCtx: {
+        waitUntil: vi.fn(),
+      },
+    };
+
+    return handleSPACS(context as unknown as Parameters<typeof handleSPACS>[0]);
+  }
+
   describe('POST /saml/sp/acs - Assertion Consumer Service', () => {
     it('should reject request without SAMLResponse', async () => {
       const formData = new FormData();
@@ -405,16 +460,11 @@ describe('SAML Integration', () => {
     });
 
     it('should redirect on successful SAML Response', async () => {
-      const formData = new FormData();
-      formData.append('SAMLResponse', createMockSAMLResponse());
-      formData.append('RelayState', 'https://app.example.com/dashboard');
-
-      const req = new Request('http://localhost/saml/sp/acs', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const res = await app.fetch(req);
+      // Use direct handler call to ensure mocks are properly applied
+      const res = await callACSDirectly(
+        createMockSAMLResponse(),
+        'https://app.example.com/dashboard'
+      );
 
       expect(res.status).toBe(302);
       expect(res.headers.get('Location')).toBe('https://app.example.com/dashboard');
@@ -422,17 +472,11 @@ describe('SAML Integration', () => {
     });
 
     it('should redirect to default URL when no RelayState', async () => {
-      const formData = new FormData();
-      formData.append('SAMLResponse', createMockSAMLResponse());
-
-      const req = new Request('http://localhost/saml/sp/acs', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const res = await app.fetch(req);
+      // Use direct handler call to ensure mocks are properly applied
+      const res = await callACSDirectly(createMockSAMLResponse());
 
       expect(res.status).toBe(302);
+      // Without RelayState, should redirect to UI_URL
       expect(res.headers.get('Location')).toBe('https://ui.example.com/');
     });
   });
@@ -614,16 +658,8 @@ describe('SAML Integration', () => {
     it('should preserve RelayState in ACS redirect', async () => {
       const relayState = 'https://app.example.com/original-page?param=value';
 
-      const formData = new FormData();
-      formData.append('SAMLResponse', createMockSAMLResponse());
-      formData.append('RelayState', relayState);
-
-      const req = new Request('http://localhost/saml/sp/acs', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const res = await app.fetch(req);
+      // Use direct handler call to ensure mocks are properly applied
+      const res = await callACSDirectly(createMockSAMLResponse(), relayState);
 
       expect(res.status).toBe(302);
       expect(res.headers.get('Location')).toBe(relayState);

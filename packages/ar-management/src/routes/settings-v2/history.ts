@@ -92,6 +92,9 @@ function isValidCategory(category: string): category is SettingsCategory {
 }
 
 function getHistoryManager(c: SettingsContext): SettingsHistoryManager {
+  if (!c.env.DB) {
+    throw new Error('Database not configured');
+  }
   const tenantId = DEFAULT_TENANT_ID;
   return createSettingsHistoryManager(c.env.DB, tenantId);
 }
@@ -108,7 +111,7 @@ async function getCurrentSnapshot(
   const kv = c.env.KV;
 
   if (!kv) {
-    return {};
+    throw new Error('KV namespace not available');
   }
 
   // List all keys for this category
@@ -181,8 +184,24 @@ export async function listSettingsHistory(c: SettingsContext) {
     );
   }
 
-  const limit = parseInt(c.req.query('limit') || '50', 10);
-  const offset = parseInt(c.req.query('offset') || '0', 10);
+  // Parse and validate pagination parameters
+  const rawLimit = parseInt(c.req.query('limit') || '50', 10);
+  const rawOffset = parseInt(c.req.query('offset') || '0', 10);
+
+  // Validate pagination values
+  if (isNaN(rawLimit) || isNaN(rawOffset)) {
+    return c.json(
+      {
+        error: 'invalid_request',
+        error_description: 'Invalid pagination parameters: limit and offset must be numbers',
+      },
+      400
+    );
+  }
+
+  // Clamp values to safe bounds (prevent DoS via extreme values)
+  const limit = Math.max(1, Math.min(rawLimit, 100)); // 1-100
+  const offset = Math.max(0, rawOffset); // >= 0
 
   try {
     const historyManager = getHistoryManager(c);

@@ -536,9 +536,7 @@
 					style="max-height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px;"
 				>
 					{#each getSelectedUsers() as user (user.id)}
-						<div
-							style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px;"
-						>
+						<div style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">
 							<span style="color: #1f2937;">{user.email || user.id}</span>
 							{#if user.name}
 								<span style="color: #6b7280; margin-left: 8px;">({user.name})</span>
@@ -608,7 +606,9 @@
 						opacity: {bulkDeleting ? 0.7 : 1};
 					"
 				>
-					{bulkDeleting ? 'Deleting...' : `Delete ${selectedIds.size} User${selectedIds.size === 1 ? '' : 's'}`}
+					{bulkDeleting
+						? 'Deleting...'
+						: `Delete ${selectedIds.size} User${selectedIds.size === 1 ? '' : 's'}`}
 				</button>
 			</div>
 		</div>

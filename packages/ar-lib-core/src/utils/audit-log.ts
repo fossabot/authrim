@@ -112,7 +112,11 @@ export async function createAuditLogFromContext(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adminAuth = (c as any).get('adminAuth') as { userId: string } | undefined;
   if (!adminAuth) {
-    log.error('Cannot create audit log: adminAuth context not found', { action, resource, resourceId });
+    log.error('Cannot create audit log: adminAuth context not found', {
+      action,
+      resource,
+      resourceId,
+    });
     return;
   }
 
@@ -191,10 +195,16 @@ export function scheduleAuditLogFromContext(
   metadata: Record<string, unknown>,
   severity: 'info' | 'warning' | 'critical' = 'info'
 ): void {
-  const promise = createAuditLogFromContext(c, action, resource, resourceId, metadata, severity)
-    .catch((err: unknown) => {
-      log.error('Failed to create audit log', { action }, err as Error);
-    });
+  const promise = createAuditLogFromContext(
+    c,
+    action,
+    resource,
+    resourceId,
+    metadata,
+    severity
+  ).catch((err: unknown) => {
+    log.error('Failed to create audit log', { action }, err as Error);
+  });
 
   scheduleAuditLog(c.executionCtx, promise);
 }

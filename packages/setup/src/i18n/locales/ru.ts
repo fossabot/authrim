@@ -593,6 +593,23 @@ const ru: Translations = {
   'migrate.backup': 'Создание резервной копии...',
   'migrate.backupCreated': 'Резервная копия создана: {{path}}',
 
+  // Security configuration
+  'security.title': 'Настройки безопасности',
+  'security.description':
+    'Настройка параметров защиты данных. Эти настройки нельзя изменить после сохранения начальных данных.',
+  'security.piiEncryption': 'Шифрование PII',
+  'security.piiEncryptionEnabled': 'Шифрование на уровне приложения (Рекомендуется)',
+  'security.piiEncryptionEnabledDesc':
+    'Шифровать данные PII на уровне приложения (рекомендуется для D1)',
+  'security.piiEncryptionDisabled': 'Только шифрование на уровне базы данных',
+  'security.piiEncryptionDisabledDesc': 'Использовать шифрование управляемой БД (для Aurora и др.)',
+  'security.domainHash': 'Хеширование доменов email',
+  'security.domainHashEnabled': 'Включить хеширование доменов (Рекомендуется)',
+  'security.domainHashEnabledDesc': 'Хешировать домены email для конфиденциальности в аналитике',
+  'security.domainHashDisabled': 'Хранить домены в открытом виде',
+  'security.domainHashDisabledDesc': 'Хранить домены email без хеширования',
+  'security.warning': '⚠️ Эти настройки нельзя изменить после сохранения данных',
+
   // Manage command
   'manage.commandTitle': 'Менеджер окружений Authrim',
 

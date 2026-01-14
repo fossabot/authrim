@@ -225,6 +225,29 @@ export const DatabaseConfigSchema = z.object({
 });
 
 // =============================================================================
+// Security Configuration
+// =============================================================================
+
+export const SecurityConfigSchema = z.object({
+  /**
+   * Enable application-level PII encryption
+   * - true: Encrypt PII data at application level (recommended for D1)
+   * - false: Rely on database-level encryption (for managed DBs like Aurora)
+   *
+   * WARNING: Cannot be changed after initial data is stored
+   */
+  piiEncryptionEnabled: z.boolean().default(true),
+  /**
+   * Enable email domain hashing for privacy
+   * - true: Hash email domains for analytics/rate-limiting
+   * - false: Store email domains in plain text
+   *
+   * WARNING: Cannot be changed after initial data is stored
+   */
+  domainHashEnabled: z.boolean().default(true),
+});
+
+// =============================================================================
 // Profile Types
 // =============================================================================
 
@@ -281,6 +304,9 @@ export const AuthrimConfigSchema = z.object({
 
   /** Database configuration (D1 location/jurisdiction) */
   database: DatabaseConfigSchema.default({}),
+
+  /** Security configuration (PII encryption, domain hashing) */
+  security: SecurityConfigSchema.default({}),
 });
 
 export type AuthrimConfig = z.infer<typeof AuthrimConfigSchema>;
@@ -300,6 +326,7 @@ export type D1Location = z.infer<typeof D1LocationSchema>;
 export type D1Jurisdiction = z.infer<typeof D1JurisdictionSchema>;
 export type DatabaseLocation = z.infer<typeof DatabaseLocationSchema>;
 export type DatabaseConfig = z.infer<typeof DatabaseConfigSchema>;
+export type SecurityConfig = z.infer<typeof SecurityConfigSchema>;
 
 // =============================================================================
 // Helper Functions

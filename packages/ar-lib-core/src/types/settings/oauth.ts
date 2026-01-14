@@ -24,6 +24,10 @@ export interface OAuthSettings {
   'oauth.refresh_token_rotation': boolean;
   'oauth.refresh_id_token_reissue': boolean;
   'oauth.offline_access_required': boolean;
+  'oauth.refresh_token_sliding_window_enabled': boolean;
+  'oauth.refresh_token_absolute_expiry_enabled': boolean;
+  'oauth.refresh_token_absolute_expiry': number;
+  'oauth.refresh_token_remaining_expiry_inherit': boolean;
 
   // Security Settings
   'oauth.state_required': boolean;
@@ -50,6 +54,7 @@ export interface OAuthSettings {
   // PAR Settings
   'oauth.par_required': boolean;
   'oauth.par_default_ttl': number;
+  'oauth.par_fapi_ttl': number;
 
   // JARM Settings
   'oauth.jarm_enabled': boolean;
@@ -170,6 +175,45 @@ export const OAUTH_SETTINGS_META: Record<keyof OAuthSettings, SettingMeta> = {
     envKey: 'OFFLINE_ACCESS_REQUIRED_FOR_REFRESH',
     label: 'Require offline_access for Refresh',
     description: 'Require offline_access scope to issue refresh tokens',
+    visibility: 'public',
+  },
+  'oauth.refresh_token_sliding_window_enabled': {
+    key: 'oauth.refresh_token_sliding_window_enabled',
+    type: 'boolean',
+    default: true,
+    envKey: 'REFRESH_TOKEN_SLIDING_WINDOW',
+    label: 'Sliding Window Refresh',
+    description: 'Enable sliding window for refresh token expiry',
+    visibility: 'public',
+  },
+  'oauth.refresh_token_absolute_expiry_enabled': {
+    key: 'oauth.refresh_token_absolute_expiry_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'REFRESH_TOKEN_ABSOLUTE_EXPIRY_ENABLED',
+    label: 'Absolute Expiry Enabled',
+    description: 'Enable absolute expiry limit for refresh tokens',
+    visibility: 'public',
+  },
+  'oauth.refresh_token_absolute_expiry': {
+    key: 'oauth.refresh_token_absolute_expiry',
+    type: 'duration',
+    default: 31536000,
+    envKey: 'REFRESH_TOKEN_ABSOLUTE_EXPIRY',
+    label: 'Absolute Expiry',
+    description: 'Absolute maximum refresh token lifetime in seconds (1 year)',
+    min: 86400,
+    max: 63072000,
+    unit: 'seconds',
+    visibility: 'public',
+  },
+  'oauth.refresh_token_remaining_expiry_inherit': {
+    key: 'oauth.refresh_token_remaining_expiry_inherit',
+    type: 'boolean',
+    default: false,
+    envKey: 'REFRESH_TOKEN_REMAINING_EXPIRY_INHERIT',
+    label: 'Inherit Remaining Expiry',
+    description: 'New refresh token inherits remaining expiry from old token',
     visibility: 'public',
   },
 
@@ -316,6 +360,18 @@ export const OAUTH_SETTINGS_META: Record<keyof OAuthSettings, SettingMeta> = {
     unit: 'seconds',
     visibility: 'public',
   },
+  'oauth.par_fapi_ttl': {
+    key: 'oauth.par_fapi_ttl',
+    type: 'duration',
+    default: 60,
+    envKey: 'REQUEST_URI_EXPIRY_FAPI',
+    label: 'PAR FAPI TTL',
+    description: 'PAR request_uri lifetime for FAPI profile (strict, max 60s)',
+    min: 30,
+    max: 60,
+    unit: 'seconds',
+    visibility: 'admin',
+  },
 
   // JARM Settings
   'oauth.jarm_enabled': {
@@ -410,6 +466,10 @@ export const OAUTH_DEFAULTS: OAuthSettings = {
   'oauth.refresh_token_rotation': true,
   'oauth.refresh_id_token_reissue': true,
   'oauth.offline_access_required': true,
+  'oauth.refresh_token_sliding_window_enabled': true,
+  'oauth.refresh_token_absolute_expiry_enabled': false,
+  'oauth.refresh_token_absolute_expiry': 31536000,
+  'oauth.refresh_token_remaining_expiry_inherit': false,
   'oauth.state_required': false,
   'oauth.scope_required': false,
   'oauth.pkce_required': false,
@@ -424,6 +484,7 @@ export const OAUTH_DEFAULTS: OAuthSettings = {
   'oauth.max_codes_per_user': 100,
   'oauth.par_required': false,
   'oauth.par_default_ttl': 60,
+  'oauth.par_fapi_ttl': 60,
   'oauth.jarm_enabled': false,
   'oauth.loopback_flexible_port': true,
   'oauth.https_request_uri_enabled': false,

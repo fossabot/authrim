@@ -159,12 +159,16 @@
 	{#if loading}
 		<p style="color: #6b7280; text-align: center; padding: 40px;">Loading client...</p>
 	{:else if error}
-		<div style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px;">
+		<div
+			style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px;"
+		>
 			{error}
 		</div>
 	{:else if client}
 		<!-- Header -->
-		<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+		<div
+			style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;"
+		>
 			<div>
 				<h1 style="font-size: 24px; font-weight: bold; color: #1f2937; margin: 0 0 4px 0;">
 					{client.client_name}
@@ -191,7 +195,7 @@
 					</button>
 				{/if}
 				<button
-					onclick={() => showDeleteModal = true}
+					onclick={() => (showDeleteModal = true)}
 					style="
 						padding: 8px 16px;
 						border: 1px solid #ef4444;
@@ -209,23 +213,35 @@
 
 		<!-- Usage Statistics -->
 		{#if usage}
-			<div style="background-color: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;">
-				<h2 style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0;">Usage Statistics</h2>
+			<div
+				style="background-color: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;"
+			>
+				<h2 style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0;">
+					Usage Statistics
+				</h2>
 				<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
 					<div style="text-align: center;">
-						<div style="font-size: 24px; font-weight: bold; color: #1f2937;">{formatNumber(usage.tokens_issued_24h)}</div>
+						<div style="font-size: 24px; font-weight: bold; color: #1f2937;">
+							{formatNumber(usage.tokens_issued_24h)}
+						</div>
 						<div style="font-size: 12px; color: #6b7280;">Tokens (24h)</div>
 					</div>
 					<div style="text-align: center;">
-						<div style="font-size: 24px; font-weight: bold; color: #1f2937;">{formatNumber(usage.tokens_issued_7d)}</div>
+						<div style="font-size: 24px; font-weight: bold; color: #1f2937;">
+							{formatNumber(usage.tokens_issued_7d)}
+						</div>
 						<div style="font-size: 12px; color: #6b7280;">Tokens (7d)</div>
 					</div>
 					<div style="text-align: center;">
-						<div style="font-size: 24px; font-weight: bold; color: #1f2937;">{formatNumber(usage.tokens_issued_30d)}</div>
+						<div style="font-size: 24px; font-weight: bold; color: #1f2937;">
+							{formatNumber(usage.tokens_issued_30d)}
+						</div>
 						<div style="font-size: 12px; color: #6b7280;">Tokens (30d)</div>
 					</div>
 					<div style="text-align: center;">
-						<div style="font-size: 24px; font-weight: bold; color: #1f2937;">{formatNumber(usage.active_sessions)}</div>
+						<div style="font-size: 24px; font-weight: bold; color: #1f2937;">
+							{formatNumber(usage.active_sessions)}
+						</div>
 						<div style="font-size: 12px; color: #6b7280;">Active Sessions</div>
 					</div>
 				</div>
@@ -238,23 +254,31 @@
 		{/if}
 
 		<!-- Client Details -->
-		<div style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;">
+		<div
+			style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;"
+		>
 			{#if saveError}
-				<div style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+				<div
+					style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;"
+				>
 					{saveError}
 				</div>
 			{/if}
 
 			<!-- Basic Info -->
 			<section style="margin-bottom: 24px;">
-				<h2 style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;">
+				<h2
+					style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;"
+				>
 					Basic Information
 				</h2>
 
 				<div style="display: grid; gap: 16px;">
 					<!-- Client ID -->
 					<div>
-						<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+						<label
+							style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+						>
 							Client ID
 						</label>
 						<div style="display: flex; gap: 8px;">
@@ -294,7 +318,9 @@
 
 					<!-- Client Name -->
 					<div>
-						<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+						<label
+							style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+						>
 							Client Name
 						</label>
 						{#if isEditing}
@@ -319,13 +345,17 @@
 
 					<!-- Client Secret -->
 					<div>
-						<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+						<label
+							style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+						>
 							Client Secret
 						</label>
 						<div style="display: flex; gap: 8px; align-items: center;">
 							<input
 								type="text"
-								value={client.client_secret ? `••••••••${client.client_secret.slice(-4)}` : '••••••••••••'}
+								value={client.client_secret
+									? `••••••••${client.client_secret.slice(-4)}`
+									: '••••••••••••'}
 								readonly
 								style="
 									flex: 1;
@@ -339,7 +369,7 @@
 								"
 							/>
 							<button
-								onclick={() => showRegenerateModal = true}
+								onclick={() => (showRegenerateModal = true)}
 								style="
 									padding: 8px 12px;
 									border: 1px solid #f59e0b;
@@ -362,26 +392,26 @@
 
 			<!-- OAuth Settings -->
 			<section style="margin-bottom: 24px;">
-				<h2 style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;">
+				<h2
+					style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;"
+				>
 					OAuth Settings
 				</h2>
 
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
 					<!-- Grant Types -->
 					<div>
-						<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+						<label
+							style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+						>
 							Grant Types
 						</label>
 						{#if isEditing}
 							<div style="display: flex; flex-direction: column; gap: 6px; padding: 8px 0;">
-								{#each [
-									{ value: 'authorization_code', label: 'Authorization Code' },
-									{ value: 'refresh_token', label: 'Refresh Token' },
-									{ value: 'client_credentials', label: 'Client Credentials' },
-									{ value: 'implicit', label: 'Implicit (Legacy)' },
-									{ value: 'urn:ietf:params:oauth:grant-type:device_code', label: 'Device Code' }
-								] as grantType (grantType.value)}
-									<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1f2937; cursor: pointer;">
+								{#each [{ value: 'authorization_code', label: 'Authorization Code' }, { value: 'refresh_token', label: 'Refresh Token' }, { value: 'client_credentials', label: 'Client Credentials' }, { value: 'implicit', label: 'Implicit (Legacy)' }, { value: 'urn:ietf:params:oauth:grant-type:device_code', label: 'Device Code' }] as grantType (grantType.value)}
+									<label
+										style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1f2937; cursor: pointer;"
+									>
 										<input
 											type="checkbox"
 											checked={editForm.grant_types?.includes(grantType.value)}
@@ -390,7 +420,9 @@
 												if (target.checked) {
 													editForm.grant_types = [...(editForm.grant_types || []), grantType.value];
 												} else {
-													editForm.grant_types = (editForm.grant_types || []).filter(g => g !== grantType.value);
+													editForm.grant_types = (editForm.grant_types || []).filter(
+														(g) => g !== grantType.value
+													);
 												}
 											}}
 											style="width: 16px; height: 16px;"
@@ -408,28 +440,31 @@
 
 					<!-- Response Types -->
 					<div>
-						<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+						<label
+							style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+						>
 							Response Types
 						</label>
 						{#if isEditing}
 							<div style="display: flex; flex-direction: column; gap: 6px; padding: 8px 0;">
-								{#each [
-									{ value: 'code', label: 'code' },
-									{ value: 'token', label: 'token (Implicit)' },
-									{ value: 'id_token', label: 'id_token' },
-									{ value: 'id_token token', label: 'id_token token' },
-									{ value: 'code id_token', label: 'code id_token' }
-								] as responseType (responseType.value)}
-									<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1f2937; cursor: pointer;">
+								{#each [{ value: 'code', label: 'code' }, { value: 'token', label: 'token (Implicit)' }, { value: 'id_token', label: 'id_token' }, { value: 'id_token token', label: 'id_token token' }, { value: 'code id_token', label: 'code id_token' }] as responseType (responseType.value)}
+									<label
+										style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #1f2937; cursor: pointer;"
+									>
 										<input
 											type="checkbox"
 											checked={editForm.response_types?.includes(responseType.value)}
 											onchange={(e) => {
 												const target = e.target as HTMLInputElement;
 												if (target.checked) {
-													editForm.response_types = [...(editForm.response_types || []), responseType.value];
+													editForm.response_types = [
+														...(editForm.response_types || []),
+														responseType.value
+													];
 												} else {
-													editForm.response_types = (editForm.response_types || []).filter(r => r !== responseType.value);
+													editForm.response_types = (editForm.response_types || []).filter(
+														(r) => r !== responseType.value
+													);
 												}
 											}}
 											style="width: 16px; height: 16px;"
@@ -447,7 +482,9 @@
 
 					<!-- Token Endpoint Auth Method -->
 					<div>
-						<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+						<label
+							style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+						>
 							Token Endpoint Auth Method
 						</label>
 						{#if isEditing}
@@ -477,11 +514,15 @@
 
 					<!-- PKCE Required -->
 					<div>
-						<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+						<label
+							style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+						>
 							PKCE Required
 						</label>
 						{#if isEditing}
-							<label style="display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 14px; color: #1f2937; cursor: pointer;">
+							<label
+								style="display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 14px; color: #1f2937; cursor: pointer;"
+							>
 								<input
 									type="checkbox"
 									bind:checked={editForm.require_pkce}
@@ -500,7 +541,9 @@
 
 			<!-- Redirect URIs -->
 			<section style="margin-bottom: 24px;">
-				<h2 style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;">
+				<h2
+					style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;"
+				>
 					Redirect URIs
 				</h2>
 				{#if isEditing}
@@ -530,7 +573,9 @@
 								<button
 									type="button"
 									onclick={() => {
-										editForm.redirect_uris = (editForm.redirect_uris || []).filter((_, i) => i !== index);
+										editForm.redirect_uris = (editForm.redirect_uris || []).filter(
+											(_, i) => i !== index
+										);
 									}}
 									style="
 										padding: 8px 12px;
@@ -568,7 +613,9 @@
 				{:else if client.redirect_uris.length > 0}
 					<ul style="margin: 0; padding: 0; list-style: none;">
 						{#each client.redirect_uris as uri (uri)}
-							<li style="padding: 8px 12px; background-color: #f9fafb; border-radius: 4px; margin-bottom: 8px; font-size: 14px; font-family: monospace; color: #1f2937;">
+							<li
+								style="padding: 8px 12px; background-color: #f9fafb; border-radius: 4px; margin-bottom: 8px; font-size: 14px; font-family: monospace; color: #1f2937;"
+							>
 								{uri}
 							</li>
 						{/each}
@@ -580,12 +627,16 @@
 
 			<!-- Timestamps -->
 			<section>
-				<h2 style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;">
+				<h2
+					style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;"
+				>
 					Timestamps
 				</h2>
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
 					<div>
-						<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+						<label
+							style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+						>
 							Created
 						</label>
 						<p style="margin: 0; padding: 8px 0; font-size: 14px; color: #1f2937;">
@@ -593,7 +644,9 @@
 						</p>
 					</div>
 					<div>
-						<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+						<label
+							style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+						>
 							Updated
 						</label>
 						<p style="margin: 0; padding: 8px 0; font-size: 14px; color: #1f2937;">
@@ -605,7 +658,9 @@
 
 			<!-- Edit Actions -->
 			{#if isEditing}
-				<div style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 24px; border-top: 1px solid #e5e7eb; margin-top: 24px;">
+				<div
+					style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 24px; border-top: 1px solid #e5e7eb; margin-top: 24px;"
+				>
 					<button
 						onclick={cancelEditing}
 						style="
@@ -644,13 +699,19 @@
 
 <!-- Delete Confirmation Modal -->
 {#if showDeleteModal && client}
-	<div style="position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50;">
-		<div style="background-color: white; border-radius: 12px; padding: 24px; max-width: 480px; width: 90%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+	<div
+		style="position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50;"
+	>
+		<div
+			style="background-color: white; border-radius: 12px; padding: 24px; max-width: 480px; width: 90%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);"
+		>
 			<h3 style="font-size: 18px; font-weight: 600; color: #b91c1c; margin: 0 0 16px 0;">
 				⚠️ Delete Client
 			</h3>
 
-			<div style="background-color: #fee2e2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+			<div
+				style="background-color: #fee2e2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; margin-bottom: 16px;"
+			>
 				<p style="color: #b91c1c; font-size: 14px; margin: 0 0 8px 0; font-weight: 500;">
 					This action CANNOT be undone.
 				</p>
@@ -680,7 +741,10 @@
 
 			<div style="display: flex; justify-content: flex-end; gap: 12px;">
 				<button
-					onclick={() => { showDeleteModal = false; deleteConfirmName = ''; }}
+					onclick={() => {
+						showDeleteModal = false;
+						deleteConfirmName = '';
+					}}
 					style="
 						padding: 10px 20px;
 						border: 1px solid #d1d5db;
@@ -716,22 +780,30 @@
 
 <!-- Regenerate Secret Modal -->
 {#if showRegenerateModal}
-	<div style="position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50;">
-		<div style="background-color: white; border-radius: 12px; padding: 24px; max-width: 520px; width: 90%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+	<div
+		style="position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50;"
+	>
+		<div
+			style="background-color: white; border-radius: 12px; padding: 24px; max-width: 520px; width: 90%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);"
+		>
 			{#if newSecret}
 				<!-- Success: Show new secret -->
 				<h3 style="font-size: 18px; font-weight: 600; color: #059669; margin: 0 0 16px 0;">
 					✅ Secret Regenerated
 				</h3>
 
-				<div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+				<div
+					style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 16px;"
+				>
 					<p style="color: #92400e; font-size: 13px; margin: 0;">
 						⚠️ <strong>Save this secret now!</strong> It will not be shown again.
 					</p>
 				</div>
 
 				<div style="margin-bottom: 16px;">
-					<label style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
+					<label
+						style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
+					>
 						New Client Secret
 					</label>
 					<div style="display: flex; gap: 8px;">
@@ -771,7 +843,10 @@
 
 				<div style="display: flex; justify-content: flex-end;">
 					<button
-						onclick={() => { showRegenerateModal = false; newSecret = null; }}
+						onclick={() => {
+							showRegenerateModal = false;
+							newSecret = null;
+						}}
 						style="
 							padding: 10px 20px;
 							border: none;
@@ -792,19 +867,23 @@
 					🔄 Regenerate Client Secret
 				</h3>
 
-				<div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+				<div
+					style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 16px;"
+				>
 					<p style="color: #92400e; font-size: 14px; margin: 0;">
-						This will <strong>invalidate</strong> the current client secret. All applications using the old secret will stop working immediately.
+						This will <strong>invalidate</strong> the current client secret. All applications using the
+						old secret will stop working immediately.
 					</p>
 				</div>
 
 				<p style="color: #374151; font-size: 14px; margin: 0 0 16px 0;">
-					The new secret will only be shown once. Make sure to update your applications after regenerating.
+					The new secret will only be shown once. Make sure to update your applications after
+					regenerating.
 				</p>
 
 				<div style="display: flex; justify-content: flex-end; gap: 12px;">
 					<button
-						onclick={() => showRegenerateModal = false}
+						onclick={() => (showRegenerateModal = false)}
 						style="
 							padding: 10px 20px;
 							border: 1px solid #d1d5db;
