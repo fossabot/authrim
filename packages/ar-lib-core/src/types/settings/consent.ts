@@ -43,6 +43,11 @@ export interface ConsentSettings {
   'consent.require_on_scope_change': boolean;
   'consent.supported_display_types': string;
   'consent.ui_locales': string;
+
+  // RBAC Consent Screen Features
+  'consent.rbac_org_selector': boolean;
+  'consent.rbac_acting_as': boolean;
+  'consent.rbac_show_roles': boolean;
 }
 
 /**
@@ -228,6 +233,35 @@ export const CONSENT_SETTINGS_META: Record<keyof ConsentSettings, SettingMeta> =
     description: 'Comma-separated list of supported UI locales',
     visibility: 'public',
   },
+
+  // RBAC Consent Screen Features
+  'consent.rbac_org_selector': {
+    key: 'consent.rbac_org_selector',
+    type: 'boolean',
+    default: false,
+    envKey: 'ENABLE_RBAC_CONSENT_ORG_SELECTOR',
+    label: 'Organization Selector',
+    description: 'Show organization selector for multi-org users on consent screen',
+    visibility: 'public',
+  },
+  'consent.rbac_acting_as': {
+    key: 'consent.rbac_acting_as',
+    type: 'boolean',
+    default: false,
+    envKey: 'ENABLE_RBAC_CONSENT_ACTING_AS',
+    label: 'Acting-As (Delegation)',
+    description: 'Enable acting-as delegation feature on consent screen',
+    visibility: 'public',
+  },
+  'consent.rbac_show_roles': {
+    key: 'consent.rbac_show_roles',
+    type: 'boolean',
+    default: false,
+    envKey: 'ENABLE_RBAC_CONSENT_SHOW_ROLES',
+    label: 'Show Roles',
+    description: 'Display user roles on consent screen',
+    visibility: 'public',
+  },
 };
 
 /**
@@ -263,4 +297,8 @@ export const CONSENT_DEFAULTS: ConsentSettings = {
   'consent.require_on_scope_change': true,
   'consent.supported_display_types': 'page,popup,touch,wap',
   'consent.ui_locales': 'en,ja',
+  // RBAC Consent Screen Features
+  'consent.rbac_org_selector': false,
+  'consent.rbac_acting_as': false,
+  'consent.rbac_show_roles': false,
 };

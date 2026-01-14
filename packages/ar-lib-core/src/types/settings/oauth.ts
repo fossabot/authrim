@@ -69,6 +69,10 @@ export interface OAuthSettings {
 
   // Prompt Settings
   'oauth.prompt_none_behavior': 'error' | 'login';
+
+  // Error Response Format Settings
+  'oauth.error_response_format': 'oauth' | 'problem_details';
+  'oauth.error_id_mode': 'all' | '5xx' | 'security_only' | 'none';
 }
 
 /**
@@ -441,6 +445,28 @@ export const OAUTH_SETTINGS_META: Record<keyof OAuthSettings, SettingMeta> = {
     enum: ['error', 'login'],
     visibility: 'public',
   },
+
+  // Error Response Format Settings
+  'oauth.error_response_format': {
+    key: 'oauth.error_response_format',
+    type: 'enum',
+    default: 'oauth',
+    envKey: 'ERROR_RESPONSE_FORMAT',
+    label: 'Error Response Format',
+    description: 'Error response format: oauth (standard) or problem_details (RFC 7807)',
+    enum: ['oauth', 'problem_details'],
+    visibility: 'admin',
+  },
+  'oauth.error_id_mode': {
+    key: 'oauth.error_id_mode',
+    type: 'enum',
+    default: 'security_only',
+    envKey: 'ERROR_ID_MODE',
+    label: 'Error ID Mode',
+    description: 'When to include error IDs for support tracking',
+    enum: ['all', '5xx', 'security_only', 'none'],
+    visibility: 'admin',
+  },
 };
 
 /**
@@ -491,4 +517,6 @@ export const OAUTH_DEFAULTS: OAuthSettings = {
   'oauth.https_request_uri_max_size': 51200,
   'oauth.https_request_uri_timeout_ms': 5000,
   'oauth.prompt_none_behavior': 'error',
+  'oauth.error_response_format': 'oauth',
+  'oauth.error_id_mode': 'security_only',
 };

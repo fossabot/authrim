@@ -20,6 +20,10 @@ export interface TokensSettings {
   // Token Introspection
   'tokens.introspection_cache_ttl': number;
   'tokens.introspection_require_client_auth': boolean;
+
+  // RBAC Claims Embedding
+  'tokens.rbac_id_token_claims': string;
+  'tokens.rbac_access_token_claims': string;
 }
 
 /**
@@ -76,6 +80,26 @@ export const TOKENS_SETTINGS_META: Record<keyof TokensSettings, SettingMeta> = {
     description: 'Require client authentication for token introspection',
     visibility: 'admin',
   },
+
+  // RBAC Claims Embedding
+  'tokens.rbac_id_token_claims': {
+    key: 'tokens.rbac_id_token_claims',
+    type: 'string',
+    default: 'roles,user_type,org_id,plan,org_type',
+    envKey: 'RBAC_ID_TOKEN_CLAIMS',
+    label: 'ID Token RBAC Claims',
+    description: 'Comma-separated list of RBAC claims to embed in ID tokens (none to disable)',
+    visibility: 'admin',
+  },
+  'tokens.rbac_access_token_claims': {
+    key: 'tokens.rbac_access_token_claims',
+    type: 'string',
+    default: 'roles,org_id,org_type',
+    envKey: 'RBAC_ACCESS_TOKEN_CLAIMS',
+    label: 'Access Token RBAC Claims',
+    description: 'Comma-separated list of RBAC claims to embed in access tokens (none to disable)',
+    visibility: 'admin',
+  },
 };
 
 /**
@@ -97,4 +121,6 @@ export const TOKENS_DEFAULTS: TokensSettings = {
   'tokens.exchange_impersonation_enabled': false,
   'tokens.introspection_cache_ttl': 60,
   'tokens.introspection_require_client_auth': true,
+  'tokens.rbac_id_token_claims': 'roles,user_type,org_id,plan,org_type',
+  'tokens.rbac_access_token_claims': 'roles,org_id,org_type',
 };

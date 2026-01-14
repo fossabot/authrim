@@ -8,6 +8,10 @@ export default defineConfig({
 		target: 'esnext',
 		minify: 'esbuild',
 		sourcemap: false,
-		chunkSizeWarningLimit: 1000
+		chunkSizeWarningLimit: 1000,
+		rollupOptions: {
+			// Reduce parallelism to prevent EPIPE errors in CI
+			maxParallelFileOps: 2
+		}
 	}
 });

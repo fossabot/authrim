@@ -18,6 +18,9 @@ export interface FederationSettings {
   'federation.saml_request_ttl': number;
   'federation.saml_artifact_ttl': number;
   'federation.saml_artifact_resolution_timeout': number;
+  'federation.saml_sso_binding': 'HTTP-POST' | 'HTTP-Redirect';
+  'federation.saml_slo_binding': 'HTTP-POST' | 'HTTP-Redirect';
+  'federation.saml_nameid_format': 'emailAddress' | 'persistent' | 'transient' | 'unspecified';
 
   // SCIM Settings
   'federation.scim_lockout_seconds': number;
@@ -95,6 +98,36 @@ export const FEDERATION_SETTINGS_META: Record<keyof FederationSettings, SettingM
     min: 1000,
     max: 30000,
     unit: 'ms',
+    visibility: 'admin',
+  },
+  'federation.saml_sso_binding': {
+    key: 'federation.saml_sso_binding',
+    type: 'enum',
+    default: 'HTTP-POST',
+    envKey: 'SAML_SSO_BINDING',
+    label: 'SAML SSO Binding',
+    description: 'SAML Single Sign-On request binding (HTTP-POST recommended)',
+    enum: ['HTTP-POST', 'HTTP-Redirect'],
+    visibility: 'admin',
+  },
+  'federation.saml_slo_binding': {
+    key: 'federation.saml_slo_binding',
+    type: 'enum',
+    default: 'HTTP-POST',
+    envKey: 'SAML_SLO_BINDING',
+    label: 'SAML SLO Binding',
+    description: 'SAML Single Logout request binding',
+    enum: ['HTTP-POST', 'HTTP-Redirect'],
+    visibility: 'admin',
+  },
+  'federation.saml_nameid_format': {
+    key: 'federation.saml_nameid_format',
+    type: 'enum',
+    default: 'emailAddress',
+    envKey: 'SAML_NAMEID_FORMAT',
+    label: 'SAML NameID Format',
+    description: 'SAML NameID format (persistent provides privacy protection)',
+    enum: ['emailAddress', 'persistent', 'transient', 'unspecified'],
     visibility: 'admin',
   },
 
@@ -253,6 +286,9 @@ export const FEDERATION_DEFAULTS: FederationSettings = {
   'federation.saml_request_ttl': 300,
   'federation.saml_artifact_ttl': 120,
   'federation.saml_artifact_resolution_timeout': 5000,
+  'federation.saml_sso_binding': 'HTTP-POST',
+  'federation.saml_slo_binding': 'HTTP-POST',
+  'federation.saml_nameid_format': 'emailAddress',
   // SCIM
   'federation.scim_lockout_seconds': 900,
   'federation.scim_failure_window_seconds': 300,

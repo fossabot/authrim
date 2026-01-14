@@ -47,6 +47,8 @@ jobs:
 
       - name: Build project
         run: pnpm run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Check code formatting
         run: pnpm run format:check
