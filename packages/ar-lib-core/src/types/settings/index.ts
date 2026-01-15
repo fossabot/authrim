@@ -27,6 +27,9 @@ export * from './feature-flags';
 export * from './limits';
 export * from './tenant';
 export * from './verifiable-credentials';
+export * from './discovery';
+export * from './plugin';
+export * from './assurance-levels';
 
 // Re-export SettingsManager types
 export type {
@@ -71,6 +74,9 @@ import { FEATURE_FLAGS_CATEGORY_META } from './feature-flags';
 import { LIMITS_CATEGORY_META } from './limits';
 import { TENANT_CATEGORY_META } from './tenant';
 import { VC_CATEGORY_META } from './verifiable-credentials';
+import { DISCOVERY_CATEGORY_META } from './discovery';
+import { PLUGIN_CATEGORY_META } from './plugin';
+import { ASSURANCE_LEVELS_CATEGORY_META } from './assurance-levels';
 
 /**
  * All category metadata for easy registration
@@ -100,9 +106,15 @@ export const ALL_CATEGORY_META = {
   tenant: TENANT_CATEGORY_META,
   // Verifiable Credentials
   vc: VC_CATEGORY_META,
+  // Discovery
+  discovery: DISCOVERY_CATEGORY_META,
+  // Plugin
+  plugin: PLUGIN_CATEGORY_META,
   // Platform Settings (read-only)
   infrastructure: INFRASTRUCTURE_CATEGORY_META,
   encryption: ENCRYPTION_CATEGORY_META,
+  // Assurance Levels (NIST SP 800-63-4)
+  assurance: ASSURANCE_LEVELS_CATEGORY_META,
 } as const;
 
 /**

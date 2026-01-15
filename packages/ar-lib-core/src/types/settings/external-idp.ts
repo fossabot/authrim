@@ -19,6 +19,12 @@ export interface ExternalIdPSettings {
   // JWKS Settings
   'external_idp.jwks_cache_ttl': number;
   'external_idp.jwks_fetch_timeout_ms': number;
+
+  // Request Settings
+  'external_idp.request_timeout_ms': number;
+
+  // Token Settings
+  'external_idp.token_encryption_enabled': boolean;
 }
 
 /**
@@ -68,6 +74,31 @@ export const EXTERNAL_IDP_SETTINGS_META: Record<keyof ExternalIdPSettings, Setti
     unit: 'ms',
     visibility: 'admin',
   },
+
+  // Request Settings
+  'external_idp.request_timeout_ms': {
+    key: 'external_idp.request_timeout_ms',
+    type: 'duration',
+    default: 10000,
+    envKey: 'EXTERNAL_IDP_REQUEST_TIMEOUT_MS',
+    label: 'Request Timeout',
+    description: 'Timeout for external IdP API requests in milliseconds',
+    min: 1000,
+    max: 60000,
+    unit: 'ms',
+    visibility: 'admin',
+  },
+
+  // Token Settings
+  'external_idp.token_encryption_enabled': {
+    key: 'external_idp.token_encryption_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'EXTERNAL_IDP_TOKEN_ENCRYPTION_ENABLED',
+    label: 'Token Encryption',
+    description: 'Enable encryption for tokens received from external IdPs',
+    visibility: 'admin',
+  },
 };
 
 /**
@@ -88,4 +119,6 @@ export const EXTERNAL_IDP_DEFAULTS: ExternalIdPSettings = {
   'external_idp.jit_update_on_login': true,
   'external_idp.jwks_cache_ttl': 86400,
   'external_idp.jwks_fetch_timeout_ms': 5000,
+  'external_idp.request_timeout_ms': 10000,
+  'external_idp.token_encryption_enabled': false,
 };

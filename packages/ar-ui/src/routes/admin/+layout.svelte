@@ -23,7 +23,16 @@
 		{ path: '/admin/scim-tokens', label: 'SCIM Tokens', exact: false },
 		{ path: '/admin/iat-tokens', label: 'IAT Tokens', exact: false },
 		// Phase 6: Settings
-		{ path: '/admin/settings', label: 'Settings', exact: false }
+		{ path: '/admin/settings', label: 'Settings', exact: false },
+		// Phase 6-B: Enterprise Features
+		{ path: '/admin/organizations', label: 'Organizations', exact: false },
+		{ path: '/admin/role-rules', label: 'Role Rules', exact: false },
+		{ path: '/admin/webhooks', label: 'Webhooks', exact: false },
+		{ path: '/admin/plugins', label: 'Plugins', exact: false },
+		// Phase 7: Compliance & Security & Jobs
+		{ path: '/admin/compliance', label: 'Compliance', exact: false },
+		{ path: '/admin/security', label: 'Security', exact: false },
+		{ path: '/admin/jobs', label: 'Jobs', exact: false }
 	];
 
 	// Check if nav item is active
@@ -35,8 +44,12 @@
 	}
 
 	onMount(async () => {
+		// Capture current path at mount time to avoid race conditions with navigation
+		const currentPath = $page.url.pathname;
+		const isOnLoginPage = currentPath === '/admin/login';
+
 		// Skip auth check on login page
-		if (isLoginPage) {
+		if (isOnLoginPage) {
 			adminAuth.setLoading(false);
 			return;
 		}
@@ -44,8 +57,8 @@
 		// Check authentication status
 		await adminAuth.checkAuth();
 
-		// Redirect to login if not authenticated
-		if (!adminAuth.isAuthenticated) {
+		// Redirect to login if not authenticated and still on the same page
+		if (!adminAuth.isAuthenticated && $page.url.pathname === currentPath) {
 			goto('/admin/login');
 		}
 	});

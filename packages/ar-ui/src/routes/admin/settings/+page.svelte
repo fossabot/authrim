@@ -26,7 +26,16 @@
 		'external-idp': { icon: '🌐', color: '#0ea5e9' },
 		client: { icon: '📦', color: '#a855f7' },
 		infrastructure: { icon: '🏗️', color: '#64748b' },
-		encryption: { icon: '🔒', color: '#71717a' }
+		encryption: { icon: '🔒', color: '#71717a' },
+		discovery: { icon: '🔍', color: '#0891b2' },
+		plugin: { icon: '🧩', color: '#7c3aed' },
+		// Additional categories
+		cache: { icon: '💾', color: '#0d9488' },
+		'feature-flags': { icon: '🚩', color: '#dc2626' },
+		limits: { icon: '📊', color: '#ea580c' },
+		tenant: { icon: '🏢', color: '#4f46e5' },
+		vc: { icon: '📜', color: '#059669' },
+		assurance: { icon: '🔰', color: '#7c3aed' }
 	};
 
 	// Check if category is platform-level (read-only)
