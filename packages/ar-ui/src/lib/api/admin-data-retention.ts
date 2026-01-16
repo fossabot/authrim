@@ -70,7 +70,7 @@ export interface CleanupEstimate {
  */
 export interface CleanupRun {
 	run_id: string;
-	status: 'pending' | 'running' | 'completed' | 'failed';
+	status: 'pending' | 'running' | 'completed' | 'partial_success' | 'failed';
 	progress?: {
 		current: number;
 		total: number;
@@ -168,11 +168,161 @@ export const adminDataRetentionAPI = {
 			},
 			last_updated: data.last_updated ?? new Date().toISOString()
 		};
-	}
+	},
 
-	// Future P3 methods (when backend is ready):
-	// async updatePolicy(policy: Partial<DataRetentionPolicy>): Promise<DataRetentionPolicy>
-	// async getEstimate(category?: string, days?: number): Promise<CleanupEstimate[]>
-	// async runCleanup(categories?: string[], idempotencyKey?: string): Promise<CleanupRun>
-	// async getCleanupStatus(runId: string): Promise<CleanupRun>
+	/**
+	 * Get deletion estimates for all categories or a specific category
+	 */
+	async getEstimate(category?: string): Promise<{
+		estimates: CleanupEstimate[];
+		total_records_to_delete: number;
+		total_estimated_storage_mb: number;
+	}> {
+		const params = new URLSearchParams();
+		if (category) {
+			params.set('category', category);
+		}
+
+		const url = `${API_BASE_URL}/api/admin/data-retention/estimate${params.toString() ? '?' + params.toString() : ''}`;
+		const response = await fetch(url, {
+			credentials: 'include'
+		});
+
+		if (!response.ok) {
+			const error = await response.json().catch(() => ({}));
+			throw new Error(
+				error.error_description || error.message || 'Failed to get retention estimate'
+			);
+		}
+
+		const data = await response.json();
+
+		return {
+			estimates: (data.estimates || []).map(
+				(e: {
+					category: string;
+					records_to_delete: number;
+					oldest_record_date: string | null;
+					retention_days: number;
+					estimated_storage_mb: number;
+				}) => ({
+					category: e.category,
+					current_retention_days: e.retention_days,
+					proposed_retention_days: e.retention_days,
+					records_to_delete: e.records_to_delete,
+					oldest_record_date: e.oldest_record_date,
+					next_run_at: null,
+					estimated_deletion_at: null
+				})
+			),
+			total_records_to_delete: data.total_records_to_delete ?? 0,
+			total_estimated_storage_mb: data.total_estimated_storage_mb ?? 0
+		};
+	},
+
+	/**
+	 * Get all retention categories with their current settings
+	 */
+	async listCategories(): Promise<{
+		categories: { category: string; retention_days: number; updated_at: string }[];
+	}> {
+		const response = await fetch(`${API_BASE_URL}/api/admin/data-retention/categories`, {
+			credentials: 'include'
+		});
+
+		if (!response.ok) {
+			const error = await response.json().catch(() => ({}));
+			throw new Error(
+				error.error_description || error.message || 'Failed to list retention categories'
+			);
+		}
+
+		return response.json();
+	},
+
+	/**
+	 * Update retention settings for a specific category
+	 */
+	async updateCategory(
+		category: string,
+		retentionDays: number
+	): Promise<{ category: string; retention_days: number; updated_at: string }> {
+		const response = await fetch(
+			`${API_BASE_URL}/api/admin/data-retention/categories/${encodeURIComponent(category)}`,
+			{
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({ retention_days: retentionDays })
+			}
+		);
+
+		if (!response.ok) {
+			const error = await response.json().catch(() => ({}));
+			throw new Error(
+				error.error_description || error.message || 'Failed to update category retention'
+			);
+		}
+
+		return response.json();
+	},
+
+	/**
+	 * Trigger manual cleanup for specified categories or all categories
+	 */
+	async runCleanup(categories?: string[], idempotencyKey?: string): Promise<CleanupRun> {
+		const response = await fetch(`${API_BASE_URL}/api/admin/data-retention/cleanup`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'include',
+			body: JSON.stringify({
+				categories: categories?.length ? categories : undefined,
+				idempotency_key: idempotencyKey
+			})
+		});
+
+		if (!response.ok) {
+			const error = await response.json().catch(() => ({}));
+			throw new Error(error.error_description || error.message || 'Failed to run cleanup');
+		}
+
+		const data = await response.json();
+
+		return {
+			run_id: data.id,
+			status: data.status,
+			deleted_count: Object.values(data.records_deleted as Record<string, number>).reduce(
+				(sum, count) => sum + count,
+				0
+			),
+			started_at: data.started_at,
+			completed_at: data.completed_at,
+			error: data.error_message
+		};
+	},
+
+	/**
+	 * Get status of a cleanup run
+	 */
+	async getCleanupStatus(runId: string): Promise<CleanupRun> {
+		const response = await fetch(
+			`${API_BASE_URL}/api/admin/data-retention/cleanup/${encodeURIComponent(runId)}`,
+			{
+				credentials: 'include'
+			}
+		);
+
+		if (!response.ok) {
+			const error = await response.json().catch(() => ({}));
+			throw new Error(error.error_description || error.message || 'Failed to get cleanup status');
+		}
+
+		const data = await response.json();
+
+		return {
+			run_id: data.id,
+			status: data.status,
+			started_at: new Date().toISOString()
+		};
+	}
 };

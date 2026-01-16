@@ -113,6 +113,15 @@ export {
   type PluginContextOptions,
 } from './context';
 
+// Builtin Plugin Registry
+export {
+  registerBuiltinPlugins,
+  needsBuiltinRegistration,
+  getBuiltinPlugins,
+  type PluginRegistryEntry,
+  type RegisterBuiltinOptions,
+} from './builtin-registry';
+
 // Security Utilities
 export {
   // Secret field support

@@ -14,7 +14,7 @@
  */
 
 import { Hono } from 'hono';
-import type { KVNamespace } from '@cloudflare/workers-types';
+import type { KVNamespace, ExecutionContext, Queue } from '@cloudflare/workers-types';
 import type { Env as SharedEnv } from '@authrim/ar-lib-core';
 import {
   createUnifiedCheckService,
@@ -23,10 +23,14 @@ import {
   createErrorResponse,
   AR_ERROR_CODES,
   createLogger,
+  createCheckAuditService,
   type CheckApiRequest,
   type UnifiedCheckService,
   type ReBACConfig,
   type IStorageAdapter,
+  type CheckAuditService,
+  type CheckAuditServiceConfig,
+  type AuditMode,
 } from '@authrim/ar-lib-core';
 
 const log = createLogger().module('CHECK-API');
@@ -64,6 +68,18 @@ interface Env extends SharedEnv {
   ENABLE_CHECK_API_DEBUG?: string;
   /** Batch size limit for batch check API (1-1000, default: 100) */
   CHECK_API_BATCH_SIZE_LIMIT?: string;
+  /** Feature flag: Enable Check API audit logging */
+  ENABLE_CHECK_API_AUDIT?: string;
+  /** Audit log mode: 'waitUntil' | 'sync' | 'queue' (default: 'waitUntil') */
+  CHECK_API_AUDIT_MODE?: string;
+  /** Audit log allow policy: 'always' | 'sample' | 'never' (default: 'sample') */
+  CHECK_API_AUDIT_LOG_ALLOW?: string;
+  /** Audit log sample rate for allow events (0.0-1.0, default: 0.01) */
+  CHECK_API_AUDIT_SAMPLE_RATE?: string;
+  /** Audit log retention days (default: 90) */
+  CHECK_API_AUDIT_RETENTION_DAYS?: string;
+  /** Queue for audit log processing (required for queue mode) */
+  CHECK_AUDIT_QUEUE?: Queue;
 }
 
 // =============================================================================
@@ -121,6 +137,13 @@ const KV_BATCH_SIZE_LIMIT_KEY = 'CHECK_API_BATCH_SIZE_LIMIT';
 
 /** Default batch size limit (secure default: not too large to prevent DoS) */
 const DEFAULT_BATCH_SIZE_LIMIT = 100;
+
+/** KV keys for audit configuration */
+const KV_AUDIT_ENABLED_KEY = 'CHECK_API_AUDIT_ENABLED';
+const KV_AUDIT_MODE_KEY = 'CHECK_API_AUDIT_MODE';
+const KV_AUDIT_LOG_ALLOW_KEY = 'CHECK_API_AUDIT_LOG_ALLOW';
+const KV_AUDIT_SAMPLE_RATE_KEY = 'CHECK_API_AUDIT_SAMPLE_RATE';
+const KV_AUDIT_RETENTION_DAYS_KEY = 'CHECK_API_AUDIT_RETENTION_DAYS';
 
 /** In-memory cache for batch size limit (to reduce KV reads) */
 let batchSizeLimitCache: { value: number; expiresAt: number } | null = null;
@@ -225,9 +248,168 @@ function isDebugModeEnabled(env: Env): boolean {
 }
 
 /**
- * Create UnifiedCheckService instance
+ * Get audit configuration from KV → Environment Variable → Default
  */
-function getCheckService(env: Env, debugMode: boolean): UnifiedCheckService | null {
+async function getAuditConfig(env: Env): Promise<{
+  enabled: boolean;
+  config: CheckAuditServiceConfig;
+}> {
+  const configKV = getConfigKV(env);
+
+  // Check enabled status
+  let enabled = false;
+  if (configKV) {
+    try {
+      const kvValue = await configKV.get(KV_AUDIT_ENABLED_KEY);
+      if (kvValue !== null) {
+        enabled = kvValue === 'true';
+      } else if (env.ENABLE_CHECK_API_AUDIT === 'true') {
+        enabled = true;
+      }
+    } catch {
+      enabled = env.ENABLE_CHECK_API_AUDIT === 'true';
+    }
+  } else {
+    enabled = env.ENABLE_CHECK_API_AUDIT === 'true';
+  }
+
+  // Get mode
+  let mode: AuditMode = 'waitUntil';
+  if (configKV) {
+    try {
+      const kvMode = await configKV.get(KV_AUDIT_MODE_KEY);
+      if (kvMode && ['waitUntil', 'sync', 'queue'].includes(kvMode)) {
+        mode = kvMode as AuditMode;
+      } else if (
+        env.CHECK_API_AUDIT_MODE &&
+        ['waitUntil', 'sync', 'queue'].includes(env.CHECK_API_AUDIT_MODE)
+      ) {
+        mode = env.CHECK_API_AUDIT_MODE as AuditMode;
+      }
+    } catch {
+      if (
+        env.CHECK_API_AUDIT_MODE &&
+        ['waitUntil', 'sync', 'queue'].includes(env.CHECK_API_AUDIT_MODE)
+      ) {
+        mode = env.CHECK_API_AUDIT_MODE as AuditMode;
+      }
+    }
+  } else if (
+    env.CHECK_API_AUDIT_MODE &&
+    ['waitUntil', 'sync', 'queue'].includes(env.CHECK_API_AUDIT_MODE)
+  ) {
+    mode = env.CHECK_API_AUDIT_MODE as AuditMode;
+  }
+
+  // Get log allow policy
+  let logAllow: 'always' | 'sample' | 'never' = 'sample';
+  if (configKV) {
+    try {
+      const kvLogAllow = await configKV.get(KV_AUDIT_LOG_ALLOW_KEY);
+      if (kvLogAllow && ['always', 'sample', 'never'].includes(kvLogAllow)) {
+        logAllow = kvLogAllow as 'always' | 'sample' | 'never';
+      } else if (
+        env.CHECK_API_AUDIT_LOG_ALLOW &&
+        ['always', 'sample', 'never'].includes(env.CHECK_API_AUDIT_LOG_ALLOW)
+      ) {
+        logAllow = env.CHECK_API_AUDIT_LOG_ALLOW as 'always' | 'sample' | 'never';
+      }
+    } catch {
+      if (
+        env.CHECK_API_AUDIT_LOG_ALLOW &&
+        ['always', 'sample', 'never'].includes(env.CHECK_API_AUDIT_LOG_ALLOW)
+      ) {
+        logAllow = env.CHECK_API_AUDIT_LOG_ALLOW as 'always' | 'sample' | 'never';
+      }
+    }
+  } else if (
+    env.CHECK_API_AUDIT_LOG_ALLOW &&
+    ['always', 'sample', 'never'].includes(env.CHECK_API_AUDIT_LOG_ALLOW)
+  ) {
+    logAllow = env.CHECK_API_AUDIT_LOG_ALLOW as 'always' | 'sample' | 'never';
+  }
+
+  // Get sample rate
+  let sampleRate = 0.01;
+  if (configKV) {
+    try {
+      const kvRate = await configKV.get(KV_AUDIT_SAMPLE_RATE_KEY);
+      if (kvRate !== null) {
+        const parsed = parseFloat(kvRate);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          sampleRate = parsed;
+        }
+      } else if (env.CHECK_API_AUDIT_SAMPLE_RATE) {
+        const parsed = parseFloat(env.CHECK_API_AUDIT_SAMPLE_RATE);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          sampleRate = parsed;
+        }
+      }
+    } catch {
+      if (env.CHECK_API_AUDIT_SAMPLE_RATE) {
+        const parsed = parseFloat(env.CHECK_API_AUDIT_SAMPLE_RATE);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          sampleRate = parsed;
+        }
+      }
+    }
+  } else if (env.CHECK_API_AUDIT_SAMPLE_RATE) {
+    const parsed = parseFloat(env.CHECK_API_AUDIT_SAMPLE_RATE);
+    if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+      sampleRate = parsed;
+    }
+  }
+
+  // Get retention days
+  let retentionDays = 90;
+  if (configKV) {
+    try {
+      const kvDays = await configKV.get(KV_AUDIT_RETENTION_DAYS_KEY);
+      if (kvDays !== null) {
+        const parsed = parseInt(kvDays, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          retentionDays = parsed;
+        }
+      } else if (env.CHECK_API_AUDIT_RETENTION_DAYS) {
+        const parsed = parseInt(env.CHECK_API_AUDIT_RETENTION_DAYS, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          retentionDays = parsed;
+        }
+      }
+    } catch {
+      if (env.CHECK_API_AUDIT_RETENTION_DAYS) {
+        const parsed = parseInt(env.CHECK_API_AUDIT_RETENTION_DAYS, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          retentionDays = parsed;
+        }
+      }
+    }
+  } else if (env.CHECK_API_AUDIT_RETENTION_DAYS) {
+    const parsed = parseInt(env.CHECK_API_AUDIT_RETENTION_DAYS, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      retentionDays = parsed;
+    }
+  }
+
+  return {
+    enabled,
+    config: {
+      mode,
+      logDeny: 'always',
+      logAllow,
+      sampleRate,
+      retentionDays,
+    },
+  };
+}
+
+/**
+ * Create UnifiedCheckService instance with optional audit service
+ */
+async function getCheckService(
+  env: Env,
+  debugMode: boolean
+): Promise<{ checkService: UnifiedCheckService; auditService?: CheckAuditService } | null> {
   if (!env.DB) {
     return null;
   }
@@ -242,13 +424,23 @@ function getCheckService(env: Env, debugMode: boolean): UnifiedCheckService | nu
   };
   const rebacService = createReBACService(rebacAdapter, rebacConfig);
 
-  return createUnifiedCheckService({
+  // Create audit service if enabled
+  let auditService: CheckAuditService | undefined;
+  const auditConfig = await getAuditConfig(env);
+  if (auditConfig.enabled) {
+    auditService = createCheckAuditService(env.DB, auditConfig.config, env.CHECK_AUDIT_QUEUE);
+  }
+
+  const checkService = createUnifiedCheckService({
     db: env.DB,
     cache: env.CHECK_CACHE_KV,
     rebacService,
     cacheTTL: 60,
     debugMode,
+    auditService,
   });
+
+  return { checkService, auditService };
 }
 
 // =============================================================================
@@ -352,8 +544,8 @@ checkRoutes.post('/', async (c) => {
 
   // Get check service
   const debugMode = isDebugModeEnabled(c.env);
-  const checkService = getCheckService(c.env, debugMode);
-  if (!checkService) {
+  const services = await getCheckService(c.env, debugMode);
+  if (!services) {
     return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 
@@ -383,6 +575,59 @@ checkRoutes.post('/', async (c) => {
       return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
     }
 
+    // Validate rebac parameters if provided
+    if (body.rebac) {
+      // Validate relation
+      if (!body.rebac.relation || typeof body.rebac.relation !== 'string') {
+        return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_REQUIRED_FIELD, {
+          variables: { field: 'rebac.relation' },
+        });
+      }
+      // Validate object
+      if (!body.rebac.object || typeof body.rebac.object !== 'string') {
+        return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_REQUIRED_FIELD, {
+          variables: { field: 'rebac.object' },
+        });
+      }
+      // Validate contextual_tuples if provided
+      if (body.rebac.contextual_tuples !== undefined) {
+        if (!Array.isArray(body.rebac.contextual_tuples)) {
+          return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
+        }
+        // Limit contextual_tuples size to prevent DoS
+        const maxContextualTuples = 100;
+        if (body.rebac.contextual_tuples.length > maxContextualTuples) {
+          log.warn('Contextual tuples limit exceeded', {
+            count: body.rebac.contextual_tuples.length,
+            limit: maxContextualTuples,
+          });
+          return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
+        }
+        // Validate each tuple
+        for (let i = 0; i < body.rebac.contextual_tuples.length; i++) {
+          const tuple = body.rebac.contextual_tuples[i];
+          if (!tuple || typeof tuple !== 'object') {
+            return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
+          }
+          if (!tuple.user_id || typeof tuple.user_id !== 'string') {
+            return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_REQUIRED_FIELD, {
+              variables: { field: `rebac.contextual_tuples[${i}].user_id` },
+            });
+          }
+          if (!tuple.relation || typeof tuple.relation !== 'string') {
+            return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_REQUIRED_FIELD, {
+              variables: { field: `rebac.contextual_tuples[${i}].relation` },
+            });
+          }
+          if (!tuple.object || typeof tuple.object !== 'string') {
+            return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_REQUIRED_FIELD, {
+              variables: { field: `rebac.contextual_tuples[${i}].object` },
+            });
+          }
+        }
+      }
+    }
+
     // Build full request
     // Use tenant from auth context if not specified in request
     const request: CheckApiRequest = {
@@ -394,8 +639,14 @@ checkRoutes.post('/', async (c) => {
       rebac: body.rebac,
     };
 
-    // Execute check
-    const result = await checkService.check(request);
+    // Execute check with audit options
+    // Note: ExecutionContext is available via c.executionCtx in Hono
+    const result = await services.checkService.check(request, {
+      ctx: c.executionCtx as ExecutionContext,
+      apiKeyId: auth.apiKeyId,
+      clientId: auth.clientId,
+      requestId: c.req.header('X-Request-ID'),
+    });
 
     // Return with rate limit headers
     return c.json(result, {
@@ -463,8 +714,8 @@ checkRoutes.post('/batch', async (c) => {
 
   // Get check service
   const debugMode = isDebugModeEnabled(c.env);
-  const checkService = getCheckService(c.env, debugMode);
-  if (!checkService) {
+  const services = await getCheckService(c.env, debugMode);
+  if (!services) {
     return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 
@@ -487,8 +738,10 @@ checkRoutes.post('/batch', async (c) => {
       return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
     }
 
-    // Validate all permission formats first
-    for (const check of body.checks) {
+    // Validate all check requests
+    const maxContextualTuples = 100;
+    for (let checkIdx = 0; checkIdx < body.checks.length; checkIdx++) {
+      const check = body.checks[checkIdx];
       if (!check.subject_id || !check.permission) {
         return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
       }
@@ -500,6 +753,44 @@ checkRoutes.post('/batch', async (c) => {
         // SECURITY: Do not expose internal parser error details
         return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
       }
+
+      // Validate rebac parameters if provided
+      if (check.rebac) {
+        if (!check.rebac.relation || typeof check.rebac.relation !== 'string') {
+          return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
+        }
+        if (!check.rebac.object || typeof check.rebac.object !== 'string') {
+          return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
+        }
+        // Validate contextual_tuples if provided
+        if (check.rebac.contextual_tuples !== undefined) {
+          if (!Array.isArray(check.rebac.contextual_tuples)) {
+            return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
+          }
+          if (check.rebac.contextual_tuples.length > maxContextualTuples) {
+            log.warn('Batch contextual tuples limit exceeded', {
+              checkIndex: checkIdx,
+              count: check.rebac.contextual_tuples.length,
+              limit: maxContextualTuples,
+            });
+            return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
+          }
+          for (const tuple of check.rebac.contextual_tuples) {
+            if (
+              !tuple ||
+              typeof tuple !== 'object' ||
+              !tuple.user_id ||
+              typeof tuple.user_id !== 'string' ||
+              !tuple.relation ||
+              typeof tuple.relation !== 'string' ||
+              !tuple.object ||
+              typeof tuple.object !== 'string'
+            ) {
+              return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE);
+            }
+          }
+        }
+      }
     }
 
     // Apply default tenant_id (use auth context tenant if available)
@@ -510,11 +801,19 @@ checkRoutes.post('/batch', async (c) => {
       tenant_id: check.tenant_id ?? defaultTenantId,
     }));
 
-    // Execute batch check
-    const result = await checkService.batchCheck({
-      checks: normalizedChecks,
-      stop_on_deny: body.stop_on_deny,
-    });
+    // Execute batch check with audit options
+    const result = await services.checkService.batchCheck(
+      {
+        checks: normalizedChecks,
+        stop_on_deny: body.stop_on_deny,
+      },
+      {
+        ctx: c.executionCtx as ExecutionContext,
+        apiKeyId: auth.apiKeyId,
+        clientId: auth.clientId,
+        requestId: c.req.header('X-Request-ID'),
+      }
+    );
 
     // Return with rate limit headers
     return c.json(result, {

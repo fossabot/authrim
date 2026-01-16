@@ -11,7 +11,12 @@
 		type DataRetentionStatus,
 		type AccessReviewScope
 	} from '$lib/api/admin-compliance';
-	import { getCategoryDisplayName, getCategoryDescription } from '$lib/api/admin-data-retention';
+	import {
+		adminDataRetentionAPI,
+		getCategoryDisplayName,
+		getCategoryDescription
+	} from '$lib/api/admin-data-retention';
+	import RetentionPolicyEditDialog from '$lib/components/RetentionPolicyEditDialog.svelte';
 	import { formatDate, isValidDownloadUrl, SMALL_PAGE_SIZE, sanitizeText } from '$lib/utils';
 
 	// State
@@ -32,6 +37,17 @@
 	let newReviewName = $state('');
 	let newReviewScope = $state<AccessReviewScope>('all_users');
 	let newReviewDueDate = $state('');
+
+	// Retention Edit Dialog
+	let showRetentionEditDialog = $state(false);
+	let editingCategory = $state<string | null>(null);
+	let editingRetentionDays = $state(0);
+	let retentionActionError = $state('');
+
+	// Cleanup Confirmation Dialog
+	let showCleanupDialog = $state(false);
+	let cleanupLoading = $state(false);
+	let cleanupResult = $state<{ deleted: number; runId: string } | null>(null);
 
 	async function loadData() {
 		loading = true;
@@ -210,6 +226,59 @@
 			...review,
 			name: sanitizeText(review.name)
 		};
+	}
+
+	// Retention Edit functions
+	function openRetentionEditDialog(category: string, currentDays: number) {
+		editingCategory = category;
+		editingRetentionDays = currentDays;
+		retentionActionError = '';
+		showRetentionEditDialog = true;
+	}
+
+	function closeRetentionEditDialog() {
+		showRetentionEditDialog = false;
+		editingCategory = null;
+	}
+
+	async function handleRetentionSave(category: string, retentionDays: number) {
+		await adminDataRetentionAPI.updateCategory(category, retentionDays);
+		// Reload data to show updated values
+		const freshData = await adminComplianceAPI.getDataRetentionStatus();
+		dataRetention = freshData;
+		closeRetentionEditDialog();
+	}
+
+	// Cleanup functions
+	function openCleanupDialog() {
+		cleanupResult = null;
+		retentionActionError = '';
+		showCleanupDialog = true;
+	}
+
+	function closeCleanupDialog() {
+		showCleanupDialog = false;
+		cleanupResult = null;
+	}
+
+	async function executeCleanup() {
+		cleanupLoading = true;
+		retentionActionError = '';
+
+		try {
+			const result = await adminDataRetentionAPI.runCleanup();
+			cleanupResult = {
+				deleted: result.deleted_count || 0,
+				runId: result.run_id
+			};
+			// Reload data to show updated values
+			const freshData = await adminComplianceAPI.getDataRetentionStatus();
+			dataRetention = freshData;
+		} catch (err) {
+			retentionActionError = err instanceof Error ? err.message : 'Failed to execute cleanup';
+		} finally {
+			cleanupLoading = false;
+		}
 	}
 </script>
 
@@ -650,6 +719,25 @@
 								Configure how long data is retained before automatic deletion
 							</p>
 						</div>
+						<button
+							onclick={openCleanupDialog}
+							style="
+								display: inline-flex;
+								align-items: center;
+								gap: 6px;
+								padding: 8px 16px;
+								background-color: #f59e0b;
+								color: white;
+								border: none;
+								border-radius: 6px;
+								font-size: 14px;
+								font-weight: 500;
+								cursor: pointer;
+							"
+						>
+							<span>🗑️</span>
+							Run Cleanup
+						</button>
 					</div>
 					<table style="width: 100%; border-collapse: collapse;">
 						<thead>
@@ -673,6 +761,10 @@
 								<th
 									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
 									>Next Cleanup</th
+								>
+								<th
+									style="padding: 12px 16px; text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
+									>Actions</th
 								>
 							</tr>
 						</thead>
@@ -702,7 +794,9 @@
 											{category.retention_days} days
 										</span>
 									</td>
-									<td style="padding: 12px 16px; text-align: right; font-size: 14px; color: #374151;">
+									<td
+										style="padding: 12px 16px; text-align: right; font-size: 14px; color: #374151;"
+									>
 										{category.records_count.toLocaleString()}
 									</td>
 									<td style="padding: 12px 16px; font-size: 13px; color: #6b7280;">
@@ -710,6 +804,23 @@
 									</td>
 									<td style="padding: 12px 16px; font-size: 13px; color: #6b7280;">
 										{category.next_cleanup ? formatDate(category.next_cleanup) : '-'}
+									</td>
+									<td style="padding: 12px 16px; text-align: center;">
+										<button
+											onclick={() =>
+												openRetentionEditDialog(category.category, category.retention_days)}
+											style="
+												padding: 6px 12px;
+												background-color: #f3f4f6;
+												border: 1px solid #e5e7eb;
+												border-radius: 4px;
+												font-size: 13px;
+												color: #374151;
+												cursor: pointer;
+											"
+										>
+											Edit
+										</button>
 									</td>
 								</tr>
 							{/each}
@@ -866,6 +977,139 @@
 					{startingReview ? 'Starting...' : 'Start Review'}
 				</button>
 			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Retention Policy Edit Dialog -->
+<RetentionPolicyEditDialog
+	open={showRetentionEditDialog}
+	category={editingCategory}
+	currentRetentionDays={editingRetentionDays}
+	onClose={closeRetentionEditDialog}
+	onSave={handleRetentionSave}
+/>
+
+<!-- Cleanup Confirmation Dialog -->
+{#if showCleanupDialog}
+	<div
+		style="position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50;"
+		onclick={closeCleanupDialog}
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="cleanup-dialog-title"
+	>
+		<div
+			style="background: white; border-radius: 8px; padding: 24px; max-width: 500px; width: 90%;"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+			role="document"
+		>
+			{#if cleanupResult}
+				<!-- Success State -->
+				<div style="text-align: center;">
+					<div style="font-size: 48px; margin-bottom: 16px;">✅</div>
+					<h2
+						id="cleanup-dialog-title"
+						style="font-size: 18px; font-weight: bold; margin: 0 0 12px 0; color: #1f2937;"
+					>
+						Cleanup Completed
+					</h2>
+					<p style="color: #6b7280; margin: 0 0 16px 0;">
+						Successfully deleted <strong>{cleanupResult.deleted.toLocaleString()}</strong> records.
+					</p>
+					<p style="font-size: 12px; color: #9ca3af; margin: 0 0 24px 0;">
+						Run ID: {cleanupResult.runId}
+					</p>
+					<button
+						onclick={closeCleanupDialog}
+						style="
+							padding: 10px 24px;
+							background-color: #3b82f6;
+							color: white;
+							border: none;
+							border-radius: 6px;
+							cursor: pointer;
+							font-size: 14px;
+						"
+					>
+						Close
+					</button>
+				</div>
+			{:else}
+				<!-- Confirmation State -->
+				<h2
+					id="cleanup-dialog-title"
+					style="font-size: 18px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;"
+				>
+					Run Data Cleanup
+				</h2>
+
+				{#if retentionActionError}
+					<div
+						style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
+					>
+						{retentionActionError}
+					</div>
+				{/if}
+
+				<div
+					style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 16px; margin-bottom: 20px;"
+				>
+					<div style="display: flex; gap: 12px; align-items: flex-start;">
+						<span style="font-size: 20px;">⚠️</span>
+						<div>
+							<div style="font-weight: 600; color: #92400e; margin-bottom: 4px;">
+								Warning: This action cannot be undone
+							</div>
+							<p style="font-size: 13px; color: #92400e; margin: 0;">
+								This will permanently delete all data that exceeds the configured retention periods
+								across all categories. Records older than their category's retention period will be
+								removed.
+							</p>
+						</div>
+					</div>
+				</div>
+
+				<p style="color: #6b7280; font-size: 14px; margin: 0 0 24px 0;">
+					Are you sure you want to run the data cleanup now? This process will delete expired
+					records based on each category's retention policy.
+				</p>
+
+				<div style="display: flex; justify-content: flex-end; gap: 12px;">
+					<button
+						onclick={closeCleanupDialog}
+						disabled={cleanupLoading}
+						style="
+							padding: 10px 20px;
+							background-color: #f3f4f6;
+							color: #374151;
+							border: none;
+							border-radius: 6px;
+							cursor: pointer;
+							font-size: 14px;
+						"
+					>
+						Cancel
+					</button>
+					<button
+						onclick={executeCleanup}
+						disabled={cleanupLoading}
+						style="
+							padding: 10px 20px;
+							background-color: #ef4444;
+							color: white;
+							border: none;
+							border-radius: 6px;
+							cursor: pointer;
+							font-size: 14px;
+							opacity: {cleanupLoading ? 0.7 : 1};
+						"
+					>
+						{cleanupLoading ? 'Deleting...' : 'Delete Expired Data'}
+					</button>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}

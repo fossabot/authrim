@@ -279,6 +279,9 @@ importers:
       '@authrim/ar-lib-plugin':
         specifier: workspace:*
         version: link:../ar-lib-plugin
+      '@authrim/ar-lib-policy':
+        specifier: workspace:*
+        version: link:../ar-lib-policy
       '@authrim/ar-lib-scim':
         specifier: workspace:*
         version: link:../ar-lib-scim

@@ -25,7 +25,7 @@
 
 import type { Context } from 'hono';
 import type { Env, AdminAuthContext } from '@authrim/ar-lib-core';
-import { createErrorResponse, AR_ERROR_CODES, getLogger } from '@authrim/ar-lib-core';
+import { createErrorResponse, AR_ERROR_CODES, getLogger, createLogger } from '@authrim/ar-lib-core';
 import {
   maskSensitiveFieldsRecursive,
   validateExternalUrl,
@@ -34,6 +34,9 @@ import {
   getPluginEncryptionKey,
   matchesSecretPattern,
   type EncryptedConfig,
+  // Builtin plugin registration
+  registerBuiltinPlugins,
+  needsBuiltinRegistration,
 } from '@authrim/ar-lib-plugin';
 
 // =============================================================================
@@ -409,6 +412,10 @@ export async function listPluginsHandler(c: Context<{ Bindings: Env }>) {
   if (!kv) {
     return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
+
+  // Lazy initialization: Ensure builtin plugins are registered
+  // This runs once per Worker isolate and is a no-op if already registered
+  await ensureBuiltinPluginsRegistered(kv);
 
   const registry = await getPluginRegistry(kv);
   const plugins: Array<PluginRegistryEntry & PluginStatus> = [];
@@ -889,4 +896,75 @@ export async function updatePluginHealth(
     }),
     { expirationTtl: 3600 } // 1 hour TTL
   );
+}
+
+// =============================================================================
+// Builtin Plugin Auto-Registration
+// =============================================================================
+
+/** Cache for registration check to avoid repeated KV reads within a request */
+let builtinRegistrationChecked = false;
+
+/**
+ * Ensure builtin plugins are registered in KV
+ *
+ * This function should be called at startup or lazily on first plugin list request.
+ * It registers all builtin plugins (from ar-lib-plugin/builtin/) to the KV registry
+ * so they appear in Admin UI.
+ *
+ * Features:
+ * - Idempotent: Only registers if missing or version changed
+ * - Lightweight: Checks needsBuiltinRegistration() first to minimize KV reads
+ * - Caches result to avoid repeated checks within the same isolate
+ *
+ * @param kv - KV namespace (SETTINGS)
+ * @returns Registration result with counts and any errors
+ */
+export async function ensureBuiltinPluginsRegistered(
+  kv: KVNamespace
+): Promise<{ registered: number; skipped: number; errors: string[] } | null> {
+  // Skip if already checked in this isolate
+  if (builtinRegistrationChecked) {
+    return null;
+  }
+
+  const log = createLogger().module('PluginRegistry');
+
+  try {
+    // Quick check if registration is needed
+    const needsRegistration = await needsBuiltinRegistration(kv);
+    if (!needsRegistration) {
+      builtinRegistrationChecked = true;
+      log.debug('Builtin plugins already registered, skipping');
+      return null;
+    }
+
+    // Register builtin plugins
+    const result = await registerBuiltinPlugins(kv, {
+      force: false,
+      log: (message, data) => {
+        log.debug(message, data ?? {});
+      },
+    });
+
+    builtinRegistrationChecked = true;
+
+    if (result.registered > 0) {
+      log.info('Builtin plugins registered', {
+        registered: result.registered,
+        skipped: result.skipped,
+        errors: result.errors.length,
+      });
+    }
+
+    if (result.errors.length > 0) {
+      log.warn('Some builtin plugins failed to register', { errors: result.errors });
+    }
+
+    return result;
+  } catch (error) {
+    log.error('Failed to register builtin plugins', {}, error as Error);
+    // Don't cache failure - allow retry on next request
+    return { registered: 0, skipped: 0, errors: [(error as Error).message] };
+  }
 }

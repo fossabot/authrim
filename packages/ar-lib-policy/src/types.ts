@@ -107,6 +107,42 @@ export interface PolicyAction {
 }
 
 /**
+ * Request count data for rate-based policy evaluation
+ * Populated by the caller (e.g., from Durable Objects or KV)
+ */
+export interface RequestCountData {
+  /** Count key identifier (e.g., 'user:user_123:api:read') */
+  key: string;
+  /** Current request count in the window */
+  count: number;
+  /** Window duration in seconds */
+  windowSeconds: number;
+  /** When the current window resets (Unix timestamp in seconds) */
+  resetAt: number;
+}
+
+/**
+ * Environment context for policy evaluation
+ * Contains request-level information like IP, location, etc.
+ */
+export interface PolicyEnvironment {
+  /** Client IP address */
+  clientIp?: string;
+  /** Country code from CF-IPCountry or GeoIP */
+  countryCode?: string;
+  /** Region/state */
+  region?: string;
+  /** City */
+  city?: string;
+  /** Timezone (IANA format, e.g., 'America/New_York') */
+  timezone?: string;
+  /** Request counts for rate-based conditions (populated by caller) */
+  requestCounts?: RequestCountData[];
+  /** Additional environment attributes */
+  [key: string]: unknown;
+}
+
+/**
  * Context for policy evaluation request
  */
 export interface PolicyContext {
@@ -122,8 +158,8 @@ export interface PolicyContext {
   /** Request timestamp */
   timestamp: number;
 
-  /** Additional environment context */
-  environment?: Record<string, unknown>;
+  /** Environment context (IP, country, timezone, etc.) */
+  environment?: PolicyEnvironment;
 }
 
 /**
@@ -196,7 +232,27 @@ export type ConditionType =
   // Attribute-based conditions (ABAC) - Phase 3
   | 'attribute_equals' // Subject has attribute with specific value
   | 'attribute_exists' // Subject has attribute (any value)
-  | 'attribute_in'; // Subject attribute value is in a list
+  | 'attribute_in' // Subject attribute value is in a list
+  // Time-based conditions (Phase 4)
+  | 'time_in_range' // Current time is within a specific hour range
+  | 'day_of_week' // Current day matches allowed days (0=Sun, 6=Sat)
+  | 'valid_during' // Current time is within a date range (Unix seconds)
+  // Numeric comparisons (Phase 4)
+  | 'numeric_gt' // Attribute value > threshold
+  | 'numeric_gte' // Attribute value >= threshold
+  | 'numeric_lt' // Attribute value < threshold
+  | 'numeric_lte' // Attribute value <= threshold
+  | 'numeric_eq' // Attribute value == threshold
+  | 'numeric_between' // Attribute value is between min and max (inclusive)
+  // Geographic conditions (Phase 4)
+  | 'country_in' // Request country code is in allowed list
+  | 'country_not_in' // Request country code is NOT in blocked list
+  | 'ip_in_range' // Request IP is within CIDR range
+  // Rate-based conditions (Phase 5)
+  | 'request_count_lt' // Request count < limit within window
+  | 'request_count_lte' // Request count <= limit within window
+  | 'request_count_gt' // Request count > threshold within window
+  | 'request_count_gte'; // Request count >= threshold within window
 
 /**
  * Verified attribute for ABAC evaluation

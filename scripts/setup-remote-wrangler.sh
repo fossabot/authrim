@@ -666,6 +666,10 @@ class_name = "VersionManager"
 name = "SAML_REQUEST_STORE"
 class_name = "SAMLRequestStore"
 
+[[durable_objects.bindings]]
+name = "FLOW_STATE_STORE"
+class_name = "FlowStateStore"
+
 # Durable Objects migrations
 [[migrations]]
 tag = "v1"
@@ -708,6 +712,12 @@ new_sqlite_classes = [
 tag = "v6"
 new_sqlite_classes = [
   "SAMLRequestStore"
+]
+
+[[migrations]]
+tag = "v7"
+new_sqlite_classes = [
+  "FlowStateStore"
 ]
 
 # KV Namespaces (for dynamic configuration)
@@ -818,6 +828,11 @@ script_name = \"${DEPLOY_ENV}-ar-lib-core\"
 [[durable_objects.bindings]]
 name = \"VERSION_MANAGER\"
 class_name = \"VersionManager\"
+script_name = \"${DEPLOY_ENV}-ar-lib-core\"
+
+[[durable_objects.bindings]]
+name = \"FLOW_STATE_STORE\"
+class_name = \"FlowStateStore\"
 script_name = \"${DEPLOY_ENV}-ar-lib-core\""
 fi
 

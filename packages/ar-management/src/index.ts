@@ -122,7 +122,48 @@ import {
   adminOrganizationHierarchyHandler,
   adminUserEffectivePermissionsHandler,
   adminRoleCreateHandler,
+  adminRoleUpdateHandler,
+  adminRoleDeleteHandler,
 } from './admin-rbac';
+import {
+  adminRelationDefinitionsListHandler,
+  adminRelationDefinitionGetHandler,
+  adminRelationDefinitionCreateHandler,
+  adminRelationDefinitionUpdateHandler,
+  adminRelationDefinitionDeleteHandler,
+  adminRelationshipTuplesListHandler,
+  adminRelationshipTupleCreateHandler,
+  adminRelationshipTupleDeleteHandler,
+  adminRelationshipCheckHandler,
+  adminObjectTypesListHandler,
+} from './admin-rebac';
+import {
+  adminAttributesListHandler,
+  adminUserAttributesHandler,
+  adminAttributeCreateHandler,
+  adminAttributeUpdateHandler,
+  adminAttributeDeleteHandler,
+  adminVerificationsListHandler,
+  adminAttributeStatsHandler,
+  adminDeleteExpiredAttributesHandler,
+  adminAttributeNamesHandler,
+} from './admin-attributes';
+import {
+  adminPoliciesListHandler,
+  adminPolicyGetHandler,
+  adminPolicyCreateHandler,
+  adminPolicyUpdateHandler,
+  adminPolicyDeleteHandler,
+  adminPolicySimulateHandler,
+  adminPolicySimulationsHandler,
+  adminConditionTypesHandler,
+} from './admin-policies';
+import {
+  adminAccessTraceListHandler,
+  adminAccessTraceGetHandler,
+  adminAccessTraceStatsHandler,
+  adminAccessTraceTimelineHandler,
+} from './admin-access-trace';
 import {
   adminAIGrantsListHandler,
   adminAIGrantGetHandler,
@@ -186,6 +227,7 @@ import {
   migrateRegionShards,
   validateRegionShardsConfig,
 } from './routes/settings/region-shards';
+import { getFlowStateShards, updateFlowStateShards } from './routes/settings/flow-state-shards';
 import {
   getPartitionSettings,
   updatePartitionSettings,
@@ -216,6 +258,11 @@ import {
   cleanupExpiredAnonymousUsers,
 } from './routes/settings/anonymous-auth';
 import { getPolicyFlags, updatePolicyFlag, clearPolicyFlag } from './routes/settings/policy-flags';
+import {
+  getCheckApiAuditSettings,
+  updateCheckApiAuditSetting,
+  clearCheckApiAuditSetting,
+} from './routes/settings/check-api-audit';
 import {
   getRateLimitSettings,
   getRateLimitProfile,
@@ -435,6 +482,13 @@ import {
   triggerRetentionCleanup,
   getStorageStats,
 } from './routes/settings/audit-storage';
+import {
+  getDataRetentionEstimate,
+  updateCategoryRetention,
+  runDataRetentionCleanup,
+  getCleanupRunStatus,
+  listRetentionCategories,
+} from './routes/settings/data-retention';
 
 // Create Hono app with Cloudflare Workers types
 const app = new Hono<{ Bindings: Env }>();
@@ -859,6 +913,11 @@ app.delete('/api/admin/settings/region-shards', deleteRegionShards);
 app.post('/api/admin/settings/region-shards/migrate', migrateRegionShards);
 app.get('/api/admin/settings/region-shards/validate', validateRegionShardsConfig);
 
+// Admin Flow State Shards Configuration
+// Flow Engine session state DO sharding (default: 32 shards)
+app.get('/api/admin/settings/flow-state-shards', getFlowStateShards);
+app.put('/api/admin/settings/flow-state-shards', updateFlowStateShards);
+
 // [DEPRECATED] Admin PII Partition
 // → Migrate to: /api/admin/platform/settings/infrastructure
 // NOTE: Has test/stats operations - keep until settings-v2 supports operations
@@ -902,6 +961,21 @@ app.get('/api/admin/settings/encryption/status', getEncryptionStatus);
 app.get('/api/admin/settings/policy-flags', getPolicyFlags);
 app.put('/api/admin/settings/policy-flags/:name', updatePolicyFlag);
 app.delete('/api/admin/settings/policy-flags/:name', clearPolicyFlag);
+
+// Check API Audit Configuration (Phase 3 - Access Control)
+// Manages permission check audit logging settings
+// RBAC: Requires tenant_admin or higher role
+app.use(
+  '/api/admin/settings/check-api-audit',
+  requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
+);
+app.use(
+  '/api/admin/settings/check-api-audit/*',
+  requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
+);
+app.get('/api/admin/settings/check-api-audit', getCheckApiAuditSettings);
+app.put('/api/admin/settings/check-api-audit/:name', updateCheckApiAuditSetting);
+app.delete('/api/admin/settings/check-api-audit/:name', clearCheckApiAuditSetting);
 
 // [DEPRECATED] Admin Rate Limit Configuration
 // → Migrate to: /api/admin/tenants/:tenantId/settings/rate-limit
@@ -1048,11 +1122,13 @@ app.delete('/api/admin/organizations/:id/members/:subjectId', adminOrganizationM
 // Organization hierarchy
 app.get('/api/admin/organizations/:id/hierarchy', adminOrganizationHierarchyHandler);
 
-// Role management (read-only for system roles, custom roles can be created)
+// Role management (read-only for system roles, custom roles can be created/edited/deleted)
 app.get('/api/admin/roles', adminRolesListHandler);
 app.get('/api/admin/roles/:id', adminRoleGetHandler);
 app.get('/api/admin/roles/:id/assignments', adminRoleAssignmentsListHandler);
 app.post('/api/admin/roles', adminRoleCreateHandler);
+app.patch('/api/admin/roles/:id', adminRoleUpdateHandler);
+app.delete('/api/admin/roles/:id', adminRoleDeleteHandler);
 
 // User role assignment management
 app.get('/api/admin/users/:id/roles', adminUserRolesListHandler);
@@ -1069,6 +1145,95 @@ app.delete(
 
 // User effective permissions (aggregated from all sources)
 app.get('/api/admin/users/:id/effective-permissions', adminUserEffectivePermissionsHandler);
+
+// =============================================================================
+// ReBAC Management (Relationship-Based Access Control)
+// =============================================================================
+// Manages relation definitions (Zanzibar-style DSL) and relationship tuples.
+// RBAC: Requires system_admin role.
+
+// Relation definitions management
+app.get('/api/admin/rebac/relation-definitions', adminRelationDefinitionsListHandler);
+app.get('/api/admin/rebac/relation-definitions/:id', adminRelationDefinitionGetHandler);
+app.post('/api/admin/rebac/relation-definitions', adminRelationDefinitionCreateHandler);
+app.put('/api/admin/rebac/relation-definitions/:id', adminRelationDefinitionUpdateHandler);
+app.delete('/api/admin/rebac/relation-definitions/:id', adminRelationDefinitionDeleteHandler);
+
+// Relationship tuples management
+app.get('/api/admin/rebac/tuples', adminRelationshipTuplesListHandler);
+app.post('/api/admin/rebac/tuples', adminRelationshipTupleCreateHandler);
+app.delete('/api/admin/rebac/tuples/:id', adminRelationshipTupleDeleteHandler);
+
+// Permission check simulation
+app.post('/api/admin/rebac/check', adminRelationshipCheckHandler);
+
+// Object types summary
+app.get('/api/admin/rebac/object-types', adminObjectTypesListHandler);
+
+// =============================================================================
+// ABAC (Attribute-Based Access Control)
+// =============================================================================
+// Manages user attributes for ABAC policy evaluation.
+// Attributes can come from VCs, SAML, or manual assignment.
+
+// Attribute management
+app.get('/api/admin/attributes', adminAttributesListHandler);
+app.get('/api/admin/attributes/stats', adminAttributeStatsHandler);
+app.get('/api/admin/attributes/names', adminAttributeNamesHandler);
+app.get('/api/admin/attributes/verifications', adminVerificationsListHandler);
+app.get('/api/admin/attributes/users/:userId', adminUserAttributesHandler);
+app.post('/api/admin/attributes', adminAttributeCreateHandler);
+app.put('/api/admin/attributes/:id', adminAttributeUpdateHandler);
+app.delete('/api/admin/attributes/:id', adminAttributeDeleteHandler);
+app.delete('/api/admin/attributes/expired', adminDeleteExpiredAttributesHandler);
+
+// =============================================================================
+// Policy Rules Management (Visual Policy Builder)
+// =============================================================================
+// Manages custom policy rules for fine-grained access control.
+// Supports RBAC, ABAC, time-based, geo, and rate conditions.
+// RBAC: Requires tenant_admin or higher role.
+
+app.use(
+  '/api/admin/policies',
+  requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
+);
+app.use(
+  '/api/admin/policies/*',
+  requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
+);
+
+// Policy rules CRUD
+app.get('/api/admin/policies', adminPoliciesListHandler);
+app.post('/api/admin/policies', adminPolicyCreateHandler);
+app.get('/api/admin/policies/condition-types', adminConditionTypesHandler);
+app.get('/api/admin/policies/simulations', adminPolicySimulationsHandler);
+app.post('/api/admin/policies/simulate', adminPolicySimulateHandler);
+app.get('/api/admin/policies/:id', adminPolicyGetHandler);
+app.put('/api/admin/policies/:id', adminPolicyUpdateHandler);
+app.delete('/api/admin/policies/:id', adminPolicyDeleteHandler);
+
+// =============================================================================
+// Access Trace (Permission Check Audit Logs)
+// =============================================================================
+// Real-time access decision logs for debugging and monitoring.
+// Shows which rules allowed/denied access and why.
+// RBAC: Requires tenant_admin or higher role.
+
+app.use(
+  '/api/admin/access-trace',
+  requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
+);
+app.use(
+  '/api/admin/access-trace/*',
+  requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
+);
+
+// Access trace endpoints
+app.get('/api/admin/access-trace', adminAccessTraceListHandler);
+app.get('/api/admin/access-trace/stats', adminAccessTraceStatsHandler);
+app.get('/api/admin/access-trace/timeline', adminAccessTraceTimelineHandler);
+app.get('/api/admin/access-trace/:id', adminAccessTraceGetHandler);
 
 // =============================================================================
 // AI Grants (Human Auth / AI Ephemeral Auth Two-Layer Model)
@@ -1552,6 +1717,11 @@ app.use(
   requireAnyRole(['system_admin', 'distributor_admin', 'tenant_admin'])
 );
 app.get('/api/admin/data-retention/status', adminDataRetentionStatusHandler);
+app.get('/api/admin/data-retention/estimate', getDataRetentionEstimate);
+app.get('/api/admin/data-retention/categories', listRetentionCategories);
+app.put('/api/admin/data-retention/categories/:category', updateCategoryRetention);
+app.post('/api/admin/data-retention/cleanup', runDataRetentionCleanup);
+app.get('/api/admin/data-retention/cleanup/:runId', getCleanupRunStatus);
 
 // =============================================================================
 // User Consent Management API (GDPR Article 7 - User Rights)

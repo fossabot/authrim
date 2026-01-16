@@ -63,7 +63,7 @@
 						...job.result,
 						failures: job.result.failures.map((f) => ({
 							...f,
-							error: f.error ? sanitizeText(f.error) : undefined
+							error: sanitizeText(f.error || '')
 						}))
 					}
 				: undefined

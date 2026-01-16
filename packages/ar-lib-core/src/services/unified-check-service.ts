@@ -17,6 +17,7 @@
  */
 
 import type { D1Database, KVNamespace } from '@cloudflare/workers-types';
+import type { ExecutionContext } from '@cloudflare/workers-types';
 import type {
   CheckApiRequest,
   CheckApiResponse,
@@ -28,7 +29,13 @@ import type {
   FinalDecision,
   CheckDebugInfo,
   AuditLogConfig,
+  VerifiedAttributeForCheck,
+  AttributeRepository,
+  PolicyEvaluator,
+  PolicyEvaluationContext,
 } from '../types/check-api';
+import type { CheckAuditService, PermissionCheckAuditEntry } from './check-audit-service';
+import { generateAuditId } from './check-audit-service';
 import type { ReBACService, CheckRequest as ReBACCheckRequest } from '../rebac';
 import { hasIdLevelPermission, getUserIdLevelPermissions } from '../utils/resource-permissions';
 import { createLogger } from '../utils/logger';
@@ -225,6 +232,14 @@ export interface UnifiedCheckServiceConfig {
   debugMode?: boolean;
   /** Audit log configuration */
   auditConfig?: AuditLogConfig;
+  /** Attribute repository for ABAC evaluation (optional) */
+  attributeRepository?: AttributeRepository;
+  /** Enable ABAC evaluation (default: false) */
+  enableAbac?: boolean;
+  /** Policy evaluator for ABAC rules (optional) */
+  policyEvaluator?: PolicyEvaluator;
+  /** Audit service for permission check logging (optional) */
+  auditService?: CheckAuditService;
 }
 
 /**
@@ -238,6 +253,8 @@ interface CheckContext {
   resourceContext?: CheckApiRequest['resource_context'];
   rebacParams?: CheckApiRequest['rebac'];
   startTime: number;
+  /** Verified attributes for ABAC evaluation (loaded from DB) */
+  verifiedAttributes?: VerifiedAttributeForCheck[];
 }
 
 /**
@@ -262,6 +279,10 @@ export class UnifiedCheckService {
   private cacheTTL: number;
   private debugMode: boolean;
   private auditConfig: AuditLogConfig;
+  private attributeRepository?: AttributeRepository;
+  private enableAbac: boolean;
+  private policyEvaluator?: PolicyEvaluator;
+  private auditService?: CheckAuditService;
 
   constructor(config: UnifiedCheckServiceConfig) {
     this.db = config.db;
@@ -274,23 +295,44 @@ export class UnifiedCheckService {
       log_allow: 'sample',
       allow_sample_rate: 0.01,
     };
+    this.attributeRepository = config.attributeRepository;
+    this.enableAbac = config.enableAbac ?? false;
+    this.policyEvaluator = config.policyEvaluator;
+    this.auditService = config.auditService;
   }
 
   /**
    * Check a single permission
+   *
+   * @param request - Check request
+   * @param options - Optional parameters for audit logging
+   * @param options.ctx - ExecutionContext for non-blocking audit logging (waitUntil mode)
+   * @param options.apiKeyId - API key ID for audit logging
+   * @param options.clientId - Client ID for audit logging
+   * @param options.requestId - Request ID for correlation
    */
-  async check(request: CheckApiRequest): Promise<CheckApiResponse> {
+  async check(
+    request: CheckApiRequest,
+    options?: {
+      ctx?: ExecutionContext;
+      apiKeyId?: string;
+      clientId?: string;
+      requestId?: string;
+    }
+  ): Promise<CheckApiResponse> {
     const startTime = performance.now();
+    let parsed: ParsedPermission | undefined;
+    let tenantId = request.tenant_id ?? 'default';
 
     try {
       // Parse permission
-      const parsed = parsePermission(request.permission);
+      parsed = parsePermission(request.permission);
 
       // Build context
       const context: CheckContext = {
         subjectId: request.subject_id,
         subjectType: request.subject_type ?? 'user',
-        tenantId: request.tenant_id ?? 'default',
+        tenantId,
         parsed,
         resourceContext: request.resource_context,
         rebacParams: request.rebac,
@@ -302,6 +344,8 @@ export class UnifiedCheckService {
       if (this.cache) {
         const cached = await this.getCachedResult(cacheKey);
         if (cached) {
+          // Log audit for cached result too
+          await this.logAudit(request, cached, parsed, tenantId, options);
           return cached;
         }
       }
@@ -317,11 +361,14 @@ export class UnifiedCheckService {
         await this.cacheResult(cacheKey, response);
       }
 
+      // Log audit entry
+      await this.logAudit(request, response, parsed, tenantId, options);
+
       return response;
     } catch (error) {
       // Handle parsing or evaluation errors
       log.error('Evaluation error', { subjectId: request.subject_id }, error as Error);
-      return {
+      const errorResponse: CheckApiResponse = {
         allowed: false,
         resolved_via: [],
         final_decision: 'deny',
@@ -329,20 +376,79 @@ export class UnifiedCheckService {
         reason: 'evaluation_error: Permission check failed',
         cache_ttl: 0,
       };
+
+      // Log audit for error case too
+      await this.logAudit(request, errorResponse, parsed, tenantId, options);
+
+      return errorResponse;
+    }
+  }
+
+  /**
+   * Log audit entry for permission check
+   */
+  private async logAudit(
+    request: CheckApiRequest,
+    response: CheckApiResponse,
+    parsed: ParsedPermission | undefined,
+    tenantId: string,
+    options?: {
+      ctx?: ExecutionContext;
+      apiKeyId?: string;
+      clientId?: string;
+      requestId?: string;
+    }
+  ): Promise<void> {
+    if (!this.auditService) return;
+
+    try {
+      const entry: PermissionCheckAuditEntry = {
+        id: generateAuditId(),
+        tenantId,
+        subjectId: request.subject_id,
+        permission:
+          typeof request.permission === 'string'
+            ? request.permission
+            : `${request.permission.resource}:${request.permission.id ?? ''}:${request.permission.action}`,
+        permissionParsed: parsed,
+        allowed: response.allowed,
+        resolvedVia: response.resolved_via,
+        finalDecision: response.final_decision,
+        reason: response.reason,
+        apiKeyId: options?.apiKeyId,
+        clientId: options?.clientId,
+        requestId: options?.requestId,
+      };
+
+      await this.auditService.log(entry, options?.ctx);
+    } catch (error) {
+      // Audit logging should not fail the request
+      log.error('Failed to log audit entry', { subjectId: request.subject_id }, error as Error);
     }
   }
 
   /**
    * Check multiple permissions in batch
+   *
+   * @param request - Batch check request
+   * @param options - Optional parameters for audit logging
    */
-  async batchCheck(request: BatchCheckRequest): Promise<BatchCheckResponse> {
+  async batchCheck(
+    request: BatchCheckRequest,
+    options?: {
+      ctx?: ExecutionContext;
+      apiKeyId?: string;
+      clientId?: string;
+      requestId?: string;
+    }
+  ): Promise<BatchCheckResponse> {
     const startTime = performance.now();
     const results: CheckApiResponse[] = [];
     let allowedCount = 0;
     let deniedCount = 0;
 
     for (const checkRequest of request.checks) {
-      const result = await this.check(checkRequest);
+      const result = await this.check(checkRequest, options);
       results.push(result);
 
       if (result.allowed) {
@@ -383,6 +489,28 @@ export class UnifiedCheckService {
    */
   private async evaluate(context: CheckContext): Promise<InternalCheckResult> {
     const matchedRules: string[] = [];
+
+    // Pre-load user verified attributes for ABAC evaluation
+    if (this.enableAbac && this.attributeRepository && !context.verifiedAttributes) {
+      try {
+        const attrs = await this.attributeRepository.getValidAttributesForUser(
+          context.tenantId,
+          context.subjectId
+        );
+        context.verifiedAttributes = Object.entries(attrs).map(([name, value]) => ({
+          name,
+          value,
+          source: 'db' as const,
+        }));
+      } catch (error) {
+        log.error(
+          'Failed to load user attributes',
+          { subjectId: context.subjectId },
+          error as Error
+        );
+        // Continue without attributes - don't fail the check
+      }
+    }
 
     // 1. ID-Level Permission Check (if ID is present)
     if (context.parsed.type === 'id_level' && context.parsed.id) {
@@ -542,6 +670,17 @@ export class UnifiedCheckService {
         object: context.rebacParams.object,
       };
 
+      // Pass contextual tuples if provided
+      if (context.rebacParams.contextual_tuples?.length) {
+        checkRequest.context = {
+          contextual_tuples: context.rebacParams.contextual_tuples.map((t) => ({
+            user_id: t.user_id,
+            relation: t.relation,
+            object: t.object,
+          })),
+        };
+      }
+
       const result = await this.rebacService.check(checkRequest);
 
       return {
@@ -585,7 +724,25 @@ export class UnifiedCheckService {
         }
       }
 
-      // TODO: Add more ABAC rules based on resource_context.attributes
+      // ABAC evaluation via PolicyEvaluator (if enabled and configured)
+      if (this.enableAbac && this.policyEvaluator && context.verifiedAttributes?.length) {
+        const policyContext: PolicyEvaluationContext = {
+          subjectId: context.subjectId,
+          verifiedAttributes: context.verifiedAttributes,
+          resourceType: context.parsed.resource,
+          resourceId: context.parsed.id,
+          resourceOwnerId: context.resourceContext.owner_id,
+          resourceOrgId: context.resourceContext.org_id,
+          resourceAttributes: context.resourceContext.attributes,
+          action: context.parsed.action,
+          timestamp: Date.now(),
+        };
+
+        const decision = this.policyEvaluator.evaluate(policyContext);
+        if (decision.allowed) {
+          return { allowed: true, ruleName: decision.decidedBy ?? 'abac_policy' };
+        }
+      }
 
       return { allowed: false };
     } catch (error) {

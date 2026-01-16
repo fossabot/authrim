@@ -73,6 +73,7 @@ export interface Env {
   VERSION_MANAGER: DurableObjectNamespace; // Worker bundle version management
   SAML_REQUEST_STORE: DurableObjectNamespace; // SAML 2.0 request/artifact store
   PERMISSION_CHANGE_HUB?: DurableObjectNamespace; // Phase 8.3: Real-time permission change notifications
+  FLOW_STATE_STORE?: DurableObjectNamespace; // Track C: Flow Engine state management
 
   // Service Bindings (Worker-to-Worker communication)
   EXTERNAL_IDP?: Fetcher; // External IdP worker (ar-bridge) for social login and enterprise IdP
@@ -199,6 +200,7 @@ export interface Env {
   AUTHRIM_SESSION_SHARDS?: string; // Number of session DO shards (default: 4)
   AUTHRIM_CHALLENGE_SHARDS?: string; // Number of challenge DO shards (default: 4)
   AUTHRIM_REVOCATION_SHARDS?: string; // Number of token revocation DO shards (default: 4)
+  AUTHRIM_FLOW_STATE_SHARDS?: string; // Number of flow state DO shards (default: 32)
 
   // Region-aware sharding settings (Priority: KV -> env -> defaults)
   REGION_SHARD_TOTAL_SHARDS?: string; // Total number of shards (default: 20)

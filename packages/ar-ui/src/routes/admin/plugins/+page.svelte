@@ -13,6 +13,7 @@
 	let plugins: PluginWithStatus[] = $state([]);
 	let loading = $state(true);
 	let error = $state('');
+	let successMessage = $state('');
 
 	// Filter state
 	let filterCategory = $state('');
@@ -22,11 +23,34 @@
 	let showDetailDialog = $state(false);
 	let selectedPlugin: PluginWithStatus | null = $state(null);
 	let pluginConfig: Record<string, unknown> = $state({});
+	let pluginSchema: JSONSchema | null = $state(null);
+	let editedConfig: Record<string, unknown> = $state({});
 	let loadingConfig = $state(false);
+	let savingConfig = $state(false);
+	let isEditMode = $state(false);
 
 	// Health check state
 	let healthStatus: Record<string, PluginHealthResponse> = $state({});
 	let checkingHealth: Record<string, boolean> = $state({});
+
+	// JSON Schema type definition
+	interface JSONSchemaProperty {
+		type?: string;
+		format?: string;
+		description?: string;
+		default?: unknown;
+		minimum?: number;
+		maximum?: number;
+		minLength?: number;
+		enum?: string[];
+	}
+
+	interface JSONSchema {
+		type?: string;
+		properties?: Record<string, JSONSchemaProperty>;
+		required?: string[];
+		schema?: JSONSchema; // Wrapped schema from API response
+	}
 
 	async function loadPlugins() {
 		loading = true;
@@ -88,14 +112,32 @@
 	async function openDetailDialog(plugin: PluginWithStatus) {
 		selectedPlugin = plugin;
 		pluginConfig = {};
+		pluginSchema = null;
+		editedConfig = {};
+		isEditMode = false;
 		loadingConfig = true;
 		showDetailDialog = true;
+		error = '';
+		successMessage = '';
 
 		try {
-			const detail = await adminPluginsAPI.get(plugin.id);
+			// Load config and schema in parallel
+			const [detail, schemaResponse] = await Promise.all([
+				adminPluginsAPI.get(plugin.id),
+				adminPluginsAPI.getSchema(plugin.id).catch(() => null)
+			]);
 			pluginConfig = detail.config;
+			editedConfig = { ...detail.config };
+
+			// Schema is wrapped in { pluginId, version, schema, meta }
+			if (schemaResponse && typeof schemaResponse === 'object' && 'schema' in schemaResponse) {
+				pluginSchema = schemaResponse.schema as JSONSchema;
+			} else if (schemaResponse) {
+				pluginSchema = schemaResponse as JSONSchema;
+			}
 		} catch (err) {
 			console.error('Failed to load plugin config:', err);
+			error = err instanceof Error ? err.message : 'Failed to load plugin configuration';
 		} finally {
 			loadingConfig = false;
 		}
@@ -105,6 +147,76 @@
 		showDetailDialog = false;
 		selectedPlugin = null;
 		pluginConfig = {};
+		pluginSchema = null;
+		editedConfig = {};
+		isEditMode = false;
+	}
+
+	function startEditing() {
+		editedConfig = { ...pluginConfig };
+		isEditMode = true;
+		error = '';
+		successMessage = '';
+	}
+
+	function cancelEditing() {
+		editedConfig = { ...pluginConfig };
+		isEditMode = false;
+		error = '';
+	}
+
+	async function saveConfig() {
+		if (!selectedPlugin) return;
+
+		savingConfig = true;
+		error = '';
+		successMessage = '';
+
+		try {
+			await adminPluginsAPI.updateConfig(selectedPlugin.id, { config: editedConfig });
+			pluginConfig = { ...editedConfig };
+			isEditMode = false;
+			successMessage = 'Configuration saved successfully';
+
+			// Clear success message after 3 seconds
+			setTimeout(() => {
+				successMessage = '';
+			}, 3000);
+		} catch (err) {
+			console.error('Failed to save config:', err);
+			error = err instanceof Error ? err.message : 'Failed to save configuration';
+		} finally {
+			savingConfig = false;
+		}
+	}
+
+	function updateConfigValue(key: string, value: unknown) {
+		editedConfig = { ...editedConfig, [key]: value };
+	}
+
+	function getInputType(prop: JSONSchemaProperty): string {
+		if (prop.type === 'boolean') return 'checkbox';
+		if (prop.type === 'integer' || prop.type === 'number') return 'number';
+		if (prop.format === 'email') return 'email';
+		if (prop.format === 'uri') return 'url';
+		if (isSecretField(prop)) return 'password';
+		return 'text';
+	}
+
+	function isSecretField(prop: JSONSchemaProperty, key?: string): boolean {
+		// Check if field is a secret based on description or key name
+		const secretPatterns = ['api key', 'password', 'secret', 'token', 'credential'];
+		const desc = (prop.description || '').toLowerCase();
+		const keyLower = (key || '').toLowerCase();
+
+		return (
+			secretPatterns.some((p) => desc.includes(p)) ||
+			secretPatterns.some((p) => keyLower.includes(p.replace(' ', '')))
+		);
+	}
+
+	function isFieldRequired(key: string): boolean {
+		return pluginSchema?.required?.includes(key) ?? false;
 	}
 
 	function applyFilters() {
@@ -608,15 +720,171 @@
 				</div>
 			{/if}
 
+			<!-- Success/Error Messages -->
+			{#if successMessage}
+				<div
+					style="padding: 12px; background-color: #d1fae5; color: #065f46; border-radius: 6px; margin-bottom: 16px; font-size: 14px;"
+				>
+					✓ {successMessage}
+				</div>
+			{/if}
+			{#if error && showDetailDialog}
+				<div
+					style="padding: 12px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px; font-size: 14px;"
+				>
+					{error}
+				</div>
+			{/if}
+
 			<div style="margin-bottom: 16px;">
-				<div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
-					Configuration
+				<div
+					style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"
+				>
+					<div style="font-size: 14px; font-weight: 500; color: #374151;">Configuration</div>
+					{#if pluginSchema && !loadingConfig}
+						{#if isEditMode}
+							<div style="display: flex; gap: 8px;">
+								<button
+									onclick={cancelEditing}
+									disabled={savingConfig}
+									style="
+										padding: 6px 12px;
+										background-color: #f3f4f6;
+										color: #374151;
+										border: none;
+										border-radius: 4px;
+										cursor: pointer;
+										font-size: 13px;
+									"
+								>
+									Cancel
+								</button>
+								<button
+									onclick={saveConfig}
+									disabled={savingConfig}
+									style="
+										padding: 6px 12px;
+										background-color: #3b82f6;
+										color: white;
+										border: none;
+										border-radius: 4px;
+										cursor: pointer;
+										font-size: 13px;
+										opacity: {savingConfig ? 0.7 : 1};
+									"
+								>
+									{savingConfig ? 'Saving...' : 'Save'}
+								</button>
+							</div>
+						{:else}
+							<button
+								onclick={startEditing}
+								style="
+									padding: 6px 12px;
+									background-color: #3b82f6;
+									color: white;
+									border: none;
+									border-radius: 4px;
+									cursor: pointer;
+									font-size: 13px;
+								"
+							>
+								Edit
+							</button>
+						{/if}
+					{/if}
 				</div>
 				{#if loadingConfig}
 					<div style="color: #6b7280; font-size: 14px;">Loading configuration...</div>
+				{:else if pluginSchema && pluginSchema.properties}
+					<!-- Schema-based form -->
+					<div style="display: flex; flex-direction: column; gap: 16px;">
+						{#each Object.entries(pluginSchema.properties) as [key, prop] (key)}
+							<div>
+								<label
+									style="display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px;"
+								>
+									{key}
+									{#if isFieldRequired(key)}
+										<span style="color: #ef4444;">*</span>
+									{/if}
+								</label>
+								{#if prop.description}
+									<div style="font-size: 12px; color: #6b7280; margin-bottom: 6px;">
+										{prop.description}
+									</div>
+								{/if}
+
+								{#if prop.type === 'boolean'}
+									<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+										<input
+											type="checkbox"
+											checked={Boolean(editedConfig[key] ?? prop.default)}
+											disabled={!isEditMode}
+											onchange={(e) =>
+												updateConfigValue(key, (e.target as HTMLInputElement).checked)}
+											style="
+												width: 18px;
+												height: 18px;
+												cursor: {isEditMode ? 'pointer' : 'default'};
+											"
+										/>
+										<span style="font-size: 14px; color: #374151;">
+											{(editedConfig[key] ?? prop.default) ? 'Enabled' : 'Disabled'}
+										</span>
+									</label>
+								{:else if prop.enum}
+									<select
+										value={String(editedConfig[key] ?? prop.default ?? '')}
+										disabled={!isEditMode}
+										onchange={(e) => updateConfigValue(key, (e.target as HTMLSelectElement).value)}
+										style="
+											width: 100%;
+											padding: 8px 12px;
+											border: 1px solid #d1d5db;
+											border-radius: 6px;
+											font-size: 14px;
+											background: {isEditMode ? 'white' : '#f9fafb'};
+										"
+									>
+										{#each prop.enum as option (option)}
+											<option value={option}>{option}</option>
+										{/each}
+									</select>
+								{:else}
+									<input
+										type={getInputType(prop)}
+										value={String(editedConfig[key] ?? prop.default ?? '')}
+										disabled={!isEditMode}
+										oninput={(e) => {
+											const target = e.target as HTMLInputElement;
+											const value =
+												prop.type === 'integer' || prop.type === 'number'
+													? Number(target.value)
+													: target.value;
+											updateConfigValue(key, value);
+										}}
+										placeholder={prop.default !== undefined ? String(prop.default) : ''}
+										min={prop.minimum}
+										max={prop.maximum}
+										style="
+											width: 100%;
+											padding: 8px 12px;
+											border: 1px solid #d1d5db;
+											border-radius: 6px;
+											font-size: 14px;
+											background: {isEditMode ? 'white' : '#f9fafb'};
+											box-sizing: border-box;
+										"
+									/>
+								{/if}
+							</div>
+						{/each}
+					</div>
 				{:else if Object.keys(pluginConfig).length === 0}
 					<div style="color: #6b7280; font-size: 14px;">No configuration available.</div>
 				{:else}
+					<!-- Fallback: JSON view when no schema -->
 					<pre
 						style="
 							background: #f9fafb;

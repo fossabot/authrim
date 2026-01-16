@@ -88,6 +88,7 @@ const COMPONENT_DO_BINDINGS: Record<WorkerComponent, string[]> = {
     'RATE_LIMITER',
     'PAR_REQUEST_STORE',
     'VERSION_MANAGER',
+    'FLOW_STATE_STORE',
   ],
   'ar-token': [
     'KEY_MANAGER',
@@ -462,7 +463,12 @@ function generateEnvVars(
   // Sharding configuration
   if (component === 'ar-lib-core' || component === 'ar-auth' || component === 'ar-token') {
     vars['AUTHRIM_CODE_SHARDS'] = config.sharding.authCodeShards.toString();
-    vars['AUTHRIM_SESSION_SHARDS'] = '32';
+    vars['AUTHRIM_SESSION_SHARDS'] = (config.sharding.sessionShards ?? 32).toString();
+    vars['AUTHRIM_CHALLENGE_SHARDS'] = (config.sharding.challengeShards ?? 16).toString();
+  }
+  // Flow Engine sharding (for ar-auth only)
+  if (component === 'ar-auth') {
+    vars['AUTHRIM_FLOW_STATE_SHARDS'] = (config.sharding.flowStateShards ?? 32).toString();
   }
 
   // Secrets placeholders (will be set via wrangler secret put)
@@ -536,6 +542,10 @@ function generateDOMigrations(): WranglerConfig['migrations'] {
     {
       tag: 'v7',
       new_sqlite_classes: ['PermissionChangeHub'],
+    },
+    {
+      tag: 'v8',
+      new_sqlite_classes: ['FlowStateStore'],
     },
   ];
 }
@@ -698,6 +708,7 @@ export function generateRoutes(
       routes.push(
         { pattern: `${domain}/authorize*`, zone_name: zoneName },
         { pattern: `${domain}/flow/*`, zone_name: zoneName },
+        { pattern: `${domain}/api/flow/*`, zone_name: zoneName },
         { pattern: `${domain}/par`, zone_name: zoneName },
         { pattern: `${domain}/session/check`, zone_name: zoneName },
         { pattern: `${domain}/as/*`, zone_name: zoneName },

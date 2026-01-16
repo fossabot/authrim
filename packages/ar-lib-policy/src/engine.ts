@@ -14,6 +14,7 @@ import type {
   ConditionType,
   VerifiedAttribute,
   PolicySubjectWithAttributes,
+  RequestCountData,
 } from './types';
 import { createLogger } from '@authrim/ar-lib-core';
 
@@ -310,6 +311,307 @@ const conditionEvaluators: Record<ConditionType, ConditionEvaluator> = {
       return true;
     });
   },
+
+  // ==========================================================================
+  // Time-based Conditions (Phase 4)
+  // ==========================================================================
+
+  /**
+   * Check if current time is within a specific hour range
+   *
+   * Params:
+   * - startHour: Start hour (0-23, required)
+   * - endHour: End hour (0-23, required)
+   * - timezone: IANA timezone (optional, defaults to UTC)
+   *
+   * Example:
+   * { type: 'time_in_range', params: { startHour: 9, endHour: 17, timezone: 'America/New_York' } }
+   */
+  time_in_range: (params, context) => {
+    const startHour = params.startHour as number;
+    const endHour = params.endHour as number;
+    const timezone = (params.timezone as string) || context.environment?.timezone || 'UTC';
+
+    const now = new Date(context.timestamp);
+    let hour: number;
+
+    try {
+      // Get hour in the specified timezone
+      const timeString = now.toLocaleString('en-US', {
+        hour: 'numeric',
+        hour12: false,
+        timeZone: timezone,
+      });
+      hour = parseInt(timeString, 10);
+    } catch {
+      // Invalid timezone, fall back to UTC
+      hour = now.getUTCHours();
+    }
+
+    // Handle overnight ranges (e.g., 22-6 means 22:00 to 06:00)
+    if (startHour <= endHour) {
+      return hour >= startHour && hour < endHour;
+    } else {
+      return hour >= startHour || hour < endHour;
+    }
+  },
+
+  /**
+   * Check if current day matches allowed days of the week
+   *
+   * Params:
+   * - allowedDays: Array of day numbers (0=Sunday, 6=Saturday)
+   * - timezone: IANA timezone (optional, defaults to UTC)
+   *
+   * Example:
+   * { type: 'day_of_week', params: { allowedDays: [1, 2, 3, 4, 5], timezone: 'America/New_York' } }
+   */
+  day_of_week: (params, context) => {
+    const allowedDays = params.allowedDays as number[];
+    const timezone = (params.timezone as string) || context.environment?.timezone || 'UTC';
+
+    const now = new Date(context.timestamp);
+    let day: number;
+
+    try {
+      // Get day in the specified timezone
+      const dateString = now.toLocaleString('en-US', {
+        weekday: 'short',
+        timeZone: timezone,
+      });
+      // Map weekday name to number
+      const dayMap: Record<string, number> = {
+        Sun: 0,
+        Mon: 1,
+        Tue: 2,
+        Wed: 3,
+        Thu: 4,
+        Fri: 5,
+        Sat: 6,
+      };
+      day = dayMap[dateString] ?? now.getUTCDay();
+    } catch {
+      // Invalid timezone, fall back to UTC
+      day = now.getUTCDay();
+    }
+
+    return allowedDays.includes(day);
+  },
+
+  /**
+   * Check if current time is within a date range
+   *
+   * Params:
+   * - from: Start timestamp (Unix seconds, optional)
+   * - to: End timestamp (Unix seconds, optional)
+   *
+   * Example:
+   * { type: 'valid_during', params: { from: 1704067200, to: 1735603200 } }
+   */
+  valid_during: (params, context) => {
+    const from = params.from as number | undefined;
+    const to = params.to as number | undefined;
+    const now = Math.floor(context.timestamp / 1000);
+
+    if (from !== undefined && now < from) return false;
+    if (to !== undefined && now > to) return false;
+    return true;
+  },
+
+  // ==========================================================================
+  // Numeric Comparisons (Phase 4)
+  // ==========================================================================
+
+  /**
+   * Check if attribute value is greater than a threshold
+   */
+  numeric_gt: (params, context) => {
+    const attributeName = params.name as string;
+    const value = params.value as number;
+    const numVal = getNumericAttribute(context, attributeName);
+    return numVal !== null && numVal > value;
+  },
+
+  /**
+   * Check if attribute value is greater than or equal to a threshold
+   */
+  numeric_gte: (params, context) => {
+    const attributeName = params.name as string;
+    const value = params.value as number;
+    const numVal = getNumericAttribute(context, attributeName);
+    return numVal !== null && numVal >= value;
+  },
+
+  /**
+   * Check if attribute value is less than a threshold
+   */
+  numeric_lt: (params, context) => {
+    const attributeName = params.name as string;
+    const value = params.value as number;
+    const numVal = getNumericAttribute(context, attributeName);
+    return numVal !== null && numVal < value;
+  },
+
+  /**
+   * Check if attribute value is less than or equal to a threshold
+   */
+  numeric_lte: (params, context) => {
+    const attributeName = params.name as string;
+    const value = params.value as number;
+    const numVal = getNumericAttribute(context, attributeName);
+    return numVal !== null && numVal <= value;
+  },
+
+  /**
+   * Check if attribute value equals a numeric value
+   */
+  numeric_eq: (params, context) => {
+    const attributeName = params.name as string;
+    const value = params.value as number;
+    const numVal = getNumericAttribute(context, attributeName);
+    return numVal !== null && numVal === value;
+  },
+
+  /**
+   * Check if attribute value is between min and max (inclusive)
+   *
+   * Params:
+   * - name: Attribute name (required)
+   * - min: Minimum value (required)
+   * - max: Maximum value (required)
+   *
+   * Example:
+   * { type: 'numeric_between', params: { name: 'age', min: 18, max: 65 } }
+   */
+  numeric_between: (params, context) => {
+    const attributeName = params.name as string;
+    const min = params.min as number;
+    const max = params.max as number;
+    const numVal = getNumericAttribute(context, attributeName);
+    return numVal !== null && numVal >= min && numVal <= max;
+  },
+
+  // ==========================================================================
+  // Geographic Conditions (Phase 4)
+  // ==========================================================================
+
+  /**
+   * Check if request country is in the allowed list
+   *
+   * Params:
+   * - countries: Array of ISO 3166-1 alpha-2 country codes (e.g., ['US', 'CA', 'GB'])
+   *
+   * Example:
+   * { type: 'country_in', params: { countries: ['US', 'CA'] } }
+   */
+  country_in: (params, context) => {
+    const countries = params.countries as string[];
+    const countryCode = context.environment?.countryCode;
+    if (!countryCode) return false;
+    return countries.includes(countryCode.toUpperCase());
+  },
+
+  /**
+   * Check if request country is NOT in the blocked list
+   *
+   * Params:
+   * - countries: Array of ISO 3166-1 alpha-2 country codes to block
+   *
+   * Example:
+   * { type: 'country_not_in', params: { countries: ['RU', 'CN', 'IR'] } }
+   */
+  country_not_in: (params, context) => {
+    const countries = params.countries as string[];
+    const countryCode = context.environment?.countryCode;
+    if (!countryCode) return true; // If no country code, not in blocked list
+    return !countries.includes(countryCode.toUpperCase());
+  },
+
+  /**
+   * Check if request IP is within a CIDR range
+   *
+   * Params:
+   * - ranges: Array of CIDR ranges (e.g., ['10.0.0.0/8', '192.168.0.0/16'])
+   *
+   * Example:
+   * { type: 'ip_in_range', params: { ranges: ['192.168.1.0/24', '10.0.0.0/8'] } }
+   */
+  ip_in_range: (params, context) => {
+    const ranges = params.ranges as string[];
+    const clientIp = context.environment?.clientIp;
+    if (!clientIp) return false;
+
+    return ranges.some((range) => isIpInCidr(clientIp, range));
+  },
+
+  // ==========================================================================
+  // Rate-based Conditions (Phase 5)
+  // ==========================================================================
+
+  /**
+   * Check if request count is less than a limit
+   *
+   * Params:
+   * - key: Count key pattern (required) - matches against requestCounts[].key
+   *        Supports wildcards: 'user:user_123:*' matches 'user:user_123:api:read'
+   * - limit: Maximum allowed count (required)
+   *
+   * Example:
+   * { type: 'request_count_lt', params: { key: 'user:*:api:read', limit: 100 } }
+   *
+   * The requestCounts data must be populated in context.environment.requestCounts
+   * by the caller (e.g., from Durable Objects or KV).
+   */
+  request_count_lt: (params, context) => {
+    const keyPattern = params.key as string;
+    const limit = params.limit as number;
+    const count = getRequestCount(context, keyPattern);
+    return count !== null && count < limit;
+  },
+
+  /**
+   * Check if request count is less than or equal to a limit
+   *
+   * Params:
+   * - key: Count key pattern (required)
+   * - limit: Maximum allowed count (required)
+   */
+  request_count_lte: (params, context) => {
+    const keyPattern = params.key as string;
+    const limit = params.limit as number;
+    const count = getRequestCount(context, keyPattern);
+    return count !== null && count <= limit;
+  },
+
+  /**
+   * Check if request count is greater than a threshold
+   *
+   * Params:
+   * - key: Count key pattern (required)
+   * - threshold: Minimum required count (required)
+   *
+   * Useful for "power user" policies: allow premium features after N requests
+   */
+  request_count_gt: (params, context) => {
+    const keyPattern = params.key as string;
+    const threshold = params.threshold as number;
+    const count = getRequestCount(context, keyPattern);
+    return count !== null && count > threshold;
+  },
+
+  /**
+   * Check if request count is greater than or equal to a threshold
+   *
+   * Params:
+   * - key: Count key pattern (required)
+   * - threshold: Minimum required count (required)
+   */
+  request_count_gte: (params, context) => {
+    const keyPattern = params.key as string;
+    const threshold = params.threshold as number;
+    const count = getRequestCount(context, keyPattern);
+    return count !== null && count >= threshold;
+  },
 };
 
 /**
@@ -319,6 +621,218 @@ const conditionEvaluators: Record<ConditionType, ConditionEvaluator> = {
 function getVerifiedAttributes(context: PolicyContext): VerifiedAttribute[] | undefined {
   const subject = context.subject as PolicySubjectWithAttributes;
   return subject.verifiedAttributes;
+}
+
+/**
+ * Get request count from context for rate-based conditions
+ *
+ * @param context - Policy context with environment.requestCounts
+ * @param keyPattern - Key pattern to match (supports * wildcard)
+ * @returns Request count or null if not found
+ */
+function getRequestCount(context: PolicyContext, keyPattern: string): number | null {
+  const requestCounts = context.environment?.requestCounts;
+  if (!requestCounts || requestCounts.length === 0) return null;
+
+  // Convert pattern to regex (escape special chars except *)
+  const regexPattern = keyPattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  const regex = new RegExp(`^${regexPattern}$`);
+
+  // Find first matching count
+  for (const countData of requestCounts) {
+    if (regex.test(countData.key)) {
+      return countData.count;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Get a numeric attribute value from verified attributes
+ * Returns null if attribute doesn't exist, is expired, or value is not numeric
+ */
+function getNumericAttribute(context: PolicyContext, attributeName: string): number | null {
+  const attributes = getVerifiedAttributes(context);
+  if (!attributes) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+
+  for (const attr of attributes) {
+    if (attr.name !== attributeName) continue;
+    if (attr.expiresAt && attr.expiresAt <= now) continue;
+    if (attr.value === null) return null;
+
+    const num = parseFloat(attr.value);
+    return isNaN(num) ? null : num;
+  }
+
+  return null;
+}
+
+/**
+ * Check if an IP address (IPv4 or IPv6) is within a CIDR range
+ *
+ * @param ip - IP address (e.g., '192.168.1.100' or '2001:db8::1')
+ * @param cidr - CIDR range (e.g., '192.168.1.0/24' or '2001:db8::/32')
+ * @returns true if IP is within the range
+ */
+function isIpInCidr(ip: string, cidr: string): boolean {
+  // Parse CIDR
+  const [range, bitsStr] = cidr.split('/');
+  if (!range || !bitsStr) return false;
+
+  const bits = parseInt(bitsStr, 10);
+  if (isNaN(bits)) return false;
+
+  // Detect IP version by checking for colons (IPv6) or dots (IPv4)
+  const isIpv6Ip = ip.includes(':');
+  const isIpv6Range = range.includes(':');
+
+  // Both must be same IP version
+  if (isIpv6Ip !== isIpv6Range) return false;
+
+  if (isIpv6Ip) {
+    return isIpv6InCidr(ip, range, bits);
+  } else {
+    return isIpv4InCidr(ip, range, bits);
+  }
+}
+
+/**
+ * Check if IPv4 address is in CIDR range
+ */
+function isIpv4InCidr(ip: string, range: string, bits: number): boolean {
+  if (bits < 0 || bits > 32) return false;
+
+  const ipNum = ipv4ToNumber(ip);
+  const rangeNum = ipv4ToNumber(range);
+
+  if (ipNum === null || rangeNum === null) return false;
+
+  // Create mask and compare
+  const mask = bits === 0 ? 0 : ~((1 << (32 - bits)) - 1) >>> 0;
+  return (ipNum & mask) === (rangeNum & mask);
+}
+
+/**
+ * Check if IPv6 address is in CIDR range
+ */
+function isIpv6InCidr(ip: string, range: string, bits: number): boolean {
+  if (bits < 0 || bits > 128) return false;
+
+  const ipBigInt = ipv6ToBigInt(ip);
+  const rangeBigInt = ipv6ToBigInt(range);
+
+  if (ipBigInt === null || rangeBigInt === null) return false;
+
+  // Create mask: all 1s for the prefix length, rest 0s
+  // For 128 bits, we need BigInt operations
+  if (bits === 0) {
+    // /0 matches everything
+    return true;
+  }
+
+  // Create mask with `bits` number of leading 1s
+  const mask =
+    (BigInt(1) << BigInt(128)) - BigInt(1) - ((BigInt(1) << BigInt(128 - bits)) - BigInt(1));
+  return (ipBigInt & mask) === (rangeBigInt & mask);
+}
+
+/**
+ * Convert IPv4 address to 32-bit number
+ */
+function ipv4ToNumber(ip: string): number | null {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return null;
+
+  let result = 0;
+  for (const part of parts) {
+    const octet = parseInt(part, 10);
+    if (isNaN(octet) || octet < 0 || octet > 255) return null;
+    result = (result << 8) | octet;
+  }
+
+  return result >>> 0; // Convert to unsigned 32-bit
+}
+
+/**
+ * Convert IPv6 address to BigInt (128-bit)
+ *
+ * Handles:
+ * - Full form: 2001:0db8:0000:0000:0000:0000:0000:0001
+ * - Compressed form: 2001:db8::1, ::1, ::, fe80::1%eth0
+ * - Mixed IPv4/IPv6: ::ffff:192.168.1.1 (IPv4-mapped IPv6)
+ */
+function ipv6ToBigInt(ip: string): bigint | null {
+  // Remove zone ID if present (e.g., %eth0)
+  const zoneIndex = ip.indexOf('%');
+  if (zoneIndex !== -1) {
+    ip = ip.substring(0, zoneIndex);
+  }
+
+  // Handle IPv4-mapped IPv6 (::ffff:192.168.1.1)
+  const lastColon = ip.lastIndexOf(':');
+  const possibleIpv4 = ip.substring(lastColon + 1);
+  if (possibleIpv4.includes('.')) {
+    // This is an IPv4-mapped address
+    const ipv4Part = ipv4ToNumber(possibleIpv4);
+    if (ipv4Part === null) return null;
+
+    // Parse the IPv6 prefix
+    const ipv6Prefix = ip.substring(0, lastColon + 1) + '0:0';
+    const prefixBigInt = parseIpv6Parts(ipv6Prefix);
+    if (prefixBigInt === null) return null;
+
+    return prefixBigInt | BigInt(ipv4Part);
+  }
+
+  return parseIpv6Parts(ip);
+}
+
+/**
+ * Parse IPv6 address parts to BigInt
+ */
+function parseIpv6Parts(ip: string): bigint | null {
+  // Handle :: expansion
+  const doubleColonIndex = ip.indexOf('::');
+  let parts: string[];
+
+  if (doubleColonIndex !== -1) {
+    // Split into left and right parts around ::
+    const left = ip.substring(0, doubleColonIndex);
+    const right = ip.substring(doubleColonIndex + 2);
+
+    const leftParts = left ? left.split(':') : [];
+    const rightParts = right ? right.split(':') : [];
+
+    // Calculate how many zeros to insert
+    const zerosNeeded = 8 - leftParts.length - rightParts.length;
+    if (zerosNeeded < 0) return null;
+
+    parts = [...leftParts, ...Array(zerosNeeded).fill('0'), ...rightParts];
+  } else {
+    parts = ip.split(':');
+  }
+
+  // Must have exactly 8 parts
+  if (parts.length !== 8) return null;
+
+  let result = BigInt(0);
+  for (const part of parts) {
+    // Handle empty parts (shouldn't happen after :: expansion)
+    const hex = part || '0';
+
+    // Validate hex string (0-4 characters)
+    if (hex.length > 4) return null;
+
+    const value = parseInt(hex, 16);
+    if (isNaN(value) || value < 0 || value > 0xffff) return null;
+
+    result = (result << BigInt(16)) | BigInt(value);
+  }
+
+  return result;
 }
 
 /**

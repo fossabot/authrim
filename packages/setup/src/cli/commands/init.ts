@@ -1723,6 +1723,9 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   let authCodeShards = 64;
   let refreshTokenShards = 8;
+  let sessionShards = 32;
+  let challengeShards = 16;
+  let flowStateShards = 32;
 
   if (configureSharding) {
     console.log('');
@@ -1889,6 +1892,9 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
   config.sharding = {
     authCodeShards,
     refreshTokenShards,
+    sessionShards,
+    challengeShards,
+    flowStateShards,
   };
   config.features = {
     queue: { enabled: enableQueue },

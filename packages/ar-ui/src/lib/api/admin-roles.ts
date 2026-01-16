@@ -127,6 +127,14 @@ export interface CreateRoleRequest {
 }
 
 /**
+ * Update role request
+ */
+export interface UpdateRoleRequest {
+	description?: string;
+	permissions?: string[];
+}
+
+/**
  * Assign role request
  */
 export interface AssignRoleRequest {
@@ -407,6 +415,40 @@ export const adminRolesAPI = {
 		if (!response.ok) {
 			const error = await response.json().catch(() => ({}));
 			throw new Error(error.error_description || error.message || 'Failed to create role');
+		}
+		return response.json();
+	},
+
+	/**
+	 * Update an existing custom role
+	 */
+	async update(id: string, data: UpdateRoleRequest): Promise<Role> {
+		const response = await fetch(`${API_BASE_URL}/api/admin/roles/${encodeURIComponent(id)}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'include',
+			body: JSON.stringify(data)
+		});
+
+		if (!response.ok) {
+			const error = await response.json().catch(() => ({}));
+			throw new Error(error.error_description || error.message || 'Failed to update role');
+		}
+		return response.json();
+	},
+
+	/**
+	 * Delete a custom role
+	 */
+	async delete(id: string): Promise<{ success: boolean }> {
+		const response = await fetch(`${API_BASE_URL}/api/admin/roles/${encodeURIComponent(id)}`, {
+			method: 'DELETE',
+			credentials: 'include'
+		});
+
+		if (!response.ok) {
+			const error = await response.json().catch(() => ({}));
+			throw new Error(error.error_description || error.message || 'Failed to delete role');
 		}
 		return response.json();
 	},

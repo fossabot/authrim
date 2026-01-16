@@ -127,6 +127,12 @@ export const ShardingConfigSchema = z.object({
   authCodeShards: z.number().int().positive().default(64),
   /** Number of refresh token rotator shards */
   refreshTokenShards: z.number().int().positive().default(8),
+  /** Number of session store shards */
+  sessionShards: z.number().int().positive().default(32),
+  /** Number of challenge store shards */
+  challengeShards: z.number().int().positive().default(16),
+  /** Number of flow state store shards (Flow Engine) */
+  flowStateShards: z.number().int().positive().default(32),
 });
 
 // =============================================================================

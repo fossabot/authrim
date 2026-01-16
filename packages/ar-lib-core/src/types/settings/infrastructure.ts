@@ -17,6 +17,7 @@ export interface InfrastructureSettings {
   'infra.session_shards': number;
   'infra.challenge_shards': number;
   'infra.revocation_shards': number;
+  'infra.flow_state_shards': number;
 
   // Region Sharding
   'infra.region_total_shards': number;
@@ -97,6 +98,17 @@ export const INFRASTRUCTURE_SETTINGS_META: Record<keyof InfrastructureSettings, 
     envKey: 'AUTHRIM_REVOCATION_SHARDS',
     label: 'Revocation Shards',
     description: 'Number of Durable Object shards for token revocation',
+    min: 1,
+    max: 256,
+    visibility: 'admin',
+  },
+  'infra.flow_state_shards': {
+    key: 'infra.flow_state_shards',
+    type: 'number',
+    default: 32,
+    envKey: 'AUTHRIM_FLOW_STATE_SHARDS',
+    label: 'Flow State Shards',
+    description: 'Number of Durable Object shards for Flow Engine state',
     min: 1,
     max: 256,
     visibility: 'admin',
@@ -373,6 +385,7 @@ export const INFRASTRUCTURE_DEFAULTS: InfrastructureSettings = {
   'infra.session_shards': 64,
   'infra.challenge_shards': 64,
   'infra.revocation_shards': 64,
+  'infra.flow_state_shards': 32,
   'infra.region_total_shards': 100,
   'infra.region_enam_percent': 40,
   'infra.region_weur_percent': 35,

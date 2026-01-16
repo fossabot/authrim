@@ -782,17 +782,28 @@ export async function adminRolesListHandler(c: Context<{ Bindings: Env }>) {
   try {
     const { coreAdapter } = createAdaptersFromContext(c);
     const roles = await coreAdapter.query<Record<string, unknown>>(
-      `SELECT id, tenant_id, name, display_name, description, is_system, created_at, updated_at
+      `SELECT id, tenant_id, name, display_name, description, permissions_json,
+              is_system, role_type, parent_role_id, created_at, updated_at
        FROM roles
-       ORDER BY is_system DESC, name ASC`,
+       ORDER BY is_system DESC, role_type ASC, name ASC`,
       []
     );
+
+    // Get assignment counts for all roles
+    const assignmentCounts = await coreAdapter.query<{ role_id: string; count: number }>(
+      `SELECT role_id, COUNT(DISTINCT subject_id) as count
+       FROM role_assignments
+       GROUP BY role_id`,
+      []
+    );
+    const countMap = new Map(assignmentCounts.map((r) => [r.role_id, r.count]));
 
     const formattedRoles = roles.map((role: Record<string, unknown>) => ({
       ...role,
       is_system: Boolean(role.is_system),
       created_at: toMilliseconds(role.created_at as number),
       updated_at: toMilliseconds(role.updated_at as number),
+      assignment_count: countMap.get(role.id as string) || 0,
     }));
 
     return c.json({
@@ -813,7 +824,7 @@ export async function adminRolesListHandler(c: Context<{ Bindings: Env }>) {
 
 /**
  * GET /api/admin/roles/:id
- * Get role details
+ * Get role details with effective permissions (including inherited)
  */
 export async function adminRoleGetHandler(c: Context<{ Bindings: Env }>) {
   try {
@@ -835,6 +846,27 @@ export async function adminRoleGetHandler(c: Context<{ Bindings: Env }>) {
       );
     }
 
+    // Parse own permissions
+    const ownPermissions: string[] = JSON.parse((role.permissions_json as string) || '[]');
+
+    // Calculate effective permissions (including inherited from parent role)
+    let effectivePermissions = [...ownPermissions];
+    let parentRole: Record<string, unknown> | null = null;
+
+    if (role.parent_role_id) {
+      parentRole = await coreAdapter.queryOne<Record<string, unknown>>(
+        'SELECT id, name, display_name, permissions_json FROM roles WHERE id = ?',
+        [role.parent_role_id as string]
+      );
+      if (parentRole) {
+        const parentPermissions: string[] = JSON.parse(
+          (parentRole.permissions_json as string) || '[]'
+        );
+        // Merge permissions (parent + own, deduplicated)
+        effectivePermissions = [...new Set([...parentPermissions, ...ownPermissions])];
+      }
+    }
+
     // Get count of users with this role
     const assignmentCount = await coreAdapter.queryOne<{ count: number }>(
       'SELECT COUNT(DISTINCT subject_id) as count FROM role_assignments WHERE role_id = ?',
@@ -848,6 +880,16 @@ export async function adminRoleGetHandler(c: Context<{ Bindings: Env }>) {
         created_at: toMilliseconds(role.created_at as number),
         updated_at: toMilliseconds(role.updated_at as number),
         assignment_count: assignmentCount?.count || 0,
+        // Parsed permissions for easier frontend consumption
+        added_permissions: ownPermissions,
+        effective_permissions: effectivePermissions,
+        parent_role: parentRole
+          ? {
+              id: parentRole.id,
+              name: parentRole.name,
+              display_name: parentRole.display_name,
+            }
+          : null,
       },
     });
   } catch (error) {
@@ -896,7 +938,8 @@ export async function adminUserRolesListHandler(c: Context<{ Bindings: Env }>) {
 
     // Get active role assignments with role info
     const assignments = await coreAdapter.query<Record<string, unknown>>(
-      `SELECT ra.*, r.name as role_name, r.display_name as role_display_name, r.is_system
+      `SELECT ra.*, r.name as role_name, r.display_name as role_display_name,
+              r.is_system, r.role_type
        FROM role_assignments ra
        JOIN roles r ON ra.role_id = r.id
        WHERE ra.subject_id = ?
@@ -911,9 +954,10 @@ export async function adminUserRolesListHandler(c: Context<{ Bindings: Env }>) {
       role_name: a.role_name,
       role_display_name: a.role_display_name,
       is_system_role: Boolean(a.is_system),
+      role_type: a.role_type,
       scope: a.scope_type,
       scope_target: a.scope_target,
-      granted_by: a.granted_by,
+      assigned_by: a.assigned_by,
       expires_at: a.expires_at ? toMilliseconds(a.expires_at as number) : null,
       created_at: toMilliseconds(a.created_at as number),
     }));
@@ -1053,7 +1097,7 @@ export async function adminUserRoleAssignHandler(c: AdminContext) {
     const expiresAtSeconds = expires_at ? Math.floor(expires_at / 1000) : null;
 
     await coreAdapter.execute(
-      `INSERT INTO role_assignments (id, tenant_id, subject_id, role_id, scope_type, scope_target, granted_by, expires_at, created_at, updated_at)
+      `INSERT INTO role_assignments (id, tenant_id, subject_id, role_id, scope_type, scope_target, assigned_by, expires_at, created_at, updated_at)
        VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         assignmentId,
@@ -1079,7 +1123,7 @@ export async function adminUserRoleAssignHandler(c: AdminContext) {
           role_name: role.name,
           scope: assignmentScope,
           scope_target: assignmentScopeTarget,
-          granted_by: adminAuth?.userId || 'system',
+          assigned_by: adminAuth?.userId || 'system',
           expires_at: expires_at || null,
           created_at: toMilliseconds(now),
         },
@@ -1875,7 +1919,7 @@ export async function adminRoleAssignmentsListHandler(c: Context<{ Bindings: Env
 
     // Get assignments with pagination
     const assignments = await coreAdapter.query<Record<string, unknown>>(
-      `SELECT DISTINCT ra.id, ra.subject_id, ra.scope_type, ra.scope_target, ra.granted_by, ra.expires_at, ra.created_at
+      `SELECT DISTINCT ra.id, ra.subject_id, ra.scope_type, ra.scope_target, ra.assigned_by, ra.expires_at, ra.created_at
        FROM role_assignments ra
        WHERE ra.role_id = ? AND (ra.expires_at IS NULL OR ra.expires_at > ?)
        ORDER BY ra.created_at DESC
@@ -1912,7 +1956,7 @@ export async function adminRoleAssignmentsListHandler(c: Context<{ Bindings: Env
         user_name: pii?.name || null,
         scope: a.scope_type,
         scope_target: a.scope_target,
-        granted_by: a.granted_by,
+        assigned_by: a.assigned_by,
         expires_at: a.expires_at ? toMilliseconds(a.expires_at as number) : null,
         assigned_at: toMilliseconds(a.created_at as number),
       };
@@ -1933,7 +1977,11 @@ export async function adminRoleAssignmentsListHandler(c: Context<{ Bindings: Env
     });
   } catch (error) {
     const log = getLogger(c).module('ADMIN-RBAC');
-    log.error('Admin role assignments list error', { action: 'list_role_assignments' }, error as Error);
+    log.error(
+      'Admin role assignments list error',
+      { action: 'list_role_assignments' },
+      error as Error
+    );
     return c.json(
       {
         error: 'server_error',
@@ -2081,5 +2129,197 @@ export async function adminRoleCreateHandler(c: Context<{ Bindings: Env }>) {
   } catch (error) {
     log.error('Admin role create error', { action: 'role_create' }, error as Error);
     return c.json({ error: 'server_error', error_description: 'Failed to create role' }, 500);
+  }
+}
+
+/**
+ * PATCH /api/admin/roles/:id
+ * Update a custom role (description and/or permissions)
+ */
+export async function adminRoleUpdateHandler(c: Context<{ Bindings: Env }>) {
+  const tenantId = getTenantIdFromContext(c);
+  const roleId = c.req.param('id');
+  const log = getLogger(c).module('ADMIN-RBAC');
+
+  try {
+    const body = await c.req.json<{
+      description?: string;
+      permissions?: string[];
+    }>();
+
+    const adapter = new D1Adapter({ db: c.env.DB });
+
+    // Get the existing role
+    const existingRole = await adapter.queryOne<{
+      id: string;
+      name: string;
+      description: string | null;
+      permissions: string;
+      is_system: number;
+      role_type: string | null;
+    }>(
+      'SELECT id, name, description, permissions, is_system, role_type FROM roles WHERE tenant_id = ? AND id = ?',
+      [tenantId, roleId]
+    );
+
+    if (!existingRole) {
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND, {
+        variables: { resource: 'role', id: roleId },
+      });
+    }
+
+    // Check if role can be edited (only custom roles can be edited)
+    if (
+      existingRole.is_system === 1 ||
+      existingRole.role_type === 'system' ||
+      existingRole.role_type === 'builtin'
+    ) {
+      return c.json(
+        { error: 'forbidden', error_description: 'System and builtin roles cannot be modified' },
+        403
+      );
+    }
+
+    // Validate permissions if provided
+    if (body.permissions !== undefined) {
+      if (!Array.isArray(body.permissions) || body.permissions.length === 0) {
+        return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_REQUIRED_FIELD, {
+          variables: { field: 'permissions' },
+        });
+      }
+
+      // Validate permission format
+      const validPermissionPattern = /^[a-z]+:[a-z_]+$/;
+      const invalidPermissions = body.permissions.filter((p) => !validPermissionPattern.test(p));
+      if (invalidPermissions.length > 0) {
+        return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_INVALID_VALUE, {
+          variables: {
+            field: 'permissions',
+            reason: `Invalid permission format: ${invalidPermissions.slice(0, 3).join(', ')}`,
+          },
+        });
+      }
+    }
+
+    const nowTs = Date.now();
+    const updates: string[] = ['updated_at = ?'];
+    const bindings: unknown[] = [nowTs];
+
+    if (body.description !== undefined) {
+      updates.push('description = ?');
+      bindings.push(body.description || null);
+    }
+
+    if (body.permissions !== undefined) {
+      updates.push('permissions = ?');
+      bindings.push(JSON.stringify(body.permissions));
+    }
+
+    // Add WHERE clause bindings
+    bindings.push(tenantId, roleId);
+
+    await adapter.execute(
+      `UPDATE roles SET ${updates.join(', ')} WHERE tenant_id = ? AND id = ?`,
+      bindings
+    );
+
+    // Write audit log
+    await createAuditLogFromContext(c, 'role.updated', 'role', roleId, {
+      name: existingRole.name,
+      description_changed: body.description !== undefined,
+      permissions_changed: body.permissions !== undefined,
+      new_permission_count: body.permissions?.length,
+    });
+
+    log.info('Role updated', { action: 'role_update', roleId, name: existingRole.name });
+
+    // Return updated role
+    const updatedPermissions = body.permissions ?? JSON.parse(existingRole.permissions || '[]');
+
+    return c.json({
+      role_id: roleId,
+      name: existingRole.name,
+      description: body.description !== undefined ? body.description : existingRole.description,
+      permissions: updatedPermissions,
+      is_system: false,
+      updated_at: new Date(nowTs).toISOString(),
+    });
+  } catch (error) {
+    log.error('Admin role update error', { action: 'role_update', roleId }, error as Error);
+    return c.json({ error: 'server_error', error_description: 'Failed to update role' }, 500);
+  }
+}
+
+/**
+ * DELETE /api/admin/roles/:id
+ * Delete a custom role (only if no users are assigned)
+ */
+export async function adminRoleDeleteHandler(c: Context<{ Bindings: Env }>) {
+  const tenantId = getTenantIdFromContext(c);
+  const roleId = c.req.param('id');
+  const log = getLogger(c).module('ADMIN-RBAC');
+
+  try {
+    const adapter = new D1Adapter({ db: c.env.DB });
+
+    // Get the existing role
+    const existingRole = await adapter.queryOne<{
+      id: string;
+      name: string;
+      is_system: number;
+      role_type: string | null;
+    }>('SELECT id, name, is_system, role_type FROM roles WHERE tenant_id = ? AND id = ?', [
+      tenantId,
+      roleId,
+    ]);
+
+    if (!existingRole) {
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND, {
+        variables: { resource: 'role', id: roleId },
+      });
+    }
+
+    // Check if role can be deleted (only custom roles can be deleted)
+    if (
+      existingRole.is_system === 1 ||
+      existingRole.role_type === 'system' ||
+      existingRole.role_type === 'builtin'
+    ) {
+      return c.json(
+        { error: 'forbidden', error_description: 'System and builtin roles cannot be deleted' },
+        403
+      );
+    }
+
+    // Check if any users are assigned to this role
+    const assignmentCount = await adapter.queryOne<{ count: number }>(
+      'SELECT COUNT(*) as count FROM role_assignments WHERE tenant_id = ? AND role_id = ?',
+      [tenantId, roleId]
+    );
+
+    if (assignmentCount && assignmentCount.count > 0) {
+      return c.json(
+        {
+          error: 'conflict',
+          error_description: `Cannot delete role: ${assignmentCount.count} user(s) are still assigned to this role. Remove all assignments first.`,
+        },
+        409
+      );
+    }
+
+    // Delete the role
+    await adapter.execute('DELETE FROM roles WHERE tenant_id = ? AND id = ?', [tenantId, roleId]);
+
+    // Write audit log
+    await createAuditLogFromContext(c, 'role.deleted', 'role', roleId, {
+      name: existingRole.name,
+    });
+
+    log.info('Role deleted', { action: 'role_delete', roleId, name: existingRole.name });
+
+    return c.json({ success: true, message: `Role '${existingRole.name}' has been deleted` });
+  } catch (error) {
+    log.error('Admin role delete error', { action: 'role_delete', roleId }, error as Error);
+    return c.json({ error: 'server_error', error_description: 'Failed to delete role' }, 500);
   }
 }

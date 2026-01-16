@@ -1,0 +1,222 @@
+/**
+ * Builtin Plugin Registry
+ *
+ * Utility for auto-registering builtin plugins to KV on startup.
+ * This ensures Admin UI can display builtin plugins without manual registration.
+ *
+ * Usage:
+ * ```typescript
+ * import { registerBuiltinPlugins } from '@authrim/ar-lib-plugin';
+ *
+ * // In Worker startup
+ * await registerBuiltinPlugins(env.SETTINGS);
+ * ```
+ */
+
+import type { AuthrimPlugin, PluginSource, PluginTrustLevel } from './types';
+import { getPluginTrustLevel } from './types';
+import { zodToJSONSchema } from './schema';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Plugin registry entry (stored in KV)
+ */
+export interface PluginRegistryEntry {
+  id: string;
+  version: string;
+  capabilities: string[];
+  official: boolean;
+  meta?: {
+    name: string;
+    description: string;
+    icon?: string;
+    category: string;
+    documentationUrl?: string;
+    author?: {
+      name: string;
+      email?: string;
+      url?: string;
+    };
+    license?: string;
+    tags?: string[];
+    stability?: 'stable' | 'beta' | 'alpha' | 'deprecated';
+  };
+  source: PluginSource;
+  trustLevel: PluginTrustLevel;
+  registeredAt: number;
+}
+
+/**
+ * Registration options
+ */
+export interface RegisterBuiltinOptions {
+  /** Force re-registration even if plugin already exists */
+  force?: boolean;
+  /** Logger function for diagnostics */
+  log?: (message: string, data?: Record<string, unknown>) => void;
+}
+
+// =============================================================================
+// Registry Key
+// =============================================================================
+
+const PLUGINS_REGISTRY_KEY = 'plugins:registry';
+const PLUGINS_SCHEMA_PREFIX = 'plugins:schema:';
+
+// =============================================================================
+// Builtin Plugins
+// =============================================================================
+
+// Import builtin plugins
+import { builtinNotifierPlugins } from '../builtin/notifier';
+
+/**
+ * Get all builtin plugins
+ */
+export function getBuiltinPlugins(): AuthrimPlugin<unknown>[] {
+  return [...builtinNotifierPlugins] as AuthrimPlugin<unknown>[];
+}
+
+// =============================================================================
+// Registration
+// =============================================================================
+
+/**
+ * Register all builtin plugins to KV
+ *
+ * This function should be called at Worker startup to ensure
+ * builtin plugins are visible in Admin UI.
+ *
+ * @param kv - KV namespace (SETTINGS)
+ * @param options - Registration options
+ * @returns Number of plugins registered
+ */
+export async function registerBuiltinPlugins(
+  kv: KVNamespace,
+  options: RegisterBuiltinOptions = {}
+): Promise<{ registered: number; skipped: number; errors: string[] }> {
+  const { force = false, log = () => {} } = options;
+  const errors: string[] = [];
+  let registered = 0;
+  let skipped = 0;
+
+  // Get existing registry
+  let registry: Record<string, PluginRegistryEntry> = {};
+  try {
+    const data = await kv.get(PLUGINS_REGISTRY_KEY);
+    if (data) {
+      registry = JSON.parse(data);
+    }
+  } catch {
+    log('Failed to parse existing registry, starting fresh');
+  }
+
+  const plugins = getBuiltinPlugins();
+  log(`Registering ${plugins.length} builtin plugins`, { force });
+
+  for (const plugin of plugins) {
+    try {
+      // Check if already registered (unless force)
+      const existing = registry[plugin.id];
+      if (existing && !force) {
+        // Check if version is the same
+        if (existing.version === plugin.version) {
+          skipped++;
+          continue;
+        }
+        log(`Updating plugin ${plugin.id}: ${existing.version} -> ${plugin.version}`);
+      }
+
+      // Determine source and trust level
+      const source: PluginSource = {
+        type: 'builtin',
+        identifier: `ar-lib-plugin/builtin/${plugin.meta?.category ?? 'unknown'}/${plugin.id}`,
+      };
+      const trustLevel = getPluginTrustLevel(source);
+
+      // Create registry entry
+      const entry: PluginRegistryEntry = {
+        id: plugin.id,
+        version: plugin.version,
+        capabilities: plugin.capabilities,
+        official: plugin.official ?? false,
+        meta: plugin.meta
+          ? {
+              name: plugin.meta.name,
+              description: plugin.meta.description,
+              icon: plugin.meta.icon,
+              category: plugin.meta.category,
+              documentationUrl: plugin.meta.documentationUrl,
+              author: plugin.meta.author,
+              license: plugin.meta.license,
+              tags: plugin.meta.tags,
+              stability: plugin.meta.stability,
+            }
+          : undefined,
+        source,
+        trustLevel,
+        registeredAt: Date.now(),
+      };
+
+      registry[plugin.id] = entry;
+
+      // Store schema separately
+      if (plugin.configSchema) {
+        try {
+          const schema = zodToJSONSchema(plugin.configSchema);
+          await kv.put(`${PLUGINS_SCHEMA_PREFIX}${plugin.id}`, JSON.stringify(schema));
+        } catch (schemaError) {
+          log(`Failed to store schema for ${plugin.id}`, {
+            error: schemaError instanceof Error ? schemaError.message : String(schemaError),
+          });
+        }
+      }
+
+      registered++;
+      log(`Registered plugin: ${plugin.id} v${plugin.version}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`${plugin.id}: ${errorMessage}`);
+      log(`Failed to register plugin ${plugin.id}`, { error: errorMessage });
+    }
+  }
+
+  // Save updated registry
+  if (registered > 0 || force) {
+    await kv.put(PLUGINS_REGISTRY_KEY, JSON.stringify(registry));
+    log(`Saved registry with ${Object.keys(registry).length} plugins`);
+  }
+
+  return { registered, skipped, errors };
+}
+
+/**
+ * Check if builtin plugins need registration
+ *
+ * Returns true if any builtin plugin is missing or outdated.
+ */
+export async function needsBuiltinRegistration(kv: KVNamespace): Promise<boolean> {
+  try {
+    const data = await kv.get(PLUGINS_REGISTRY_KEY);
+    if (!data) {
+      return true;
+    }
+
+    const registry: Record<string, PluginRegistryEntry> = JSON.parse(data);
+    const plugins = getBuiltinPlugins();
+
+    for (const plugin of plugins) {
+      const existing = registry[plugin.id];
+      if (!existing || existing.version !== plugin.version) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch {
+    return true;
+  }
+}

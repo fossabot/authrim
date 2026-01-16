@@ -35,7 +35,8 @@
 		limits: { icon: '📊', color: '#ea580c' },
 		tenant: { icon: '🏢', color: '#4f46e5' },
 		vc: { icon: '📜', color: '#059669' },
-		assurance: { icon: '🔰', color: '#7c3aed' }
+		assurance: { icon: '🔰', color: '#7c3aed' },
+		'check-api-audit': { icon: '📋', color: '#6366f1' }
 	};
 
 	// Check if category is platform-level (read-only)
@@ -122,6 +123,45 @@
 				</div>
 				<p style="font-size: 14px; color: #6b7280; margin: 0;">
 					Manage JWT signing keys for token issuance and rotation
+				</p>
+			</a>
+
+			<!-- DO Sharding Configuration (special card) -->
+			<a
+				href="/admin/settings/sharding"
+				style="
+					background-color: white;
+					border: 1px solid #e5e7eb;
+					border-radius: 8px;
+					padding: 20px;
+					text-decoration: none;
+					transition: box-shadow 0.2s, border-color 0.2s;
+					display: block;
+				"
+				onmouseenter={(e) => {
+					e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+					e.currentTarget.style.borderColor = '#d1d5db';
+				}}
+				onmouseleave={(e) => {
+					e.currentTarget.style.boxShadow = 'none';
+					e.currentTarget.style.borderColor = '#e5e7eb';
+				}}
+			>
+				<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+					<span style="font-size: 24px;">🗂️</span>
+					<div>
+						<h2 style="font-size: 16px; font-weight: 600; color: #111827; margin: 0;">
+							DO Sharding
+						</h2>
+						<span
+							style="font-size: 12px; background-color: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px;"
+						>
+							Special
+						</span>
+					</div>
+				</div>
+				<p style="font-size: 14px; color: #6b7280; margin: 0;">
+					Configure Durable Object shard counts for load distribution
 				</p>
 			</a>
 

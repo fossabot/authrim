@@ -28,6 +28,7 @@ export { VersionManager } from './VersionManager';
 export { SAMLRequestStore } from './SAMLRequestStore';
 export { PermissionChangeHub } from './PermissionChangeHub';
 export { UserCodeRateLimiter } from './UserCodeRateLimiter';
+export { FlowStateStore } from './FlowStateStore';
 
 // Export types for external use
 export type { Session, SessionData, CreateSessionRequest, SessionResponse } from './SessionStore';
@@ -66,6 +67,15 @@ export type { PARRequestData, StorePARRequest, ConsumePARRequest } from './PARRe
 export type { DPoPJTIRecord, CheckAndStoreJTIRequest } from './DPoPJTIStore';
 
 export type { RevokedTokenRecord, RevokeTokenRequest } from './TokenRevocationStore';
+
+export type {
+  RuntimeState,
+  RuntimeStateSnapshot,
+  FlowSubmitResult,
+  CreateRuntimeStateParams,
+  OAuthFlowParams as FlowOAuthParams,
+} from './FlowStateStore';
+export { DEFAULT_FLOW_TTL_MS, MAX_PROCESSED_REQUEST_IDS } from './FlowStateStore';
 
 /**
  * Default export for ES Module compatibility

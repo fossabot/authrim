@@ -77,6 +77,19 @@ export interface ResourceContext {
 }
 
 /**
+ * Contextual tuple for temporary relationships
+ * These are evaluated only for this request and not persisted.
+ */
+export interface ContextualTupleInput {
+  /** User identifier (e.g., "user:user_123" or "user_123") */
+  user_id: string;
+  /** Relation (e.g., "viewer", "editor", "owner") */
+  relation: string;
+  /** Object identifier (e.g., "document:doc_456") */
+  object: string;
+}
+
+/**
  * ReBAC check parameters
  */
 export interface ReBACCheckParams {
@@ -84,6 +97,8 @@ export interface ReBACCheckParams {
   relation: string;
   /** Object to check against (e.g., "document:doc_123") */
   object: string;
+  /** Temporary relationships to consider during this check only */
+  contextual_tuples?: ContextualTupleInput[];
 }
 
 /**
@@ -415,4 +430,89 @@ export interface AuditLogConfig {
   log_allow: 'always' | 'sample' | 'never';
   /** Sample rate for allow events (0.01 = 1%, 0.1 = 10%, 1.0 = 100%) */
   allow_sample_rate: number;
+}
+
+// =============================================================================
+// ABAC Attribute Types
+// =============================================================================
+
+/**
+ * Verified attribute for ABAC evaluation within Check API
+ * Simplified version for internal use
+ */
+export interface VerifiedAttributeForCheck {
+  /** Attribute name */
+  name: string;
+  /** Attribute value */
+  value: string | null;
+  /** Source of the attribute */
+  source: 'db' | 'vc' | 'manual' | 'context';
+  /** Expiration timestamp (UNIX seconds) */
+  expiresAt?: number;
+}
+
+/**
+ * Attribute repository interface for ABAC
+ * Used by UnifiedCheckService to fetch user attributes
+ */
+export interface AttributeRepository {
+  /** Get all valid (non-expired) attributes for a user */
+  getValidAttributesForUser(tenantId: string, userId: string): Promise<Record<string, string>>;
+}
+
+// =============================================================================
+// Policy Evaluator Interface (for ABAC integration)
+// =============================================================================
+
+/**
+ * Policy evaluation context for ABAC
+ * Minimal interface to avoid circular dependencies with ar-lib-policy
+ */
+export interface PolicyEvaluationContext {
+  /** Subject ID */
+  subjectId: string;
+  /** Subject's verified attributes */
+  verifiedAttributes: VerifiedAttributeForCheck[];
+  /** Resource type */
+  resourceType: string;
+  /** Resource ID (optional) */
+  resourceId?: string;
+  /** Resource owner ID (optional) */
+  resourceOwnerId?: string;
+  /** Resource organization ID (optional) */
+  resourceOrgId?: string;
+  /** Resource attributes (optional) */
+  resourceAttributes?: Record<string, unknown>;
+  /** Action being performed */
+  action: string;
+  /** Timestamp */
+  timestamp: number;
+  /** Environment context (IP, country, etc.) */
+  environment?: {
+    clientIp?: string;
+    countryCode?: string;
+    timezone?: string;
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Policy evaluation result
+ */
+export interface PolicyEvaluationResult {
+  /** Whether access is allowed */
+  allowed: boolean;
+  /** Reason for the decision */
+  reason?: string;
+  /** Which rule made the decision */
+  decidedBy?: string;
+}
+
+/**
+ * Policy evaluator interface
+ * Allows injecting PolicyEngine without circular dependency
+ */
+export interface PolicyEvaluator {
+  /** Evaluate policy for the given context */
+  evaluate(context: PolicyEvaluationContext): PolicyEvaluationResult;
 }

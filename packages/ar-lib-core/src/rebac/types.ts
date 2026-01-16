@@ -19,6 +19,31 @@
 // =============================================================================
 
 /**
+ * Contextual tuple - a temporary relationship for the duration of a check request
+ * These are not persisted to the database, only evaluated during this request.
+ */
+export interface ContextualTuple {
+  /** User identifier (e.g., "user:user_123" or "user_123") */
+  user_id: string;
+  /** Relation (e.g., "viewer", "editor", "owner") */
+  relation: string;
+  /** Object identifier (e.g., "document:doc_456") */
+  object: string;
+  /** Optional: Object type if not embedded in object string */
+  object_type?: string;
+}
+
+/**
+ * Check request context - includes contextual tuples and other context
+ */
+export interface CheckRequestContext {
+  /** Temporary relationships to consider during this check only */
+  contextual_tuples?: ContextualTuple[];
+  /** Additional context attributes */
+  [key: string]: unknown;
+}
+
+/**
  * Check request - "Can user X perform relation Y on object Z?"
  */
 export interface CheckRequest {
@@ -32,8 +57,8 @@ export interface CheckRequest {
   object: string;
   /** Optional: Object type if not embedded in object string */
   object_type?: string;
-  /** Optional: Context for conditional checks (Phase 4+) */
-  context?: Record<string, unknown>;
+  /** Optional: Context for conditional checks (includes contextual_tuples) */
+  context?: CheckRequestContext;
 }
 
 /**
@@ -57,7 +82,8 @@ export type CheckResolutionMethod =
   | 'direct' // Direct relationship found
   | 'computed' // Computed via relation definition (union, tuple-to-userset)
   | 'cache' // Resolved from KV cache
-  | 'closure'; // Resolved from closure table (listObjects/listUsers only)
+  | 'closure' // Resolved from closure table (listObjects/listUsers only)
+  | 'context'; // Resolved from contextual tuples in request
 
 /**
  * Batch check request

@@ -54,6 +54,7 @@ import {
 import { anonLoginChallengeHandler, anonLoginVerifyHandler } from './anon-login';
 import { upgradeHandler, upgradeCompleteHandler, upgradeStatusHandler } from './upgrade';
 import { setupApp } from './setup';
+import { flowApi } from './flow-engine';
 
 // Create Hono app with Cloudflare Workers types
 const app = new Hono<{ Bindings: Env }>();
@@ -360,6 +361,10 @@ app.get('/logged-out', async (c) => {
   // No UI configured and conformance mode disabled
   return c.json(createConfigurationError(), 500);
 });
+
+// Flow Engine API
+// Track C: Flow-based authentication with UIContract
+app.route('/api/flow', flowApi);
 
 // Initial Admin Setup routes
 // Mounted at /setup and /api/setup/*

@@ -32,6 +32,7 @@ import type {
   ListUsersResponse,
   ReBACConfig,
   RelationDefinition,
+  ContextualTuple,
 } from './types';
 import type { IStorageAdapter } from '../storage/interfaces';
 import { ReBACCacheManager, RequestScopedCache } from './cache-manager';
@@ -83,6 +84,20 @@ export class ReBACService implements IReBACService {
     // Parse user string (may contain type prefix)
     const userId = request.user_id.includes(':') ? request.user_id.split(':')[1] : request.user_id;
 
+    // Layer 0: Check contextual tuples first (request-specific, not cached)
+    if (request.context?.contextual_tuples?.length) {
+      const contextualResult = this.checkContextualTuples(
+        request.context.contextual_tuples,
+        userId,
+        request.relation,
+        objectType,
+        objectId
+      );
+      if (contextualResult.allowed) {
+        return contextualResult;
+      }
+    }
+
     // Layer 1: Check KV cache
     const cachedResult = await this.cacheManager.get(
       request.tenant_id,
@@ -117,6 +132,47 @@ export class ReBACService implements IReBACService {
     );
 
     return result;
+  }
+
+  /**
+   * Check contextual tuples for a direct match
+   * Contextual tuples are temporary relationships provided in the request
+   */
+  private checkContextualTuples(
+    tuples: ContextualTuple[],
+    userId: string,
+    relation: string,
+    objectType: string,
+    objectId: string
+  ): CheckResponse {
+    for (const tuple of tuples) {
+      // Parse tuple user ID
+      const tupleUserId = tuple.user_id.includes(':') ? tuple.user_id.split(':')[1] : tuple.user_id;
+
+      // Parse tuple object
+      const { type: tupleObjType, id: tupleObjId } = tuple.object_type
+        ? { type: tuple.object_type, id: tuple.object }
+        : parseObjectString(tuple.object);
+
+      // Check for match
+      if (
+        tupleUserId === userId &&
+        tuple.relation === relation &&
+        tupleObjType === objectType &&
+        tupleObjId === objectId
+      ) {
+        return {
+          allowed: true,
+          resolved_via: 'context',
+          path: ['contextual_tuple'],
+        };
+      }
+    }
+
+    return {
+      allowed: false,
+      resolved_via: 'context',
+    };
   }
 
   /**

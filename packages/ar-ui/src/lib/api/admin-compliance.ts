@@ -171,6 +171,355 @@ export interface ListResponse<T> {
 	next_cursor?: string;
 }
 
+// =============================================================================
+// Backend Response Types (for transformation)
+// =============================================================================
+
+/**
+ * Backend framework summary (lowercase framework names, different field names)
+ */
+interface BackendFrameworkSummary {
+	framework: string;
+	status: string;
+	compliant_checks: number;
+	warning_checks?: number;
+	non_compliant_checks?: number;
+	not_applicable_checks?: number;
+	total_checks: number;
+	last_assessment: string | null;
+}
+
+/**
+ * Backend compliance check (lowercase framework names)
+ */
+interface BackendComplianceCheck {
+	id: string;
+	name: string;
+	description?: string;
+	framework: string;
+	status: string;
+	last_checked: string;
+	details?: string;
+}
+
+/**
+ * Backend compliance status response
+ */
+interface BackendComplianceStatusResponse {
+	tenant_id?: string;
+	overall_status: string;
+	frameworks: BackendFrameworkSummary[];
+	recent_checks: BackendComplianceCheck[];
+	data_retention: {
+		policy_enabled?: boolean;
+		enabled?: boolean;
+		retention_days?: number | null;
+		last_cleanup?: string | null;
+		pending_deletions?: number;
+		gdpr_compliant?: boolean;
+	};
+	audit_log: {
+		enabled: boolean;
+		retention_days: number;
+		total_entries?: number;
+		entries_last_30_days?: number;
+	};
+	mfa_status?: {
+		enforced?: boolean;
+		enabled?: boolean;
+		users_with_mfa?: number;
+		users_without_mfa?: number;
+		mfa_coverage_percent?: number;
+		coverage_percent?: number;
+	};
+	mfa_enforcement?: {
+		enabled: boolean;
+		coverage_percent: number;
+	};
+	encryption: {
+		data_at_rest?: boolean;
+		at_rest?: boolean;
+		data_in_transit?: boolean;
+		in_transit?: boolean;
+		key_rotation_enabled?: boolean;
+		last_key_rotation?: string | null;
+	};
+	access_control: {
+		rbac_enabled: boolean;
+		active_roles?: number;
+		users_with_roles?: number;
+		orphaned_permissions?: number;
+		last_review?: string;
+	};
+	last_updated?: string;
+}
+
+/**
+ * Backend access review response
+ */
+interface BackendAccessReview {
+	review_id?: string;
+	id?: string;
+	tenant_id?: string;
+	name: string;
+	description?: string | null;
+	scope: string;
+	scope_value?: string | null;
+	scope_target?: string;
+	status: string;
+	reviewer_id?: string;
+	started_by?: string;
+	progress?: {
+		total_items: number;
+		reviewed_items: number;
+		approved_items?: number;
+		revoked_items?: number;
+		completion_percent?: number;
+	};
+	total_users?: number;
+	reviewed_users?: number;
+	total_items?: number;
+	reviewed_items?: number;
+	created_at?: string;
+	started_at?: string | null;
+	completed_at?: string | null;
+	due_date?: string | null;
+}
+
+/**
+ * Backend data retention category
+ */
+interface BackendRetentionCategory {
+	category: string;
+	retention_days: number;
+	total_records?: number;
+	records_count?: number;
+	records_pending_deletion?: number;
+	oldest_record?: string | null;
+	oldest_record_date?: string | null;
+	next_cleanup?: string | null;
+	next_cleanup_date?: string | null;
+	last_cleanup_date?: string | null;
+	records_deleted_last_30_days?: number;
+}
+
+/**
+ * Backend compliance report
+ */
+interface BackendComplianceReport {
+	report_id?: string;
+	id?: string;
+	tenant_id?: string;
+	type: string;
+	name?: string;
+	status: string;
+	requested_by?: string;
+	parameters?: Record<string, unknown> | string | null;
+	result_url?: string | null;
+	download_url?: string;
+	error_message?: string | null;
+	created_at?: string;
+	requested_at?: string;
+	completed_at?: string | null;
+	expires_at?: string | null;
+}
+
+/**
+ * Backend data retention status response
+ */
+interface BackendDataRetentionStatusResponse {
+	tenant_id?: string;
+	policy?: {
+		enabled: boolean;
+		default_retention_days?: number;
+		cleanup_schedule?: string;
+		last_cleanup_run?: string | null;
+		next_cleanup_run?: string | null;
+	};
+	enabled?: boolean;
+	categories: BackendRetentionCategory[];
+	summary?: {
+		total_records?: number;
+		records_pending_deletion?: number;
+		records_deleted_last_30_days?: number;
+		storage_savings_estimate_mb?: number;
+	};
+	gdpr_compliance?: {
+		right_to_erasure_supported?: boolean;
+		anonymization_supported?: boolean;
+		tombstone_retention_days?: number;
+		pending_erasure_requests?: number;
+	};
+	gdpr_compliant?: boolean;
+	last_cleanup?: string | null;
+	next_scheduled_cleanup?: string | null;
+	last_updated?: string;
+}
+
+// =============================================================================
+// Transformation Functions
+// =============================================================================
+
+/**
+ * Map backend framework string to frontend ComplianceFramework type
+ */
+function mapFramework(framework: string): ComplianceFramework {
+	const map: Record<string, ComplianceFramework> = {
+		gdpr: 'GDPR',
+		hipaa: 'HIPAA',
+		soc2: 'SOC2',
+		iso27001: 'ISO27001',
+		pci_dss: 'PCI-DSS',
+		'pci-dss': 'PCI-DSS',
+		ccpa: 'CCPA'
+	};
+	return map[framework.toLowerCase()] || (framework.toUpperCase() as ComplianceFramework);
+}
+
+/**
+ * Map backend status string to ComplianceCheckStatus
+ */
+function mapStatus(status: string): ComplianceCheckStatus {
+	const map: Record<string, ComplianceCheckStatus> = {
+		compliant: 'compliant',
+		non_compliant: 'non_compliant',
+		partial: 'partial',
+		warning: 'partial',
+		not_applicable: 'not_applicable'
+	};
+	return map[status.toLowerCase()] || 'not_applicable';
+}
+
+/**
+ * Transform backend compliance status to frontend format
+ */
+function transformComplianceStatus(raw: BackendComplianceStatusResponse): ComplianceStatus {
+	return {
+		overall_status: mapStatus(raw.overall_status),
+		frameworks: raw.frameworks.map((f) => ({
+			framework: mapFramework(f.framework),
+			status: mapStatus(f.status),
+			compliant_checks: f.compliant_checks,
+			total_checks: f.total_checks,
+			last_checked: f.last_assessment || new Date().toISOString(),
+			issues:
+				(f.non_compliant_checks || 0) > 0
+					? [`${f.non_compliant_checks} non-compliant check(s)`]
+					: (f.warning_checks || 0) > 0
+						? [`${f.warning_checks} warning(s)`]
+						: []
+		})),
+		recent_checks: raw.recent_checks.map((c) => ({
+			id: c.id,
+			name: c.name,
+			framework: mapFramework(c.framework),
+			status: mapStatus(c.status),
+			checked_at: c.last_checked,
+			details: c.details
+		})),
+		data_retention: {
+			enabled: raw.data_retention.policy_enabled ?? raw.data_retention.enabled ?? false,
+			gdpr_compliant: raw.data_retention.gdpr_compliant ?? false
+		},
+		audit_log: {
+			enabled: raw.audit_log.enabled,
+			retention_days: raw.audit_log.retention_days
+		},
+		mfa_enforcement: {
+			enabled:
+				raw.mfa_enforcement?.enabled ??
+				raw.mfa_status?.enforced ??
+				raw.mfa_status?.enabled ??
+				false,
+			coverage_percent:
+				raw.mfa_enforcement?.coverage_percent ??
+				raw.mfa_status?.mfa_coverage_percent ??
+				raw.mfa_status?.coverage_percent ??
+				0
+		},
+		encryption: {
+			at_rest: raw.encryption.data_at_rest ?? raw.encryption.at_rest ?? false,
+			in_transit: raw.encryption.data_in_transit ?? raw.encryption.in_transit ?? false
+		},
+		access_control: {
+			rbac_enabled: raw.access_control.rbac_enabled,
+			last_review: raw.access_control.last_review
+		}
+	};
+}
+
+/**
+ * Transform backend access review to frontend format
+ */
+function transformAccessReview(raw: BackendAccessReview): AccessReview {
+	return {
+		id: raw.review_id ?? raw.id ?? '',
+		tenant_id: raw.tenant_id ?? 'default',
+		name: raw.name,
+		scope: (raw.scope as AccessReviewScope) || 'all_users',
+		scope_target: raw.scope_value ?? raw.scope_target,
+		status: (raw.status as AccessReviewStatus) || 'pending',
+		total_users: raw.progress?.total_items ?? raw.total_users ?? raw.total_items ?? 0,
+		reviewed_users: raw.progress?.reviewed_items ?? raw.reviewed_users ?? raw.reviewed_items ?? 0,
+		started_by: raw.reviewer_id ?? raw.started_by ?? '',
+		started_at: raw.started_at ?? raw.created_at ?? '',
+		completed_at: raw.completed_at ?? undefined,
+		due_date: raw.due_date ?? undefined
+	};
+}
+
+/**
+ * Transform backend compliance report to frontend format
+ */
+function transformComplianceReport(raw: BackendComplianceReport): ComplianceReport {
+	let parameters: Record<string, unknown> | undefined;
+	if (raw.parameters) {
+		if (typeof raw.parameters === 'string') {
+			try {
+				parameters = JSON.parse(raw.parameters) as Record<string, unknown>;
+			} catch {
+				// Invalid JSON, ignore
+			}
+		} else {
+			parameters = raw.parameters;
+		}
+	}
+
+	return {
+		id: raw.report_id ?? raw.id ?? '',
+		tenant_id: raw.tenant_id ?? 'default',
+		type: raw.type as ReportType,
+		status: raw.status as ReportStatus,
+		requested_by: raw.requested_by ?? '',
+		requested_at: raw.created_at ?? raw.requested_at ?? '',
+		completed_at: raw.completed_at ?? undefined,
+		download_url: raw.result_url ?? raw.download_url ?? undefined,
+		expires_at: raw.expires_at ?? undefined,
+		parameters
+	};
+}
+
+/**
+ * Transform backend data retention status to frontend format
+ */
+function transformDataRetentionStatus(
+	raw: BackendDataRetentionStatusResponse
+): DataRetentionStatus {
+	return {
+		enabled: raw.policy?.enabled ?? raw.enabled ?? false,
+		categories: raw.categories.map((c) => ({
+			category: c.category,
+			retention_days: c.retention_days,
+			records_count: c.total_records ?? c.records_count ?? 0,
+			oldest_record: c.oldest_record_date ?? c.oldest_record ?? undefined,
+			next_cleanup: c.next_cleanup_date ?? c.next_cleanup ?? undefined
+		})),
+		gdpr_compliant: raw.gdpr_compliance?.right_to_erasure_supported ?? raw.gdpr_compliant ?? false,
+		last_cleanup: raw.policy?.last_cleanup_run ?? raw.last_cleanup ?? '',
+		next_scheduled_cleanup: raw.policy?.next_cleanup_run ?? raw.next_scheduled_cleanup ?? ''
+	};
+}
+
 /**
  * Admin Compliance API
  */
@@ -191,7 +540,9 @@ export const adminComplianceAPI = {
 			throw await handleAPIError(response, 'Failed to get compliance status');
 		}
 
-		return response.json();
+		// Transform backend response to expected frontend types
+		const raw = (await response.json()) as BackendComplianceStatusResponse;
+		return transformComplianceStatus(raw);
 	},
 
 	/**
@@ -221,7 +572,19 @@ export const adminComplianceAPI = {
 			throw await handleAPIError(response, 'Failed to list access reviews');
 		}
 
-		return response.json();
+		// Transform backend response to expected frontend types
+		const raw = (await response.json()) as {
+			data: BackendAccessReview[];
+			pagination?: { has_more: boolean; next_cursor?: string };
+			has_more?: boolean;
+			next_cursor?: string;
+		};
+
+		return {
+			data: (raw.data || []).map(transformAccessReview),
+			has_more: raw.pagination?.has_more ?? raw.has_more ?? false,
+			next_cursor: raw.pagination?.next_cursor ?? raw.next_cursor
+		};
 	},
 
 	/**
@@ -246,7 +609,9 @@ export const adminComplianceAPI = {
 			throw await handleAPIError(response, 'Failed to start access review');
 		}
 
-		return response.json();
+		// Transform backend response to expected frontend types
+		const raw = (await response.json()) as BackendAccessReview;
+		return transformAccessReview(raw);
 	},
 
 	/**
@@ -276,7 +641,19 @@ export const adminComplianceAPI = {
 			throw await handleAPIError(response, 'Failed to list reports');
 		}
 
-		return response.json();
+		// Transform backend response to expected frontend types
+		const raw = (await response.json()) as {
+			data: BackendComplianceReport[];
+			pagination?: { has_more: boolean; next_cursor?: string };
+			has_more?: boolean;
+			next_cursor?: string;
+		};
+
+		return {
+			data: (raw.data || []).map(transformComplianceReport),
+			has_more: raw.pagination?.has_more ?? raw.has_more ?? false,
+			next_cursor: raw.pagination?.next_cursor ?? raw.next_cursor
+		};
 	},
 
 	/**
@@ -295,7 +672,9 @@ export const adminComplianceAPI = {
 			throw await handleAPIError(response, 'Failed to get data retention status');
 		}
 
-		return response.json();
+		// Transform backend response to expected frontend types
+		const raw = (await response.json()) as BackendDataRetentionStatusResponse;
+		return transformDataRetentionStatus(raw);
 	}
 };
 

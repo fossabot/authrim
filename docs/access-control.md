@@ -325,6 +325,33 @@ interface PolicySubjectWithAttributes extends PolicySubject {
 | `attribute_exists` | Attribute exists (any value) | `{ name, checkExpiry? }` |
 | `attribute_in` | Attribute value in allowed list | `{ name, values[], checkExpiry? }` |
 
+### Time-Based Conditions (Phase 4+)
+
+| Condition | Description | Parameters |
+|-----------|-------------|------------|
+| `time_in_range` | Check if current time is within hours | `{ startHour, endHour, timezone? }` |
+| `day_of_week` | Check if current day matches allowed days | `{ allowedDays: number[], timezone? }` |
+| `valid_during` | Check if current time is within period | `{ from?: unixSeconds, to?: unixSeconds }` |
+
+### Numeric Conditions (Phase 4+)
+
+| Condition | Description | Parameters |
+|-----------|-------------|------------|
+| `numeric_gt` | Attribute value > threshold | `{ name, value }` |
+| `numeric_gte` | Attribute value >= threshold | `{ name, value }` |
+| `numeric_lt` | Attribute value < threshold | `{ name, value }` |
+| `numeric_lte` | Attribute value <= threshold | `{ name, value }` |
+| `numeric_eq` | Attribute value == threshold | `{ name, value }` |
+| `numeric_between` | Attribute value within range | `{ name, min, max }` |
+
+### Geographic Conditions (Phase 4+)
+
+| Condition | Description | Parameters |
+|-----------|-------------|------------|
+| `country_in` | Request from allowed countries | `{ countries: string[] }` |
+| `country_not_in` | Request not from blocked countries | `{ countries: string[] }` |
+| `ip_in_range` | Client IP in CIDR ranges | `{ ranges: string[] }` |
+
 ### ABAC Condition Examples
 
 ```typescript
@@ -352,6 +379,68 @@ interface PolicySubjectWithAttributes extends PolicySubject {
   params: {
     name: 'role_level',
     values: ['senior', 'lead', 'manager']
+  }
+}
+
+// Time-based: Business hours only (9 AM - 6 PM UTC)
+{
+  type: 'time_in_range',
+  params: {
+    startHour: 9,
+    endHour: 18,
+    timezone: 'UTC'
+  }
+}
+
+// Day of week: Weekdays only (Monday=1 to Friday=5)
+{
+  type: 'day_of_week',
+  params: {
+    allowedDays: [1, 2, 3, 4, 5],
+    timezone: 'America/New_York'
+  }
+}
+
+// Numeric: Premium tier (>= 2)
+{
+  type: 'numeric_gte',
+  params: {
+    name: 'subscription_tier',
+    value: 2
+  }
+}
+
+// Numeric: Credits within range
+{
+  type: 'numeric_between',
+  params: {
+    name: 'credits',
+    min: 10,
+    max: 100
+  }
+}
+
+// Geographic: Allow only from specific countries
+{
+  type: 'country_in',
+  params: {
+    countries: ['JP', 'US', 'GB']
+  }
+}
+
+// Geographic: Block high-risk countries
+{
+  type: 'country_not_in',
+  params: {
+    countries: ['XX', 'YY']  // Replace with actual codes
+  }
+}
+
+// Geographic: Office IP ranges only
+{
+  type: 'ip_in_range',
+  params: {
+    ranges: ['192.168.1.0/24', '10.0.0.0/8']
   }
 }
 ```
@@ -430,7 +519,15 @@ interface CheckRequest {
   object_type?: string;
 
   /** Optional: Context for conditional checks (Phase 4+) */
-  context?: Record<string, unknown>;
+  context?: {
+    /** Temporary relationships to consider for this check only */
+    contextual_tuples?: Array<{
+      user_id: string;
+      relation: string;
+      object: string;
+    }>;
+    [key: string]: unknown;
+  };
 }
 ```
 
@@ -442,7 +539,7 @@ interface CheckResponse {
   allowed: boolean;
 
   /** How the result was resolved */
-  resolved_via?: 'direct' | 'computed' | 'cache' | 'closure';
+  resolved_via?: 'direct' | 'computed' | 'cache' | 'closure' | 'context';
 
   /** Path through relationships (for debugging) */
   path?: string[];
@@ -451,6 +548,40 @@ interface CheckResponse {
   cached_until?: number;
 }
 ```
+
+### Contextual Tuples (Phase 4+)
+
+Contextual tuples allow passing temporary relationships in a check request. These are evaluated **before** cache lookup and provide request-specific permission grants without persisting to the database.
+
+**Use Cases:**
+- Preview mode: "What if user X had access to resource Y?"
+- Temporary grants: Short-lived permissions for specific operations
+- Testing: Simulating relationships in development/testing
+
+**Example:**
+```typescript
+const checkRequest: CheckRequest = {
+  tenant_id: 'tenant_1',
+  user_id: 'user_123',
+  relation: 'viewer',
+  object: 'document:doc_456',
+  context: {
+    contextual_tuples: [
+      {
+        user_id: 'user_123',
+        relation: 'viewer',
+        object: 'document:doc_456',
+      }
+    ]
+  }
+};
+```
+
+**Behavior:**
+1. Contextual tuples are checked **first** (before cache/DB)
+2. If a match is found, `resolved_via: 'context'` is returned
+3. Contextual tuples are NOT cached (request-scoped only)
+4. Maximum 100 tuples per request (DoS protection)
 
 ### Relation DSL (Domain-Specific Language)
 
@@ -1206,18 +1337,39 @@ Where:
 
 ---
 
+## Implementation Status
+
+### Current Status (as of 2026-01-16)
+
+| Feature | Model | Status | Test Coverage |
+|---------|-------|--------|---------------|
+| RBAC Core | RBAC | ✅ Complete | 53 tests |
+| Scoped Roles | RBAC | ✅ Complete | Included |
+| Role Hierarchy | RBAC | ✅ Complete | Included |
+| ABAC Core | ABAC | ✅ Complete | 44 tests |
+| Verified Attributes | ABAC | ✅ Complete | Included |
+| Attribute Expiration | ABAC | ✅ Complete | Included |
+| Time-based conditions | Phase 4 | ✅ Complete | 13 tests |
+| Numeric comparisons | Phase 4 | ✅ Complete | 18 tests |
+| Geographic conditions | Phase 4 | ✅ Complete | 17 tests |
+| Unified Check Service | Integration | ✅ Complete | 38 tests |
+| Feature Flags | Configuration | ✅ Complete | 25 tests |
+
+**Total Test Count:** 186+ tests across ar-lib-policy
+
+---
+
 ## Future Roadmap
 
-### Phase 4+ Planned Features
+### Phase 5+ Planned Features
 
 | Feature | Model | Status |
 |---------|-------|--------|
 | Intersection relations | ReBAC | Planned |
 | Exclusion relations | ReBAC | Planned |
 | Contextual tuples | ReBAC | Planned |
-| Time-based conditions | ABAC | Under consideration |
-| Numeric comparisons | ABAC | Under consideration |
-| Geographic conditions | ABAC | Under consideration |
+| IPv6 support | Geographic | Planned |
+| Rate-based conditions | Advanced | Under consideration |
 
 ---
 

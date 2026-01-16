@@ -31,6 +31,8 @@ export type {
   BatchCheckRequest,
   BatchCheckResponse,
   CheckResolutionMethod,
+  CheckRequestContext,
+  ContextualTuple,
   // List API types
   ListObjectsRequest,
   ListObjectsResponse,

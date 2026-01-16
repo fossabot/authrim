@@ -13,3 +13,4 @@ export {
 	getStatusColor
 } from './constants';
 export { escapeHtml, sanitizeText, sanitizeObject } from './sanitize';
+export { isValidUUID } from './uuid-validation';

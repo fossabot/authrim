@@ -247,13 +247,23 @@ CREATE INDEX idx_sessions_external_provider ON sessions(external_provider_id, ex
 -- =============================================================================
 CREATE TABLE roles (
   id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
   name TEXT UNIQUE NOT NULL,
+  display_name TEXT,
   description TEXT,
   permissions_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  is_system INTEGER NOT NULL DEFAULT 0,
+  role_type TEXT NOT NULL DEFAULT 'custom',  -- system, builtin, custom
+  parent_role_id TEXT REFERENCES roles(id),  -- For role inheritance
+  hierarchy_level INTEGER DEFAULT 0,         -- Depth in role hierarchy
+  is_assignable INTEGER DEFAULT 1,           -- Can this role be assigned to users
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 
 CREATE INDEX idx_roles_name ON roles(name);
+CREATE INDEX idx_roles_tenant_id ON roles(tenant_id);
+CREATE INDEX idx_roles_type ON roles(role_type);
 
 -- =============================================================================
 -- 8. User Roles Table (N:M relationship)
@@ -362,38 +372,58 @@ CREATE INDEX idx_audit_log_resource ON audit_log(resource_type, resource_id);
 -- =============================================================================
 
 -- Super Admin: Full system access
-INSERT INTO roles (id, name, description, permissions_json, created_at) VALUES (
+INSERT INTO roles (id, tenant_id, name, display_name, description, permissions_json, is_system, role_type, created_at, updated_at) VALUES (
   'role_super_admin',
+  'default',
   'super_admin',
+  'Super Administrator',
   'Super Administrator with full system access',
   '["*"]',
+  1,
+  'system',
+  strftime('%s', 'now'),
   strftime('%s', 'now')
 );
 
 -- Admin: User and client management
-INSERT INTO roles (id, name, description, permissions_json, created_at) VALUES (
+INSERT INTO roles (id, tenant_id, name, display_name, description, permissions_json, is_system, role_type, created_at, updated_at) VALUES (
   'role_admin',
+  'default',
   'admin',
+  'Administrator',
   'Administrator with user and client management permissions',
   '["users:read","users:write","users:delete","clients:read","clients:write","clients:delete","sessions:read","sessions:revoke","stats:read","audit:read"]',
+  1,
+  'system',
+  strftime('%s', 'now'),
   strftime('%s', 'now')
 );
 
 -- Viewer: Read-only access
-INSERT INTO roles (id, name, description, permissions_json, created_at) VALUES (
+INSERT INTO roles (id, tenant_id, name, display_name, description, permissions_json, is_system, role_type, created_at, updated_at) VALUES (
   'role_viewer',
+  'default',
   'viewer',
+  'Viewer',
   'Viewer with read-only access to system data',
   '["users:read","clients:read","stats:read","audit:read"]',
+  1,
+  'builtin',
+  strftime('%s', 'now'),
   strftime('%s', 'now')
 );
 
 -- Support: User support operations
-INSERT INTO roles (id, name, description, permissions_json, created_at) VALUES (
+INSERT INTO roles (id, tenant_id, name, display_name, description, permissions_json, is_system, role_type, created_at, updated_at) VALUES (
   'role_support',
+  'default',
   'support',
+  'Support',
   'Support user with limited user management permissions',
   '["users:read","users:write","sessions:read","sessions:revoke"]',
+  1,
+  'builtin',
+  strftime('%s', 'now'),
   strftime('%s', 'now')
 );
 
@@ -2398,8 +2428,132 @@ CREATE INDEX idx_operational_logs_expires ON operational_logs(expires_at);
 CREATE INDEX idx_operational_logs_admin ON operational_logs(admin_id);
 
 -- =============================================================================
+-- suspicious_activities: Security monitoring - suspicious user activities
+-- =============================================================================
+CREATE TABLE suspicious_activities (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  type TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  user_id TEXT,
+  client_id TEXT,
+  source_ip TEXT,
+  user_agent TEXT,
+  description TEXT,
+  metadata TEXT,
+  created_at TEXT NOT NULL,
+  resolved_at TEXT
+);
+
+CREATE INDEX idx_suspicious_activities_tenant ON suspicious_activities(tenant_id);
+CREATE INDEX idx_suspicious_activities_type ON suspicious_activities(tenant_id, type);
+CREATE INDEX idx_suspicious_activities_severity ON suspicious_activities(tenant_id, severity);
+CREATE INDEX idx_suspicious_activities_user ON suspicious_activities(tenant_id, user_id);
+CREATE INDEX idx_suspicious_activities_created ON suspicious_activities(tenant_id, created_at);
+
+-- =============================================================================
+-- security_threats: Security monitoring - detected threats
+-- =============================================================================
+CREATE TABLE security_threats (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  type TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  title TEXT NOT NULL,
+  description TEXT,
+  source TEXT,
+  affected_resources TEXT,
+  indicators TEXT,
+  metadata TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  detected_at TEXT NOT NULL,
+  mitigated_at TEXT
+);
+
+CREATE INDEX idx_security_threats_tenant ON security_threats(tenant_id);
+CREATE INDEX idx_security_threats_type ON security_threats(tenant_id, type);
+CREATE INDEX idx_security_threats_severity ON security_threats(tenant_id, severity);
+CREATE INDEX idx_security_threats_status ON security_threats(tenant_id, status);
+CREATE INDEX idx_security_threats_detected ON security_threats(tenant_id, detected_at);
+
+-- =============================================================================
+-- access_reviews: Compliance - periodic access review campaigns
+-- =============================================================================
+CREATE TABLE access_reviews (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  name TEXT NOT NULL,
+  description TEXT,
+  scope TEXT NOT NULL,
+  scope_value TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewer_id TEXT,
+  total_items INTEGER NOT NULL DEFAULT 0,
+  reviewed_items INTEGER NOT NULL DEFAULT 0,
+  approved_items INTEGER NOT NULL DEFAULT 0,
+  revoked_items INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  started_at TEXT,
+  completed_at TEXT,
+  due_date TEXT
+);
+
+CREATE INDEX idx_access_reviews_tenant ON access_reviews(tenant_id);
+CREATE INDEX idx_access_reviews_status ON access_reviews(tenant_id, status);
+CREATE INDEX idx_access_reviews_reviewer ON access_reviews(tenant_id, reviewer_id);
+CREATE INDEX idx_access_reviews_created ON access_reviews(tenant_id, created_at);
+CREATE INDEX idx_access_reviews_due ON access_reviews(tenant_id, due_date);
+
+-- =============================================================================
+-- access_review_items: Individual items within an access review
+-- =============================================================================
+CREATE TABLE access_review_items (
+  id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL REFERENCES access_reviews(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  user_id TEXT NOT NULL,
+  permission_type TEXT NOT NULL,
+  permission_value TEXT NOT NULL,
+  decision TEXT,
+  decided_by TEXT,
+  decided_at TEXT,
+  justification TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_access_review_items_review ON access_review_items(review_id);
+CREATE INDEX idx_access_review_items_user ON access_review_items(tenant_id, user_id);
+CREATE INDEX idx_access_review_items_decision ON access_review_items(review_id, decision);
+
+-- =============================================================================
+-- compliance_reports: Generated compliance reports
+-- =============================================================================
+CREATE TABLE compliance_reports (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  requested_by TEXT,
+  parameters TEXT,
+  result_url TEXT,
+  error_message TEXT,
+  created_at TEXT NOT NULL,
+  completed_at TEXT,
+  expires_at TEXT
+);
+
+CREATE INDEX idx_compliance_reports_tenant ON compliance_reports(tenant_id);
+CREATE INDEX idx_compliance_reports_type ON compliance_reports(tenant_id, type);
+CREATE INDEX idx_compliance_reports_status ON compliance_reports(tenant_id, status);
+CREATE INDEX idx_compliance_reports_created ON compliance_reports(tenant_id, created_at);
+CREATE INDEX idx_compliance_reports_requested ON compliance_reports(tenant_id, requested_by);
+
+-- =============================================================================
 -- Final Migration Complete
 -- =============================================================================
--- This consolidated schema includes all tables from migrations 000-035
+-- This consolidated schema includes all tables from migrations 000-039
 -- For PII tables, see migrations/pii/001_pii_initial.sql
 -- =============================================================================

@@ -30,6 +30,7 @@ export * from './verifiable-credentials';
 export * from './discovery';
 export * from './plugin';
 export * from './assurance-levels';
+export * from './check-api-audit';
 
 // Re-export SettingsManager types
 export type {
@@ -77,6 +78,7 @@ import { VC_CATEGORY_META } from './verifiable-credentials';
 import { DISCOVERY_CATEGORY_META } from './discovery';
 import { PLUGIN_CATEGORY_META } from './plugin';
 import { ASSURANCE_LEVELS_CATEGORY_META } from './assurance-levels';
+import { CHECK_API_AUDIT_CATEGORY_META } from './check-api-audit';
 
 /**
  * All category metadata for easy registration
@@ -115,6 +117,8 @@ export const ALL_CATEGORY_META = {
   encryption: ENCRYPTION_CATEGORY_META,
   // Assurance Levels (NIST SP 800-63-4)
   assurance: ASSURANCE_LEVELS_CATEGORY_META,
+  // Check API Audit
+  'check-api-audit': CHECK_API_AUDIT_CATEGORY_META,
 } as const;
 
 /**

@@ -28,6 +28,9 @@ export * from './types/settings';
 // Contract Types (Three-Layer Policy Hierarchy)
 export * from './types/contracts';
 
+// Flow UI Types (Flow × UI Separation Architecture)
+export * from './schemas/flow-ui';
+
 // API Versioning Types (Stripe-style date-based versioning)
 export * from './types/api-version';
 
@@ -87,6 +90,7 @@ export * from './utils/dpop-jti-sharding';
 export * from './utils/par-sharding';
 export * from './utils/device-code-sharding';
 export * from './utils/ciba-sharding';
+export * from './utils/flow-state-sharding';
 export * from './utils/do-retry';
 export * from './utils/url-security';
 export * from './utils/basic-auth';
@@ -179,6 +183,7 @@ export * from './services/rule-evaluator';
 export * from './services/org-domain-resolver';
 export * from './services/token-claim-evaluator';
 export * from './services/unified-check-service';
+export * from './services/check-audit-service';
 export * from './services/permission-change-notifier';
 export * from './services/backchannel-logout-sender';
 export * from './services/frontchannel-logout';
@@ -297,6 +302,15 @@ export { RateLimiterCounter } from './durable-objects/RateLimiterCounter';
 export { PARRequestStore } from './durable-objects/PARRequestStore';
 export type { PARRequestData } from './durable-objects/PARRequestStore';
 export { PermissionChangeHub } from './durable-objects/PermissionChangeHub';
+export { FlowStateStore } from './durable-objects/FlowStateStore';
+export { DEFAULT_FLOW_TTL_MS, MAX_PROCESSED_REQUEST_IDS } from './durable-objects/FlowStateStore';
+export type {
+  RuntimeState,
+  RuntimeStateSnapshot,
+  FlowSubmitResult,
+  CreateRuntimeStateParams,
+  OAuthFlowParams as FlowOAuthParams,
+} from './durable-objects/FlowStateStore';
 
 // ReBAC (Relationship-Based Access Control)
 export {

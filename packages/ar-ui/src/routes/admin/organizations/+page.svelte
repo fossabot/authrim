@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import {
 		adminOrganizationsAPI,
 		type OrgDomainMapping,
@@ -18,9 +19,9 @@
 	let hierarchyData: OrganizationHierarchyResponse | null = $state(null);
 	let hierarchyLoading = $state(false);
 	let hierarchyError = $state('');
-	let expandedNodes = $state(new Set<string>());
+	let expandedNodes: Set<string> = new SvelteSet();
 	let searchQuery = $state('');
-	let highlightedIds = $state(new Set<string>());
+	let highlightedIds: Set<string> = new SvelteSet();
 
 	// Domain mappings state
 	let mappings: OrgDomainMapping[] = $state([]);
@@ -100,7 +101,7 @@
 	}
 
 	function handleToggleNode(nodeId: string, expanded: boolean) {
-		const newSet = new Set(expandedNodes);
+		const newSet = new SvelteSet(expandedNodes);
 		if (expanded) {
 			newSet.add(nodeId);
 		} else {
@@ -111,7 +112,7 @@
 
 	function expandAll() {
 		if (!hierarchyData) return;
-		const allIds = new Set<string>();
+		const allIds = new SvelteSet<string>();
 		function collectIds(node: OrganizationNode) {
 			allIds.add(node.id);
 			node.children.forEach(collectIds);
@@ -122,19 +123,19 @@
 
 	function collapseAll() {
 		if (!hierarchyData) return;
-		expandedNodes = new Set([hierarchyData.organization.id]);
+		expandedNodes = new SvelteSet([hierarchyData.organization.id]);
 	}
 
 	async function handleSearch() {
 		if (!searchQuery.trim()) {
-			highlightedIds = new Set();
+			highlightedIds = new SvelteSet();
 			await loadOrganizations();
 			return;
 		}
 
 		// Search in the current hierarchy
 		if (hierarchyData) {
-			const matchingIds = new Set<string>();
+			const matchingIds = new SvelteSet<string>();
 			const query = searchQuery.toLowerCase();
 
 			function searchNode(node: OrganizationNode) {
@@ -463,26 +464,26 @@
 			</div>
 
 			{#if error}
-		<div
-			style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-		>
-			{error}
-		</div>
-	{/if}
+				<div
+					style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
+				>
+					{error}
+				</div>
+			{/if}
 
-	{#if loading}
-		<div style="text-align: center; padding: 48px; color: #6b7280;">Loading...</div>
-	{:else if mappings.length === 0}
-		<div
-			style="text-align: center; padding: 48px; color: #6b7280; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
-		>
-			<p style="margin: 0 0 16px 0;">No domain mappings configured.</p>
-			<p style="margin: 0 0 24px 0; font-size: 14px;">
-				Add a domain mapping to enable automatic organization assignment for users.
-			</p>
-			<button
-				onclick={openCreateDialog}
-				style="
+			{#if loading}
+				<div style="text-align: center; padding: 48px; color: #6b7280;">Loading...</div>
+			{:else if mappings.length === 0}
+				<div
+					style="text-align: center; padding: 48px; color: #6b7280; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
+				>
+					<p style="margin: 0 0 16px 0;">No domain mappings configured.</p>
+					<p style="margin: 0 0 24px 0; font-size: 14px;">
+						Add a domain mapping to enable automatic organization assignment for users.
+					</p>
+					<button
+						onclick={openCreateDialog}
+						style="
 					padding: 10px 20px;
 					background-color: #3b82f6;
 					color: white;
@@ -491,63 +492,63 @@
 					cursor: pointer;
 					font-size: 14px;
 				"
-			>
-				Add Your First Mapping
-			</button>
-		</div>
-	{:else}
-		<div style="margin-bottom: 16px; color: #6b7280; font-size: 14px;">
-			Showing {mappings.length} of {total} mappings
-		</div>
+					>
+						Add Your First Mapping
+					</button>
+				</div>
+			{:else}
+				<div style="margin-bottom: 16px; color: #6b7280; font-size: 14px;">
+					Showing {mappings.length} of {total} mappings
+				</div>
 
-		<div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-			<table style="width: 100%; border-collapse: collapse;">
-				<thead>
-					<tr style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Organization ID
-						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Verification
-						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Status
-						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Auto Join
-						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Membership
-						</th>
-						<th
-							style="text-align: right; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Actions
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each mappings as mapping (mapping.id)}
-						<tr style="border-bottom: 1px solid #e5e7eb;">
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-								<div style="font-family: monospace; color: #1f2937;">{mapping.org_id}</div>
-								<div style="font-size: 12px; color: #6b7280;">
-									Hash: {mapping.domain_hash.substring(0, 16)}...
-								</div>
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-								<span
-									style="
+				<div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+					<table style="width: 100%; border-collapse: collapse;">
+						<thead>
+							<tr style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+								<th
+									style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+								>
+									Organization ID
+								</th>
+								<th
+									style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+								>
+									Verification
+								</th>
+								<th
+									style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+								>
+									Status
+								</th>
+								<th
+									style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+								>
+									Auto Join
+								</th>
+								<th
+									style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+								>
+									Membership
+								</th>
+								<th
+									style="text-align: right; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
+								>
+									Actions
+								</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each mappings as mapping (mapping.id)}
+								<tr style="border-bottom: 1px solid #e5e7eb;">
+									<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
+										<div style="font-family: monospace; color: #1f2937;">{mapping.org_id}</div>
+										<div style="font-size: 12px; color: #6b7280;">
+											Hash: {mapping.domain_hash.substring(0, 16)}...
+										</div>
+									</td>
+									<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
+										<span
+											style="
 										display: inline-block;
 										padding: 4px 8px;
 										border-radius: 9999px;
@@ -555,13 +556,13 @@
 										font-weight: 500;
 										{getStatusBadgeStyle(mapping.verified)}
 									"
-								>
-									{mapping.verified ? 'Verified' : 'Pending'}
-								</span>
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-								<span
-									style="
+										>
+											{mapping.verified ? 'Verified' : 'Pending'}
+										</span>
+									</td>
+									<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
+										<span
+											style="
 										display: inline-block;
 										padding: 4px 8px;
 										border-radius: 9999px;
@@ -569,16 +570,16 @@
 										font-weight: 500;
 										{getActiveBadgeStyle(mapping.is_active)}
 									"
-								>
-									{mapping.is_active ? 'Active' : 'Inactive'}
-								</span>
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-								{mapping.auto_join_enabled ? 'Yes' : 'No'}
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-								<span
-									style="
+										>
+											{mapping.is_active ? 'Active' : 'Inactive'}
+										</span>
+									</td>
+									<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
+										{mapping.auto_join_enabled ? 'Yes' : 'No'}
+									</td>
+									<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
+										<span
+											style="
 										display: inline-block;
 										padding: 4px 8px;
 										border-radius: 9999px;
@@ -586,16 +587,16 @@
 										font-weight: 500;
 										{getMembershipBadgeStyle(mapping.membership_type)}
 									"
-								>
-									{mapping.membership_type}
-								</span>
-							</td>
-							<td style="padding: 12px 16px; text-align: right;">
-								<div style="display: flex; justify-content: flex-end; gap: 8px;">
-									{#if !mapping.verified}
-										<button
-											onclick={(e) => openVerifyDialog(mapping, e)}
-											style="
+										>
+											{mapping.membership_type}
+										</span>
+									</td>
+									<td style="padding: 12px 16px; text-align: right;">
+										<div style="display: flex; justify-content: flex-end; gap: 8px;">
+											{#if !mapping.verified}
+												<button
+													onclick={(e) => openVerifyDialog(mapping, e)}
+													style="
 												padding: 6px 12px;
 												background-color: #fef3c7;
 												color: #92400e;
@@ -604,13 +605,13 @@
 												cursor: pointer;
 												font-size: 13px;
 											"
-										>
-											Verify
-										</button>
-									{/if}
-									<button
-										onclick={(e) => toggleActive(mapping, e)}
-										style="
+												>
+													Verify
+												</button>
+											{/if}
+											<button
+												onclick={(e) => toggleActive(mapping, e)}
+												style="
 											padding: 6px 12px;
 											background-color: #f3f4f6;
 											color: #374151;
@@ -619,12 +620,12 @@
 											cursor: pointer;
 											font-size: 13px;
 										"
-									>
-										{mapping.is_active ? 'Disable' : 'Enable'}
-									</button>
-									<button
-										onclick={(e) => openDeleteDialog(mapping, e)}
-										style="
+											>
+												{mapping.is_active ? 'Disable' : 'Enable'}
+											</button>
+											<button
+												onclick={(e) => openDeleteDialog(mapping, e)}
+												style="
 											padding: 6px 12px;
 											background-color: #fee2e2;
 											color: #dc2626;
@@ -633,17 +634,17 @@
 											cursor: pointer;
 											font-size: 13px;
 										"
-									>
-										Delete
-									</button>
-								</div>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	{/if}
+											>
+												Delete
+											</button>
+										</div>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
 		</div>
 	{/if}
 </div>

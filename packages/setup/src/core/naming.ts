@@ -67,6 +67,7 @@ export const DURABLE_OBJECTS = [
   { name: 'VERSION_MANAGER', className: 'VersionManager' },
   { name: 'SAML_REQUEST_STORE', className: 'SAMLRequestStore' },
   { name: 'PERMISSION_CHANGE_HUB', className: 'PermissionChangeHub' },
+  { name: 'FLOW_STATE_STORE', className: 'FlowStateStore' },
 ] as const;
 
 export type DurableObjectBinding = (typeof DURABLE_OBJECTS)[number];

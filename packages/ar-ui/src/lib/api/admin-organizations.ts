@@ -174,9 +174,7 @@ export const adminOrganizationsAPI = {
 	/**
 	 * List organizations with optional filtering
 	 */
-	async listOrganizations(
-		params: ListOrganizationsParams = {}
-	): Promise<OrganizationListResponse> {
+	async listOrganizations(params: ListOrganizationsParams = {}): Promise<OrganizationListResponse> {
 		const searchParams = new URLSearchParams();
 		if (params.limit !== undefined) searchParams.set('limit', params.limit.toString());
 		if (params.offset !== undefined) searchParams.set('offset', params.offset.toString());

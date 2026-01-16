@@ -4,6 +4,15 @@
 	import { goto } from '$app/navigation';
 	import { adminUsersAPI, type User, type UpdateUserInput } from '$lib/api/admin-users';
 	import { adminSessionsAPI } from '$lib/api/admin-sessions';
+	import {
+		adminRolesAPI,
+		type Role,
+		type RoleAssignment,
+		type ScopeType
+	} from '$lib/api/admin-roles';
+	import OrganizationSelectDialog from '$lib/components/OrganizationSelectDialog.svelte';
+	import type { OrganizationNode } from '$lib/api/admin-organizations';
+	import { sanitizeText, isValidUUID } from '$lib/utils';
 
 	let user: User | null = $state(null);
 	let loading = $state(true);
@@ -14,6 +23,29 @@
 
 	// Edit form state
 	let editForm = $state<UpdateUserInput>({});
+
+	// Role assignment state
+	let userRoles = $state<RoleAssignment[]>([]);
+	let availableRoles = $state<Role[]>([]);
+	let rolesLoading = $state(false);
+	let rolesError = $state('');
+
+	// Assign role dialog state
+	let showAssignRoleDialog = $state(false);
+	let assignStep = $state<'select-role' | 'select-scope'>('select-role');
+	let selectedRoleId = $state('');
+	let selectedScope = $state<ScopeType>('global');
+	let selectedOrgId = $state<string | null>(null);
+	let selectedOrgName = $state<string | null>(null);
+	let assignLoading = $state(false);
+
+	// Organization select dialog
+	let showOrgSelectDialog = $state(false);
+
+	// Remove role confirmation
+	let showRemoveRoleDialog = $state(false);
+	let roleToRemove = $state<RoleAssignment | null>(null);
+	let removeRoleLoading = $state(false);
 
 	// Confirmation dialog state
 	let showConfirmDialog = $state(false);
@@ -58,7 +90,138 @@
 
 	onMount(() => {
 		loadUser();
+		loadUserRoles();
+		loadAvailableRoles();
 	});
+
+	// Role management functions
+	async function loadUserRoles() {
+		rolesLoading = true;
+		rolesError = '';
+		try {
+			const response = await adminRolesAPI.getUserRoles(userId);
+			userRoles = response.roles;
+		} catch (err) {
+			console.error('Failed to load user roles:', err);
+			rolesError = err instanceof Error ? err.message : 'Failed to load roles';
+		} finally {
+			rolesLoading = false;
+		}
+	}
+
+	async function loadAvailableRoles() {
+		try {
+			const response = await adminRolesAPI.list();
+			availableRoles = response.roles;
+		} catch (err) {
+			console.error('Failed to load available roles:', err);
+		}
+	}
+
+	function openAssignRoleDialog() {
+		selectedRoleId = '';
+		selectedScope = 'global';
+		selectedOrgId = null;
+		selectedOrgName = null;
+		assignStep = 'select-role';
+		showAssignRoleDialog = true;
+		rolesError = '';
+	}
+
+	function closeAssignRoleDialog() {
+		showAssignRoleDialog = false;
+	}
+
+	function goToScopeStep() {
+		if (selectedRoleId) {
+			assignStep = 'select-scope';
+		}
+	}
+
+	function goBackToRoleStep() {
+		assignStep = 'select-role';
+	}
+
+	function openOrgSelectDialog() {
+		showOrgSelectDialog = true;
+	}
+
+	function handleOrgSelect(org: OrganizationNode) {
+		selectedOrgId = org.id;
+		selectedOrgName = org.display_name || org.name;
+		showOrgSelectDialog = false;
+	}
+
+	async function assignRole() {
+		if (!selectedRoleId) return;
+		if (selectedScope === 'org' && !selectedOrgId) {
+			rolesError = 'Please select an organization for org-scoped role';
+			return;
+		}
+		if (selectedScope === 'org' && selectedOrgId && !isValidUUID(selectedOrgId)) {
+			rolesError = 'Invalid organization ID format';
+			return;
+		}
+
+		assignLoading = true;
+		rolesError = '';
+
+		try {
+			await adminRolesAPI.assignRole(userId, {
+				role_id: selectedRoleId,
+				scope: selectedScope,
+				scope_target: selectedScope === 'org' ? selectedOrgId! : undefined
+			});
+			await loadUserRoles();
+			closeAssignRoleDialog();
+		} catch (err) {
+			console.error('Failed to assign role:', err);
+			rolesError = err instanceof Error ? err.message : 'Failed to assign role';
+		} finally {
+			assignLoading = false;
+		}
+	}
+
+	function confirmRemoveRole(role: RoleAssignment) {
+		roleToRemove = role;
+		showRemoveRoleDialog = true;
+	}
+
+	function closeRemoveRoleDialog() {
+		showRemoveRoleDialog = false;
+		roleToRemove = null;
+	}
+
+	async function removeRole() {
+		if (!roleToRemove) return;
+
+		removeRoleLoading = true;
+		rolesError = '';
+
+		try {
+			await adminRolesAPI.removeRole(userId, roleToRemove.id);
+			await loadUserRoles();
+			closeRemoveRoleDialog();
+		} catch (err) {
+			console.error('Failed to remove role:', err);
+			rolesError = err instanceof Error ? err.message : 'Failed to remove role';
+		} finally {
+			removeRoleLoading = false;
+		}
+	}
+
+	function getScopeBadgeStyle(scope: ScopeType): string {
+		switch (scope) {
+			case 'global':
+				return 'background-color: #dbeafe; color: #1e40af;';
+			case 'org':
+				return 'background-color: #d1fae5; color: #065f46;';
+			case 'resource':
+				return 'background-color: #fef3c7; color: #92400e;';
+			default:
+				return 'background-color: #e5e7eb; color: #374151;';
+		}
+	}
 
 	function startEditing() {
 		resetEditForm();
@@ -235,9 +398,9 @@
 		>
 			<div>
 				<h1 style="font-size: 24px; font-weight: bold; color: #1f2937; margin: 0 0 8px 0;">
-					{user.name || user.email || 'Unknown User'}
+					{sanitizeText(user.name || user.email || 'Unknown User')}
 				</h1>
-				<p style="color: #6b7280; font-size: 14px; margin: 0;">{user.email}</p>
+				<p style="color: #6b7280; font-size: 14px; margin: 0;">{sanitizeText(user.email || '')}</p>
 			</div>
 			<span
 				style="
@@ -449,33 +612,45 @@
 					</div>
 					<div>
 						<dt style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Email</dt>
-						<dd style="font-size: 14px; color: #1f2937; margin: 0;">{user.email || '-'}</dd>
+						<dd style="font-size: 14px; color: #1f2937; margin: 0;">
+							{sanitizeText(user.email || '-')}
+						</dd>
 					</div>
 					<div>
 						<dt style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Name</dt>
-						<dd style="font-size: 14px; color: #1f2937; margin: 0;">{user.name || '-'}</dd>
+						<dd style="font-size: 14px; color: #1f2937; margin: 0;">
+							{sanitizeText(user.name || '-')}
+						</dd>
 					</div>
 					<div>
 						<dt style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Given Name</dt>
-						<dd style="font-size: 14px; color: #1f2937; margin: 0;">{user.given_name || '-'}</dd>
+						<dd style="font-size: 14px; color: #1f2937; margin: 0;">
+							{sanitizeText(user.given_name || '-')}
+						</dd>
 					</div>
 					<div>
 						<dt style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Family Name</dt>
-						<dd style="font-size: 14px; color: #1f2937; margin: 0;">{user.family_name || '-'}</dd>
+						<dd style="font-size: 14px; color: #1f2937; margin: 0;">
+							{sanitizeText(user.family_name || '-')}
+						</dd>
 					</div>
 					<div>
 						<dt style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Nickname</dt>
-						<dd style="font-size: 14px; color: #1f2937; margin: 0;">{user.nickname || '-'}</dd>
+						<dd style="font-size: 14px; color: #1f2937; margin: 0;">
+							{sanitizeText(user.nickname || '-')}
+						</dd>
 					</div>
 					<div>
 						<dt style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Preferred Username</dt>
 						<dd style="font-size: 14px; color: #1f2937; margin: 0;">
-							{user.preferred_username || '-'}
+							{sanitizeText(user.preferred_username || '-')}
 						</dd>
 					</div>
 					<div>
 						<dt style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Phone Number</dt>
-						<dd style="font-size: 14px; color: #1f2937; margin: 0;">{user.phone_number || '-'}</dd>
+						<dd style="font-size: 14px; color: #1f2937; margin: 0;">
+							{sanitizeText(user.phone_number || '-')}
+						</dd>
 					</div>
 					<div>
 						<dt style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">User Type</dt>
@@ -566,7 +741,7 @@
 							<div style="display: flex; justify-content: space-between; align-items: center;">
 								<div>
 									<p style="font-size: 14px; color: #1f2937; margin: 0 0 4px 0; font-weight: 500;">
-										{passkey.device_name || 'Unnamed Device'}
+										{sanitizeText(passkey.device_name || 'Unnamed Device')}
 									</p>
 									<p style="font-size: 12px; color: #6b7280; margin: 0;">
 										Created: {formatTimestamp(passkey.created_at)}
@@ -582,6 +757,136 @@
 			{:else}
 				<p style="color: #9ca3af; text-align: center; padding: 20px; margin: 0;">
 					No passkeys registered
+				</p>
+			{/if}
+		</div>
+
+		<!-- Role Assignments -->
+		<div
+			style="background-color: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;"
+		>
+			<div
+				style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;"
+			>
+				<h2 style="font-size: 18px; font-weight: 600; color: #1f2937; margin: 0;">
+					Role Assignments
+				</h2>
+				<button
+					onclick={openAssignRoleDialog}
+					style="
+						padding: 8px 16px;
+						background-color: #3b82f6;
+						color: white;
+						border: none;
+						border-radius: 4px;
+						cursor: pointer;
+						font-size: 14px;
+					"
+				>
+					Assign Role
+				</button>
+			</div>
+
+			{#if rolesError}
+				<div
+					style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;"
+				>
+					{rolesError}
+				</div>
+			{/if}
+
+			{#if rolesLoading}
+				<p style="color: #6b7280; text-align: center; padding: 20px; margin: 0;">
+					Loading roles...
+				</p>
+			{:else if userRoles.length > 0}
+				<div style="overflow-x: auto;">
+					<table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+						<thead>
+							<tr style="border-bottom: 1px solid #e5e7eb;">
+								<th style="text-align: left; padding: 12px 8px; font-weight: 500; color: #6b7280;">
+									Role
+								</th>
+								<th style="text-align: left; padding: 12px 8px; font-weight: 500; color: #6b7280;">
+									Scope
+								</th>
+								<th style="text-align: left; padding: 12px 8px; font-weight: 500; color: #6b7280;">
+									Scope Target
+								</th>
+								<th style="text-align: left; padding: 12px 8px; font-weight: 500; color: #6b7280;">
+									Expires
+								</th>
+								<th style="text-align: right; padding: 12px 8px; font-weight: 500; color: #6b7280;">
+									Actions
+								</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each userRoles as role (role.id)}
+								<tr style="border-bottom: 1px solid #f3f4f6;">
+									<td style="padding: 12px 8px; color: #1f2937;">
+										<span style="font-weight: 500;">
+											{role.role_display_name || role.role_name}
+										</span>
+										{#if role.is_system_role}
+											<span
+												style="
+													margin-left: 8px;
+													font-size: 11px;
+													padding: 2px 6px;
+													background-color: #f3f4f6;
+													color: #6b7280;
+													border-radius: 4px;
+												"
+											>
+												System
+											</span>
+										{/if}
+									</td>
+									<td style="padding: 12px 8px;">
+										<span
+											style="
+												display: inline-block;
+												padding: 2px 8px;
+												border-radius: 4px;
+												font-size: 12px;
+												font-weight: 500;
+												{getScopeBadgeStyle(role.scope)}
+											"
+										>
+											{role.scope}
+										</span>
+									</td>
+									<td style="padding: 12px 8px; color: #6b7280;">
+										{role.scope_target || '-'}
+									</td>
+									<td style="padding: 12px 8px; color: #6b7280;">
+										{role.expires_at ? formatTimestamp(role.expires_at) : 'Never'}
+									</td>
+									<td style="padding: 12px 8px; text-align: right;">
+										<button
+											onclick={() => confirmRemoveRole(role)}
+											style="
+												padding: 4px 12px;
+												background-color: white;
+												color: #dc2626;
+												border: 1px solid #fca5a5;
+												border-radius: 4px;
+												cursor: pointer;
+												font-size: 12px;
+											"
+										>
+											Remove
+										</button>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{:else}
+				<p style="color: #9ca3af; text-align: center; padding: 20px; margin: 0;">
+					No roles assigned to this user
 				</p>
 			{/if}
 		</div>
@@ -778,3 +1083,338 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Assign Role Dialog -->
+{#if showAssignRoleDialog}
+	<div
+		style="
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background-color: rgba(0, 0, 0, 0.5);
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			z-index: 1000;
+		"
+		onclick={closeAssignRoleDialog}
+		onkeydown={(e) => e.key === 'Escape' && closeAssignRoleDialog()}
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+	>
+		<div
+			style="
+				background-color: white;
+				border-radius: 8px;
+				padding: 24px;
+				max-width: 450px;
+				width: 90%;
+				box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+			"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+			role="document"
+		>
+			<h3 style="font-size: 18px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0;">
+				Assign Role
+			</h3>
+
+			{#if rolesError}
+				<div
+					style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 14px;"
+				>
+					{rolesError}
+				</div>
+			{/if}
+
+			{#if assignStep === 'select-role'}
+				<!-- Step 1: Select Role -->
+				<div style="margin-bottom: 20px;">
+					<label
+						for="role-select"
+						style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;"
+					>
+						Select a role to assign
+					</label>
+					<select
+						id="role-select"
+						bind:value={selectedRoleId}
+						style="
+							width: 100%;
+							padding: 10px 12px;
+							border: 1px solid #d1d5db;
+							border-radius: 6px;
+							font-size: 14px;
+							background-color: white;
+						"
+					>
+						<option value="">-- Select a role --</option>
+						{#each availableRoles as role (role.id)}
+							<option value={role.id}>
+								{role.display_name || role.name}
+								{role.is_system ? '(System)' : ''}
+							</option>
+						{/each}
+					</select>
+				</div>
+
+				<div style="display: flex; gap: 12px; justify-content: flex-end;">
+					<button
+						onclick={closeAssignRoleDialog}
+						style="
+							padding: 10px 20px;
+							background-color: white;
+							color: #374151;
+							border: 1px solid #d1d5db;
+							border-radius: 4px;
+							cursor: pointer;
+							font-size: 14px;
+						"
+					>
+						Cancel
+					</button>
+					<button
+						onclick={goToScopeStep}
+						disabled={!selectedRoleId}
+						style="
+							padding: 10px 20px;
+							background-color: {!selectedRoleId ? '#9ca3af' : '#3b82f6'};
+							color: white;
+							border: none;
+							border-radius: 4px;
+							cursor: {!selectedRoleId ? 'not-allowed' : 'pointer'};
+							font-size: 14px;
+						"
+					>
+						Next
+					</button>
+				</div>
+			{:else}
+				<!-- Step 2: Select Scope -->
+				<div style="margin-bottom: 20px;">
+					<label
+						style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 12px;"
+					>
+						Select scope for this role
+					</label>
+					<div style="display: flex; flex-direction: column; gap: 12px;">
+						<label
+							style="
+								display: flex;
+								align-items: flex-start;
+								gap: 12px;
+								padding: 12px;
+								border: 1px solid {selectedScope === 'global' ? '#3b82f6' : '#e5e7eb'};
+								border-radius: 6px;
+								cursor: pointer;
+								background-color: {selectedScope === 'global' ? '#eff6ff' : 'white'};
+							"
+						>
+							<input
+								type="radio"
+								value="global"
+								bind:group={selectedScope}
+								style="margin-top: 2px;"
+							/>
+							<div>
+								<span style="font-weight: 500; color: #1f2937;">Global</span>
+								<p style="font-size: 12px; color: #6b7280; margin: 4px 0 0 0;">
+									Role applies across all organizations
+								</p>
+							</div>
+						</label>
+						<label
+							style="
+								display: flex;
+								align-items: flex-start;
+								gap: 12px;
+								padding: 12px;
+								border: 1px solid {selectedScope === 'org' ? '#3b82f6' : '#e5e7eb'};
+								border-radius: 6px;
+								cursor: pointer;
+								background-color: {selectedScope === 'org' ? '#eff6ff' : 'white'};
+							"
+						>
+							<input type="radio" value="org" bind:group={selectedScope} style="margin-top: 2px;" />
+							<div>
+								<span style="font-weight: 500; color: #1f2937;">Organization</span>
+								<p style="font-size: 12px; color: #6b7280; margin: 4px 0 0 0;">
+									Role applies only within a specific organization
+								</p>
+							</div>
+						</label>
+					</div>
+				</div>
+
+				{#if selectedScope === 'org'}
+					<div style="margin-bottom: 20px;">
+						<label
+							style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;"
+						>
+							Select Organization
+						</label>
+						<div
+							style="
+								display: flex;
+								align-items: center;
+								gap: 12px;
+								padding: 10px 12px;
+								border: 1px solid #d1d5db;
+								border-radius: 6px;
+								background-color: #f9fafb;
+							"
+						>
+							{#if selectedOrgName}
+								<span style="flex: 1; color: #1f2937;">{selectedOrgName}</span>
+							{:else}
+								<span style="flex: 1; color: #9ca3af;">No organization selected</span>
+							{/if}
+							<button
+								onclick={openOrgSelectDialog}
+								style="
+									padding: 6px 12px;
+									background-color: #3b82f6;
+									color: white;
+									border: none;
+									border-radius: 4px;
+									cursor: pointer;
+									font-size: 13px;
+								"
+							>
+								{selectedOrgId ? 'Change' : 'Select'}
+							</button>
+						</div>
+					</div>
+				{/if}
+
+				<div style="display: flex; gap: 12px; justify-content: flex-end;">
+					<button
+						onclick={goBackToRoleStep}
+						disabled={assignLoading}
+						style="
+							padding: 10px 20px;
+							background-color: white;
+							color: #374151;
+							border: 1px solid #d1d5db;
+							border-radius: 4px;
+							cursor: pointer;
+							font-size: 14px;
+						"
+					>
+						Back
+					</button>
+					<button
+						onclick={assignRole}
+						disabled={assignLoading || (selectedScope === 'org' && !selectedOrgId)}
+						style="
+							padding: 10px 20px;
+							background-color: {assignLoading || (selectedScope === 'org' && !selectedOrgId)
+							? '#9ca3af'
+							: '#10b981'};
+							color: white;
+							border: none;
+							border-radius: 4px;
+							cursor: {assignLoading || (selectedScope === 'org' && !selectedOrgId) ? 'not-allowed' : 'pointer'};
+							font-size: 14px;
+						"
+					>
+						{assignLoading ? 'Assigning...' : 'Assign Role'}
+					</button>
+				</div>
+			{/if}
+		</div>
+	</div>
+{/if}
+
+<!-- Remove Role Confirmation Dialog -->
+{#if showRemoveRoleDialog && roleToRemove}
+	<div
+		style="
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background-color: rgba(0, 0, 0, 0.5);
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			z-index: 1000;
+		"
+		onclick={closeRemoveRoleDialog}
+		onkeydown={(e) => e.key === 'Escape' && closeRemoveRoleDialog()}
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+	>
+		<div
+			style="
+				background-color: white;
+				border-radius: 8px;
+				padding: 24px;
+				max-width: 400px;
+				width: 90%;
+				box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+			"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+			role="document"
+		>
+			<h3 style="font-size: 18px; font-weight: 600; color: #1f2937; margin: 0 0 12px 0;">
+				Remove Role
+			</h3>
+			<p style="color: #6b7280; font-size: 14px; margin: 0 0 20px 0; line-height: 1.5;">
+				Are you sure you want to remove the role <strong
+					>{sanitizeText(roleToRemove.role_display_name || roleToRemove.role_name || '')}</strong
+				>
+				{#if roleToRemove.scope !== 'global'}
+					(scope: {sanitizeText(roleToRemove.scope_target || '')})
+				{/if}
+				from this user?
+			</p>
+			<div style="display: flex; gap: 12px; justify-content: flex-end;">
+				<button
+					onclick={closeRemoveRoleDialog}
+					disabled={removeRoleLoading}
+					style="
+						padding: 10px 20px;
+						background-color: white;
+						color: #374151;
+						border: 1px solid #d1d5db;
+						border-radius: 4px;
+						cursor: pointer;
+						font-size: 14px;
+					"
+				>
+					Cancel
+				</button>
+				<button
+					onclick={removeRole}
+					disabled={removeRoleLoading}
+					style="
+						padding: 10px 20px;
+						background-color: {removeRoleLoading ? '#9ca3af' : '#dc2626'};
+						color: white;
+						border: none;
+						border-radius: 4px;
+						cursor: {removeRoleLoading ? 'not-allowed' : 'pointer'};
+						font-size: 14px;
+					"
+				>
+					{removeRoleLoading ? 'Removing...' : 'Remove Role'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Organization Select Dialog -->
+<OrganizationSelectDialog
+	open={showOrgSelectDialog}
+	onClose={() => (showOrgSelectDialog = false)}
+	onSelect={handleOrgSelect}
+	title="Select Organization for Role Scope"
+/>

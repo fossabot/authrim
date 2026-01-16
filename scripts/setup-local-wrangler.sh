@@ -164,6 +164,10 @@ class_name = "PARRequestStore"
 name = "DPOP_JTI_STORE"
 class_name = "DPoPJTIStore"
 
+[[durable_objects.bindings]]
+name = "FLOW_STATE_STORE"
+class_name = "FlowStateStore"
+
 # Durable Objects migrations
 [[migrations]]
 tag = "v1"
@@ -186,6 +190,10 @@ tag = "v2"
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["RateLimiterCounter", "PARRequestStore", "DPoPJTIStore"]
+
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["FlowStateStore"]
 
 # Environment variables
 [vars]
@@ -234,6 +242,10 @@ class_name = "PARRequestStore"
 name = "DPOP_JTI_STORE"
 class_name = "DPoPJTIStore"
 
+[[durable_objects.bindings]]
+name = "FLOW_STATE_STORE"
+class_name = "FlowStateStore"
+
 # Durable Objects migrations
 [[migrations]]
 tag = "v1"
@@ -256,6 +268,10 @@ tag = "v2"
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["RateLimiterCounter", "PARRequestStore", "DPoPJTIStore"]
+
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["FlowStateStore"]
 
 # Environment variables
 [vars]
@@ -319,6 +335,11 @@ script_name = "${DEPLOY_ENV}-ar-lib-core"
 [[durable_objects.bindings]]
 name = "PAR_REQUEST_STORE"
 class_name = "PARRequestStore"
+script_name = "${DEPLOY_ENV}-ar-lib-core"
+
+[[durable_objects.bindings]]
+name = "FLOW_STATE_STORE"
+class_name = "FlowStateStore"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for ar-token
@@ -376,6 +397,10 @@ script_name = "${DEPLOY_ENV}-ar-lib-core"
 [[durable_objects.bindings]]
 name = "DPOP_JTI_STORE"
 class_name = "DPoPJTIStore"
+
+[[durable_objects.bindings]]
+name = "FLOW_STATE_STORE"
+class_name = "FlowStateStore"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for ar-userinfo
@@ -406,6 +431,10 @@ script_name = "${DEPLOY_ENV}-ar-lib-core"
 [[durable_objects.bindings]]
 name = "DPOP_JTI_STORE"
 class_name = "DPoPJTIStore"
+
+[[durable_objects.bindings]]
+name = "FLOW_STATE_STORE"
+class_name = "FlowStateStore"
 script_name = "${DEPLOY_ENV}-ar-lib-core"'
 
 # Generate wrangler.toml for ar-management
