@@ -54,7 +54,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "hono": "^4.10.6",
+    "hono": "^4.11.4",
     "jose": "^6.1.2"
   },
   "devDependencies": {
