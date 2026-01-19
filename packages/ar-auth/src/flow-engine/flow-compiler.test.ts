@@ -6,11 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { FlowCompilerService } from './flow-compiler.js';
-import type {
-  GraphDefinition,
-  DecisionNodeConfig,
-  SwitchNodeConfig,
-} from './types.js';
+import type { GraphDefinition, DecisionNodeConfig, SwitchNodeConfig } from './types.js';
 
 // =============================================================================
 // Test Data
@@ -331,9 +327,7 @@ describe('FlowCompiler - Decision Node', () => {
     expect(transitions).toBeDefined();
     expect(transitions?.length).toBeGreaterThan(0);
 
-    const highRiskTransition = transitions?.find(
-      (t) => t.sourceHandle === 'branch_high_risk'
-    );
+    const highRiskTransition = transitions?.find((t) => t.sourceHandle === 'branch_high_risk');
     expect(highRiskTransition).toBeDefined();
     expect(highRiskTransition?.targetNodeId).toBe('high_risk_action');
   });
@@ -346,15 +340,9 @@ describe('FlowCompiler - Decision Node', () => {
     expect(transitions).toBeDefined();
 
     // priority が設定されているか確認
-    const highRiskTransition = transitions?.find(
-      (t) => t.sourceHandle === 'branch_high_risk'
-    );
-    const mediumRiskTransition = transitions?.find(
-      (t) => t.sourceHandle === 'branch_medium_risk'
-    );
-    const lowRiskTransition = transitions?.find(
-      (t) => t.sourceHandle === 'branch_low_risk'
-    );
+    const highRiskTransition = transitions?.find((t) => t.sourceHandle === 'branch_high_risk');
+    const mediumRiskTransition = transitions?.find((t) => t.sourceHandle === 'branch_medium_risk');
+    const lowRiskTransition = transitions?.find((t) => t.sourceHandle === 'branch_low_risk');
 
     expect(highRiskTransition?.priority).toBe(1);
     expect(mediumRiskTransition?.priority).toBe(2);
@@ -477,5 +465,207 @@ describe('FlowCompiler - Backward Compatibility', () => {
     expect(loginNode).toBeDefined();
     expect(loginNode?.decisionConfig).toBeUndefined();
     expect(loginNode?.nextOnSuccess).toBe('end');
+  });
+});
+
+// =============================================================================
+// Security Tests - Critical/High脆弱性対策
+// =============================================================================
+
+describe('Security - Capability Array Size Limit (Critical 2)', () => {
+  it('should reject node with too many capabilities', () => {
+    // MAX_CAPABILITIES_PER_NODE = 20
+    const largeCapabilities = Array.from({ length: 21 }, (_, i) => ({
+      type: `capability_${i}` as any,
+      idSuffix: `cap_${i}`,
+      required: true,
+      hintsTemplate: {},
+      validationRules: [],
+    }));
+
+    const graphWithTooManyCapabilities: GraphDefinition = {
+      id: 'too-many-caps',
+      flowVersion: '1.0.0',
+      name: 'Too Many Capabilities',
+      description: 'Test flow with too many capabilities',
+      profileId: 'core.human-basic-login' as any,
+      nodes: [
+        {
+          id: 'start',
+          type: 'start',
+          position: { x: 0, y: 0 },
+          data: {
+            label: 'Start',
+            intent: 'core.flow_start' as any,
+            capabilities: largeCapabilities,
+            config: {},
+          },
+        },
+      ],
+      edges: [],
+      metadata: {
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    const compiler = new FlowCompilerService();
+    expect(() => compiler.compile(graphWithTooManyCapabilities)).toThrow(
+      'Invalid flow configuration'
+    );
+  });
+});
+
+describe('Security - Decision Branch Limit (High 6)', () => {
+  it('should reject decision node with too many branches', () => {
+    // MAX_DECISION_BRANCHES = 50
+    const tooManyBranches = Array.from({ length: 51 }, (_, i) => ({
+      id: `branch_${i}`,
+      label: `Branch ${i}`,
+      condition: {
+        key: 'user.status',
+        operator: 'equals' as const,
+        value: `status_${i}`,
+      },
+      priority: i,
+    }));
+
+    const graphWithTooManyBranches: GraphDefinition = {
+      id: 'too-many-branches',
+      flowVersion: '1.0.0',
+      name: 'Too Many Branches',
+      description: 'Test flow with too many decision branches',
+      profileId: 'core.human-basic-login' as any,
+      nodes: [
+        {
+          id: 'decision_1',
+          type: 'decision',
+          position: { x: 0, y: 0 },
+          data: {
+            label: 'Decision',
+            intent: 'core.decision' as any,
+            capabilities: [],
+            config: {
+              branches: tooManyBranches,
+            } as any,
+          },
+        },
+      ],
+      edges: [],
+      metadata: {
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    const compiler = new FlowCompilerService();
+    expect(() => compiler.compile(graphWithTooManyBranches)).toThrow('Invalid flow configuration');
+  });
+});
+
+describe('Security - Switch Case Limits (High 6)', () => {
+  it('should reject switch node with too many cases', () => {
+    // MAX_SWITCH_CASES = 100
+    const tooManyCases = Array.from({ length: 101 }, (_, i) => ({
+      id: `case_${i}`,
+      label: `Case ${i}`,
+      values: [`value_${i}`],
+    }));
+
+    const graphWithTooManyCases: GraphDefinition = {
+      id: 'too-many-cases',
+      flowVersion: '1.0.0',
+      name: 'Too Many Cases',
+      description: 'Test flow with too many switch cases',
+      profileId: 'core.human-basic-login' as any,
+      nodes: [
+        {
+          id: 'switch_1',
+          type: 'switch',
+          position: { x: 0, y: 0 },
+          data: {
+            label: 'Switch',
+            intent: 'core.decision' as any,
+            capabilities: [],
+            config: {
+              switchKey: 'user.status',
+              cases: tooManyCases,
+            } as any,
+          },
+        },
+      ],
+      edges: [],
+      metadata: {
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    const compiler = new FlowCompilerService();
+    expect(() => compiler.compile(graphWithTooManyCases)).toThrow('Invalid flow configuration');
+  });
+
+  it('should reject switch case with too many values', () => {
+    // MAX_VALUES_PER_CASE = 100
+    const tooManyValues = Array.from({ length: 101 }, (_, i) => `value_${i}`);
+
+    const graphWithTooManyValues: GraphDefinition = {
+      id: 'too-many-values',
+      flowVersion: '1.0.0',
+      name: 'Too Many Values',
+      description: 'Test flow with too many values in a switch case',
+      profileId: 'core.human-basic-login' as any,
+      nodes: [
+        {
+          id: 'switch_1',
+          type: 'switch',
+          position: { x: 0, y: 0 },
+          data: {
+            label: 'Switch',
+            intent: 'core.decision' as any,
+            capabilities: [],
+            config: {
+              switchKey: 'user.status',
+              cases: [
+                {
+                  id: 'case_1',
+                  label: 'Case 1',
+                  values: tooManyValues,
+                },
+              ],
+            } as any,
+          },
+        },
+      ],
+      edges: [],
+      metadata: {
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    const compiler = new FlowCompilerService();
+    expect(() => compiler.compile(graphWithTooManyValues)).toThrow('Invalid flow configuration');
+  });
+});
+
+describe('Security - Empty Graph (High 6)', () => {
+  it('should reject graph with no nodes', () => {
+    const emptyGraph: GraphDefinition = {
+      id: 'empty-graph',
+      flowVersion: '1.0.0',
+      name: 'Empty Graph',
+      description: 'Test graph with no nodes',
+      profileId: 'core.human-basic-login' as any,
+      nodes: [],
+      edges: [],
+      metadata: {
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    const compiler = new FlowCompilerService();
+    expect(() => compiler.compile(emptyGraph)).toThrow('Invalid flow configuration');
   });
 });

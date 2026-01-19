@@ -86,14 +86,33 @@ class FlowExecutorTestHelper {
       return null;
     }
 
+    // Prototype Pollution対策用の危険なキー
+    const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
+
     // switchKeyの値を取得
     const keyParts = config.switchKey.split('.');
     let value: unknown = context;
     for (const part of keyParts) {
+      // Prototype Pollution対策: 危険なキーを拒否
+      if (DANGEROUS_KEYS.includes(part)) {
+        console.error(
+          `[Security] Dangerous key detected in switchKey: "${part}" (full key: "${config.switchKey}")`
+        );
+        value = undefined;
+        break;
+      }
+
       if (value === null || value === undefined || typeof value !== 'object') {
         value = undefined;
         break;
       }
+
+      // Prototype Pollution対策: hasOwnPropertyでプロトタイプチェーンを遡らない
+      if (!Object.prototype.hasOwnProperty.call(value, part)) {
+        value = undefined;
+        break;
+      }
+
       value = (value as Record<string, unknown>)[part];
     }
 
@@ -123,10 +142,7 @@ class FlowExecutorTestHelper {
   /**
    * 条件評価（簡易実装）
    */
-  private evaluateCondition(
-    condition: unknown,
-    context: FlowRuntimeContext
-  ): boolean {
+  private evaluateCondition(condition: unknown, context: FlowRuntimeContext): boolean {
     // 実際の evaluate 関数を使う代わりに、簡易実装
     const cond = condition as { key: string; operator: string; value: unknown };
 
@@ -444,6 +460,136 @@ describe('FlowExecutor - Switch Node', () => {
     const switchNode = mockSwitchPlan.nodes.get('switch_1')!;
     const result = helper.evaluateDecisionNode(switchNode, mockSwitchPlan, context);
 
+    expect(result).toBe('other_action');
+  });
+});
+
+// =============================================================================
+// Security Tests - Critical/High/Medium脆弱性対策
+// =============================================================================
+
+describe('Security - Prototype Pollution in Switch (Critical 1)', () => {
+  let helper: FlowExecutorTestHelper;
+
+  beforeEach(() => {
+    helper = new FlowExecutorTestHelper();
+  });
+
+  it('should reject __proto__ in switchKey', () => {
+    const maliciousPlan: CompiledPlan = {
+      ...mockSwitchPlan,
+      nodes: new Map([
+        [
+          'switch_malicious',
+          {
+            id: 'switch_malicious',
+            type: 'switch',
+            intent: 'core.decision' as any,
+            capabilities: [],
+            nextOnSuccess: null,
+            nextOnError: null,
+            decisionConfig: {
+              switchKey: 'request.__proto__.country', // 悪意のあるキー
+              cases: [
+                {
+                  id: 'case_us',
+                  label: 'US',
+                  values: ['US'],
+                },
+              ],
+              defaultCase: 'case_other',
+            } as SwitchNodeConfig,
+          },
+        ],
+      ]),
+      transitions: new Map([
+        [
+          'switch_malicious',
+          [
+            {
+              targetNodeId: 'us_action',
+              type: 'conditional',
+              sourceHandle: 'case_us',
+            },
+            {
+              targetNodeId: 'other_action',
+              type: 'conditional',
+              sourceHandle: 'case_other',
+            },
+          ],
+        ],
+      ]),
+    };
+
+    const context: FlowRuntimeContext = {
+      request: {
+        country: 'US',
+      },
+    };
+
+    const maliciousNode = maliciousPlan.nodes.get('switch_malicious')!;
+    const result = helper.evaluateDecisionNode(maliciousNode, maliciousPlan, context);
+
+    // Prototype Pollution対策により、悪意のあるキーはundefinedとなり、default caseが選択される
+    expect(result).toBe('other_action');
+  });
+
+  it('should reject constructor in switchKey', () => {
+    const maliciousPlan: CompiledPlan = {
+      ...mockSwitchPlan,
+      nodes: new Map([
+        [
+          'switch_malicious',
+          {
+            id: 'switch_malicious',
+            type: 'switch',
+            intent: 'core.decision' as any,
+            capabilities: [],
+            nextOnSuccess: null,
+            nextOnError: null,
+            decisionConfig: {
+              switchKey: 'request.constructor.name', // 悪意のあるキー
+              cases: [
+                {
+                  id: 'case_object',
+                  label: 'Object',
+                  values: ['Object'],
+                },
+              ],
+              defaultCase: 'case_other',
+            } as SwitchNodeConfig,
+          },
+        ],
+      ]),
+      transitions: new Map([
+        [
+          'switch_malicious',
+          [
+            {
+              targetNodeId: 'object_action',
+              type: 'conditional',
+              sourceHandle: 'case_object',
+            },
+            {
+              targetNodeId: 'other_action',
+              type: 'conditional',
+              sourceHandle: 'case_other',
+            },
+          ],
+        ],
+      ]),
+    };
+
+    const context: FlowRuntimeContext = {
+      request: {
+        country: 'US',
+      },
+    };
+
+    const maliciousNode = maliciousPlan.nodes.get('switch_malicious')!;
+    const result = helper.evaluateDecisionNode(maliciousNode, maliciousPlan, context);
+
+    // Prototype Pollution対策により、constructorキーは拒否される
     expect(result).toBe('other_action');
   });
 });

@@ -20,6 +20,8 @@ const MAX_RECURSION_DEPTH = 10; // 再帰深さ制限
 const MAX_REGEX_LENGTH = 100; // 正規表現の最大長
 const REGEX_TIMEOUT_MS = 100; // 正規表現実行タイムアウト（実質的な制限）
 const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']; // Prototype Pollution対策
+const MAX_STRING_LENGTH = 10000; // 文字列操作の最大長（DoS対策）
+const MAX_ARRAY_LENGTH = 1000; // 配列操作の最大長（DoS対策）
 
 /**
  * 条件評価のメインエントリーポイント
@@ -64,8 +66,10 @@ export function evaluateGroup(
   depth: number
 ): boolean {
   if (group.conditions.length === 0) {
-    // 空の条件グループは true とする
-    return true;
+    // セキュリティ対策（High 7）: 空の条件グループは false （Fail-safe）
+    // 空の条件を「すべて満たす」とみなすのは危険なため、false を返す
+    console.warn('[Security] Empty condition group evaluated to false (fail-safe)');
+    return false;
   }
 
   if (group.logic === 'and') {
@@ -84,10 +88,7 @@ export function evaluateGroup(
  * @param context - ランタイムコンテキスト
  * @returns 評価結果
  */
-export function evaluateSingle(
-  condition: FlowCondition,
-  context: FlowRuntimeContext
-): boolean {
+export function evaluateSingle(condition: FlowCondition, context: FlowRuntimeContext): boolean {
   const actualValue = getValueByKey(condition.key, context);
   const { operator, value: expectedValue } = condition;
 
@@ -100,68 +101,156 @@ export function evaluateSingle(
 
     case 'contains':
       if (typeof actualValue === 'string' && typeof expectedValue === 'string') {
+        // DoS対策: 文字列サイズ制限
+        if (actualValue.length > MAX_STRING_LENGTH) {
+          console.warn(
+            `[Security] String too long for contains operation: ${actualValue.length} > ${MAX_STRING_LENGTH}`
+          );
+          return false;
+        }
         return actualValue.includes(expectedValue);
       }
       if (Array.isArray(actualValue)) {
+        // DoS対策: 配列サイズ制限
+        if (actualValue.length > MAX_ARRAY_LENGTH) {
+          console.warn(
+            `[Security] Array too long for contains operation: ${actualValue.length} > ${MAX_ARRAY_LENGTH}`
+          );
+          return false;
+        }
         return actualValue.includes(expectedValue);
       }
       return false;
 
     case 'notContains':
       if (typeof actualValue === 'string' && typeof expectedValue === 'string') {
+        // DoS対策: 文字列サイズ制限
+        if (actualValue.length > MAX_STRING_LENGTH) {
+          console.warn(
+            `[Security] String too long for notContains operation: ${actualValue.length} > ${MAX_STRING_LENGTH}`
+          );
+          return false;
+        }
         return !actualValue.includes(expectedValue);
       }
       if (Array.isArray(actualValue)) {
+        // DoS対策: 配列サイズ制限
+        if (actualValue.length > MAX_ARRAY_LENGTH) {
+          console.warn(
+            `[Security] Array too long for notContains operation: ${actualValue.length} > ${MAX_ARRAY_LENGTH}`
+          );
+          return false;
+        }
         return !actualValue.includes(expectedValue);
       }
       return true;
 
     case 'startsWith':
       if (typeof actualValue === 'string' && typeof expectedValue === 'string') {
+        // DoS対策: 文字列サイズ制限
+        if (actualValue.length > MAX_STRING_LENGTH) {
+          console.warn(
+            `[Security] String too long for startsWith operation: ${actualValue.length} > ${MAX_STRING_LENGTH}`
+          );
+          return false;
+        }
         return actualValue.startsWith(expectedValue);
       }
       return false;
 
     case 'endsWith':
       if (typeof actualValue === 'string' && typeof expectedValue === 'string') {
+        // DoS対策: 文字列サイズ制限
+        if (actualValue.length > MAX_STRING_LENGTH) {
+          console.warn(
+            `[Security] String too long for endsWith operation: ${actualValue.length} > ${MAX_STRING_LENGTH}`
+          );
+          return false;
+        }
         return actualValue.endsWith(expectedValue);
       }
       return false;
 
     case 'greaterThan':
       if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
+        // NaN/Infinity対策
+        if (!Number.isFinite(actualValue) || !Number.isFinite(expectedValue)) {
+          console.warn(
+            `[Security] Non-finite number in greaterThan: actual=${actualValue}, expected=${expectedValue}`
+          );
+          return false;
+        }
         return actualValue > expectedValue;
       }
       return false;
 
     case 'lessThan':
       if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
+        // NaN/Infinity対策
+        if (!Number.isFinite(actualValue) || !Number.isFinite(expectedValue)) {
+          console.warn(
+            `[Security] Non-finite number in lessThan: actual=${actualValue}, expected=${expectedValue}`
+          );
+          return false;
+        }
         return actualValue < expectedValue;
       }
       return false;
 
     case 'greaterOrEqual':
       if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
+        // NaN/Infinity対策
+        if (!Number.isFinite(actualValue) || !Number.isFinite(expectedValue)) {
+          console.warn(
+            `[Security] Non-finite number in greaterOrEqual: actual=${actualValue}, expected=${expectedValue}`
+          );
+          return false;
+        }
         return actualValue >= expectedValue;
       }
       return false;
 
     case 'lessOrEqual':
       if (typeof actualValue === 'number' && typeof expectedValue === 'number') {
+        // NaN/Infinity対策
+        if (!Number.isFinite(actualValue) || !Number.isFinite(expectedValue)) {
+          console.warn(
+            `[Security] Non-finite number in lessOrEqual: actual=${actualValue}, expected=${expectedValue}`
+          );
+          return false;
+        }
         return actualValue <= expectedValue;
       }
       return false;
 
     case 'in':
       if (Array.isArray(expectedValue)) {
+        // DoS対策: 配列サイズ制限
+        if (expectedValue.length > MAX_ARRAY_LENGTH) {
+          console.warn(
+            `[Security] Array too long for 'in' operation: ${expectedValue.length} > ${MAX_ARRAY_LENGTH}`
+          );
+          return false;
+        }
         return expectedValue.includes(actualValue);
       }
+      // セキュリティ対策（Medium 11）: 配列型安全性チェック
+      console.warn(`[Security] 'in' operator expects array, got ${typeof expectedValue}`);
       return false;
 
     case 'notIn':
       if (Array.isArray(expectedValue)) {
+        // DoS対策: 配列サイズ制限
+        if (expectedValue.length > MAX_ARRAY_LENGTH) {
+          console.warn(
+            `[Security] Array too long for 'notIn' operation: ${expectedValue.length} > ${MAX_ARRAY_LENGTH}`
+          );
+          return false;
+        }
         return !expectedValue.includes(actualValue);
       }
+      // セキュリティ対策（Medium 11）: 配列型安全性チェック
+      console.warn(`[Security] 'notIn' operator expects array, got ${typeof expectedValue}`);
       return true;
 
     case 'exists':
@@ -177,22 +266,43 @@ export function evaluateSingle(
 
           // 1. 正規表現の長さ制限
           if (expectedValue.length > MAX_REGEX_LENGTH) {
-            console.warn(`[Security] Regex pattern too long (${expectedValue.length} > ${MAX_REGEX_LENGTH}), rejecting`);
+            console.warn(
+              `[Security] Regex pattern too long (${expectedValue.length} > ${MAX_REGEX_LENGTH}), rejecting`
+            );
             return false;
           }
 
-          // 2. 危険なパターンの検出（ネストされた量指定子）
-          // 例: (a+)+, (a*)+, (a{1,10})+
-          if (/(\*|\+|\{[0-9,]+\}){2,}/.test(expectedValue)) {
-            console.warn('[Security] Potentially dangerous regex pattern detected (nested quantifiers)');
-            return false;
-          }
+          // 2. 危険なパターンの包括的検出
+          const REDOS_PATTERNS = [
+            // ネストされた量指定子: (a+)+, (a*)+, (.{1,10})+
+            // グループ内に量指定子があり、その後にさらに量指定子が続くパターン
+            /\([^)]*[\*\+\{][^)]*\)[\*\+\{]/,
+            // バックトラッキング: (.*)*, (.+)+
+            /\(\.\*[\*\+]\)/,
+            /\(\.\+[\*\+]\)/,
+            // 選択肢付き量指定子: (a|a)*, (a|ab)*
+            /\([^)]*\|[^)]*\)[\*\+]/,
+            // 重複する選択肢: (x+x+)+
+            /\([^)]*\+[^)]*\+[^)]*\)\+/,
+            // バックリファレンス付き量指定子: (a+)\1+
+            /\([^)]+\)\\[0-9][\*\+]/,
+            // Lookahead/Lookbehindの乱用: (?=...)*, (?<=...)+
+            /\(\?[=!<].*?\)[\*\+]/,
+            // Possessive quantifiers（一部JSエンジンで対応）: .++, .*+
+            /\.\*\+|\.\+\+/,
+            // Character classの過剰な繰り返し: [a-z]{100,1000}
+            /\[[^\]]+\]\{[0-9]{3,}(,[0-9]*)?\}/,
+            // 長い選択肢の連鎖: (aa|aaa|aaaa|...)*
+            /\([^)]{20,}\|[^)]{20,}\)[\*\+]/,
+          ];
 
-          // 3. バックトラッキングを引き起こす可能性のあるパターン
-          // 例: (.*)*
-          if (/\(\.\*[\*\+]\)/.test(expectedValue)) {
-            console.warn('[Security] Dangerous regex pattern detected (catastrophic backtracking risk)');
-            return false;
+          for (const pattern of REDOS_PATTERNS) {
+            if (pattern.test(expectedValue)) {
+              console.warn(
+                '[Security] Dangerous regex pattern detected - potential ReDoS vulnerability'
+              );
+              return false;
+            }
           }
 
           // 4. 正規表現のコンパイルと実行
@@ -203,7 +313,9 @@ export function evaluateSingle(
 
           // 5. 実行時間の監視（パフォーマンス問題の検出）
           if (elapsed > REGEX_TIMEOUT_MS) {
-            console.warn(`[Security] Slow regex execution detected: ${elapsed}ms (pattern: ${expectedValue.substring(0, 50)}...)`);
+            console.warn(
+              `[Security] Slow regex execution detected: ${elapsed}ms (pattern: ${expectedValue.substring(0, 50)}...)`
+            );
           }
 
           return result;
@@ -250,16 +362,15 @@ export function evaluateSingle(
  * getValueByKey('user.customAttributes.role', { user: { customAttributes: { role: 'admin' } } })
  * // => 'admin'
  */
-export function getValueByKey(
-  key: ConditionKey | string,
-  context: FlowRuntimeContext
-): unknown {
+export function getValueByKey(key: ConditionKey | string, context: FlowRuntimeContext): unknown {
   const parts = key.split('.');
 
   // Prototype Pollution 対策: 危険なキーのチェック
   for (const part of parts) {
     if (DANGEROUS_KEYS.includes(part)) {
-      console.error(`[Security] Dangerous key detected in condition: "${part}" (full key: "${key}")`);
+      console.error(
+        `[Security] Dangerous key detected in condition: "${part}" (full key: "${key}")`
+      );
       return undefined;
     }
   }

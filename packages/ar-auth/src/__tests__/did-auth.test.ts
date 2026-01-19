@@ -93,6 +93,16 @@ function createMockContext(overrides: {
   return {
     req: {
       json: vi.fn().mockResolvedValue(overrides.body ?? {}),
+      header: vi.fn((name: string) => {
+        // Mock HTTP headers for audit logging
+        const headers: Record<string, string> = {
+          'CF-Connecting-IP': '192.168.1.1',
+          'X-Forwarded-For': '192.168.1.1',
+          'X-Real-IP': '192.168.1.1',
+          'User-Agent': 'Mozilla/5.0 (Test Agent)',
+        };
+        return headers[name];
+      }),
     },
     env: defaultEnv,
     json: vi.fn((data: unknown, status?: number) => {

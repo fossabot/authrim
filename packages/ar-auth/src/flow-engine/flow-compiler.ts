@@ -34,6 +34,9 @@ import type { CapabilityHints, ValidationRule, StabilityLevel } from '@authrim/a
 /** CompiledPlanのバージョン */
 const COMPILED_PLAN_VERSION = '1.0.0';
 
+/** DoS攻撃対策: ノードあたりの最大Capability数 */
+const MAX_CAPABILITIES_PER_NODE = 20;
+
 // =============================================================================
 // FlowCompilerService
 // =============================================================================
@@ -130,6 +133,7 @@ export class FlowCompilerService implements FlowCompiler {
     // セキュリティ制限定数
     const MAX_DECISION_BRANCHES = 50;
     const MAX_SWITCH_CASES = 100;
+    const MAX_VALUES_PER_CASE = 100; // 各Switchケースの最大値数
 
     if (node.type === 'decision') {
       // DecisionNodeConfig として解釈
@@ -137,9 +141,11 @@ export class FlowCompilerService implements FlowCompiler {
 
       // DoS攻撃対策: 分岐数制限
       if (decisionConfig && decisionConfig.branches.length > MAX_DECISION_BRANCHES) {
-        throw new Error(
+        // セキュリティ対策（High 6）: 詳細はログのみ、エラーメッセージは汎用的に
+        console.error(
           `[Security] Decision node "${node.id}" has too many branches: ${decisionConfig.branches.length} (max: ${MAX_DECISION_BRANCHES})`
         );
+        throw new Error('Invalid flow configuration');
       }
 
       return decisionConfig;
@@ -149,11 +155,26 @@ export class FlowCompilerService implements FlowCompiler {
       // SwitchNodeConfig として解釈
       const switchConfig = config as unknown as SwitchNodeConfig | undefined;
 
-      // DoS攻撃対策: ケース数制限
-      if (switchConfig && switchConfig.cases.length > MAX_SWITCH_CASES) {
-        throw new Error(
-          `[Security] Switch node "${node.id}" has too many cases: ${switchConfig.cases.length} (max: ${MAX_SWITCH_CASES})`
-        );
+      if (switchConfig) {
+        // DoS攻撃対策: ケース数制限
+        if (switchConfig.cases.length > MAX_SWITCH_CASES) {
+          // セキュリティ対策（High 6）: 詳細はログのみ、エラーメッセージは汎用的に
+          console.error(
+            `[Security] Switch node "${node.id}" has too many cases: ${switchConfig.cases.length} (max: ${MAX_SWITCH_CASES})`
+          );
+          throw new Error('Invalid flow configuration');
+        }
+
+        // DoS攻撃対策: 各ケースの値の数を制限
+        for (const caseItem of switchConfig.cases) {
+          if (caseItem.values.length > MAX_VALUES_PER_CASE) {
+            // セキュリティ対策（High 6）: 詳細はログのみ、エラーメッセージは汎用的に
+            console.error(
+              `[Security] Switch case "${caseItem.id}" in node "${node.id}" has too many values: ${caseItem.values.length} (max: ${MAX_VALUES_PER_CASE})`
+            );
+            throw new Error('Invalid flow configuration');
+          }
+        }
       }
 
       return switchConfig;
@@ -194,6 +215,16 @@ export class FlowCompilerService implements FlowCompiler {
     if (!templates || templates.length === 0) {
       return [];
     }
+
+    // DoS攻撃対策: Capability配列サイズ制限
+    if (templates.length > MAX_CAPABILITIES_PER_NODE) {
+      // セキュリティ対策（High 6）: 詳細はログのみ、エラーメッセージは汎用的に
+      console.error(
+        `[Security] Node "${nodeId}" has too many capabilities: ${templates.length} (max: ${MAX_CAPABILITIES_PER_NODE})`
+      );
+      throw new Error('Invalid flow configuration');
+    }
+
     return templates.map((template) => this.resolveCapability(template, nodeId));
   }
 
@@ -453,7 +484,9 @@ export class FlowCompilerService implements FlowCompiler {
       return nodes[0].id;
     }
 
-    throw new Error('No nodes found in GraphDefinition');
+    // セキュリティ対策（High 6）: 詳細はログのみ、エラーメッセージは汎用的に
+    console.error('[Security] No nodes found in GraphDefinition');
+    throw new Error('Invalid flow configuration');
   }
 }
 

@@ -132,22 +132,8 @@ export class FlowExecutor {
   }): Promise<FlowInitResponse> {
     const { flowType, clientId, tenantId, oauthParams } = params;
 
-    // セキュリティ対策（Medium 10）: Tenant/Client 権限チェック
-    // TODO: 以下の検証を実装する必要がある
-    // 1. tenantId が存在し、アクティブであることを確認
-    // 2. clientId が tenantId に属していることを確認
-    // 3. clientId がこの flowType を実行する権限を持っていることを確認
-    // 現在は簡易実装のため、これらのチェックが省略されている
-    // 実装例:
-    //   const tenant = await this.validateTenant(tenantId);
-    //   const client = await this.validateClient(clientId, tenantId);
-    //   if (!tenant || !client) {
-    //     throw new Error('Unauthorized: Invalid tenant or client');
-    //   }
-
-    console.warn(
-      `[Security] initFlow: Missing tenant/client validation for tenantId="${tenantId}", clientId="${clientId}"`
-    );
+    // セキュリティ対策（Medium 10）: Tenant/Client 基本バリデーション
+    this.validateBasicTenantClient(tenantId, clientId);
 
     // 1. Flow定義を取得
     const graphDef = await this.registry.getFlow(flowType, tenantId);
@@ -225,7 +211,9 @@ export class FlowExecutor {
     //     return { type: 'error', error: { code: 'invalid_session', message: 'Session expired' } };
     //   }
 
-    console.warn(`[Security] submitCapability: Missing session validation for sessionId="${sessionId}"`);
+    console.warn(
+      `[Security] submitCapability: Missing session validation for sessionId="${sessionId}"`
+    );
 
     // 1. 冪等性チェック（/check-request）
     // これにより同一requestIdのリクエストは処理をスキップしてキャッシュ結果を返す
@@ -267,12 +255,18 @@ export class FlowExecutor {
 
     // セキュリティ対策: レート制限（Critical 3）
     // セッション状態からリクエストタイムスタンプを取得（DO側で実装されていない場合は空配列）
-    const requestTimestamps =
+    let requestTimestamps =
       (checkResponse.state as { requestTimestamps?: number[] }).requestTimestamps || [];
     const now = Date.now();
     const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1分間のウィンドウ
     const MAX_REQUESTS_PER_WINDOW = 30; // 1分間に最大30リクエスト
     const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // セッション最大30分
+    const MAX_TIMESTAMP_HISTORY = 100; // タイムスタンプ履歴の最大サイズ（メモリDoS対策）
+
+    // 配列サイズ制限（メモリ枯渇攻撃対策）
+    if (requestTimestamps.length > MAX_TIMESTAMP_HISTORY) {
+      requestTimestamps = requestTimestamps.slice(-MAX_TIMESTAMP_HISTORY);
+    }
 
     // 1. 古いタイムスタンプを削除（ウィンドウ外）
     const recentTimestamps = requestTimestamps.filter(
@@ -294,8 +288,8 @@ export class FlowExecutor {
     }
 
     // 3. セッションタイムアウトチェック
-    const sessionCreatedAt =
-      (checkResponse.state as { createdAt?: number }).createdAt || now;
+    // セキュリティ: createdAt が存在しない場合は 0 とし、即座に期限切れとする（安全側に倒す）
+    const sessionCreatedAt = (checkResponse.state as { createdAt?: number }).createdAt || 0;
     if (now - sessionCreatedAt > SESSION_TIMEOUT_MS) {
       console.error(
         `[Security] Session timeout: ${Math.floor((now - sessionCreatedAt) / 1000 / 60)} minutes elapsed (max: ${SESSION_TIMEOUT_MS / 1000 / 60})`
@@ -311,9 +305,20 @@ export class FlowExecutor {
 
     // セキュリティ対策: 循環参照検出（High 6）
     // セッション状態から訪問履歴を取得（DO側で実装されていない場合は空配列）
-    const visitedNodes = (checkResponse.state as { visitedNodes?: string[] }).visitedNodes || [];
+    const rawVisitedNodes = (checkResponse.state as { visitedNodes?: unknown }).visitedNodes;
+    // セキュリティ対策（Medium 8）: 型安全性を保証（配列でない場合は空配列にフォールバック）
+    let visitedNodes: string[] = Array.isArray(rawVisitedNodes) ? rawVisitedNodes : [];
     const MAX_VISITS_PER_NODE = 3; // 同じノードへの最大訪問回数
     const MAX_TOTAL_NODES = 50; // フロー全体での最大ノード訪問数（無限ループ対策）
+    const MAX_VISITED_HISTORY = 200; // 訪問履歴配列の最大サイズ（メモリDoS対策）
+
+    // 配列サイズの事前チェック（メモリ枯渇攻撃対策）
+    if (visitedNodes.length > MAX_VISITED_HISTORY) {
+      console.warn(
+        `[Security] Visited nodes history too large (${visitedNodes.length}), truncating to last ${MAX_VISITED_HISTORY} entries`
+      );
+      visitedNodes = visitedNodes.slice(-MAX_VISITED_HISTORY);
+    }
 
     // 1. 同じノードへの過度な訪問をチェック
     const currentNodeVisitCount = visitedNodes.filter((id) => id === currentNodeId).length;
@@ -667,6 +672,13 @@ export class FlowExecutor {
         // マッチした分岐の遷移先を返す
         const transition = transitions.find((t) => t.sourceHandle === branch.id);
         if (transition) {
+          // セキュリティ対策（Medium 12）: 遷移先ノードの存在確認
+          if (!plan.nodes.has(transition.targetNodeId)) {
+            console.error(
+              `[Security] Invalid transition: target node "${transition.targetNodeId}" does not exist in plan`
+            );
+            return null;
+          }
           return transition.targetNodeId;
         }
       }
@@ -676,6 +688,13 @@ export class FlowExecutor {
     if (config.defaultBranch) {
       const defaultTransition = transitions.find((t) => t.sourceHandle === config.defaultBranch);
       if (defaultTransition) {
+        // セキュリティ対策（Medium 12）: 遷移先ノードの存在確認
+        if (!plan.nodes.has(defaultTransition.targetNodeId)) {
+          console.error(
+            `[Security] Invalid default transition: target node "${defaultTransition.targetNodeId}" does not exist in plan`
+          );
+          return null;
+        }
         return defaultTransition.targetNodeId;
       }
     }
@@ -702,14 +721,33 @@ export class FlowExecutor {
       return null;
     }
 
+    // Prototype Pollution対策用の危険なキー
+    const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype'];
+
     // switchKeyの値を取得
     const keyParts = config.switchKey.split('.');
     let value: unknown = context;
     for (const part of keyParts) {
+      // Prototype Pollution対策: 危険なキーを拒否
+      if (DANGEROUS_KEYS.includes(part)) {
+        console.error(
+          `[Security] Dangerous key detected in switchKey: "${part}" (full key: "${config.switchKey}")`
+        );
+        value = undefined;
+        break;
+      }
+
       if (value === null || value === undefined || typeof value !== 'object') {
         value = undefined;
         break;
       }
+
+      // Prototype Pollution対策: hasOwnPropertyでプロトタイプチェーンを遡らない
+      if (!Object.prototype.hasOwnProperty.call(value, part)) {
+        value = undefined;
+        break;
+      }
+
       value = (value as Record<string, unknown>)[part];
     }
 
@@ -721,6 +759,13 @@ export class FlowExecutor {
       if (caseItem.values.includes(value as string | number | boolean)) {
         const transition = transitions.find((t) => t.sourceHandle === caseItem.id);
         if (transition) {
+          // セキュリティ対策（Medium 12）: 遷移先ノードの存在確認
+          if (!plan.nodes.has(transition.targetNodeId)) {
+            console.error(
+              `[Security] Invalid switch transition: target node "${transition.targetNodeId}" does not exist in plan`
+            );
+            return null;
+          }
           return transition.targetNodeId;
         }
       }
@@ -730,6 +775,13 @@ export class FlowExecutor {
     if (config.defaultCase) {
       const defaultTransition = transitions.find((t) => t.sourceHandle === config.defaultCase);
       if (defaultTransition) {
+        // セキュリティ対策（Medium 12）: 遷移先ノードの存在確認
+        if (!plan.nodes.has(defaultTransition.targetNodeId)) {
+          console.error(
+            `[Security] Invalid switch default transition: target node "${defaultTransition.targetNodeId}" does not exist in plan`
+          );
+          return null;
+        }
         return defaultTransition.targetNodeId;
       }
     }
@@ -739,15 +791,44 @@ export class FlowExecutor {
   }
 
   /**
-   * ログ出力時に機密情報をサニタイズ（High 9）
+   * ログ出力時に機密情報をサニタイズ（Medium 9）
+   *
+   * セキュリティ対策:
+   * - 循環参照検出（無限ループ防止）
+   * - 深さ制限（スタックオーバーフロー防止）
+   * - 配列/オブジェクトサイズ制限（メモリDoS防止）
+   * - 機密キー（password, secret等）のマスキング
+   *
+   * 使用例（デバッグ時）:
+   * ```
+   * console.error('[Debug] Context:', this.sanitizeForLogging(context));
+   * console.warn('[Debug] State:', this.sanitizeForLogging(collectedData));
+   * ```
    *
    * @param obj - ログ出力するオブジェクト
+   * @param seen - 循環参照検出用（内部使用）
+   * @param depth - 現在の深さ（内部使用）
    * @returns サニタイズされたオブジェクト
    */
-  private sanitizeForLogging(obj: unknown): unknown {
+  private sanitizeForLogging(obj: unknown, seen = new WeakSet<object>(), depth = 0): unknown {
+    const MAX_DEPTH = 10; // 最大深さ
+    const MAX_ITEMS = 100; // 配列/オブジェクトの最大アイテム数
+
+    // 深さ制限チェック
+    if (depth > MAX_DEPTH) {
+      return '[MAX_DEPTH_EXCEEDED]';
+    }
+
+    // プリミティブ値はそのまま返す
     if (typeof obj !== 'object' || obj === null) {
       return obj;
     }
+
+    // 循環参照チェック
+    if (seen.has(obj)) {
+      return '[CIRCULAR_REFERENCE]';
+    }
+    seen.add(obj);
 
     // 機密情報のキーパターン
     const SENSITIVE_KEYS = [
@@ -771,12 +852,23 @@ export class FlowExecutor {
 
     // 配列の場合
     if (Array.isArray(obj)) {
-      return obj.map((item) => this.sanitizeForLogging(item));
+      // サイズ制限チェック
+      if (obj.length > MAX_ITEMS) {
+        return `[Array(${obj.length}) - truncated to first ${MAX_ITEMS} items]`;
+      }
+      return obj.slice(0, MAX_ITEMS).map((item) => this.sanitizeForLogging(item, seen, depth + 1));
     }
 
     // オブジェクトの場合
+    const keys = Object.keys(obj);
+
+    // プロパティ数制限チェック
+    if (keys.length > MAX_ITEMS) {
+      return `[Object with ${keys.length} properties - truncated]`;
+    }
+
     const sanitized: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
+    for (const key of keys) {
       const lowerKey = key.toLowerCase();
       const isSensitive = SENSITIVE_KEYS.some((sensitiveKey) =>
         lowerKey.includes(sensitiveKey.toLowerCase())
@@ -784,10 +876,13 @@ export class FlowExecutor {
 
       if (isSensitive) {
         sanitized[key] = '[REDACTED]';
-      } else if (typeof value === 'object' && value !== null) {
-        sanitized[key] = this.sanitizeForLogging(value);
       } else {
-        sanitized[key] = value;
+        const value = (obj as Record<string, unknown>)[key];
+        if (typeof value === 'object' && value !== null) {
+          sanitized[key] = this.sanitizeForLogging(value, seen, depth + 1);
+        } else {
+          sanitized[key] = value;
+        }
       }
     }
 
@@ -804,6 +899,47 @@ export class FlowExecutor {
    *
    * @param collectedData - 収集済みデータ
    * @returns FlowRuntimeContext
+   */
+  /**
+   * 基本的なTenant/Client IDバリデーション（Medium 10）
+   *
+   * セキュリティ対策:
+   * - null/undefined/空文字のチェック
+   * - 最小限の型チェック
+   *
+   * 注意: これは基本的なバリデーションのみです。
+   * 実際の運用では、以下の追加検証が必要:
+   * - Tenant/Clientの存在確認（DB検索）
+   * - Tenant/Clientのアクティブ状態確認
+   * - ClientがTenantに属していることの確認
+   * - 権限チェック
+   *
+   * @param tenantId - テナントID
+   * @param clientId - クライアントID
+   * @throws Error バリデーション失敗時
+   */
+  private validateBasicTenantClient(tenantId: string, clientId: string): void {
+    // 基本的なnull/undefinedチェック
+    if (!tenantId || typeof tenantId !== 'string' || tenantId.trim() === '') {
+      throw new Error('Invalid tenantId');
+    }
+    if (!clientId || typeof clientId !== 'string' || clientId.trim() === '') {
+      throw new Error('Invalid clientId');
+    }
+
+    // セキュリティ警告: 実際の権限チェックは未実装
+    console.warn(
+      `[Security] Basic validation passed for tenantId="${tenantId}", clientId="${clientId}", but full authorization check is not implemented`
+    );
+  }
+
+  /**
+   * 型安全なランタイムコンテキスト構築
+   *
+   * セキュリティ強化（High 5）:
+   * - 危険な`as`型キャストを排除
+   * - Type guardによる安全な型チェック
+   * - デフォルト値によるフォールバック
    */
   private buildRuntimeContext(collectedData: Record<string, unknown>): FlowRuntimeContext {
     // セキュリティ警告: collectedDataは信頼できないデータ
@@ -822,19 +958,29 @@ export class FlowExecutor {
       '[Security] buildRuntimeContext: Using collectedData for context. This should be replaced with authenticated sources.'
     );
 
+    // Type guard: objectかどうかチェック
+    const isObject = (value: unknown): value is Record<string, unknown> => {
+      return typeof value === 'object' && value !== null && !Array.isArray(value);
+    };
+
+    // Type guard: NodeOutputかどうかチェック
+    const isNodeOutput = (value: unknown): value is import('./types.js').NodeOutput => {
+      return isObject(value) && typeof value.success === 'boolean';
+    };
+
     return {
-      // TODO: 以下は認証済みソースから取得すべき
-      user: collectedData.user as FlowRuntimeContext['user'],
-      device: collectedData.device as FlowRuntimeContext['device'],
-      request: collectedData.request as FlowRuntimeContext['request'],
-      risk: collectedData.risk as FlowRuntimeContext['risk'],
-      tenant: collectedData.tenant as FlowRuntimeContext['tenant'],
-      client: collectedData.client as FlowRuntimeContext['client'],
+      // Type guardによる安全な型チェック（unsafeな`as`キャストを排除）
+      user: isObject(collectedData.user) ? collectedData.user : undefined,
+      device: isObject(collectedData.device) ? collectedData.device : undefined,
+      request: isObject(collectedData.request) ? collectedData.request : undefined,
+      risk: isObject(collectedData.risk) ? collectedData.risk : undefined,
+      tenant: isObject(collectedData.tenant) ? collectedData.tenant : undefined,
+      client: isObject(collectedData.client) ? collectedData.client : undefined,
 
       // 以下は信頼できないデータとして許可
-      form: collectedData.form as FlowRuntimeContext['form'],
-      prevNode: collectedData.prevNode as FlowRuntimeContext['prevNode'],
-      variables: collectedData.variables as FlowRuntimeContext['variables'],
+      form: isObject(collectedData.form) ? collectedData.form : undefined,
+      prevNode: isNodeOutput(collectedData.prevNode) ? collectedData.prevNode : undefined,
+      variables: isObject(collectedData.variables) ? collectedData.variables : undefined,
     };
   }
 }

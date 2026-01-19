@@ -5,17 +5,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  evaluate,
-  evaluateGroup,
-  evaluateSingle,
-  getValueByKey,
-} from './condition-evaluator.js';
-import type {
-  FlowCondition,
-  ConditionGroup,
-  FlowRuntimeContext,
-} from './types.js';
+import { evaluate, evaluateGroup, evaluateSingle, getValueByKey } from './condition-evaluator.js';
+import type { FlowCondition, ConditionGroup, FlowRuntimeContext } from './types.js';
 
 // =============================================================================
 // Test Data
@@ -390,12 +381,13 @@ describe('evaluateGroup - AND Logic', () => {
     expect(evaluateGroup(group, mockContext, 0)).toBe(false);
   });
 
-  it('should evaluate empty AND group as true', () => {
+  it('should evaluate empty AND group as false (fail-safe)', () => {
     const group: ConditionGroup = {
       logic: 'and',
       conditions: [],
     };
-    expect(evaluateGroup(group, mockContext, 0)).toBe(true);
+    // セキュリティ対策（High 7）: 空の条件グループはfalse（Fail-safe）
+    expect(evaluateGroup(group, mockContext, 0)).toBe(false);
   });
 });
 
@@ -424,12 +416,13 @@ describe('evaluateGroup - OR Logic', () => {
     expect(evaluateGroup(group, mockContext, 0)).toBe(false);
   });
 
-  it('should evaluate empty OR group as true', () => {
+  it('should evaluate empty OR group as false (fail-safe)', () => {
     const group: ConditionGroup = {
       logic: 'or',
       conditions: [],
     };
-    expect(evaluateGroup(group, mockContext, 0)).toBe(true);
+    // セキュリティ対策（High 7）: 空の条件グループはfalse（Fail-safe）
+    expect(evaluateGroup(group, mockContext, 0)).toBe(false);
   });
 });
 
@@ -531,5 +524,213 @@ describe('Edge Cases', () => {
       operator: 'notExists',
     };
     expect(evaluateSingle(condition, contextWithNull)).toBe(true);
+  });
+});
+
+// =============================================================================
+// Security Tests - Critical/High/Medium脆弱性対策
+// =============================================================================
+
+describe('Security - Prototype Pollution (Critical 1)', () => {
+  it('should reject __proto__ key in getValueByKey', () => {
+    const maliciousKey = 'user.__proto__.isAdmin';
+    const result = getValueByKey(maliciousKey, mockContext);
+    expect(result).toBeUndefined();
+  });
+
+  it('should reject constructor key in getValueByKey', () => {
+    const maliciousKey = 'user.constructor.prototype.isAdmin';
+    const result = getValueByKey(maliciousKey, mockContext);
+    expect(result).toBeUndefined();
+  });
+
+  it('should reject prototype key in getValueByKey', () => {
+    const maliciousKey = 'user.prototype.isAdmin';
+    const result = getValueByKey(maliciousKey, mockContext);
+    expect(result).toBeUndefined();
+  });
+
+  it('should safely handle nested dangerous keys', () => {
+    const maliciousKey = 'user.customAttributes.__proto__.role';
+    const result = getValueByKey(maliciousKey, mockContext);
+    expect(result).toBeUndefined();
+  });
+});
+
+describe('Security - NaN/Infinity (Critical 3)', () => {
+  it('should reject NaN in greaterThan comparison', () => {
+    const contextWithNaN: FlowRuntimeContext = {
+      risk: { score: NaN },
+    };
+    const condition: FlowCondition = {
+      key: 'risk.score',
+      operator: 'greaterThan',
+      value: 50,
+    };
+    expect(evaluateSingle(condition, contextWithNaN)).toBe(false);
+  });
+
+  it('should reject Infinity in lessThan comparison', () => {
+    const contextWithInfinity: FlowRuntimeContext = {
+      risk: { score: Infinity },
+    };
+    const condition: FlowCondition = {
+      key: 'risk.score',
+      operator: 'lessThan',
+      value: 100,
+    };
+    expect(evaluateSingle(condition, contextWithInfinity)).toBe(false);
+  });
+
+  it('should reject -Infinity in greaterOrEqual comparison', () => {
+    const contextWithNegInfinity: FlowRuntimeContext = {
+      risk: { score: -Infinity },
+    };
+    const condition: FlowCondition = {
+      key: 'risk.score',
+      operator: 'greaterOrEqual',
+      value: 0,
+    };
+    expect(evaluateSingle(condition, contextWithNegInfinity)).toBe(false);
+  });
+
+  it('should reject NaN in expected value', () => {
+    const condition: FlowCondition = {
+      key: 'risk.score',
+      operator: 'lessOrEqual',
+      value: NaN,
+    };
+    expect(evaluateSingle(condition, mockContext)).toBe(false);
+  });
+});
+
+describe('Security - ReDoS (High 4)', () => {
+  it('should reject nested quantifiers pattern', () => {
+    const condition: FlowCondition = {
+      key: 'user.email',
+      operator: 'matches',
+      value: '(a+)+',
+    };
+    expect(evaluateSingle(condition, mockContext)).toBe(false);
+  });
+
+  it('should reject backtracking pattern (.*)* ', () => {
+    const condition: FlowCondition = {
+      key: 'user.email',
+      operator: 'matches',
+      value: '(.*)*',
+    };
+    expect(evaluateSingle(condition, mockContext)).toBe(false);
+  });
+
+  it('should reject alternation with quantifier (a|ab)*', () => {
+    const condition: FlowCondition = {
+      key: 'user.email',
+      operator: 'matches',
+      value: '(a|ab)*',
+    };
+    expect(evaluateSingle(condition, mockContext)).toBe(false);
+  });
+
+  it('should reject lookahead with quantifier', () => {
+    const condition: FlowCondition = {
+      key: 'user.email',
+      operator: 'matches',
+      value: '(?=test)*',
+    };
+    expect(evaluateSingle(condition, mockContext)).toBe(false);
+  });
+
+  it('should reject regex pattern exceeding MAX_REGEX_LENGTH', () => {
+    // MAX_REGEX_LENGTH = 100
+    const longPattern = 'a'.repeat(101);
+    const condition: FlowCondition = {
+      key: 'user.email',
+      operator: 'matches',
+      value: longPattern,
+    };
+    expect(evaluateSingle(condition, mockContext)).toBe(false);
+  });
+});
+
+describe('Security - Array Type Safety (Medium 11)', () => {
+  it('should warn when in operator receives non-array', () => {
+    const condition: FlowCondition = {
+      key: 'user.status',
+      operator: 'in',
+      value: 'active' as unknown as string[], // 型を偽装
+    };
+    expect(evaluateSingle(condition, mockContext)).toBe(false);
+  });
+
+  it('should warn when notIn operator receives non-array', () => {
+    const condition: FlowCondition = {
+      key: 'user.status',
+      operator: 'notIn',
+      value: 'disabled' as unknown as string[], // 型を偽装
+    };
+    // notInの場合は非配列の場合trueを返す（安全側）
+    expect(evaluateSingle(condition, mockContext)).toBe(true);
+  });
+});
+
+describe('Security - DoS Protection', () => {
+  it('should reject array exceeding MAX_ARRAY_LENGTH in contains', () => {
+    // MAX_ARRAY_LENGTH = 1000
+    const largeArray = new Array(1001).fill('item');
+    const contextWithLargeArray: FlowRuntimeContext = {
+      user: { roles: largeArray },
+    };
+    const condition: FlowCondition = {
+      key: 'user.roles',
+      operator: 'contains',
+      value: 'admin',
+    };
+    expect(evaluateSingle(condition, contextWithLargeArray)).toBe(false);
+  });
+
+  it('should reject string exceeding MAX_STRING_LENGTH in startsWith', () => {
+    // MAX_STRING_LENGTH = 10000
+    const longString = 'a'.repeat(10001);
+    const contextWithLongString: FlowRuntimeContext = {
+      user: { email: longString },
+    };
+    const condition: FlowCondition = {
+      key: 'user.email',
+      operator: 'startsWith',
+      value: 'test',
+    };
+    expect(evaluateSingle(condition, contextWithLongString)).toBe(false);
+  });
+
+  it('should reject large array in in operator', () => {
+    const largeArray = new Array(1001).fill('value');
+    const condition: FlowCondition = {
+      key: 'user.status',
+      operator: 'in',
+      value: largeArray,
+    };
+    expect(evaluateSingle(condition, mockContext)).toBe(false);
+  });
+});
+
+describe('Security - Recursion Limit', () => {
+  it('should reject deeply nested condition groups', () => {
+    // 最大再帰深さ = 10
+    let deeplyNested: ConditionGroup = {
+      logic: 'and',
+      conditions: [{ key: 'user.verifiedEmail', operator: 'isTrue' }],
+    };
+
+    // 11層のネストを作成
+    for (let i = 0; i < 11; i++) {
+      deeplyNested = {
+        logic: 'and',
+        conditions: [deeplyNested],
+      };
+    }
+
+    // 最大深さを超えるため false を返すべき
+    expect(evaluate(deeplyNested, mockContext)).toBe(false);
   });
 });
