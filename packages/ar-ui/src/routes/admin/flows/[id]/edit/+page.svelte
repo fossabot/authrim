@@ -465,28 +465,28 @@
 
 <div class="flow-edit-page">
 	{#if loading}
-		<div class="loading">Loading flow...</div>
+		<div class="loading-state">Loading flow...</div>
 	{:else if error && !flow}
-		<div class="error-state">
+		<div class="flow-error-state">
 			<p>{error}</p>
-			<button class="btn-primary" onclick={loadFlow}>Retry</button>
-			<button class="btn-secondary" onclick={() => goto('/admin/flows')}>Back to Flows</button>
+			<button class="btn btn-primary" onclick={loadFlow}>Retry</button>
+			<button class="btn btn-secondary" onclick={() => goto('/admin/flows')}>Back to Flows</button>
 		</div>
 	{:else if flow}
-		<div class="page-header">
-			<div class="header-left">
-				<button class="btn-back" onclick={handleBack}>← Back</button>
-				<div class="flow-info">
+		<div class="flow-edit-header">
+			<div class="flow-edit-header-left">
+				<button class="btn btn-ghost" onclick={handleBack}>← Back</button>
+				<div class="flow-edit-header-info">
 					<h1>Edit: {flow.name}</h1>
 					{#if hasChanges}
 						<span class="unsaved-badge">Unsaved changes</span>
 					{/if}
 				</div>
 			</div>
-			<div class="header-actions">
-				<button class="btn-secondary" onclick={handleValidate}> Validate </button>
+			<div class="flow-edit-header-actions">
+				<button class="btn btn-secondary" onclick={handleValidate}>Validate</button>
 				<button
-					class="btn-primary"
+					class="btn btn-primary"
 					onclick={handleSave}
 					disabled={saving || !hasChanges || !canEditFlow(flow)}
 				>
@@ -509,11 +509,11 @@
 		{/if}
 
 		<div class="designer-layout">
-			<div class="left-panel">
+			<div class="designer-left-panel">
 				<NodePalette onAddNode={handleAddNode} />
 			</div>
 
-			<div class="canvas-container">
+			<div class="designer-canvas-container">
 				<FlowCanvas
 					{nodes}
 					{edges}
@@ -534,169 +534,3 @@
 		/>
 	{/if}
 </div>
-
-<style>
-	.flow-edit-page {
-		height: calc(100vh - 140px);
-		display: flex;
-		flex-direction: column;
-	}
-
-	.loading {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		color: #6b7280;
-	}
-
-	.error-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		gap: 16px;
-	}
-
-	.error-state p {
-		color: #b91c1c;
-	}
-
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 16px 24px;
-		background: white;
-		border-bottom: 1px solid #e5e7eb;
-		flex-shrink: 0;
-	}
-
-	.header-left {
-		display: flex;
-		align-items: center;
-		gap: 16px;
-	}
-
-	.btn-back {
-		padding: 6px 12px;
-		background: transparent;
-		border: none;
-		color: #6b7280;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-back:hover {
-		color: #111827;
-	}
-
-	.flow-info {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	.flow-info h1 {
-		margin: 0;
-		font-size: 18px;
-		font-weight: 600;
-	}
-
-	.unsaved-badge {
-		padding: 4px 8px;
-		background: #fef3c7;
-		color: #92400e;
-		font-size: 12px;
-		border-radius: 4px;
-	}
-
-	.header-actions {
-		display: flex;
-		gap: 8px;
-	}
-
-	.btn-primary {
-		padding: 8px 16px;
-		background-color: #2563eb;
-		color: white;
-		border: none;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-primary:hover {
-		background-color: #1d4ed8;
-	}
-
-	.btn-primary:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.btn-secondary {
-		padding: 8px 16px;
-		background-color: white;
-		color: #374151;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-secondary:hover {
-		background-color: #f3f4f6;
-	}
-
-	.error-banner {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 12px 24px;
-		background: #fef2f2;
-		color: #b91c1c;
-		border-bottom: 1px solid #fecaca;
-		flex-shrink: 0;
-	}
-
-	.error-banner button {
-		padding: 4px 8px;
-		background: transparent;
-		border: 1px solid #fecaca;
-		border-radius: 4px;
-		color: #b91c1c;
-		font-size: 12px;
-		cursor: pointer;
-	}
-
-	.warning-banner {
-		padding: 12px 24px;
-		background: #fef3c7;
-		color: #92400e;
-		border-bottom: 1px solid #fcd34d;
-		font-size: 14px;
-		flex-shrink: 0;
-	}
-
-	.designer-layout {
-		display: flex;
-		flex: 1;
-		min-height: 0;
-		padding: 16px;
-		gap: 16px;
-		background: #f3f4f6;
-	}
-
-	.left-panel {
-		flex-shrink: 0;
-	}
-
-	.canvas-container {
-		flex: 1;
-		min-width: 0;
-		border-radius: 8px;
-		overflow: hidden;
-	}
-</style>

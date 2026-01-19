@@ -2,8 +2,6 @@
 	import { onMount } from 'svelte';
 	import {
 		adminComplianceAPI,
-		getComplianceStatusColor,
-		getComplianceStatusLabel,
 		getFrameworkDisplayName,
 		type ComplianceStatus,
 		type AccessReview,
@@ -30,6 +28,14 @@
 	// Tabs
 	let activeTab = $state<'overview' | 'reviews' | 'reports' | 'retention'>('overview');
 
+	// Tab definitions
+	const TABS = [
+		{ id: 'overview', label: 'Overview' },
+		{ id: 'reviews', label: 'Access Reviews' },
+		{ id: 'reports', label: 'Reports' },
+		{ id: 'retention', label: 'Data Retention' }
+	] as const;
+
 	// Start Review Dialog
 	let showStartReviewDialog = $state(false);
 	let startingReview = $state(false);
@@ -48,6 +54,80 @@
 	let showCleanupDialog = $state(false);
 	let cleanupLoading = $state(false);
 	let cleanupResult = $state<{ deleted: number; runId: string } | null>(null);
+
+	// Helper functions for CSS classes
+	function getComplianceStatusClass(status: string): string {
+		switch (status) {
+			case 'compliant':
+				return 'compliance-status-badge compliant';
+			case 'partial':
+				return 'compliance-status-badge partial';
+			case 'non_compliant':
+				return 'compliance-status-badge non-compliant';
+			default:
+				return 'compliance-status-badge';
+		}
+	}
+
+	function getComplianceStatusLabel(status: string): string {
+		switch (status) {
+			case 'compliant':
+				return 'Compliant';
+			case 'partial':
+				return 'Partial';
+			case 'non_compliant':
+				return 'Non-Compliant';
+			default:
+				return status;
+		}
+	}
+
+	function getComplianceProgressClass(status: string): string {
+		switch (status) {
+			case 'compliant':
+				return 'progress-fill compliant';
+			case 'partial':
+				return 'progress-fill partial';
+			case 'non_compliant':
+				return 'progress-fill non-compliant';
+			default:
+				return 'progress-fill';
+		}
+	}
+
+	function getReviewStatusClass(status: string): string {
+		switch (status) {
+			case 'pending':
+				return 'review-status-badge pending';
+			case 'in_progress':
+				return 'review-status-badge in-progress';
+			case 'completed':
+				return 'review-status-badge completed';
+			case 'cancelled':
+				return 'review-status-badge cancelled';
+			default:
+				return 'review-status-badge';
+		}
+	}
+
+	function getReportStatusClass(status: string): string {
+		switch (status) {
+			case 'pending':
+				return 'report-status-badge pending';
+			case 'generating':
+				return 'report-status-badge generating';
+			case 'completed':
+				return 'report-status-badge completed';
+			case 'failed':
+				return 'report-status-badge failed';
+			default:
+				return 'report-status-badge';
+		}
+	}
+
+	function getStatusValueClass(enabled: boolean): string {
+		return enabled ? 'quick-stat-value enabled' : 'quick-stat-value disabled';
+	}
 
 	async function loadData() {
 		loading = true;
@@ -159,32 +239,6 @@
 	}
 
 	/**
-	 * Get color for review status
-	 */
-	function getReviewStatusColor(status: string): string {
-		const colors: Record<string, string> = {
-			pending: '#6b7280',
-			in_progress: '#3b82f6',
-			completed: '#22c55e',
-			cancelled: '#9ca3af'
-		};
-		return colors[status] || '#6b7280';
-	}
-
-	/**
-	 * Get color for report status
-	 */
-	function getReportStatusColor(status: string): string {
-		const colors: Record<string, string> = {
-			pending: '#6b7280',
-			generating: '#3b82f6',
-			completed: '#22c55e',
-			failed: '#ef4444'
-		};
-		return colors[status] || '#6b7280';
-	}
-
-	/**
 	 * Sanitize and format scope value for display
 	 * Only allows known scope values to prevent XSS
 	 */
@@ -284,44 +338,33 @@
 
 <svelte:window onkeydown={handleGlobalKeydown} />
 
-<div>
-	<div
-		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
-	>
-		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">Compliance</h1>
+<div class="admin-page">
+	<div class="page-header">
+		<div class="page-header-info">
+			<h1 class="page-title">Compliance</h1>
+			<p class="modal-description">
+				Monitor compliance status across multiple frameworks, manage access reviews, view compliance
+				reports, and track data retention policies.
+			</p>
+		</div>
 	</div>
 
-	<p style="color: #6b7280; margin-bottom: 24px;">
-		Monitor compliance status across multiple frameworks, manage access reviews, view compliance
-		reports, and track data retention policies.
-	</p>
-
 	{#if error}
-		<div
-			style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-		>
-			{error}
-		</div>
+		<div class="alert alert-error">{error}</div>
 	{/if}
 
 	<!-- Tabs -->
-	<div style="display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
-		{#each [{ id: 'overview', label: 'Overview' }, { id: 'reviews', label: 'Access Reviews' }, { id: 'reports', label: 'Reports' }, { id: 'retention', label: 'Data Retention' }] as tab (tab.id)}
+	<div class="security-tabs" role="tablist">
+		{#each TABS as tab (tab.id)}
 			<button
 				onclick={() => {
-					error = ''; // Clear errors when switching tabs
-					activeTab = tab.id as typeof activeTab;
+					error = '';
+					activeTab = tab.id;
 				}}
-				style="
-					padding: 12px 24px;
-					background: none;
-					border: none;
-					border-bottom: 2px solid {activeTab === tab.id ? '#3b82f6' : 'transparent'};
-					color: {activeTab === tab.id ? '#3b82f6' : '#6b7280'};
-					font-size: 14px;
-					font-weight: 500;
-					cursor: pointer;
-				"
+				role="tab"
+				aria-selected={activeTab === tab.id}
+				class="security-tab"
+				class:active={activeTab === tab.id}
 			>
 				{tab.label}
 			</button>
@@ -329,89 +372,53 @@
 	</div>
 
 	{#if loading}
-		<div style="text-align: center; padding: 48px; color: #6b7280;">Loading compliance data...</div>
+		<div class="loading-state">Loading compliance data...</div>
 	{:else if activeTab === 'overview' && complianceStatus}
 		<!-- Overview Tab -->
-		<div style="display: grid; gap: 24px;">
+		<div class="compliance-overview">
 			<!-- Overall Status -->
-			<div style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 24px;">
-				<div style="display: flex; justify-content: space-between; align-items: center;">
+			<div class="panel">
+				<div class="compliance-overall-header">
 					<div>
-						<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 8px 0; color: #1f2937;">
-							Overall Compliance Status
-						</h2>
-						<p style="color: #6b7280; margin: 0;">Assessment across all compliance frameworks</p>
+						<h2 class="section-title">Overall Compliance Status</h2>
+						<p class="text-muted">Assessment across all compliance frameworks</p>
 					</div>
-					<div
-						style="
-							padding: 12px 24px;
-							border-radius: 8px;
-							background-color: {getComplianceStatusColor(complianceStatus.overall_status)}15;
-							color: {getComplianceStatusColor(complianceStatus.overall_status)};
-							font-weight: 600;
-							font-size: 16px;
-						"
-					>
+					<div class={getComplianceStatusClass(complianceStatus.overall_status)}>
 						{getComplianceStatusLabel(complianceStatus.overall_status)}
 					</div>
 				</div>
 			</div>
 
 			<!-- Frameworks Grid -->
-			<div
-				style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;"
-			>
+			<div class="framework-grid">
 				{#each complianceStatus.frameworks as framework (framework.framework)}
-					<div
-						style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px;"
-					>
-						<div
-							style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;"
-						>
-							<h3 style="font-size: 16px; font-weight: 600; margin: 0; color: #1f2937;">
-								{getFrameworkDisplayName(framework.framework)}
-							</h3>
-							<span
-								style="
-									padding: 4px 10px;
-									border-radius: 9999px;
-									font-size: 12px;
-									font-weight: 500;
-									background-color: {getComplianceStatusColor(framework.status)}15;
-									color: {getComplianceStatusColor(framework.status)};
-								"
-							>
+					<div class="framework-card">
+						<div class="framework-card-header">
+							<h3 class="framework-name">{getFrameworkDisplayName(framework.framework)}</h3>
+							<span class={getComplianceStatusClass(framework.status)}>
 								{getComplianceStatusLabel(framework.status)}
 							</span>
 						</div>
-						<div style="margin-bottom: 12px;">
-							<div
-								style="display: flex; justify-content: space-between; font-size: 13px; color: #6b7280; margin-bottom: 4px;"
-							>
+						<div class="framework-progress">
+							<div class="framework-progress-info">
 								<span>Compliance Progress</span>
 								<span>{framework.compliant_checks}/{framework.total_checks} checks</span>
 							</div>
-							<div
-								style="height: 6px; background-color: #e5e7eb; border-radius: 3px; overflow: hidden;"
-							>
+							<div class="progress-bar">
 								<div
-									style="
-										height: 100%;
-										width: {framework.total_checks > 0
+									class={getComplianceProgressClass(framework.status)}
+									style="width: {framework.total_checks > 0
 										? (framework.compliant_checks / framework.total_checks) * 100
-										: 0}%;
-										background-color: {getComplianceStatusColor(framework.status)};
-										border-radius: 3px;
-									"
+										: 0}%"
 								></div>
 							</div>
 						</div>
 						{#if framework.issues.length > 0}
-							<div style="font-size: 12px; color: #ef4444;">
+							<div class="framework-issues">
 								⚠️ {framework.issues.length} issue{framework.issues.length > 1 ? 's' : ''} found
 							</div>
 						{/if}
-						<div style="font-size: 11px; color: #9ca3af; margin-top: 8px;">
+						<div class="framework-last-checked">
 							Last checked: {formatDate(framework.last_checked)}
 						</div>
 					</div>
@@ -419,49 +426,32 @@
 			</div>
 
 			<!-- Quick Stats -->
-			<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
-				<div
-					style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; text-align: center;"
-				>
-					<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Data Retention</div>
-					<div
-						style="font-size: 20px; font-weight: 600; color: {complianceStatus.data_retention
-							?.enabled
-							? '#22c55e'
-							: '#ef4444'};"
-					>
+			<div class="quick-stats-grid">
+				<div class="quick-stat-card">
+					<div class="quick-stat-label">Data Retention</div>
+					<div class={getStatusValueClass(complianceStatus.data_retention?.enabled ?? false)}>
 						{complianceStatus.data_retention?.enabled ? 'Enabled' : 'Disabled'}
 					</div>
 				</div>
-				<div
-					style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; text-align: center;"
-				>
-					<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Audit Log</div>
-					<div
-						style="font-size: 20px; font-weight: 600; color: {complianceStatus.audit_log?.enabled
-							? '#22c55e'
-							: '#ef4444'};"
-					>
+				<div class="quick-stat-card">
+					<div class="quick-stat-label">Audit Log</div>
+					<div class={getStatusValueClass(complianceStatus.audit_log?.enabled ?? false)}>
 						{complianceStatus.audit_log?.retention_days ?? '-'} days
 					</div>
 				</div>
-				<div
-					style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; text-align: center;"
-				>
-					<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">MFA Coverage</div>
-					<div style="font-size: 20px; font-weight: 600; color: #3b82f6;">
+				<div class="quick-stat-card">
+					<div class="quick-stat-label">MFA Coverage</div>
+					<div class="quick-stat-value primary">
 						{complianceStatus.mfa_enforcement?.coverage_percent ?? 0}%
 					</div>
 				</div>
-				<div
-					style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 20px; text-align: center;"
-				>
-					<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Encryption</div>
+				<div class="quick-stat-card">
+					<div class="quick-stat-label">Encryption</div>
 					<div
-						style="font-size: 20px; font-weight: 600; color: {complianceStatus.encryption
-							?.at_rest && complianceStatus.encryption?.in_transit
-							? '#22c55e'
-							: '#f59e0b'};"
+						class="quick-stat-value {complianceStatus.encryption?.at_rest &&
+						complianceStatus.encryption?.in_transit
+							? 'enabled'
+							: 'partial'}"
 					>
 						{complianceStatus.encryption?.at_rest && complianceStatus.encryption?.in_transit
 							? 'Full'
@@ -473,103 +463,54 @@
 	{:else if activeTab === 'reviews'}
 		<!-- Access Reviews Tab -->
 		<div>
-			<div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
-				<button
-					onclick={openStartReviewDialog}
-					style="
-						padding: 10px 20px;
-						background-color: #3b82f6;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-weight: 500;
-						font-size: 14px;
-					"
-				>
-					Start New Review
-				</button>
+			<div class="tab-header-actions">
+				<button class="btn btn-primary" onclick={openStartReviewDialog}> Start New Review </button>
 			</div>
 
 			{#if accessReviews.length === 0}
-				<div
-					style="text-align: center; padding: 48px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
-				>
-					<p style="color: #6b7280; margin: 0;">No access reviews found.</p>
+				<div class="empty-state">
+					<p>No access reviews found.</p>
 				</div>
 			{:else}
-				<div
-					style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden;"
-				>
-					<table style="width: 100%; border-collapse: collapse;">
+				<div class="table-container">
+					<table class="data-table">
 						<thead>
-							<tr style="background-color: #f9fafb;">
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Name</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Scope</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Progress</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Status</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Started</th
-								>
+							<tr>
+								<th>Name</th>
+								<th>Scope</th>
+								<th>Progress</th>
+								<th>Status</th>
+								<th>Started</th>
 							</tr>
 						</thead>
 						<tbody>
 							{#each accessReviews as review (review.id)}
-								<tr style="border-top: 1px solid #e5e7eb;">
-									<td style="padding: 12px 16px;">
-										<div style="font-weight: 500; color: #1f2937;">{review.name}</div>
+								<tr>
+									<td>
+										<div class="cell-primary">{review.name}</div>
 									</td>
-									<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-										{formatScopeDisplay(review.scope)}
-									</td>
-									<td style="padding: 12px 16px;">
-										<div style="display: flex; align-items: center; gap: 8px;">
-											<div
-												style="flex: 1; height: 6px; background-color: #e5e7eb; border-radius: 3px; overflow: hidden; max-width: 100px;"
-											>
+									<td>{formatScopeDisplay(review.scope)}</td>
+									<td>
+										<div class="review-progress-cell">
+											<div class="progress-bar review-progress">
 												<div
-													style="
-														height: 100%;
-														width: {review.total_users > 0 ? (review.reviewed_users / review.total_users) * 100 : 0}%;
-														background-color: #3b82f6;
-													"
+													class="progress-fill primary"
+													style="width: {review.total_users > 0
+														? (review.reviewed_users / review.total_users) * 100
+														: 0}%"
 												></div>
 											</div>
-											<span style="font-size: 12px; color: #6b7280;">
+											<span class="review-progress-text">
 												{review.reviewed_users}/{review.total_users}
 											</span>
 										</div>
 									</td>
-									<td style="padding: 12px 16px;">
-										<span
-											style="
-												padding: 4px 10px;
-												border-radius: 9999px;
-												font-size: 12px;
-												font-weight: 500;
-												background-color: {getReviewStatusColor(review.status)}15;
-												color: {getReviewStatusColor(review.status)};
-											"
-										>
+									<td>
+										<span class={getReviewStatusClass(review.status)}>
 											{review.status}
 										</span>
 									</td>
-									<td style="padding: 12px 16px; font-size: 13px; color: #6b7280;">
-										{formatDate(review.started_at)}
-									</td>
+									<td class="text-muted">{formatDate(review.started_at)}</td>
 								</tr>
 							{/each}
 						</tbody>
@@ -581,73 +522,44 @@
 		<!-- Reports Tab -->
 		<div>
 			{#if reports.length === 0}
-				<div
-					style="text-align: center; padding: 48px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
-				>
-					<p style="color: #6b7280; margin: 0;">No compliance reports found.</p>
+				<div class="empty-state">
+					<p>No compliance reports found.</p>
 				</div>
 			{:else}
-				<div
-					style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden;"
-				>
-					<table style="width: 100%; border-collapse: collapse;">
+				<div class="table-container">
+					<table class="data-table">
 						<thead>
-							<tr style="background-color: #f9fafb;">
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Type</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Status</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Requested</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Actions</th
-								>
+							<tr>
+								<th>Type</th>
+								<th>Status</th>
+								<th>Requested</th>
+								<th>Actions</th>
 							</tr>
 						</thead>
 						<tbody>
 							{#each reports as report (report.id)}
-								<tr style="border-top: 1px solid #e5e7eb;">
-									<td style="padding: 12px 16px;">
-										<div style="font-weight: 500; color: #1f2937;">
-											{formatReportTypeDisplay(report.type)}
-										</div>
+								<tr>
+									<td>
+										<div class="cell-primary">{formatReportTypeDisplay(report.type)}</div>
 									</td>
-									<td style="padding: 12px 16px;">
-										<span
-											style="
-												padding: 4px 10px;
-												border-radius: 9999px;
-												font-size: 12px;
-												font-weight: 500;
-												background-color: {getReportStatusColor(report.status)}15;
-												color: {getReportStatusColor(report.status)};
-											"
-										>
+									<td>
+										<span class={getReportStatusClass(report.status)}>
 											{report.status}
 										</span>
 									</td>
-									<td style="padding: 12px 16px; font-size: 13px; color: #6b7280;">
-										{formatDate(report.requested_at)}
-									</td>
-									<td style="padding: 12px 16px;">
+									<td class="text-muted">{formatDate(report.requested_at)}</td>
+									<td>
 										{#if report.status === 'completed' && report.download_url && isValidDownloadUrl(report.download_url)}
 											<a
 												href={report.download_url}
 												target="_blank"
 												rel="noopener noreferrer"
-												style="color: #3b82f6; font-size: 14px; text-decoration: none;"
+												class="link-primary"
 											>
 												Download
 											</a>
 										{:else}
-											<span style="color: #9ca3af; font-size: 14px;">-</span>
+											<span class="text-muted">-</span>
 										{/if}
 									</td>
 								</tr>
@@ -659,42 +571,32 @@
 		</div>
 	{:else if activeTab === 'retention' && dataRetention}
 		<!-- Data Retention Tab -->
-		<div style="display: grid; gap: 24px;">
+		<div class="retention-overview">
 			<!-- Status Card -->
-			<div style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 24px;">
-				<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">
-					Data Retention Policy
-				</h2>
-				<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
-					<div>
-						<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Status</div>
-						<div
-							style="font-size: 16px; font-weight: 600; color: {dataRetention.enabled
-								? '#22c55e'
-								: '#ef4444'};"
-						>
+			<div class="panel">
+				<h2 class="section-title">Data Retention Policy</h2>
+				<div class="retention-stats-grid">
+					<div class="retention-stat">
+						<div class="retention-stat-label">Status</div>
+						<div class={getStatusValueClass(dataRetention.enabled)}>
 							{dataRetention.enabled ? 'Enabled' : 'Disabled'}
 						</div>
 					</div>
-					<div>
-						<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">GDPR Compliant</div>
-						<div
-							style="font-size: 16px; font-weight: 600; color: {dataRetention.gdpr_compliant
-								? '#22c55e'
-								: '#ef4444'};"
-						>
+					<div class="retention-stat">
+						<div class="retention-stat-label">GDPR Compliant</div>
+						<div class={getStatusValueClass(dataRetention.gdpr_compliant)}>
 							{dataRetention.gdpr_compliant ? 'Yes' : 'No'}
 						</div>
 					</div>
-					<div>
-						<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Last Cleanup</div>
-						<div style="font-size: 16px; font-weight: 600; color: #374151;">
+					<div class="retention-stat">
+						<div class="retention-stat-label">Last Cleanup</div>
+						<div class="retention-stat-value">
 							{dataRetention.last_cleanup ? formatDate(dataRetention.last_cleanup) : '-'}
 						</div>
 					</div>
-					<div>
-						<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Next Cleanup</div>
-						<div style="font-size: 16px; font-weight: 600; color: #374151;">
+					<div class="retention-stat">
+						<div class="retention-stat-label">Next Cleanup</div>
+						<div class="retention-stat-value">
 							{dataRetention.next_scheduled_cleanup
 								? formatDate(dataRetention.next_scheduled_cleanup)
 								: '-'}
@@ -705,139 +607,70 @@
 
 			<!-- Categories -->
 			{#if dataRetention.categories.length > 0}
-				<div
-					style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden;"
-				>
-					<div
-						style="padding: 16px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;"
-					>
+				<div class="panel retention-categories-panel">
+					<div class="retention-categories-header">
 						<div>
-							<h3 style="font-size: 16px; font-weight: 600; margin: 0 0 4px 0; color: #1f2937;">
-								Retention Categories
-							</h3>
-							<p style="font-size: 13px; color: #6b7280; margin: 0;">
+							<h3 class="section-title">Retention Categories</h3>
+							<p class="text-muted">
 								Configure how long data is retained before automatic deletion
 							</p>
 						</div>
-						<button
-							onclick={openCleanupDialog}
-							style="
-								display: inline-flex;
-								align-items: center;
-								gap: 6px;
-								padding: 8px 16px;
-								background-color: #f59e0b;
-								color: white;
-								border: none;
-								border-radius: 6px;
-								font-size: 14px;
-								font-weight: 500;
-								cursor: pointer;
-							"
-						>
+						<button class="btn btn-warning" onclick={openCleanupDialog}>
 							<span>🗑️</span>
 							Run Cleanup
 						</button>
 					</div>
-					<table style="width: 100%; border-collapse: collapse;">
-						<thead>
-							<tr style="background-color: #f9fafb;">
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Category</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Retention</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: right; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Records</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Oldest Record</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Next Cleanup</th
-								>
-								<th
-									style="padding: 12px 16px; text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-									>Actions</th
-								>
-							</tr>
-						</thead>
-						<tbody>
-							{#each dataRetention.categories as category (category.category)}
-								<tr style="border-top: 1px solid #e5e7eb;">
-									<td style="padding: 12px 16px;">
-										<div style="font-weight: 500; color: #1f2937;">
-											{getCategoryDisplayName(category.category)}
-										</div>
-										<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
-											{getCategoryDescription(category.category)}
-										</div>
-									</td>
-									<td style="padding: 12px 16px; text-align: center;">
-										<span
-											style="
-												display: inline-block;
-												padding: 4px 12px;
-												border-radius: 9999px;
-												font-size: 13px;
-												font-weight: 500;
-												background-color: #f3f4f6;
-												color: #374151;
-											"
-										>
-											{category.retention_days} days
-										</span>
-									</td>
-									<td
-										style="padding: 12px 16px; text-align: right; font-size: 14px; color: #374151;"
-									>
-										{category.records_count.toLocaleString()}
-									</td>
-									<td style="padding: 12px 16px; font-size: 13px; color: #6b7280;">
-										{category.oldest_record ? formatDate(category.oldest_record) : '-'}
-									</td>
-									<td style="padding: 12px 16px; font-size: 13px; color: #6b7280;">
-										{category.next_cleanup ? formatDate(category.next_cleanup) : '-'}
-									</td>
-									<td style="padding: 12px 16px; text-align: center;">
-										<button
-											onclick={() =>
-												openRetentionEditDialog(category.category, category.retention_days)}
-											style="
-												padding: 6px 12px;
-												background-color: #f3f4f6;
-												border: 1px solid #e5e7eb;
-												border-radius: 4px;
-												font-size: 13px;
-												color: #374151;
-												cursor: pointer;
-											"
-										>
-											Edit
-										</button>
-									</td>
+					<div class="table-container">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Category</th>
+									<th class="text-center">Retention</th>
+									<th class="text-right">Records</th>
+									<th>Oldest Record</th>
+									<th>Next Cleanup</th>
+									<th class="text-center">Actions</th>
 								</tr>
-							{/each}
-						</tbody>
-					</table>
+							</thead>
+							<tbody>
+								{#each dataRetention.categories as category (category.category)}
+									<tr>
+										<td>
+											<div class="cell-primary">{getCategoryDisplayName(category.category)}</div>
+											<div class="cell-secondary">{getCategoryDescription(category.category)}</div>
+										</td>
+										<td class="text-center">
+											<span class="retention-days-badge">{category.retention_days} days</span>
+										</td>
+										<td class="text-right">{category.records_count.toLocaleString()}</td>
+										<td class="text-muted">
+											{category.oldest_record ? formatDate(category.oldest_record) : '-'}
+										</td>
+										<td class="text-muted">
+											{category.next_cleanup ? formatDate(category.next_cleanup) : '-'}
+										</td>
+										<td class="text-center">
+											<button
+												class="btn btn-ghost btn-sm"
+												onclick={() =>
+													openRetentionEditDialog(category.category, category.retention_days)}
+											>
+												Edit
+											</button>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
 				</div>
 
 				<!-- Information Notice -->
-				<div
-					style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; display: flex; gap: 12px; align-items: flex-start;"
-				>
-					<span style="font-size: 20px;">ℹ️</span>
+				<div class="info-box">
+					<span class="info-box-icon">ℹ️</span>
 					<div>
-						<div style="font-weight: 500; color: #1e40af; margin-bottom: 4px;">
-							About Data Retention
-						</div>
-						<p style="font-size: 13px; color: #1e40af; margin: 0;">
+						<div class="info-box-title">About Data Retention</div>
+						<p class="info-box-text">
 							Data retention policies help maintain GDPR compliance by automatically removing old
 							data. Tombstones (deletion records) are kept longer to provide proof of deletion for
 							regulatory purposes. Contact your administrator to modify retention periods.
@@ -852,128 +685,70 @@
 <!-- Start Review Dialog -->
 {#if showStartReviewDialog}
 	<div
-		style="position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50;"
+		class="modal-overlay"
 		onclick={closeStartReviewDialog}
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="start-review-dialog-title"
+		onkeydown={(e) => e.key === 'Escape' && closeStartReviewDialog()}
+		tabindex="-1"
+		role="presentation"
 	>
 		<div
-			style="background: white; border-radius: 8px; padding: 24px; max-width: 500px; width: 90%;"
+			class="modal-content"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
-			role="document"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="start-review-dialog-title"
 		>
-			<h2
-				id="start-review-dialog-title"
-				style="font-size: 18px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;"
-			>
-				Start Access Review
-			</h2>
+			<div class="modal-header">
+				<h2 id="start-review-dialog-title" class="modal-title">Start Access Review</h2>
+			</div>
 
-			{#if startReviewError}
-				<div
-					style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-				>
-					{startReviewError}
+			<div class="modal-body">
+				{#if startReviewError}
+					<div class="alert alert-error">{startReviewError}</div>
+				{/if}
+
+				<div class="form-group">
+					<label for="review-name" class="form-label">Review Name</label>
+					<input
+						type="text"
+						id="review-name"
+						class="form-input"
+						bind:value={newReviewName}
+						placeholder="e.g., Q1 2026 Access Review"
+					/>
 				</div>
-			{/if}
 
-			<div style="margin-bottom: 16px;">
-				<label
-					style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;"
-				>
-					Review Name
-				</label>
-				<input
-					type="text"
-					bind:value={newReviewName}
-					placeholder="e.g., Q1 2026 Access Review"
-					style="
-						width: 100%;
-						padding: 10px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 6px;
-						font-size: 14px;
-						box-sizing: border-box;
-					"
-				/>
+				<div class="form-group">
+					<label for="review-scope" class="form-label">Scope</label>
+					<select id="review-scope" class="form-select" bind:value={newReviewScope}>
+						<option value="all_users">All Users</option>
+						<option value="role">By Role</option>
+						<option value="organization">By Organization</option>
+						<option value="inactive_users">Inactive Users</option>
+					</select>
+				</div>
+
+				<div class="form-group">
+					<label for="review-due-date" class="form-label">Due Date (optional)</label>
+					<input
+						type="date"
+						id="review-due-date"
+						class="form-input"
+						bind:value={newReviewDueDate}
+					/>
+				</div>
 			</div>
 
-			<div style="margin-bottom: 16px;">
-				<label
-					style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;"
-				>
-					Scope
-				</label>
-				<select
-					bind:value={newReviewScope}
-					style="
-						width: 100%;
-						padding: 10px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 6px;
-						font-size: 14px;
-						box-sizing: border-box;
-					"
-				>
-					<option value="all_users">All Users</option>
-					<option value="role">By Role</option>
-					<option value="organization">By Organization</option>
-					<option value="inactive_users">Inactive Users</option>
-				</select>
-			</div>
-
-			<div style="margin-bottom: 24px;">
-				<label
-					style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;"
-				>
-					Due Date (optional)
-				</label>
-				<input
-					type="date"
-					bind:value={newReviewDueDate}
-					style="
-						width: 100%;
-						padding: 10px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 6px;
-						font-size: 14px;
-						box-sizing: border-box;
-					"
-				/>
-			</div>
-
-			<div style="display: flex; justify-content: flex-end; gap: 12px;">
+			<div class="modal-footer">
 				<button
+					class="btn btn-secondary"
 					onclick={closeStartReviewDialog}
 					disabled={startingReview}
-					style="
-						padding: 10px 20px;
-						background-color: #f3f4f6;
-						color: #374151;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-					"
 				>
 					Cancel
 				</button>
-				<button
-					onclick={handleStartReview}
-					disabled={startingReview}
-					style="
-						padding: 10px 20px;
-						background-color: #3b82f6;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-						opacity: {startingReview ? 0.7 : 1};
-					"
-				>
+				<button class="btn btn-primary" onclick={handleStartReview} disabled={startingReview}>
 					{startingReview ? 'Starting...' : 'Start Review'}
 				</button>
 			</div>
@@ -993,119 +768,65 @@
 <!-- Cleanup Confirmation Dialog -->
 {#if showCleanupDialog}
 	<div
-		style="position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50;"
+		class="modal-overlay"
 		onclick={closeCleanupDialog}
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="cleanup-dialog-title"
+		onkeydown={(e) => e.key === 'Escape' && closeCleanupDialog()}
+		tabindex="-1"
+		role="presentation"
 	>
 		<div
-			style="background: white; border-radius: 8px; padding: 24px; max-width: 500px; width: 90%;"
+			class="modal-content"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
-			role="document"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="cleanup-dialog-title"
 		>
 			{#if cleanupResult}
 				<!-- Success State -->
-				<div style="text-align: center;">
-					<div style="font-size: 48px; margin-bottom: 16px;">✅</div>
-					<h2
-						id="cleanup-dialog-title"
-						style="font-size: 18px; font-weight: bold; margin: 0 0 12px 0; color: #1f2937;"
-					>
-						Cleanup Completed
-					</h2>
-					<p style="color: #6b7280; margin: 0 0 16px 0;">
+				<div class="cleanup-success">
+					<div class="cleanup-success-icon">✅</div>
+					<h2 id="cleanup-dialog-title" class="modal-title">Cleanup Completed</h2>
+					<p class="text-muted">
 						Successfully deleted <strong>{cleanupResult.deleted.toLocaleString()}</strong> records.
 					</p>
-					<p style="font-size: 12px; color: #9ca3af; margin: 0 0 24px 0;">
-						Run ID: {cleanupResult.runId}
-					</p>
-					<button
-						onclick={closeCleanupDialog}
-						style="
-							padding: 10px 24px;
-							background-color: #3b82f6;
-							color: white;
-							border: none;
-							border-radius: 6px;
-							cursor: pointer;
-							font-size: 14px;
-						"
-					>
-						Close
-					</button>
+					<p class="cleanup-run-id">Run ID: {cleanupResult.runId}</p>
+					<button class="btn btn-primary" onclick={closeCleanupDialog}>Close</button>
 				</div>
 			{:else}
 				<!-- Confirmation State -->
-				<h2
-					id="cleanup-dialog-title"
-					style="font-size: 18px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;"
-				>
-					Run Data Cleanup
-				</h2>
+				<div class="modal-header">
+					<h2 id="cleanup-dialog-title" class="modal-title">Run Data Cleanup</h2>
+				</div>
 
-				{#if retentionActionError}
-					<div
-						style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-					>
-						{retentionActionError}
-					</div>
-				{/if}
+				<div class="modal-body">
+					{#if retentionActionError}
+						<div class="alert alert-error">{retentionActionError}</div>
+					{/if}
 
-				<div
-					style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 16px; margin-bottom: 20px;"
-				>
-					<div style="display: flex; gap: 12px; align-items: flex-start;">
-						<span style="font-size: 20px;">⚠️</span>
+					<div class="warning-box">
+						<span class="warning-box-icon">⚠️</span>
 						<div>
-							<div style="font-weight: 600; color: #92400e; margin-bottom: 4px;">
-								Warning: This action cannot be undone
-							</div>
-							<p style="font-size: 13px; color: #92400e; margin: 0;">
+							<div class="warning-box-title">Warning: This action cannot be undone</div>
+							<p class="warning-box-text">
 								This will permanently delete all data that exceeds the configured retention periods
 								across all categories. Records older than their category's retention period will be
 								removed.
 							</p>
 						</div>
 					</div>
+
+					<p class="text-muted cleanup-confirm-text">
+						Are you sure you want to run the data cleanup now? This process will delete expired
+						records based on each category's retention policy.
+					</p>
 				</div>
 
-				<p style="color: #6b7280; font-size: 14px; margin: 0 0 24px 0;">
-					Are you sure you want to run the data cleanup now? This process will delete expired
-					records based on each category's retention policy.
-				</p>
-
-				<div style="display: flex; justify-content: flex-end; gap: 12px;">
-					<button
-						onclick={closeCleanupDialog}
-						disabled={cleanupLoading}
-						style="
-							padding: 10px 20px;
-							background-color: #f3f4f6;
-							color: #374151;
-							border: none;
-							border-radius: 6px;
-							cursor: pointer;
-							font-size: 14px;
-						"
-					>
+				<div class="modal-footer">
+					<button class="btn btn-secondary" onclick={closeCleanupDialog} disabled={cleanupLoading}>
 						Cancel
 					</button>
-					<button
-						onclick={executeCleanup}
-						disabled={cleanupLoading}
-						style="
-							padding: 10px 20px;
-							background-color: #ef4444;
-							color: white;
-							border: none;
-							border-radius: 6px;
-							cursor: pointer;
-							font-size: 14px;
-							opacity: {cleanupLoading ? 0.7 : 1};
-						"
-					>
+					<button class="btn btn-danger" onclick={executeCleanup} disabled={cleanupLoading}>
 						{cleanupLoading ? 'Deleting...' : 'Delete Expired Data'}
 					</button>
 				</div>

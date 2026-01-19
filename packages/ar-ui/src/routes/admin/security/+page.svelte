@@ -2,9 +2,6 @@
 	import { onMount } from 'svelte';
 	import {
 		adminSecurityAPI,
-		getSeverityColor,
-		getAlertStatusColor,
-		getRiskLevelColor,
 		getAlertTypeDisplayName,
 		getThreatTypeDisplayName,
 		type SecurityAlert,
@@ -54,6 +51,105 @@
 		{ id: 'threats', label: 'Threats', getCount: () => detectedThreatsCount },
 		{ id: 'ip-check', label: 'IP Check', getCount: () => 0 }
 	];
+
+	// Helper functions for CSS classes
+	function getSeverityBadgeClass(severity: string): string {
+		switch (severity) {
+			case 'critical':
+				return 'badge-severity critical';
+			case 'high':
+				return 'badge-severity high';
+			case 'medium':
+				return 'badge-severity medium';
+			case 'low':
+				return 'badge-severity low';
+			case 'info':
+				return 'badge-severity info';
+			default:
+				return 'badge-severity';
+		}
+	}
+
+	function getAlertStatusBadgeClass(status: string): string {
+		switch (status) {
+			case 'open':
+				return 'badge-alert-status open';
+			case 'acknowledged':
+				return 'badge-alert-status acknowledged';
+			case 'resolved':
+				return 'badge-alert-status resolved';
+			case 'dismissed':
+				return 'badge-alert-status dismissed';
+			default:
+				return 'badge-alert-status';
+		}
+	}
+
+	function getThreatStatusBadgeClass(status: string): string {
+		switch (status) {
+			case 'detected':
+				return 'badge-threat-status detected';
+			case 'investigating':
+				return 'badge-threat-status investigating';
+			case 'mitigated':
+				return 'badge-threat-status mitigated';
+			default:
+				return 'badge-threat-status';
+		}
+	}
+
+	function getSeverityBorderClass(severity: string): string {
+		switch (severity) {
+			case 'critical':
+				return 'severity-border-critical';
+			case 'high':
+				return 'severity-border-high';
+			case 'medium':
+				return 'severity-border-medium';
+			case 'low':
+				return 'severity-border-low';
+			case 'info':
+				return 'severity-border-info';
+			default:
+				return '';
+		}
+	}
+
+	function getRiskScoreClass(score: number): string {
+		if (score >= 80) return 'risk-score-high';
+		if (score >= 50) return 'risk-score-medium';
+		return 'risk-score-low';
+	}
+
+	function getRiskLevelClass(level: string): string {
+		switch (level) {
+			case 'critical':
+			case 'high':
+				return 'ip-risk-level high';
+			case 'medium':
+				return 'ip-risk-level medium';
+			case 'low':
+			case 'none':
+				return 'ip-risk-level low';
+			default:
+				return 'ip-risk-level';
+		}
+	}
+
+	function getRiskLevelBgClass(level: string): string {
+		switch (level) {
+			case 'critical':
+			case 'high':
+				return 'ip-result-header risk-high';
+			case 'medium':
+				return 'ip-result-header risk-medium';
+			case 'low':
+			case 'none':
+				return 'ip-result-header risk-low';
+			default:
+				return 'ip-result-header';
+		}
+	}
 
 	// Sanitize API responses to prevent XSS (defense in depth)
 	function sanitizeAlert(alert: SecurityAlert): SecurityAlert {
@@ -252,79 +348,41 @@
 	});
 </script>
 
-<div>
-	<div
-		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
-	>
-		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">Security</h1>
-		<button
-			onclick={loadData}
-			disabled={loading}
-			style="
-				padding: 8px 16px;
-				background-color: #f3f4f6;
-				color: #374151;
-				border: none;
-				border-radius: 6px;
-				cursor: pointer;
-				font-size: 14px;
-			"
-		>
-			Refresh
-		</button>
+<div class="admin-page">
+	<div class="page-header">
+		<div class="page-header-info">
+			<h1 class="page-title">Security</h1>
+			<p class="modal-description">
+				Monitor security alerts, suspicious activities, detected threats, and check IP reputation.
+			</p>
+		</div>
+		<button class="btn btn-secondary" onclick={loadData} disabled={loading}> Refresh </button>
 	</div>
 
-	<p style="color: #6b7280; margin-bottom: 24px;">
-		Monitor security alerts, suspicious activities, detected threats, and check IP reputation.
-	</p>
-
 	{#if error}
-		<div
-			style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-		>
-			{error}
-		</div>
+		<div class="alert alert-error">{error}</div>
 	{/if}
 
 	<!-- Tabs -->
-	<div
-		style="display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid #e5e7eb;"
-		role="tablist"
-	>
+	<div class="security-tabs" role="tablist">
 		{#each TAB_DEFINITIONS as tab (tab.id)}
 			{@const tabCount = tab.getCount()}
 			<button
 				onclick={() => {
-					error = ''; // Clear errors when switching tabs
+					error = '';
 					activeTab = tab.id;
 				}}
 				role="tab"
 				aria-selected={activeTab === tab.id}
 				aria-controls="{tab.id}-panel"
-				style="
-					padding: 12px 24px;
-					background: none;
-					border: none;
-					border-bottom: 2px solid {activeTab === tab.id ? '#3b82f6' : 'transparent'};
-					color: {activeTab === tab.id ? '#3b82f6' : '#6b7280'};
-					font-size: 14px;
-					font-weight: 500;
-					cursor: pointer;
-					display: flex;
-					align-items: center;
-					gap: 8px;
-				"
+				class="security-tab"
+				class:active={activeTab === tab.id}
 			>
 				{tab.label}
 				{#if tabCount > 0}
 					<span
-						style="
-							background-color: {tab.id === 'alerts' ? '#ef4444' : '#6b7280'};
-							color: white;
-							font-size: 11px;
-							padding: 2px 6px;
-							border-radius: 9999px;
-						"
+						class="tab-count"
+						class:alert-count={tab.id === 'alerts'}
 						aria-label="{tabCount} items"
 					>
 						{tabCount}
@@ -335,22 +393,15 @@
 	</div>
 
 	{#if loading}
-		<div style="text-align: center; padding: 48px; color: #6b7280;">Loading security data...</div>
+		<div class="loading-state">Loading security data...</div>
 	{:else if activeTab === 'alerts'}
 		<!-- Alerts Tab -->
 		<div>
 			<!-- Filters -->
-			<div
-				style="display: flex; gap: 16px; margin-bottom: 16px; background: white; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;"
-			>
-				<div>
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Status</label
-					>
-					<select
-						bind:value={statusFilter}
-						style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
-					>
+			<div class="security-filter-bar">
+				<div class="filter-group">
+					<label for="status-filter" class="filter-label">Status</label>
+					<select id="status-filter" class="filter-select" bind:value={statusFilter}>
 						<option value="">All Status</option>
 						<option value="open">Open</option>
 						<option value="acknowledged">Acknowledged</option>
@@ -358,14 +409,9 @@
 						<option value="dismissed">Dismissed</option>
 					</select>
 				</div>
-				<div>
-					<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Severity</label
-					>
-					<select
-						bind:value={severityFilter}
-						style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
-					>
+				<div class="filter-group">
+					<label for="severity-filter" class="filter-label">Severity</label>
+					<select id="severity-filter" class="filter-select" bind:value={severityFilter}>
 						<option value="">All Severities</option>
 						<option value="critical">Critical</option>
 						<option value="high">High</option>
@@ -377,67 +423,33 @@
 			</div>
 
 			{#if alerts.length === 0}
-				<div
-					style="text-align: center; padding: 48px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
-				>
-					<p style="color: #6b7280; margin: 0;">No security alerts found.</p>
+				<div class="empty-state">
+					<p>No security alerts found.</p>
 				</div>
 			{:else}
-				<div style="display: grid; gap: 12px;">
+				<div class="security-cards-grid">
 					{#each alerts as alert (alert.id)}
-						<div
-							style="
-								background: white;
-								border-radius: 8px;
-								border: 1px solid #e5e7eb;
-								border-left: 4px solid {getSeverityColor(alert.severity)};
-								padding: 16px 20px;
-							"
-						>
-							<div
-								style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;"
-							>
-								<div style="display: flex; align-items: center; gap: 12px;">
-									<span
-										style="
-											padding: 4px 10px;
-											border-radius: 4px;
-											font-size: 12px;
-											font-weight: 600;
-											background-color: {getSeverityColor(alert.severity)}15;
-											color: {getSeverityColor(alert.severity)};
-										"
-									>
+						<div class="security-card {getSeverityBorderClass(alert.severity)}">
+							<div class="security-card-header">
+								<div class="security-card-badges">
+									<span class={getSeverityBadgeClass(alert.severity)}>
 										{alert.severity.toUpperCase()}
 									</span>
-									<span
-										style="
-											padding: 4px 10px;
-											border-radius: 4px;
-											font-size: 12px;
-											font-weight: 500;
-											background-color: {getAlertStatusColor(alert.status)}15;
-											color: {getAlertStatusColor(alert.status)};
-										"
-									>
+									<span class={getAlertStatusBadgeClass(alert.status)}>
 										{alert.status}
 									</span>
-									<span style="font-size: 12px; color: #6b7280;">
+									<span class="alert-type-label">
 										{getAlertTypeDisplayName(alert.type)}
 									</span>
 								</div>
-								<span style="font-size: 12px; color: #9ca3af;">
+								<span class="security-card-date">
 									{formatDate(alert.created_at)}
 								</span>
 							</div>
-							<h3 style="font-size: 16px; font-weight: 600; margin: 0 0 8px 0; color: #1f2937;">
-								{alert.title}
-							</h3>
-							<p style="font-size: 14px; color: #6b7280; margin: 0 0 12px 0;">
-								{alert.description}
-							</p>
-							<div style="display: flex; justify-content: space-between; align-items: center;">
-								<div style="display: flex; gap: 16px; font-size: 12px; color: #6b7280;">
+							<h3 class="security-card-title">{alert.title}</h3>
+							<p class="security-card-description">{alert.description}</p>
+							<div class="security-card-footer">
+								<div class="security-card-meta">
 									{#if alert.source_ip}
 										<span>IP: {alert.source_ip}</span>
 									{/if}
@@ -447,18 +459,9 @@
 								</div>
 								{#if alert.status === 'open'}
 									<button
+										class="btn btn-warning btn-sm"
 										onclick={() => acknowledgeAlert(alert.id)}
 										disabled={acknowledgingId === alert.id}
-										style="
-											padding: 6px 12px;
-											background-color: #f59e0b;
-											color: white;
-											border: none;
-											border-radius: 4px;
-											font-size: 12px;
-											cursor: pointer;
-											opacity: {acknowledgingId === alert.id ? 0.7 : 1};
-										"
 									>
 										{acknowledgingId === alert.id ? 'Acknowledging...' : 'Acknowledge'}
 									</button>
@@ -473,60 +476,31 @@
 		<!-- Suspicious Activities Tab -->
 		<div>
 			{#if suspiciousActivities.length === 0}
-				<div
-					style="text-align: center; padding: 48px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
-				>
-					<p style="color: #6b7280; margin: 0;">No suspicious activities detected.</p>
+				<div class="empty-state">
+					<p>No suspicious activities detected.</p>
 				</div>
 			{:else}
-				<div style="display: grid; gap: 12px;">
+				<div class="security-cards-grid">
 					{#each suspiciousActivities as activity (activity.id)}
-						<div
-							style="
-								background: white;
-								border-radius: 8px;
-								border: 1px solid #e5e7eb;
-								border-left: 4px solid {getSeverityColor(activity.severity)};
-								padding: 16px 20px;
-							"
-						>
-							<div
-								style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;"
-							>
-								<div style="display: flex; align-items: center; gap: 12px;">
-									<span
-										style="
-											padding: 4px 10px;
-											border-radius: 4px;
-											font-size: 12px;
-											font-weight: 600;
-											background-color: {getSeverityColor(activity.severity)}15;
-											color: {getSeverityColor(activity.severity)};
-										"
-									>
+						<div class="security-card {getSeverityBorderClass(activity.severity)}">
+							<div class="security-card-header">
+								<div class="security-card-badges">
+									<span class={getSeverityBadgeClass(activity.severity)}>
 										{activity.severity.toUpperCase()}
 									</span>
-									<span style="font-size: 12px; color: #6b7280;">
+									<span class="alert-type-label">
 										{activity.type.replace(/_/g, ' ')}
 									</span>
 								</div>
-								<div style="display: flex; align-items: center; gap: 8px;">
-									<span style="font-size: 12px; color: #6b7280;">Risk Score:</span>
-									<span
-										style="
-											font-size: 14px;
-											font-weight: 600;
-											color: {activity.risk_score >= 80 ? '#ef4444' : activity.risk_score >= 50 ? '#f59e0b' : '#22c55e'};
-										"
-									>
+								<div class="risk-score-display">
+									<span class="risk-score-label">Risk Score:</span>
+									<span class="risk-score-value {getRiskScoreClass(activity.risk_score)}">
 										{activity.risk_score}
 									</span>
 								</div>
 							</div>
-							<p style="font-size: 14px; color: #374151; margin: 0 0 12px 0;">
-								{activity.description}
-							</p>
-							<div style="display: flex; gap: 16px; font-size: 12px; color: #6b7280;">
+							<p class="security-card-description activity-description">{activity.description}</p>
+							<div class="security-card-meta">
 								{#if activity.source_ip}
 									<span>IP: {activity.source_ip}</span>
 								{/if}
@@ -544,90 +518,37 @@
 		<!-- Threats Tab -->
 		<div>
 			{#if threats.length === 0}
-				<div
-					style="text-align: center; padding: 48px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
-				>
-					<p style="color: #6b7280; margin: 0;">No threats detected.</p>
+				<div class="empty-state">
+					<p>No threats detected.</p>
 				</div>
 			{:else}
-				<div style="display: grid; gap: 12px;">
+				<div class="security-cards-grid">
 					{#each threats as threat (threat.id)}
-						<div
-							style="
-								background: white;
-								border-radius: 8px;
-								border: 1px solid #e5e7eb;
-								border-left: 4px solid {getSeverityColor(threat.severity)};
-								padding: 16px 20px;
-							"
-						>
-							<div
-								style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;"
-							>
-								<div style="display: flex; align-items: center; gap: 12px;">
-									<span
-										style="
-											padding: 4px 10px;
-											border-radius: 4px;
-											font-size: 12px;
-											font-weight: 600;
-											background-color: {getSeverityColor(threat.severity)}15;
-											color: {getSeverityColor(threat.severity)};
-										"
-									>
+						<div class="security-card {getSeverityBorderClass(threat.severity)}">
+							<div class="security-card-header">
+								<div class="security-card-badges">
+									<span class={getSeverityBadgeClass(threat.severity)}>
 										{threat.severity.toUpperCase()}
 									</span>
-									<span
-										style="
-											padding: 4px 10px;
-											border-radius: 4px;
-											font-size: 12px;
-											font-weight: 500;
-											background-color: {threat.status === 'mitigated'
-											? '#22c55e'
-											: threat.status === 'investigating'
-												? '#f59e0b'
-												: '#ef4444'}15;
-											color: {threat.status === 'mitigated'
-											? '#22c55e'
-											: threat.status === 'investigating'
-												? '#f59e0b'
-												: '#ef4444'};
-										"
-									>
+									<span class={getThreatStatusBadgeClass(threat.status)}>
 										{threat.status}
 									</span>
-									<span style="font-size: 12px; color: #6b7280;">
+									<span class="alert-type-label">
 										{getThreatTypeDisplayName(threat.type)}
 									</span>
 								</div>
-								<span style="font-size: 12px; color: #9ca3af;">
+								<span class="security-card-date">
 									{formatDate(threat.detected_at)}
 								</span>
 							</div>
-							<h3 style="font-size: 16px; font-weight: 600; margin: 0 0 8px 0; color: #1f2937;">
-								{threat.title}
-							</h3>
-							<p style="font-size: 14px; color: #6b7280; margin: 0;">
-								{threat.description}
-							</p>
+							<h3 class="security-card-title">{threat.title}</h3>
+							<p class="security-card-description">{threat.description}</p>
 							{#if Array.isArray(threat.indicators) && threat.indicators.length > 0}
-								<div style="margin-top: 12px;">
-									<span style="font-size: 12px; color: #6b7280;">Indicators:</span>
-									<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">
+								<div class="threat-indicators">
+									<span class="threat-indicators-label">Indicators:</span>
+									<div class="threat-indicators-list">
 										{#each threat.indicators as indicator (indicator)}
-											<span
-												style="
-													font-size: 11px;
-													padding: 2px 6px;
-													background-color: #f3f4f6;
-													border-radius: 4px;
-													color: #374151;
-													font-family: monospace;
-												"
-											>
-												{indicator}
-											</span>
+											<span class="threat-indicator-tag">{indicator}</span>
 										{/each}
 									</div>
 								</div>
@@ -639,135 +560,69 @@
 		</div>
 	{:else if activeTab === 'ip-check'}
 		<!-- IP Check Tab -->
-		<div
-			style="max-width: 600px; background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 24px;"
-		>
-			<h2 style="font-size: 18px; font-weight: 600; margin: 0 0 16px 0; color: #1f2937;">
-				IP Reputation Check
-			</h2>
-			<p style="color: #6b7280; margin: 0 0 16px 0;">
-				Check the reputation and risk level of an IP address.
-			</p>
+		<div class="ip-check-section">
+			<h2 class="ip-check-title">IP Reputation Check</h2>
+			<p class="ip-check-description">Check the reputation and risk level of an IP address.</p>
 
-			<div style="display: flex; gap: 12px; margin-bottom: 16px;">
+			<div class="ip-check-form">
 				<input
 					type="text"
+					class="ip-check-input"
 					bind:value={ipToCheck}
 					placeholder="Enter IP address (e.g., 192.168.1.1)"
-					style="
-						flex: 1;
-						padding: 10px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 6px;
-						font-size: 14px;
-					"
 					onkeydown={(e) => e.key === 'Enter' && checkIPReputation()}
 				/>
-				<button
-					onclick={checkIPReputation}
-					disabled={checkingIP}
-					style="
-						padding: 10px 20px;
-						background-color: #3b82f6;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-						opacity: {checkingIP ? 0.7 : 1};
-					"
-				>
+				<button class="btn btn-primary" onclick={checkIPReputation} disabled={checkingIP}>
 					{checkingIP ? 'Checking...' : 'Check'}
 				</button>
 			</div>
 
 			{#if ipCheckError}
-				<div
-					style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-				>
-					{ipCheckError}
-				</div>
+				<div class="alert alert-error">{ipCheckError}</div>
 			{/if}
 
 			{#if ipCheckResult}
-				<div style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-					<div
-						style="
-							padding: 16px;
-							background-color: {getRiskLevelColor(ipCheckResult.risk_level)}10;
-							border-bottom: 1px solid #e5e7eb;
-						"
-					>
-						<div style="display: flex; justify-content: space-between; align-items: center;">
+				<div class="ip-result-card">
+					<div class={getRiskLevelBgClass(ipCheckResult.risk_level)}>
+						<div class="ip-result-header-content">
 							<div>
-								<div style="font-size: 14px; color: #6b7280;">IP Address</div>
-								<div
-									style="font-size: 18px; font-weight: 600; color: #1f2937; font-family: monospace;"
-								>
-									{ipCheckResult.ip}
-								</div>
+								<div class="ip-result-label">IP Address</div>
+								<div class="ip-result-ip">{ipCheckResult.ip}</div>
 							</div>
-							<div style="text-align: right;">
-								<div style="font-size: 14px; color: #6b7280;">Risk Level</div>
-								<div
-									style="
-										font-size: 18px;
-										font-weight: 600;
-										color: {getRiskLevelColor(ipCheckResult.risk_level)};
-									"
-								>
+							<div class="ip-result-risk">
+								<div class="ip-result-label">Risk Level</div>
+								<div class={getRiskLevelClass(ipCheckResult.risk_level)}>
 									{ipCheckResult.risk_level.toUpperCase()}
 								</div>
 							</div>
 						</div>
 					</div>
-					<div style="padding: 16px;">
-						<div
-							style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px;"
-						>
-							<div>
-								<div style="font-size: 12px; color: #6b7280;">Risk Score</div>
-								<div style="font-size: 20px; font-weight: 600; color: #1f2937;">
-									{ipCheckResult.risk_score}/100
-								</div>
+					<div class="ip-result-body">
+						<div class="ip-result-stats">
+							<div class="ip-stat">
+								<div class="ip-stat-label">Risk Score</div>
+								<div class="ip-stat-value">{ipCheckResult.risk_score}/100</div>
 							</div>
-							<div>
-								<div style="font-size: 12px; color: #6b7280;">Failed Auth (24h)</div>
-								<div style="font-size: 20px; font-weight: 600; color: #1f2937;">
-									{ipCheckResult.failed_auth_attempts_24h}
-								</div>
+							<div class="ip-stat">
+								<div class="ip-stat-label">Failed Auth (24h)</div>
+								<div class="ip-stat-value">{ipCheckResult.failed_auth_attempts_24h}</div>
 							</div>
-							<div>
-								<div style="font-size: 12px; color: #6b7280;">Rate Limit Violations</div>
-								<div style="font-size: 20px; font-weight: 600; color: #1f2937;">
-									{ipCheckResult.rate_limit_violations_24h}
-								</div>
+							<div class="ip-stat">
+								<div class="ip-stat-label">Rate Limit Violations</div>
+								<div class="ip-stat-value">{ipCheckResult.rate_limit_violations_24h}</div>
 							</div>
 						</div>
 
-						<div
-							style="
-								padding: 12px;
-								background-color: {ipCheckResult.is_blocked ? '#fee2e2' : '#f0fdf4'};
-								border-radius: 6px;
-								margin-bottom: 16px;
-							"
-						>
-							<span
-								style="font-weight: 600; color: {ipCheckResult.is_blocked ? '#b91c1c' : '#166534'};"
-							>
-								{ipCheckResult.is_blocked ? '⛔ This IP is BLOCKED' : '✓ This IP is NOT blocked'}
-							</span>
+						<div class="ip-blocked-status {ipCheckResult.is_blocked ? 'blocked' : 'not-blocked'}">
+							{ipCheckResult.is_blocked ? '⛔ This IP is BLOCKED' : '✓ This IP is NOT blocked'}
 						</div>
 
 						{#if ipCheckResult.recommendations.length > 0}
-							<div>
-								<div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
-									Recommendations
-								</div>
-								<ul style="margin: 0; padding-left: 20px; color: #6b7280; font-size: 14px;">
+							<div class="ip-recommendations">
+								<div class="ip-recommendations-title">Recommendations</div>
+								<ul class="ip-recommendations-list">
 									{#each ipCheckResult.recommendations as rec (rec)}
-										<li style="margin-bottom: 4px;">{rec}</li>
+										<li>{rec}</li>
 									{/each}
 								</ul>
 							</div>

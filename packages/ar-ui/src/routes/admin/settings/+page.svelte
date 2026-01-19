@@ -50,14 +50,14 @@
 
 	// Category icons and colors for visual distinction
 	const categoryStyles: Record<string, { icon: string; color: string }> = {
-		oauth: { icon: '🔐', color: '#3b82f6' },
-		session: { icon: '⏱️', color: '#10b981' },
-		security: { icon: '🛡️', color: '#ef4444' },
-		'rate-limit': { icon: '⚡', color: '#f59e0b' },
+		oauth: { icon: '🔐', color: 'var(--primary)' },
+		session: { icon: '⏱️', color: 'var(--success)' },
+		security: { icon: '🛡️', color: 'var(--danger)' },
+		'rate-limit': { icon: '⚡', color: 'var(--warning)' },
 		tokens: { icon: '🎫', color: '#8b5cf6' },
 		federation: { icon: '🔗', color: '#06b6d4' },
 		credentials: { icon: '🔑', color: '#ec4899' },
-		consent: { icon: '✅', color: '#22c55e' },
+		consent: { icon: '✅', color: 'var(--success)' },
 		ciba: { icon: '📱', color: '#6366f1' },
 		'device-flow': { icon: '📺', color: '#14b8a6' },
 		'external-idp': { icon: '🌐', color: '#0ea5e9' },
@@ -68,10 +68,10 @@
 		plugin: { icon: '🧩', color: '#7c3aed' },
 		// Additional categories
 		cache: { icon: '💾', color: '#0d9488' },
-		'feature-flags': { icon: '🚩', color: '#dc2626' },
+		'feature-flags': { icon: '🚩', color: 'var(--danger)' },
 		limits: { icon: '📊', color: '#ea580c' },
 		tenant: { icon: '🏢', color: '#4f46e5' },
-		vc: { icon: '📜', color: '#059669' },
+		vc: { icon: '📜', color: 'var(--success)' },
 		assurance: { icon: '🔰', color: '#7c3aed' },
 		'check-api-audit': { icon: '📋', color: '#6366f1' }
 	};
@@ -99,7 +99,7 @@
 
 	// Get style for category
 	function getStyle(category: string) {
-		return categoryStyles[category] || { icon: '⚙️', color: '#6b7280' };
+		return categoryStyles[category] || { icon: '⚙️', color: 'var(--text-secondary)' };
 	}
 
 	onMount(async () => {
@@ -117,13 +117,19 @@
 	});
 </script>
 
-<div>
+<svelte:head>
+	<title>Settings - Admin Dashboard - Authrim</title>
+</svelte:head>
+
+<div class="admin-page">
 	<!-- Header -->
-	<div style="margin-bottom: 24px;">
-		<h1 style="font-size: 24px; font-weight: bold; color: #111827; margin: 0 0 8px 0;">Settings</h1>
-		<p style="color: #6b7280; margin: 0;">
-			Configure system settings, security policies, and feature flags
-		</p>
+	<div class="page-header">
+		<div>
+			<h1 class="page-title">Settings</h1>
+			<p class="page-description">
+				Configure system settings, security policies, and feature flags
+			</p>
+		</div>
 	</div>
 
 	<!-- Scope Selector -->
@@ -132,58 +138,33 @@
 	</div>
 
 	{#if error}
-		<div
-			style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;"
-		>
-			{error}
-		</div>
+		<div class="alert alert-error">{error}</div>
 	{/if}
 
 	{#if loading}
-		<div style="display: flex; justify-content: center; padding: 48px;">
-			<p style="color: #6b7280;">Loading categories...</p>
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading categories...</p>
 		</div>
 	{:else}
 		<!-- Category Grid -->
-		<div
-			style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;"
-		>
+		<div class="icon-grid">
 			<!-- Signing Keys (special card) - Tenant scope only -->
 			{#if showSigningKeys}
-				<a
-					href="/admin/settings/signing-keys"
-					style="
-					background-color: white;
-					border: 1px solid #e5e7eb;
-					border-radius: 8px;
-					padding: 20px;
-					text-decoration: none;
-					transition: box-shadow 0.2s, border-color 0.2s;
-					display: block;
-				"
-					onmouseenter={(e) => {
-						e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-						e.currentTarget.style.borderColor = '#d1d5db';
-					}}
-					onmouseleave={(e) => {
-						e.currentTarget.style.boxShadow = 'none';
-						e.currentTarget.style.borderColor = '#e5e7eb';
-					}}
-				>
-					<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-						<span style="font-size: 24px;">🔏</span>
+				<a href="/admin/settings/signing-keys" class="icon-card">
+					<div class="icon-card-header">
+						<span class="icon-card-icon">🔏</span>
 						<div>
-							<h2 style="font-size: 16px; font-weight: 600; color: #111827; margin: 0;">
-								Signing Keys
-							</h2>
+							<h2 class="icon-card-title">Signing Keys</h2>
 							<span
-								style="font-size: 12px; background-color: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px;"
+								class="icon-card-badge"
+								style="background: var(--warning-light); color: var(--warning);"
 							>
 								Special
 							</span>
 						</div>
 					</div>
-					<p style="font-size: 14px; color: #6b7280; margin: 0;">
+					<p class="icon-card-description">
 						Manage JWT signing keys for token issuance and rotation
 					</p>
 				</a>
@@ -191,42 +172,20 @@
 
 			<!-- Sharding Configuration (special card) - Platform scope only -->
 			{#if showSharding}
-				<a
-					href="/admin/settings/sharding"
-					style="
-					background-color: white;
-					border: 1px solid #e5e7eb;
-					border-radius: 8px;
-					padding: 20px;
-					text-decoration: none;
-					transition: box-shadow 0.2s, border-color 0.2s;
-					display: block;
-				"
-					onmouseenter={(e) => {
-						e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-						e.currentTarget.style.borderColor = '#d1d5db';
-					}}
-					onmouseleave={(e) => {
-						e.currentTarget.style.boxShadow = 'none';
-						e.currentTarget.style.borderColor = '#e5e7eb';
-					}}
-				>
-					<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-						<span style="font-size: 24px;">🗂️</span>
+				<a href="/admin/settings/sharding" class="icon-card">
+					<div class="icon-card-header">
+						<span class="icon-card-icon">🗂️</span>
 						<div>
-							<h2 style="font-size: 16px; font-weight: 600; color: #111827; margin: 0;">
-								Sharding
-							</h2>
+							<h2 class="icon-card-title">Sharding</h2>
 							<span
-								style="font-size: 12px; background-color: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px;"
+								class="icon-card-badge"
+								style="background: var(--warning-light); color: var(--warning);"
 							>
 								Special
 							</span>
 						</div>
 					</div>
-					<p style="font-size: 14px; color: #6b7280; margin: 0;">
-						Configure shard counts for load distribution
-					</p>
+					<p class="icon-card-description">Configure shard counts for load distribution</p>
 				</a>
 			{/if}
 
@@ -234,48 +193,24 @@
 			{#each filteredCategories as category (category.category)}
 				{@const style = getStyle(category.category)}
 				{@const isReadOnly = isPlatformCategory(category.category)}
-				<a
-					href="/admin/settings/{category.category}"
-					style="
-						background-color: white;
-						border: 1px solid #e5e7eb;
-						border-radius: 8px;
-						padding: 20px;
-						text-decoration: none;
-						transition: box-shadow 0.2s, border-color 0.2s;
-						display: block;
-					"
-					onmouseenter={(e) => {
-						e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-						e.currentTarget.style.borderColor = '#d1d5db';
-					}}
-					onmouseleave={(e) => {
-						e.currentTarget.style.boxShadow = 'none';
-						e.currentTarget.style.borderColor = '#e5e7eb';
-					}}
-				>
-					<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-						<span style="font-size: 24px;">{style.icon}</span>
+				<a href="/admin/settings/{category.category}" class="icon-card">
+					<div class="icon-card-header">
+						<span class="icon-card-icon">{style.icon}</span>
 						<div>
-							<h2 style="font-size: 16px; font-weight: 600; color: #111827; margin: 0;">
-								{category.label}
-							</h2>
+							<h2 class="icon-card-title">{category.label}</h2>
 							{#if isReadOnly}
-								<span
-									style="font-size: 12px; background-color: #f3f4f6; color: #6b7280; padding: 2px 6px; border-radius: 4px;"
-								>
-									Read-only
-								</span>
+								<span class="icon-card-badge">Read-only</span>
 							{:else}
-								<span style="font-size: 12px; color: #6b7280;">
+								<span
+									class="icon-card-badge"
+									style="background: transparent; color: var(--text-muted);"
+								>
 									{category.settingsCount} setting{category.settingsCount !== 1 ? 's' : ''}
 								</span>
 							{/if}
 						</div>
 					</div>
-					<p style="font-size: 14px; color: #6b7280; margin: 0;">
-						{category.description}
-					</p>
+					<p class="icon-card-description">{category.description}</p>
 				</a>
 			{/each}
 		</div>

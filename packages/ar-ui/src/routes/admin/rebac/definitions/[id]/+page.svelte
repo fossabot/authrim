@@ -195,7 +195,7 @@
 	});
 </script>
 
-<div class="detail-page">
+<div class="detail-page admin-page">
 	<div class="page-header">
 		<nav class="breadcrumb">
 			<a href="/admin/rebac">ReBAC</a>
@@ -217,14 +217,15 @@
 						<p class="description">{definition.description}</p>
 					{/if}
 				</div>
-				<div class="header-actions">
+				<div class="action-buttons">
 					{#if !isEditing}
 						{#if definition.tenant_id !== 'default'}
-							<button class="btn-secondary" onclick={startEditing}>Edit</button>
+							<button class="btn btn-secondary" onclick={startEditing}>Edit</button>
 						{/if}
 						<button
-							class="btn-toggle"
-							class:active={definition.is_active}
+							class="status-badge"
+							class:status-active={definition.is_active}
+							class:status-inactive={!definition.is_active}
 							onclick={toggleActive}
 							disabled={saving}
 						>
@@ -251,7 +252,7 @@
 	{/if}
 
 	{#if loading}
-		<div class="loading">Loading...</div>
+		<div class="loading-state">Loading...</div>
 	{:else if definition}
 		<div class="content-grid">
 			<!-- Main Details -->
@@ -259,9 +260,10 @@
 				<h2>Details</h2>
 				{#if isEditing}
 					<div class="form-group">
-						<label for="edit-description">Description</label>
+						<label for="edit-description" class="form-label">Description</label>
 						<textarea
 							id="edit-description"
+							class="form-input"
 							bind:value={editForm.description}
 							placeholder="Optional description..."
 							rows="3"
@@ -269,15 +271,16 @@
 					</div>
 
 					<div class="form-group">
-						<label for="edit-priority">Priority</label>
+						<label for="edit-priority" class="form-label">Priority</label>
 						<input
 							id="edit-priority"
+							class="form-input"
 							type="number"
 							bind:value={editForm.priority}
 							min="0"
 							max="1000"
 						/>
-						<small>Higher priority definitions are evaluated first</small>
+						<p class="form-hint">Higher priority definitions are evaluated first</p>
 					</div>
 
 					<div class="form-group">
@@ -288,47 +291,51 @@
 					</div>
 
 					<div class="form-actions">
-						<button class="btn-secondary" onclick={cancelEditing}>Cancel</button>
-						<button class="btn-primary" onclick={saveChanges} disabled={saving}>
+						<button class="btn btn-secondary" onclick={cancelEditing}>Cancel</button>
+						<button class="btn btn-primary" onclick={saveChanges} disabled={saving}>
 							{saving ? 'Saving...' : 'Save Changes'}
 						</button>
 					</div>
 				{:else}
-					<div class="detail-row">
-						<span class="label">ID</span>
-						<span class="value mono">{definition.id}</span>
+					<div class="info-row">
+						<span class="info-label">ID</span>
+						<span class="info-value mono">{definition.id}</span>
 					</div>
-					<div class="detail-row">
-						<span class="label">Object Type</span>
-						<span class="value">{definition.object_type}</span>
+					<div class="info-row">
+						<span class="info-label">Object Type</span>
+						<span class="info-value">{definition.object_type}</span>
 					</div>
-					<div class="detail-row">
-						<span class="label">Relation Name</span>
-						<span class="value mono">{definition.relation_name}</span>
+					<div class="info-row">
+						<span class="info-label">Relation Name</span>
+						<span class="info-value mono">{definition.relation_name}</span>
 					</div>
-					<div class="detail-row">
-						<span class="label">Priority</span>
-						<span class="value">{definition.priority}</span>
+					<div class="info-row">
+						<span class="info-label">Priority</span>
+						<span class="info-value">{definition.priority}</span>
 					</div>
-					<div class="detail-row">
-						<span class="label">Status</span>
-						<span class="status-badge" class:active={definition.is_active}>
+					<div class="info-row">
+						<span class="info-label">Status</span>
+						<span
+							class="status-badge"
+							class:status-active={definition.is_active}
+							class:status-inactive={!definition.is_active}
+						>
 							{definition.is_active ? 'Active' : 'Inactive'}
 						</span>
 					</div>
-					<div class="detail-row">
-						<span class="label">Source</span>
+					<div class="info-row">
+						<span class="info-label">Source</span>
 						<span class="source-badge" class:default={definition.tenant_id === 'default'}>
 							{definition.tenant_id === 'default' ? 'Default' : 'Custom'}
 						</span>
 					</div>
-					<div class="detail-row">
-						<span class="label">Created</span>
-						<span class="value">{formatDate(definition.created_at)}</span>
+					<div class="info-row">
+						<span class="info-label">Created</span>
+						<span class="info-value">{formatDate(definition.created_at)}</span>
 					</div>
-					<div class="detail-row">
-						<span class="label">Updated</span>
-						<span class="value">{formatDate(definition.updated_at)}</span>
+					<div class="info-row">
+						<span class="info-label">Updated</span>
+						<span class="info-value">{formatDate(definition.updated_at)}</span>
 					</div>
 				{/if}
 			</div>
@@ -343,7 +350,7 @@
 				{#if isEditing && showExpressionEditor}
 					<div class="expression-editor">
 						<label for="expr-json">Expression JSON</label>
-						<textarea id="expr-json" bind:value={expressionJson} rows="12" class="mono"></textarea>
+						<textarea id="expr-json" bind:value={expressionJson} rows="12"></textarea>
 						{#if expressionError}
 							<div class="field-error">{expressionError}</div>
 						{/if}
@@ -385,11 +392,17 @@
 
 					<div class="test-form">
 						<div class="form-group">
-							<label for="test-user">User ID</label>
-							<input id="test-user" type="text" bind:value={testUserId} placeholder="user_123" />
+							<label for="test-user" class="form-label">User ID</label>
+							<input
+								id="test-user"
+								type="text"
+								class="form-input"
+								bind:value={testUserId}
+								placeholder="user_123"
+							/>
 						</div>
 
-						<button class="btn-primary" onclick={runTestPermission} disabled={testing}>
+						<button class="btn btn-primary" onclick={runTestPermission} disabled={testing}>
 							{testing ? 'Testing...' : 'Run Test'}
 						</button>
 					</div>
@@ -458,546 +471,3 @@
 		</div>
 	{/if}
 </div>
-
-<style>
-	.detail-page {
-		padding: 24px;
-		max-width: 1200px;
-		margin: 0 auto;
-	}
-
-	.page-header {
-		margin-bottom: 24px;
-	}
-
-	.breadcrumb {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 14px;
-		color: #6b7280;
-		margin-bottom: 16px;
-	}
-
-	.breadcrumb a {
-		color: #3b82f6;
-		text-decoration: none;
-	}
-
-	.breadcrumb a:hover {
-		text-decoration: underline;
-	}
-
-	.header-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-	}
-
-	.header-content h1 {
-		font-size: 28px;
-		font-weight: 600;
-		color: #111827;
-		margin: 0 0 8px 0;
-	}
-
-	.object-type {
-		color: #1e40af;
-	}
-
-	.separator {
-		color: #9ca3af;
-		margin: 0 4px;
-	}
-
-	.relation-name {
-		color: #111827;
-	}
-
-	.description {
-		color: #6b7280;
-		margin: 0;
-	}
-
-	.header-actions {
-		display: flex;
-		gap: 12px;
-	}
-
-	.error-banner {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		border-radius: 8px;
-		padding: 12px 16px;
-		margin-bottom: 24px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		color: #b91c1c;
-	}
-
-	.error-banner button {
-		background-color: #b91c1c;
-		color: white;
-		border: none;
-		padding: 6px 12px;
-		border-radius: 4px;
-		cursor: pointer;
-	}
-
-	.loading {
-		text-align: center;
-		padding: 60px;
-		color: #6b7280;
-	}
-
-	.content-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 24px;
-	}
-
-	.detail-card {
-		background: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 12px;
-		padding: 24px;
-	}
-
-	.detail-card h2 {
-		font-size: 16px;
-		font-weight: 600;
-		color: #111827;
-		margin: 0 0 20px 0;
-	}
-
-	.card-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 20px;
-	}
-
-	.card-header h2 {
-		margin: 0;
-	}
-
-	.detail-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 10px 0;
-		border-bottom: 1px solid #f3f4f6;
-	}
-
-	.detail-row:last-child {
-		border-bottom: none;
-	}
-
-	.detail-row .label {
-		font-size: 14px;
-		color: #6b7280;
-	}
-
-	.detail-row .value {
-		font-size: 14px;
-		color: #111827;
-	}
-
-	.mono {
-		font-family: 'Monaco', 'Menlo', monospace;
-	}
-
-	.status-badge {
-		padding: 4px 10px;
-		border-radius: 4px;
-		font-size: 13px;
-		font-weight: 500;
-		background-color: #f3f4f6;
-		color: #6b7280;
-	}
-
-	.status-badge.active {
-		background-color: #dcfce7;
-		color: #166534;
-	}
-
-	.source-badge {
-		padding: 4px 10px;
-		border-radius: 4px;
-		font-size: 13px;
-		font-weight: 500;
-		background-color: #dbeafe;
-		color: #1e40af;
-	}
-
-	.source-badge.default {
-		background-color: #f3e8ff;
-		color: #6b21a8;
-	}
-
-	.expr-type-badge {
-		padding: 4px 10px;
-		border-radius: 4px;
-		font-size: 12px;
-		font-weight: 500;
-		background-color: #fef3c7;
-		color: #92400e;
-	}
-
-	.expression-display {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
-
-	.expression-formula {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	.expression-formula .label {
-		font-size: 12px;
-		font-weight: 500;
-		color: #6b7280;
-		text-transform: uppercase;
-	}
-
-	.expression-formula code {
-		font-family: 'Monaco', 'Menlo', monospace;
-		font-size: 14px;
-		background-color: #f3f4f6;
-		padding: 12px;
-		border-radius: 6px;
-		display: block;
-		overflow-x: auto;
-	}
-
-	.expression-tree {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	.expression-tree .label {
-		font-size: 12px;
-		font-weight: 500;
-		color: #6b7280;
-		text-transform: uppercase;
-	}
-
-	.expression-tree pre {
-		font-family: 'Monaco', 'Menlo', monospace;
-		font-size: 13px;
-		background-color: #f9fafb;
-		padding: 12px;
-		border-radius: 6px;
-		margin: 0;
-		overflow-x: auto;
-		white-space: pre;
-	}
-
-	.expression-editor {
-		margin-bottom: 16px;
-	}
-
-	.expression-editor label {
-		display: block;
-		font-size: 14px;
-		font-weight: 500;
-		color: #374151;
-		margin-bottom: 6px;
-	}
-
-	.expression-editor textarea {
-		width: 100%;
-		padding: 12px;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-family: 'Monaco', 'Menlo', monospace;
-		font-size: 13px;
-		resize: vertical;
-		box-sizing: border-box;
-	}
-
-	.expression-editor small {
-		display: block;
-		margin-top: 4px;
-		font-size: 12px;
-		color: #6b7280;
-	}
-
-	.btn-edit-expr {
-		padding: 8px 16px;
-		background-color: #f3f4f6;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 13px;
-		cursor: pointer;
-		margin-bottom: 16px;
-	}
-
-	.btn-edit-expr:hover {
-		background-color: #e5e7eb;
-	}
-
-	.test-panel {
-		grid-column: span 2;
-	}
-
-	.btn-toggle-panel {
-		padding: 6px 12px;
-		background-color: #f3f4f6;
-		border: none;
-		border-radius: 4px;
-		font-size: 13px;
-		cursor: pointer;
-	}
-
-	.test-description {
-		font-size: 14px;
-		color: #6b7280;
-		margin: 0 0 16px 0;
-	}
-
-	.test-form {
-		display: flex;
-		gap: 16px;
-		align-items: flex-end;
-		margin-bottom: 16px;
-	}
-
-	.test-form .form-group {
-		flex: 1;
-		margin: 0;
-	}
-
-	.test-error {
-		padding: 12px;
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		border-radius: 6px;
-		color: #b91c1c;
-		font-size: 14px;
-	}
-
-	.test-result {
-		padding: 16px;
-		border-radius: 8px;
-		margin-top: 16px;
-	}
-
-	.test-result.allowed {
-		background-color: #ecfdf5;
-		border: 1px solid #a7f3d0;
-	}
-
-	.test-result.denied {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-	}
-
-	.result-status {
-		font-size: 16px;
-		font-weight: 600;
-		margin-bottom: 12px;
-	}
-
-	.result-detail {
-		font-size: 14px;
-		margin-top: 8px;
-	}
-
-	.result-detail .label {
-		color: #6b7280;
-		margin-right: 8px;
-	}
-
-	.result-detail .value {
-		font-weight: 500;
-		color: #111827;
-	}
-
-	.result-detail .value.path {
-		font-family: 'Monaco', 'Menlo', monospace;
-		font-size: 13px;
-		background: rgba(0, 0, 0, 0.05);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-
-	.reference-section {
-		margin-top: 32px;
-		background: #f9fafb;
-		border-radius: 12px;
-		padding: 24px;
-	}
-
-	.reference-section h3 {
-		font-size: 16px;
-		font-weight: 600;
-		color: #111827;
-		margin: 0 0 16px 0;
-	}
-
-	.reference-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-		gap: 16px;
-	}
-
-	.reference-item {
-		background: white;
-		padding: 16px;
-		border-radius: 8px;
-		border: 1px solid #e5e7eb;
-	}
-
-	.reference-item strong {
-		color: #111827;
-		display: block;
-		margin-bottom: 6px;
-	}
-
-	.reference-item p {
-		font-size: 13px;
-		color: #6b7280;
-		margin: 0 0 8px 0;
-	}
-
-	.reference-item code {
-		font-family: 'Monaco', 'Menlo', monospace;
-		font-size: 12px;
-		background-color: #f3f4f6;
-		padding: 4px 8px;
-		border-radius: 4px;
-		display: inline-block;
-	}
-
-	/* Form styles */
-	.form-group {
-		margin-bottom: 16px;
-	}
-
-	.form-group label {
-		display: block;
-		font-size: 14px;
-		font-weight: 500;
-		color: #374151;
-		margin-bottom: 6px;
-	}
-
-	.form-group input,
-	.form-group textarea {
-		width: 100%;
-		padding: 10px 12px;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 14px;
-		box-sizing: border-box;
-	}
-
-	.form-group small {
-		display: block;
-		margin-top: 4px;
-		font-size: 12px;
-		color: #6b7280;
-	}
-
-	.checkbox-label {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		cursor: pointer;
-	}
-
-	.checkbox-label input {
-		width: auto;
-	}
-
-	.form-actions {
-		display: flex;
-		gap: 12px;
-		margin-top: 20px;
-	}
-
-	.field-error {
-		color: #b91c1c;
-		font-size: 13px;
-		margin-top: 4px;
-	}
-
-	/* Button styles */
-	.btn-primary {
-		background-color: #3b82f6;
-		color: white;
-		padding: 10px 20px;
-		border: none;
-		border-radius: 6px;
-		font-size: 14px;
-		font-weight: 500;
-		cursor: pointer;
-	}
-
-	.btn-primary:hover:not(:disabled) {
-		background-color: #2563eb;
-	}
-
-	.btn-primary:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	.btn-secondary {
-		background-color: white;
-		color: #374151;
-		padding: 10px 20px;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 14px;
-		font-weight: 500;
-		cursor: pointer;
-	}
-
-	.btn-secondary:hover {
-		background-color: #f9fafb;
-	}
-
-	.btn-toggle {
-		padding: 8px 16px;
-		border-radius: 6px;
-		font-size: 14px;
-		font-weight: 500;
-		cursor: pointer;
-		border: none;
-		background-color: #f3f4f6;
-		color: #6b7280;
-	}
-
-	.btn-toggle.active {
-		background-color: #dcfce7;
-		color: #166534;
-	}
-
-	.btn-toggle:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	/* Responsive */
-	@media (max-width: 900px) {
-		.content-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.test-panel {
-			grid-column: span 1;
-		}
-
-		.header-row {
-			flex-direction: column;
-			gap: 16px;
-		}
-	}
-</style>

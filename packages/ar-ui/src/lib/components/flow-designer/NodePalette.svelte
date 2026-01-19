@@ -344,18 +344,20 @@
 		{
 			type: 'decision',
 			label: 'Decision',
-			icon: '⋔',
-			color: '#ec4899',
-			description: 'Binary yes/no decision',
-			category: 'logic'
+			icon: '◇',
+			color: '#8b5cf6',
+			description: 'N-way conditional branch (3+ branches)',
+			category: 'logic',
+			options: ['Risk-based routing', 'Social login result', 'Multi-condition flow']
 		},
 		{
 			type: 'switch',
 			label: 'Switch',
-			icon: '🔀',
-			color: '#f43f5e',
-			description: 'Multi-way branch',
-			category: 'logic'
+			icon: '⎇',
+			color: '#a855f7',
+			description: 'Enum-based branching (country, locale, etc)',
+			category: 'logic',
+			options: ['Country-based', 'Locale-based', 'Client type routing']
 		},
 
 		// === 10. Policy Nodes ===
@@ -472,10 +474,7 @@
 </div>
 
 {#if hoveredNode}
-	<div
-		class="node-tooltip"
-		style="left: {tooltipPosition.x}px; top: {tooltipPosition.y}px"
-	>
+	<div class="node-tooltip" style="left: {tooltipPosition.x}px; top: {tooltipPosition.y}px">
 		<div class="tooltip-header" style="--node-color: {hoveredNode.color}">
 			<span class="tooltip-icon">{hoveredNode.icon}</span>
 			<span class="tooltip-label">{hoveredNode.label}</span>

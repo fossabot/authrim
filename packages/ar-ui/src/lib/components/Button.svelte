@@ -6,6 +6,7 @@
 		variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
 		size?: 'sm' | 'md' | 'lg';
 		loading?: boolean;
+		icon?: boolean;
 		children: Snippet;
 	}
 
@@ -13,6 +14,7 @@
 		variant = 'primary',
 		size = 'md',
 		loading = false,
+		icon = false,
 		disabled = false,
 		type = 'button',
 		class: className = '',
@@ -25,18 +27,11 @@
 	{type}
 	disabled={disabled || loading}
 	class="btn btn-{variant} btn-{size} {className}"
+	class:btn-icon={icon}
 	{...restProps}
 >
 	{#if loading}
-		<svg class="spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-			<circle class="spinner-track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
-			></circle>
-			<path
-				class="spinner-head"
-				fill="currentColor"
-				d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-			></path>
-		</svg>
+		<i class="spinner i-ph-circle-notch"></i>
 	{/if}
 	{@render children()}
 </button>
@@ -46,159 +41,142 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
-		padding: 0.5rem 1rem;
-		font-weight: 500;
-		font-size: 0.875rem;
-		line-height: 1.25rem;
-		border-radius: 0.5rem;
+		gap: 8px;
+		padding: 12px 20px;
+		border-radius: var(--radius-lg);
+		font-family: var(--font-display);
+		font-size: 0.9375rem;
+		font-weight: 600;
 		border: none;
 		cursor: pointer;
-		transition: all 150ms ease-in-out;
-		box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+		transition: all var(--transition-fast);
+		white-space: nowrap;
+		position: relative;
+		overflow: hidden;
 	}
 
-	.btn:hover:not(:disabled) {
-		box-shadow:
-			0 4px 6px -1px rgb(0 0 0 / 0.1),
-			0 2px 4px -2px rgb(0 0 0 / 0.1);
+	.btn :global(i) {
+		width: 18px;
+		height: 18px;
+		font-size: 18px;
 	}
 
-	.btn:focus {
-		outline: none;
-		box-shadow:
-			0 0 0 2px #fff,
-			0 0 0 4px #3b82f6;
-	}
-
-	.btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* Primary variant */
+	/* Primary variant - gradient with glow */
 	.btn-primary {
-		background-color: #2563eb;
+		background: var(--gradient-primary);
 		color: white;
-	}
-	.btn-primary:hover:not(:disabled) {
-		background-color: #1d4ed8;
-	}
-	.btn-primary:active:not(:disabled) {
-		background-color: #1e40af;
+		box-shadow: 0 4px 16px rgba(51, 51, 51, 0.3);
 	}
 
-	/* Secondary variant */
+	.btn-primary:hover:not(:disabled) {
+		transform: translateY(-2px);
+		box-shadow: 0 8px 24px rgba(51, 51, 51, 0.4);
+	}
+
+	.btn-primary::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(rgba(255, 255, 255, 0.2), transparent);
+		opacity: 0;
+		transition: opacity var(--transition-fast);
+	}
+
+	.btn-primary:hover::after {
+		opacity: 1;
+	}
+
+	/* Secondary variant - glass effect */
 	.btn-secondary {
-		background-color: #f3f4f6;
-		color: #374151;
-		border: 1px solid #d1d5db;
+		background: var(--bg-glass);
+		color: var(--text-primary);
+		border: 1px solid var(--border);
+		backdrop-filter: var(--blur-sm);
+		-webkit-backdrop-filter: var(--blur-sm);
 	}
+
 	.btn-secondary:hover:not(:disabled) {
-		background-color: #e5e7eb;
-	}
-	.btn-secondary:active:not(:disabled) {
-		background-color: #d1d5db;
+		background: white;
+		border-color: var(--primary);
+		color: var(--primary);
+		transform: translateY(-2px);
 	}
 
 	/* Ghost variant */
 	.btn-ghost {
-		background-color: transparent;
-		color: #2563eb;
+		background: transparent;
+		color: var(--text-secondary);
 		box-shadow: none;
 	}
+
 	.btn-ghost:hover:not(:disabled) {
-		background-color: #eff6ff;
-	}
-	.btn-ghost:active:not(:disabled) {
-		background-color: #dbeafe;
+		background: var(--primary-light);
+		color: var(--primary);
 	}
 
 	/* Danger variant */
 	.btn-danger {
-		background-color: #dc2626;
+		background: var(--danger);
 		color: white;
+		box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
 	}
+
 	.btn-danger:hover:not(:disabled) {
-		background-color: #b91c1c;
-	}
-	.btn-danger:active:not(:disabled) {
-		background-color: #991b1b;
+		background: #dc2626;
+		transform: translateY(-2px);
+		box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4);
 	}
 
 	/* Size variants */
 	.btn-sm {
-		padding: 0.375rem 0.75rem;
-		font-size: 0.75rem;
+		padding: 8px 14px;
+		font-size: 0.8125rem;
 	}
+
 	.btn-md {
-		/* Default size - explicit padding for consistency */
-		padding: 0.5rem 1rem;
+		padding: 12px 20px;
 	}
+
 	.btn-lg {
-		padding: 0.75rem 1.5rem;
+		padding: 16px 28px;
 		font-size: 1rem;
 	}
 
-	/* Dark mode */
-	@media (prefers-color-scheme: dark) {
-		.btn:focus {
-			box-shadow:
-				0 0 0 2px #1f2937,
-				0 0 0 4px #60a5fa;
-		}
-		.btn-primary {
-			background-color: #3b82f6;
-		}
-		.btn-primary:hover:not(:disabled) {
-			background-color: #60a5fa;
-		}
-		.btn-primary:active:not(:disabled) {
-			background-color: #3b82f6;
-		}
-		.btn-secondary {
-			background-color: #374151;
-			color: #e5e7eb;
-			border-color: #4b5563;
-		}
-		.btn-secondary:hover:not(:disabled) {
-			background-color: #4b5563;
-		}
-		.btn-secondary:active:not(:disabled) {
-			background-color: #374151;
-		}
-		.btn-ghost {
-			color: #60a5fa;
-		}
-		.btn-ghost:hover:not(:disabled) {
-			background-color: rgba(59, 130, 246, 0.2);
-		}
-		.btn-ghost:active:not(:disabled) {
-			background-color: rgba(59, 130, 246, 0.3);
-		}
-		.btn-danger {
-			background-color: #ef4444;
-		}
-		.btn-danger:hover:not(:disabled) {
-			background-color: #f87171;
-		}
-		.btn-danger:active:not(:disabled) {
-			background-color: #ef4444;
-		}
+	/* Icon button */
+	.btn-icon {
+		width: 40px;
+		height: 40px;
+		padding: 0;
+	}
+
+	.btn-icon.btn-sm {
+		width: 36px;
+		height: 36px;
+	}
+
+	.btn-icon.btn-lg {
+		width: 48px;
+		height: 48px;
+	}
+
+	/* Focus state */
+	.btn:focus {
+		outline: none;
+		box-shadow: 0 0 0 3px var(--primary-light);
+	}
+
+	/* Disabled state */
+	.btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+		transform: none !important;
 	}
 
 	/* Spinner */
 	.spinner {
-		width: 1rem;
-		height: 1rem;
 		animation: spin 1s linear infinite;
 	}
-	.spinner-track {
-		opacity: 0.25;
-	}
-	.spinner-head {
-		opacity: 0.75;
-	}
+
 	@keyframes spin {
 		from {
 			transform: rotate(0deg);

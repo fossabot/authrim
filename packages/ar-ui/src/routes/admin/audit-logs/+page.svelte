@@ -108,7 +108,7 @@
 			.join(' ');
 	}
 
-	function getActionBadgeStyle(action: string): string {
+	function getActionBadgeClass(action: string): string {
 		// Critical/Danger actions (red)
 		if (
 			action.includes('delete') ||
@@ -117,15 +117,15 @@
 			action.includes('failed') ||
 			action.includes('anonymize')
 		) {
-			return 'background-color: #fee2e2; color: #991b1b;';
+			return 'badge badge-danger';
 		}
 		// Success/Create/Login actions (green)
 		if (action.includes('create') || action.includes('queued') || action.includes('login')) {
-			return 'background-color: #d1fae5; color: #065f46;';
+			return 'badge badge-success';
 		}
 		// Logout actions (light cyan/teal)
 		if (action.includes('logout')) {
-			return 'background-color: #ccfbf1; color: #0f766e;';
+			return 'badge badge-info';
 		}
 		// Update/Change actions (blue)
 		if (
@@ -135,7 +135,7 @@
 			action.includes('replay') ||
 			action.includes('cloned')
 		) {
-			return 'background-color: #dbeafe; color: #1e40af;';
+			return 'badge badge-info';
 		}
 		// Warning actions (amber)
 		if (
@@ -144,14 +144,14 @@
 			action.includes('alert') ||
 			action.includes('acknowledge')
 		) {
-			return 'background-color: #fef3c7; color: #92400e;';
+			return 'badge badge-warning';
 		}
 		// Info/Read actions (purple)
 		if (action.includes('read') || action.includes('check') || action.includes('test')) {
-			return 'background-color: #ede9fe; color: #5b21b6;';
+			return 'badge badge-neutral';
 		}
 		// Default (gray)
-		return 'background-color: #e5e7eb; color: #374151;';
+		return 'badge badge-neutral';
 	}
 
 	function truncateId(id: string | null, length: number = 8): string {
@@ -165,76 +165,44 @@
 	<title>Audit Logs - Admin Dashboard - Authrim</title>
 </svelte:head>
 
-<div>
-	<div
-		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
-	>
-		<h1 style="font-size: 24px; font-weight: bold; color: #1f2937; margin: 0;">Audit Logs</h1>
-		<button
-			onclick={() => (showFilters = !showFilters)}
-			style="
-				padding: 8px 16px;
-				background-color: white;
-				border: 1px solid #d1d5db;
-				border-radius: 4px;
-				font-size: 14px;
-				cursor: pointer;
-				color: #374151;
-			"
-		>
-			{showFilters ? 'Hide Filters' : 'Show Filters'}
-		</button>
+<div class="admin-page">
+	<!-- Page Header -->
+	<div class="page-header">
+		<div>
+			<h1 class="page-title">Audit Logs</h1>
+			<p class="page-description">View system activity and security events</p>
+		</div>
+		<div class="page-actions">
+			<button class="btn btn-secondary" onclick={() => (showFilters = !showFilters)}>
+				<i class={showFilters ? 'i-ph-funnel-simple-x' : 'i-ph-funnel-simple'}></i>
+				{showFilters ? 'Hide Filters' : 'Show Filters'}
+			</button>
+		</div>
 	</div>
 
 	<!-- Filters -->
 	{#if showFilters}
-		<div
-			style="background-color: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;"
-		>
-			<div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px;">
-				<!-- User ID -->
-				<div style="flex: 1; min-width: 200px;">
-					<label
-						for="user_id"
-						style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Actor User ID</label
-					>
+		<div class="panel">
+			<div class="filter-row">
+				<div class="form-group">
+					<label for="user_id" class="form-label">Actor User ID</label>
 					<input
 						id="user_id"
 						type="text"
+						class="form-input"
 						placeholder="Filter by user ID..."
 						bind:value={userIdFilter}
 						oninput={handleUserIdSearch}
-						style="
-							width: 100%;
-							padding: 8px 12px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							font-size: 14px;
-							box-sizing: border-box;
-						"
 					/>
 				</div>
 
-				<!-- Action Filter -->
-				<div style="min-width: 200px;">
-					<label
-						for="action"
-						style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Action</label
-					>
+				<div class="form-group">
+					<label for="action" class="form-label">Action</label>
 					<select
 						id="action"
+						class="form-select"
 						bind:value={actionFilter}
 						onchange={handleFilterChange}
-						style="
-							width: 100%;
-							padding: 8px 12px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							font-size: 14px;
-							background-color: white;
-						"
 					>
 						<option value="">All Actions</option>
 						{#each AUDIT_ACTION_TYPES as actionType (actionType.value)}
@@ -244,164 +212,95 @@
 				</div>
 			</div>
 
-			<div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
-				<!-- Start Date -->
-				<div style="min-width: 180px;">
-					<label
-						for="start_date"
-						style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Start Date</label
-					>
+			<div class="filter-row">
+				<div class="form-group">
+					<label for="start_date" class="form-label">Start Date</label>
 					<input
 						id="start_date"
 						type="date"
+						class="form-input"
 						bind:value={startDate}
 						onchange={handleFilterChange}
-						style="
-							width: 100%;
-							padding: 8px 12px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							font-size: 14px;
-						"
 					/>
 				</div>
 
-				<!-- End Date -->
-				<div style="min-width: 180px;">
-					<label
-						for="end_date"
-						style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>End Date</label
-					>
+				<div class="form-group">
+					<label for="end_date" class="form-label">End Date</label>
 					<input
 						id="end_date"
 						type="date"
+						class="form-input"
 						bind:value={endDate}
 						onchange={handleFilterChange}
-						style="
-							width: 100%;
-							padding: 8px 12px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							font-size: 14px;
-						"
 					/>
 				</div>
 
-				<!-- Clear Filters -->
-				<button
-					onclick={clearFilters}
-					style="
-						padding: 8px 16px;
-						background-color: #f3f4f6;
-						border: 1px solid #d1d5db;
-						border-radius: 4px;
-						font-size: 14px;
-						cursor: pointer;
-						color: #374151;
-					"
-				>
-					Clear Filters
-				</button>
+				<div class="form-group form-group-action">
+					<button class="btn btn-secondary" onclick={clearFilters}>
+						<i class="i-ph-x"></i>
+						Clear Filters
+					</button>
+				</div>
 			</div>
 
-			<p style="font-size: 12px; color: #9ca3af; margin-top: 12px; margin-bottom: 0;">
+			<p class="filter-hint">
 				Tip: Use date filters to narrow down large result sets for better performance.
 			</p>
 		</div>
 	{/if}
 
 	{#if loading}
-		<p style="color: #6b7280; text-align: center; padding: 40px;">Loading audit logs...</p>
-	{:else if error}
-		<div
-			style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px;"
-		>
-			{error}
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading audit logs...</p>
 		</div>
+	{:else if error}
+		<div class="alert alert-error">{error}</div>
 	{:else if entries.length === 0}
-		<div
-			style="background-color: white; border-radius: 8px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;"
-		>
-			<p style="color: #9ca3af; margin: 0;">No audit log entries found</p>
+		<div class="panel">
+			<div class="empty-state">
+				<p class="empty-state-description">No audit log entries found</p>
+			</div>
 		</div>
 	{:else}
 		<!-- Audit Logs Table -->
-		<div
-			style="background-color: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;"
-		>
-			<table style="width: 100%; border-collapse: collapse;">
+		<div class="data-table-container">
+			<table class="data-table">
 				<thead>
-					<tr style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Date/Time</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Action</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Actor</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Resource</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>IP Address</th
-						>
+					<tr>
+						<th>Date/Time</th>
+						<th>Action</th>
+						<th>Actor</th>
+						<th>Resource</th>
+						<th>IP Address</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each entries as entry (entry.id)}
 						<tr
-							style="border-bottom: 1px solid #e5e7eb; cursor: pointer;"
 							onclick={() => goto(`/admin/audit-logs/${entry.id}`)}
 							onkeydown={(e) => e.key === 'Enter' && goto(`/admin/audit-logs/${entry.id}`)}
 							tabindex="0"
 							role="button"
 						>
-							<td style="padding: 12px 16px; font-size: 14px; color: #6b7280; white-space: nowrap;">
-								{formatDateTime(entry.createdAt)}
-							</td>
-							<td style="padding: 12px 16px;">
-								<span
-									style="
-									display: inline-block;
-									padding: 2px 8px;
-									border-radius: 12px;
-									font-size: 12px;
-									font-weight: 500;
-									{getActionBadgeStyle(entry.action)}
-								"
-								>
+							<td class="muted nowrap">{formatDateTime(entry.createdAt)}</td>
+							<td>
+								<span class={getActionBadgeClass(entry.action)}>
 									{formatAction(entry.action)}
 								</span>
 							</td>
-							<td
-								style="padding: 12px 16px; font-size: 14px; color: #1f2937; font-family: monospace;"
-							>
-								{truncateId(entry.userId)}
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #6b7280;">
+							<td class="mono">{truncateId(entry.userId)}</td>
+							<td class="muted">
 								{#if entry.resourceType}
-									<span style="color: #374151;">{entry.resourceType}</span>
+									<span class="cell-primary">{entry.resourceType}</span>
 									{#if entry.resourceId}
-										<span style="font-family: monospace; font-size: 12px;">
-											({truncateId(entry.resourceId)})
-										</span>
+										<span class="mono cell-secondary">({truncateId(entry.resourceId)})</span>
 									{/if}
 								{:else}
 									-
 								{/if}
 							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #6b7280;">
-								{entry.ipAddress || '-'}
-							</td>
+							<td class="muted">{entry.ipAddress || '-'}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -410,43 +309,25 @@
 
 		<!-- Pagination -->
 		{#if pagination && pagination.totalPages > 1}
-			<div
-				style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding: 0 4px;"
-			>
-				<p style="color: #6b7280; font-size: 14px; margin: 0;">
+			<div class="pagination">
+				<p class="pagination-info">
 					Showing {(pagination.page - 1) * pagination.limit + 1} to {Math.min(
 						pagination.page * pagination.limit,
 						pagination.total
 					)} of {pagination.total} entries
 				</p>
-				<div style="display: flex; gap: 8px;">
+				<div class="pagination-buttons">
 					<button
+						class="btn btn-secondary btn-sm"
 						onclick={() => goToPage(currentPage - 1)}
 						disabled={currentPage <= 1}
-						style="
-							padding: 8px 16px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							background-color: white;
-							color: {currentPage > 1 ? '#374151' : '#9ca3af'};
-							cursor: {currentPage > 1 ? 'pointer' : 'not-allowed'};
-							font-size: 14px;
-						"
 					>
 						Previous
 					</button>
 					<button
+						class="btn btn-secondary btn-sm"
 						onclick={() => goToPage(currentPage + 1)}
 						disabled={currentPage >= pagination.totalPages}
-						style="
-							padding: 8px 16px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							background-color: white;
-							color: {currentPage < pagination.totalPages ? '#374151' : '#9ca3af'};
-							cursor: {currentPage < pagination.totalPages ? 'pointer' : 'not-allowed'};
-							font-size: 14px;
-						"
 					>
 						Next
 					</button>

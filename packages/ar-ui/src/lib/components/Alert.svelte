@@ -22,40 +22,12 @@
 
 	let visible = $state(true);
 
-	const variantConfig = {
-		success: {
-			containerClass:
-				'bg-success-50 border-success-200 dark:bg-success-900/20 dark:border-success-800',
-			iconClass: 'text-success-600 dark:text-success-400',
-			titleClass: 'text-success-800 dark:text-success-300',
-			textClass: 'text-success-700 dark:text-success-400',
-			iconName: 'i-heroicons-check-circle'
-		},
-		error: {
-			containerClass: 'bg-error-50 border-error-200 dark:bg-error-900/20 dark:border-error-800',
-			iconClass: 'text-error-600 dark:text-error-400',
-			titleClass: 'text-error-800 dark:text-error-300',
-			textClass: 'text-error-700 dark:text-error-400',
-			iconName: 'i-heroicons-exclamation-circle'
-		},
-		warning: {
-			containerClass:
-				'bg-warning-50 border-warning-200 dark:bg-warning-900/20 dark:border-warning-800',
-			iconClass: 'text-warning-600 dark:text-warning-400',
-			titleClass: 'text-warning-800 dark:text-warning-300',
-			textClass: 'text-warning-700 dark:text-warning-400',
-			iconName: 'i-heroicons-exclamation-triangle'
-		},
-		info: {
-			containerClass: 'bg-info-50 border-info-200 dark:bg-info-900/20 dark:border-info-800',
-			iconClass: 'text-info-600 dark:text-info-400',
-			titleClass: 'text-info-800 dark:text-info-300',
-			textClass: 'text-info-700 dark:text-info-400',
-			iconName: 'i-heroicons-information-circle'
-		}
+	const icons: Record<string, string> = {
+		success: 'i-ph-check-circle',
+		error: 'i-ph-x-circle',
+		warning: 'i-ph-warning',
+		info: 'i-ph-info'
 	};
-
-	const config = $derived(variantConfig[variant]);
 
 	function handleDismiss() {
 		visible = false;
@@ -64,21 +36,15 @@
 </script>
 
 {#if visible}
-	<div
-		class={`border rounded-lg p-4 ${config.containerClass} ${className}`}
-		role="alert"
-		{...restProps}
-	>
-		<div class="flex items-start gap-3">
-			<div class={`${config.iconName} h-5 w-5 mt-0.5 flex-shrink-0 ${config.iconClass}`}></div>
+	<div class="alert alert-{variant} {className}" role="alert" {...restProps}>
+		<div class="alert-content">
+			<i class="alert-icon {icons[variant]}"></i>
 
-			<div class="flex-1 min-w-0">
+			<div class="alert-body">
 				{#if title}
-					<h3 class={`text-sm font-medium mb-1 ${config.titleClass}`}>
-						{title}
-					</h3>
+					<h3 class="alert-title">{title}</h3>
 				{/if}
-				<div class={`text-sm ${config.textClass}`}>
+				<div class="alert-text">
 					{@render children()}
 				</div>
 			</div>
@@ -86,13 +52,144 @@
 			{#if dismissible}
 				<button
 					type="button"
-					class={`flex-shrink-0 ${config.iconClass} hover:opacity-75 transition-opacity`}
+					class="alert-dismiss"
 					onclick={handleDismiss}
 					aria-label="Dismiss alert"
 				>
-					<div class="i-heroicons-x-mark h-5 w-5"></div>
+					<i class="i-ph-x"></i>
 				</button>
 			{/if}
 		</div>
 	</div>
 {/if}
+
+<style>
+	.alert {
+		border-radius: var(--radius-lg);
+		padding: 16px;
+		border: 1px solid;
+	}
+
+	.alert-content {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+	}
+
+	.alert-icon {
+		width: 20px;
+		height: 20px;
+		flex-shrink: 0;
+		margin-top: 2px;
+	}
+
+	.alert-body {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.alert-title {
+		font-size: 0.875rem;
+		font-weight: 600;
+		margin: 0 0 4px 0;
+	}
+
+	.alert-text {
+		font-size: 0.875rem;
+	}
+
+	.alert-dismiss {
+		flex-shrink: 0;
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		padding: 0;
+		opacity: 0.7;
+		transition: opacity var(--transition-fast);
+	}
+
+	.alert-dismiss:hover {
+		opacity: 1;
+	}
+
+	.alert-dismiss :global(i) {
+		width: 20px;
+		height: 20px;
+	}
+
+	/* Success variant */
+	.alert-success {
+		background: var(--success-light);
+		border-color: var(--success);
+	}
+
+	.alert-success .alert-icon,
+	.alert-success .alert-dismiss {
+		color: var(--success);
+	}
+
+	.alert-success .alert-title {
+		color: var(--success);
+	}
+
+	.alert-success .alert-text {
+		color: #065f46;
+	}
+
+	/* Error variant */
+	.alert-error {
+		background: var(--danger-light);
+		border-color: var(--danger);
+	}
+
+	.alert-error .alert-icon,
+	.alert-error .alert-dismiss {
+		color: var(--danger);
+	}
+
+	.alert-error .alert-title {
+		color: var(--danger);
+	}
+
+	.alert-error .alert-text {
+		color: #991b1b;
+	}
+
+	/* Warning variant */
+	.alert-warning {
+		background: var(--warning-light);
+		border-color: var(--warning);
+	}
+
+	.alert-warning .alert-icon,
+	.alert-warning .alert-dismiss {
+		color: var(--warning);
+	}
+
+	.alert-warning .alert-title {
+		color: #92400e;
+	}
+
+	.alert-warning .alert-text {
+		color: #92400e;
+	}
+
+	/* Info variant */
+	.alert-info {
+		background: var(--primary-light);
+		border-color: var(--primary);
+	}
+
+	.alert-info .alert-icon,
+	.alert-info .alert-dismiss {
+		color: var(--primary);
+	}
+
+	.alert-info .alert-title {
+		color: var(--primary);
+	}
+
+	.alert-info .alert-text {
+		color: var(--text-secondary);
+	}
+</style>

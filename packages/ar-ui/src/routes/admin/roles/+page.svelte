@@ -90,16 +90,16 @@
 		}
 	}
 
-	function getRoleTypeBadgeStyle(type: RoleType): string {
+	function getRoleTypeBadgeClass(type: RoleType): string {
 		switch (type) {
 			case 'system':
-				return 'background-color: #dbeafe; color: #1e40af;';
+				return 'badge badge-info';
 			case 'builtin':
-				return 'background-color: #e0e7ff; color: #3730a3;';
+				return 'badge badge-neutral';
 			case 'custom':
-				return 'background-color: #d1fae5; color: #065f46;';
+				return 'badge badge-success';
 			default:
-				return 'background-color: #f3f4f6; color: #374151;';
+				return 'badge badge-neutral';
 		}
 	}
 
@@ -112,22 +112,33 @@
 	}
 </script>
 
-<div class="roles-page">
+<svelte:head>
+	<title>Roles - Admin Dashboard - Authrim</title>
+</svelte:head>
+
+<div class="admin-page">
+	<!-- Page Header -->
 	<div class="page-header">
-		<div class="header-content">
-			<h1>Roles</h1>
-			<p class="description">Manage system roles, built-in roles, and custom roles.</p>
+		<div>
+			<h1 class="page-title">Roles</h1>
+			<p class="page-description">Manage system roles, built-in roles, and custom roles.</p>
 		</div>
-		<button class="btn-primary" onclick={navigateToCreate}>+ Create Role</button>
+		<div class="page-actions">
+			<button class="btn btn-primary" onclick={navigateToCreate}>
+				<i class="i-ph-plus"></i>
+				Create Role
+			</button>
+		</div>
 	</div>
 
 	{#if error}
-		<div class="error-banner">
-			<span>{error}</span>
-			<button onclick={loadRoles}>Retry</button>
+		<div class="alert alert-error" style="margin-bottom: 16px;">
+			{error}
+			<button class="btn btn-secondary btn-sm" onclick={loadRoles}>Retry</button>
 		</div>
 	{/if}
 
+	<!-- Filter Bar -->
 	<div class="filter-bar">
 		<span class="filter-label">Filter:</span>
 		<button
@@ -161,68 +172,74 @@
 	</div>
 
 	{#if loading}
-		<div class="loading">Loading roles...</div>
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading roles...</p>
+		</div>
 	{:else if filteredRoles.length === 0}
-		<div class="empty-state">
-			{#if filterType === 'all'}
-				<p>No roles found.</p>
-			{:else}
-				<p>No {filterType} roles found.</p>
-			{/if}
+		<div class="panel">
+			<div class="empty-state">
+				{#if filterType === 'all'}
+					<p class="empty-state-description">No roles found.</p>
+				{:else}
+					<p class="empty-state-description">No {filterType} roles found.</p>
+				{/if}
+			</div>
 		</div>
 	{:else}
-		<div class="roles-table-container">
-			<table class="roles-table">
+		<div class="data-table-container">
+			<table class="data-table">
 				<thead>
 					<tr>
 						<th>Name</th>
 						<th>Type</th>
 						<th>Description</th>
 						<th>Created</th>
-						<th>Actions</th>
+						<th class="text-right">Actions</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each filteredRoles as role (role.id)}
 						{@const roleType = getRoleType(role)}
-						<tr class="role-row" onclick={() => navigateToRole(role)}>
-							<td class="role-name">
-								<span class="name">{role.display_name || role.name}</span>
+						<tr
+							onclick={() => navigateToRole(role)}
+							onkeydown={(e) => e.key === 'Enter' && navigateToRole(role)}
+							tabindex="0"
+							role="button"
+						>
+							<td>
+								<div class="cell-primary">{role.display_name || role.name}</div>
 								{#if role.display_name && role.display_name !== role.name}
-									<span class="id-hint">({role.name})</span>
+									<div class="cell-secondary">({role.name})</div>
 								{/if}
 							</td>
 							<td>
-								<span class="type-badge" style={getRoleTypeBadgeStyle(roleType)}>
-									{roleType}
-								</span>
+								<span class={getRoleTypeBadgeClass(roleType)}>{roleType}</span>
 							</td>
-							<td class="description-cell">
+							<td class="muted truncate" style="max-width: 300px;">
 								{role.description || '-'}
 							</td>
-							<td class="date-cell">
-								{formatDate(role.created_at)}
-							</td>
-							<td class="actions-cell">
-								<button
-									class="action-btn view-btn"
-									onclick={(e) => {
-										e.stopPropagation();
-										navigateToRole(role);
-									}}
-									title="View details"
-								>
-									View
-								</button>
-								{#if canDeleteRole(role)}
+							<td class="muted nowrap">{formatDate(role.created_at)}</td>
+							<td class="text-right" onclick={(e) => e.stopPropagation()}>
+								<div class="action-buttons">
 									<button
-										class="action-btn delete-btn"
-										onclick={(e) => openDeleteDialog(role, e)}
-										title="Delete role"
+										class="btn btn-secondary btn-sm"
+										onclick={(e) => {
+											e.stopPropagation();
+											navigateToRole(role);
+										}}
 									>
-										Delete
+										View
 									</button>
-								{/if}
+									{#if canDeleteRole(role)}
+										<button
+											class="btn btn-danger btn-sm"
+											onclick={(e) => openDeleteDialog(role, e)}
+										>
+											Delete
+										</button>
+									{/if}
+								</div>
 							</td>
 						</tr>
 					{/each}
@@ -234,341 +251,43 @@
 
 <!-- Delete Confirmation Dialog -->
 {#if showDeleteDialog && roleToDelete}
-	<div class="dialog-overlay" onclick={closeDeleteDialog} role="presentation">
+	<div
+		class="modal-overlay"
+		onclick={closeDeleteDialog}
+		onkeydown={(e) => e.key === 'Escape' && closeDeleteDialog()}
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+	>
 		<div
-			class="dialog"
+			class="modal-content"
 			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="delete-dialog-title"
+			onkeydown={(e) => e.stopPropagation()}
+			role="document"
 		>
-			<h2 id="delete-dialog-title">Delete Role</h2>
-			<p>
-				Are you sure you want to delete the role <strong>{roleToDelete.name}</strong>?
-			</p>
-			<p class="warning-text">This action cannot be undone.</p>
+			<div class="modal-header">
+				<h2 class="modal-title">Delete Role</h2>
+			</div>
 
-			{#if deleteError}
-				<div class="dialog-error">{deleteError}</div>
-			{/if}
+			<div class="modal-body">
+				<p class="modal-description">
+					Are you sure you want to delete the role <strong>{roleToDelete.name}</strong>?
+				</p>
+				<p class="danger-text">This action cannot be undone.</p>
 
-			<div class="dialog-actions">
-				<button class="btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
+				{#if deleteError}
+					<div class="alert alert-error">{deleteError}</div>
+				{/if}
+			</div>
+
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
 					Cancel
 				</button>
-				<button class="btn-danger" onclick={confirmDelete} disabled={deleting}>
+				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
 					{deleting ? 'Deleting...' : 'Delete'}
 				</button>
 			</div>
 		</div>
 	</div>
 {/if}
-
-<style>
-	.roles-page {
-		padding: 24px;
-		max-width: 1200px;
-		margin: 0 auto;
-	}
-
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		margin-bottom: 24px;
-	}
-
-	.header-content h1 {
-		margin: 0 0 8px 0;
-		font-size: 24px;
-		font-weight: 600;
-	}
-
-	.description {
-		margin: 0;
-		color: #6b7280;
-		font-size: 14px;
-	}
-
-	.btn-primary {
-		padding: 10px 20px;
-		background-color: #2563eb;
-		color: white;
-		border: none;
-		border-radius: 6px;
-		font-size: 14px;
-		font-weight: 500;
-		cursor: pointer;
-		transition: background-color 0.2s;
-	}
-
-	.btn-primary:hover {
-		background-color: #1d4ed8;
-	}
-
-	.error-banner {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		color: #b91c1c;
-		padding: 12px 16px;
-		border-radius: 6px;
-		margin-bottom: 16px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.error-banner button {
-		padding: 6px 12px;
-		background-color: #b91c1c;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-	}
-
-	.filter-bar {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 16px;
-	}
-
-	.filter-label {
-		font-size: 14px;
-		color: #6b7280;
-	}
-
-	.filter-btn {
-		padding: 6px 12px;
-		background-color: #f3f4f6;
-		border: 1px solid #e5e7eb;
-		border-radius: 4px;
-		font-size: 13px;
-		color: #374151;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.filter-btn:hover {
-		background-color: #e5e7eb;
-	}
-
-	.filter-btn.active {
-		background-color: #2563eb;
-		border-color: #2563eb;
-		color: white;
-	}
-
-	.loading {
-		text-align: center;
-		padding: 40px;
-		color: #6b7280;
-	}
-
-	.empty-state {
-		text-align: center;
-		padding: 40px;
-		color: #6b7280;
-		background-color: #f9fafb;
-		border-radius: 8px;
-	}
-
-	.roles-table-container {
-		overflow-x: auto;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-	}
-
-	.roles-table {
-		width: 100%;
-		border-collapse: collapse;
-	}
-
-	.roles-table th {
-		text-align: left;
-		padding: 12px 16px;
-		background-color: #f9fafb;
-		font-size: 13px;
-		font-weight: 600;
-		color: #374151;
-		border-bottom: 1px solid #e5e7eb;
-	}
-
-	.roles-table td {
-		padding: 12px 16px;
-		border-bottom: 1px solid #e5e7eb;
-		font-size: 14px;
-	}
-
-	.role-row {
-		cursor: pointer;
-		transition: background-color 0.2s;
-	}
-
-	.role-row:hover {
-		background-color: #f9fafb;
-	}
-
-	.role-row:last-child td {
-		border-bottom: none;
-	}
-
-	.role-name {
-		font-weight: 500;
-	}
-
-	.role-name .name {
-		color: #111827;
-	}
-
-	.role-name .id-hint {
-		color: #9ca3af;
-		font-size: 12px;
-		margin-left: 4px;
-	}
-
-	.type-badge {
-		display: inline-block;
-		padding: 4px 8px;
-		border-radius: 4px;
-		font-size: 12px;
-		font-weight: 500;
-		text-transform: capitalize;
-	}
-
-	.description-cell {
-		color: #6b7280;
-		max-width: 300px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.date-cell {
-		color: #6b7280;
-		white-space: nowrap;
-	}
-
-	.actions-cell {
-		white-space: nowrap;
-	}
-
-	.action-btn {
-		padding: 4px 8px;
-		border: 1px solid #e5e7eb;
-		border-radius: 4px;
-		font-size: 12px;
-		cursor: pointer;
-		margin-right: 4px;
-		transition: all 0.2s;
-	}
-
-	.view-btn {
-		background-color: white;
-		color: #374151;
-	}
-
-	.view-btn:hover {
-		background-color: #f3f4f6;
-	}
-
-	.delete-btn {
-		background-color: white;
-		color: #dc2626;
-		border-color: #fecaca;
-	}
-
-	.delete-btn:hover {
-		background-color: #fef2f2;
-	}
-
-	/* Dialog styles */
-	.dialog-overlay {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-
-	.dialog {
-		background-color: white;
-		border-radius: 8px;
-		padding: 24px;
-		max-width: 400px;
-		width: 90%;
-		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-	}
-
-	.dialog h2 {
-		margin: 0 0 16px 0;
-		font-size: 18px;
-		font-weight: 600;
-	}
-
-	.dialog p {
-		margin: 0 0 12px 0;
-		color: #374151;
-	}
-
-	.warning-text {
-		color: #b91c1c;
-		font-size: 14px;
-	}
-
-	.dialog-error {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		color: #b91c1c;
-		padding: 8px 12px;
-		border-radius: 4px;
-		margin-bottom: 16px;
-		font-size: 14px;
-	}
-
-	.dialog-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-		margin-top: 24px;
-	}
-
-	.btn-secondary {
-		padding: 8px 16px;
-		background-color: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-secondary:hover {
-		background-color: #f3f4f6;
-	}
-
-	.btn-danger {
-		padding: 8px 16px;
-		background-color: #dc2626;
-		color: white;
-		border: none;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-danger:hover {
-		background-color: #b91c1c;
-	}
-
-	.btn-danger:disabled,
-	.btn-secondary:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-</style>

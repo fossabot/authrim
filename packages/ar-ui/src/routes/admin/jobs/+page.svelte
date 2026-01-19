@@ -236,6 +236,23 @@
 		return 50; // Running without progress info
 	}
 
+	function getStatusBadgeClass(status: JobStatus): string {
+		switch (status) {
+			case 'completed':
+				return 'badge badge-success';
+			case 'running':
+				return 'badge badge-info';
+			case 'pending':
+				return 'badge badge-warning';
+			case 'failed':
+				return 'badge badge-danger';
+			case 'cancelled':
+				return 'badge badge-neutral';
+			default:
+				return 'badge badge-neutral';
+		}
+	}
+
 	// Track if initial data load has completed
 	let initialLoadComplete = false;
 	// Track previous filter values to detect actual changes
@@ -282,241 +299,143 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Jobs - Admin Dashboard - Authrim</title>
+</svelte:head>
+
 <svelte:window onkeydown={handleGlobalKeydown} />
 
-<div>
-	<div
-		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
-	>
-		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">Jobs</h1>
-		<button
-			onclick={openCreateReportDialog}
-			style="
-				padding: 10px 20px;
-				background-color: #3b82f6;
-				color: white;
-				border: none;
-				border-radius: 6px;
-				cursor: pointer;
-				font-weight: 500;
-				font-size: 14px;
-			"
-		>
-			Generate Report
-		</button>
-	</div>
-
-	<p style="color: #6b7280; margin-bottom: 24px;">
-		Monitor background jobs including user imports, bulk updates, and report generation. Jobs
-		automatically refresh while running.
-	</p>
-
-	{#if error}
-		<div
-			style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-		>
-			{error}
-		</div>
-	{/if}
-
-	<!-- Filters -->
-	<div
-		style="display: flex; gap: 16px; margin-bottom: 16px; background: white; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;"
-	>
+<div class="admin-page">
+	<!-- Page Header -->
+	<div class="page-header">
 		<div>
-			<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-				>Status</label
-			>
-			<select
-				bind:value={statusFilter}
-				style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
-			>
-				<option value="">All Status</option>
-				<option value="pending">Pending</option>
-				<option value="running">Running</option>
-				<option value="completed">Completed</option>
-				<option value="failed">Failed</option>
-				<option value="cancelled">Cancelled</option>
-			</select>
+			<h1 class="page-title">Jobs</h1>
+			<p class="page-description">
+				Monitor background jobs including user imports, bulk updates, and report generation. Jobs
+				automatically refresh while running.
+			</p>
 		</div>
-		<div>
-			<label style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-				>Type</label
-			>
-			<select
-				bind:value={typeFilter}
-				style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
-			>
-				<option value="">All Types</option>
-				<option value="users_import">User Import</option>
-				<option value="users_bulk_update">Bulk Update</option>
-				<option value="report_generation">Report Generation</option>
-				<option value="org_bulk_members">Org Bulk Members</option>
-			</select>
-		</div>
-		<div style="margin-left: auto; display: flex; align-items: flex-end;">
-			<button
-				onclick={loadData}
-				disabled={loading}
-				style="
-					padding: 8px 16px;
-					background-color: #f3f4f6;
-					color: #374151;
-					border: none;
-					border-radius: 6px;
-					cursor: pointer;
-					font-size: 14px;
-				"
-			>
-				Refresh
+		<div class="page-actions">
+			<button class="btn btn-primary" onclick={openCreateReportDialog}>
+				<i class="i-ph-file-text"></i>
+				Generate Report
 			</button>
 		</div>
 	</div>
 
-	{#if loading}
-		<div style="text-align: center; padding: 48px; color: #6b7280;">Loading jobs...</div>
-	{:else if jobs.length === 0}
-		<div
-			style="text-align: center; padding: 48px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
-		>
-			<p style="margin: 0 0 16px 0; color: #6b7280;">No jobs found.</p>
-			{#if statusFilter || typeFilter}
-				<p style="margin: 0 0 8px 0; font-size: 14px; color: #9ca3af;">
-					Current filters:
-					{#if statusFilter}<span
-							style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px; margin-left: 4px;"
-							>{statusFilter}</span
-						>{/if}
-					{#if typeFilter}<span
-							style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px; margin-left: 4px;"
-							>{getJobTypeDisplayName(typeFilter)}</span
-						>{/if}
-				</p>
-				<button
-					onclick={() => {
-						statusFilter = '';
-						typeFilter = '';
-					}}
-					style="padding: 6px 12px; background: none; border: 1px solid #d1d5db; border-radius: 6px; color: #374151; cursor: pointer; font-size: 14px;"
-				>
-					Clear filters
+	{#if error}
+		<div class="alert alert-error">{error}</div>
+	{/if}
+
+	<!-- Filters -->
+	<div class="panel">
+		<div class="filter-row">
+			<div class="form-group">
+				<label for="status-filter" class="form-label">Status</label>
+				<select id="status-filter" class="form-select" bind:value={statusFilter}>
+					<option value="">All Status</option>
+					<option value="pending">Pending</option>
+					<option value="running">Running</option>
+					<option value="completed">Completed</option>
+					<option value="failed">Failed</option>
+					<option value="cancelled">Cancelled</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label for="type-filter" class="form-label">Type</label>
+				<select id="type-filter" class="form-select" bind:value={typeFilter}>
+					<option value="">All Types</option>
+					<option value="users_import">User Import</option>
+					<option value="users_bulk_update">Bulk Update</option>
+					<option value="report_generation">Report Generation</option>
+					<option value="org_bulk_members">Org Bulk Members</option>
+				</select>
+			</div>
+			<div class="form-group form-group-action">
+				<button class="btn btn-secondary" onclick={loadData} disabled={loading}>
+					<i class="i-ph-arrows-clockwise"></i>
+					Refresh
 				</button>
-			{:else}
-				<p style="margin: 0; font-size: 14px; color: #9ca3af;">
-					Generate a report or import users to create a job.
-				</p>
-			{/if}
+			</div>
+		</div>
+	</div>
+
+	{#if loading}
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading jobs...</p>
+		</div>
+	{:else if jobs.length === 0}
+		<div class="panel">
+			<div class="empty-state">
+				<p class="empty-state-description">No jobs found.</p>
+				{#if statusFilter || typeFilter}
+					<p class="empty-state-hint">
+						Current filters:
+						{#if statusFilter}<span class="badge badge-neutral">{statusFilter}</span>{/if}
+						{#if typeFilter}<span class="badge badge-neutral"
+								>{getJobTypeDisplayName(typeFilter)}</span
+							>{/if}
+					</p>
+					<button
+						class="btn btn-secondary"
+						onclick={() => {
+							statusFilter = '';
+							typeFilter = '';
+						}}
+					>
+						Clear filters
+					</button>
+				{:else}
+					<p class="empty-state-hint">Generate a report or import users to create a job.</p>
+				{/if}
+			</div>
 		</div>
 	{:else}
-		<div
-			style="background: white; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden;"
-		>
-			<table style="width: 100%; border-collapse: collapse;">
+		<div class="data-table-container">
+			<table class="data-table">
 				<thead>
-					<tr style="background-color: #f9fafb;">
-						<th
-							style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Type</th
-						>
-						<th
-							style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Status</th
-						>
-						<th
-							style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Progress</th
-						>
-						<th
-							style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Duration</th
-						>
-						<th
-							style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Created</th
-						>
-						<th
-							style="padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Actions</th
-						>
+					<tr>
+						<th>Type</th>
+						<th>Status</th>
+						<th>Progress</th>
+						<th>Duration</th>
+						<th>Created</th>
+						<th class="text-right">Actions</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each jobs as job (job.id)}
-						<tr style="border-top: 1px solid #e5e7eb;">
-							<td style="padding: 12px 16px;">
-								<div style="font-weight: 500; color: #1f2937;">
-									{getJobTypeDisplayName(job.type)}
-								</div>
-								<div style="font-size: 12px; color: #6b7280; font-family: monospace;">
-									{job.id.substring(0, 8)}...
-								</div>
+						<tr>
+							<td>
+								<div class="cell-primary">{getJobTypeDisplayName(job.type)}</div>
+								<div class="cell-secondary mono">{job.id.substring(0, 8)}...</div>
 							</td>
-							<td style="padding: 12px 16px;">
-								<span
-									style="
-										display: inline-flex;
-										align-items: center;
-										gap: 6px;
-										padding: 4px 10px;
-										border-radius: 9999px;
-										font-size: 12px;
-										font-weight: 500;
-										background-color: {getJobStatusColor(job.status)}15;
-										color: {getJobStatusColor(job.status)};
-									"
-								>
+							<td>
+								<span class={getStatusBadgeClass(job.status)}>
 									{#if job.status === 'running'}
-										<span
-											style="
-												width: 6px;
-												height: 6px;
-												border-radius: 50%;
-												background-color: {getJobStatusColor(job.status)};
-												animation: pulse 1s ease-in-out infinite;
-											"
-										></span>
+										<span class="pulse-dot"></span>
 									{/if}
 									{job.status}
 								</span>
 							</td>
-							<td style="padding: 12px 16px;">
-								<div style="display: flex; align-items: center; gap: 8px;">
-									<div
-										style="flex: 1; height: 6px; background-color: #e5e7eb; border-radius: 3px; overflow: hidden; max-width: 100px;"
-									>
+							<td>
+								<div class="progress-cell">
+									<div class="progress-bar">
 										<div
-											style="
-												height: 100%;
-												width: {getProgressPercent(job)}%;
-												background-color: {getJobStatusColor(job.status)};
-												transition: width 0.3s ease;
-											"
+											class="progress-fill"
+											style="width: {getProgressPercent(
+												job
+											)}%; background-color: {getJobStatusColor(job.status)};"
 										></div>
 									</div>
-									<span style="font-size: 12px; color: #6b7280;">
-										{getProgressPercent(job)}%
-									</span>
+									<span class="progress-text">{getProgressPercent(job)}%</span>
 								</div>
 							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-								{formatJobDuration(job.started_at, job.completed_at)}
-							</td>
-							<td style="padding: 12px 16px; font-size: 13px; color: #6b7280;">
-								{formatDate(job.created_at)}
-							</td>
-							<td style="padding: 12px 16px;">
-								<button
-									onclick={() => viewJobDetail(job)}
-									style="
-										padding: 6px 12px;
-										background-color: #f3f4f6;
-										color: #374151;
-										border: none;
-										border-radius: 4px;
-										font-size: 12px;
-										cursor: pointer;
-									"
-								>
+							<td class="muted">{formatJobDuration(job.started_at, job.completed_at)}</td>
+							<td class="muted nowrap">{formatDate(job.created_at)}</td>
+							<td class="text-right">
+								<button class="btn btn-secondary btn-sm" onclick={() => viewJobDetail(job)}>
 									View Details
 								</button>
 							</td>
@@ -531,128 +450,56 @@
 <!-- Create Report Dialog -->
 {#if showCreateReportDialog}
 	<div
-		style="position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50;"
+		class="modal-overlay"
 		onclick={closeCreateReportDialog}
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="create-report-dialog-title"
 	>
 		<div
-			style="background: white; border-radius: 8px; padding: 24px; max-width: 500px; width: 90%;"
+			class="modal-content"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<h2
-				id="create-report-dialog-title"
-				style="font-size: 18px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;"
-			>
-				Generate Report
-			</h2>
-
-			{#if createReportError}
-				<div
-					style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-				>
-					{createReportError}
-				</div>
-			{/if}
-
-			<div style="margin-bottom: 16px;">
-				<label
-					style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;"
-				>
-					Report Type
-				</label>
-				<select
-					bind:value={reportType}
-					style="
-						width: 100%;
-						padding: 10px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 6px;
-						font-size: 14px;
-						box-sizing: border-box;
-					"
-				>
-					<option value="user_activity">{getReportTypeDisplayName('user_activity')}</option>
-					<option value="access_summary">{getReportTypeDisplayName('access_summary')}</option>
-					<option value="compliance_audit">{getReportTypeDisplayName('compliance_audit')}</option>
-					<option value="security_events">{getReportTypeDisplayName('security_events')}</option>
-				</select>
+			<div class="modal-header">
+				<h2 id="create-report-dialog-title" class="modal-title">Generate Report</h2>
 			</div>
 
-			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
-				<div>
-					<label
-						style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;"
-					>
-						From Date (optional)
-					</label>
-					<input
-						type="date"
-						bind:value={reportFromDate}
-						style="
-							width: 100%;
-							padding: 10px 12px;
-							border: 1px solid #d1d5db;
-							border-radius: 6px;
-							font-size: 14px;
-							box-sizing: border-box;
-						"
-					/>
+			<div class="modal-body">
+				{#if createReportError}
+					<div class="alert alert-error">{createReportError}</div>
+				{/if}
+
+				<div class="form-group">
+					<label for="report-type" class="form-label">Report Type</label>
+					<select id="report-type" class="form-select" bind:value={reportType}>
+						<option value="user_activity">{getReportTypeDisplayName('user_activity')}</option>
+						<option value="access_summary">{getReportTypeDisplayName('access_summary')}</option>
+						<option value="compliance_audit">{getReportTypeDisplayName('compliance_audit')}</option>
+						<option value="security_events">{getReportTypeDisplayName('security_events')}</option>
+					</select>
 				</div>
-				<div>
-					<label
-						style="display: block; font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 6px;"
-					>
-						To Date (optional)
-					</label>
-					<input
-						type="date"
-						bind:value={reportToDate}
-						style="
-							width: 100%;
-							padding: 10px 12px;
-							border: 1px solid #d1d5db;
-							border-radius: 6px;
-							font-size: 14px;
-							box-sizing: border-box;
-						"
-					/>
+
+				<div class="filter-row">
+					<div class="form-group">
+						<label for="report-from" class="form-label">From Date (optional)</label>
+						<input id="report-from" type="date" class="form-input" bind:value={reportFromDate} />
+					</div>
+					<div class="form-group">
+						<label for="report-to" class="form-label">To Date (optional)</label>
+						<input id="report-to" type="date" class="form-input" bind:value={reportToDate} />
+					</div>
 				</div>
 			</div>
 
-			<div style="display: flex; justify-content: flex-end; gap: 12px;">
+			<div class="modal-footer">
 				<button
+					class="btn btn-secondary"
 					onclick={closeCreateReportDialog}
-					disabled={creatingReport}
-					style="
-						padding: 10px 20px;
-						background-color: #f3f4f6;
-						color: #374151;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-					"
+					disabled={creatingReport}>Cancel</button
 				>
-					Cancel
-				</button>
-				<button
-					onclick={handleCreateReport}
-					disabled={creatingReport}
-					style="
-						padding: 10px 20px;
-						background-color: #3b82f6;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-						opacity: {creatingReport ? 0.7 : 1};
-					"
-				>
+				<button class="btn btn-primary" onclick={handleCreateReport} disabled={creatingReport}>
 					{creatingReport ? 'Creating...' : 'Generate Report'}
 				</button>
 			</div>
@@ -663,242 +510,143 @@
 <!-- Job Detail Dialog -->
 {#if showJobDetailDialog && selectedJob}
 	<div
-		style="position: fixed; inset: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 50;"
+		class="modal-overlay"
 		onclick={closeJobDetailDialog}
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="job-detail-dialog-title"
 	>
 		<div
-			style="background: white; border-radius: 8px; padding: 24px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;"
+			class="modal-content modal-lg"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<div
-				style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;"
-			>
+			<div class="modal-header">
 				<div>
-					<h2
-						id="job-detail-dialog-title"
-						style="font-size: 18px; font-weight: bold; margin: 0 0 4px 0; color: #1f2937;"
-					>
+					<h2 id="job-detail-dialog-title" class="modal-title">
 						{getJobTypeDisplayName(selectedJob.type)}
 					</h2>
-					<div style="font-size: 12px; color: #6b7280; font-family: monospace;">
-						{selectedJob.id}
-					</div>
+					<div class="cell-secondary mono">{selectedJob.id}</div>
 				</div>
-				<button
-					onclick={closeJobDetailDialog}
-					aria-label="Close dialog"
-					style="
-						background: none;
-						border: none;
-						font-size: 24px;
-						color: #9ca3af;
-						cursor: pointer;
-						line-height: 1;
-					"
-				>
-					×
+				<button class="modal-close" onclick={closeJobDetailDialog} aria-label="Close dialog">
+					<i class="i-ph-x"></i>
 				</button>
 			</div>
 
-			{#if loadingJobDetail}
-				<div style="text-align: center; padding: 24px; color: #6b7280;">Loading...</div>
-			{:else}
-				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
-					<div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-						<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Status</div>
-						<span
-							style="
-								padding: 4px 10px;
-								border-radius: 9999px;
-								font-size: 12px;
-								font-weight: 500;
-								background-color: {getJobStatusColor(selectedJob.status)}15;
-								color: {getJobStatusColor(selectedJob.status)};
-							"
-						>
-							{selectedJob.status}
-						</span>
+			<div class="modal-body">
+				{#if loadingJobDetail}
+					<div class="loading-state">
+						<i class="i-ph-circle-notch loading-spinner"></i>
+						<p>Loading...</p>
 					</div>
-					<div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-						<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Duration</div>
-						<div style="font-size: 14px; color: #374151;">
-							{formatJobDuration(selectedJob.started_at, selectedJob.completed_at)}
+				{:else}
+					<div class="info-grid">
+						<div class="info-card">
+							<span class="info-label">Status</span>
+							<span class={getStatusBadgeClass(selectedJob.status)}>{selectedJob.status}</span>
 						</div>
-					</div>
-					<div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-						<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Created</div>
-						<div style="font-size: 14px; color: #374151;">
-							{formatDate(selectedJob.created_at)}
-						</div>
-					</div>
-					<div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-						<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Created By</div>
-						<div style="font-size: 14px; color: #374151;">{selectedJob.created_by}</div>
-					</div>
-				</div>
-
-				{#if selectedJob.progress}
-					<div style="margin-bottom: 16px;">
-						<div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
-							Progress
-						</div>
-						<div style="display: flex; align-items: center; gap: 12px;">
-							<div
-								style="flex: 1; height: 8px; background-color: #e5e7eb; border-radius: 4px; overflow: hidden;"
+						<div class="info-card">
+							<span class="info-label">Duration</span>
+							<span class="info-value"
+								>{formatJobDuration(selectedJob.started_at, selectedJob.completed_at)}</span
 							>
-								<div
-									style="
-										height: 100%;
-										width: {getProgressPercent(selectedJob)}%;
-										background-color: {getJobStatusColor(selectedJob.status)};
-									"
-								></div>
-							</div>
-							<span style="font-size: 14px; color: #374151;">
-								{selectedJob.progress.processed}/{selectedJob.progress.total}
-							</span>
 						</div>
-						{#if selectedJob.progress.current_item}
-							<div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
-								Processing: {selectedJob.progress.current_item}
-							</div>
-						{/if}
+						<div class="info-card">
+							<span class="info-label">Created</span>
+							<span class="info-value">{formatDate(selectedJob.created_at)}</span>
+						</div>
+						<div class="info-card">
+							<span class="info-label">Created By</span>
+							<span class="info-value">{selectedJob.created_by}</span>
+						</div>
 					</div>
-				{/if}
 
-				{#if selectedJob.result}
-					<div style="margin-bottom: 16px;">
-						<div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
-							Result Summary
+					{#if selectedJob.progress}
+						<div class="detail-section">
+							<h3 class="detail-section-title">Progress</h3>
+							<div class="progress-detail">
+								<div class="progress-bar-lg">
+									<div
+										class="progress-fill"
+										style="width: {getProgressPercent(
+											selectedJob
+										)}%; background-color: {getJobStatusColor(selectedJob.status)};"
+									></div>
+								</div>
+								<span class="progress-text">
+									{selectedJob.progress.processed}/{selectedJob.progress.total}
+								</span>
+							</div>
+							{#if selectedJob.progress.current_item}
+								<p class="muted">Processing: {selectedJob.progress.current_item}</p>
+							{/if}
 						</div>
-						<div
-							style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px;"
-						>
-							<div
-								style="background: #f0fdf4; padding: 12px; border-radius: 6px; text-align: center;"
-							>
-								<div style="font-size: 20px; font-weight: 600; color: #22c55e;">
-									{selectedJob.result.summary.success_count}
-								</div>
-								<div style="font-size: 12px; color: #6b7280;">Succeeded</div>
-							</div>
-							<div
-								style="background: #fef2f2; padding: 12px; border-radius: 6px; text-align: center;"
-							>
-								<div style="font-size: 20px; font-weight: 600; color: #ef4444;">
-									{selectedJob.result.summary.failure_count}
-								</div>
-								<div style="font-size: 12px; color: #6b7280;">Failed</div>
-							</div>
-							<div
-								style="background: #f9fafb; padding: 12px; border-radius: 6px; text-align: center;"
-							>
-								<div style="font-size: 20px; font-weight: 600; color: #6b7280;">
-									{selectedJob.result.summary.skipped_count}
-								</div>
-								<div style="font-size: 12px; color: #6b7280;">Skipped</div>
-							</div>
-						</div>
+					{/if}
 
-						{#if selectedJob.result.failures.length > 0}
-							<div style="margin-top: 12px;">
-								<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
-									Failures ({selectedJob.result.failures.length})
+					{#if selectedJob.result}
+						<div class="detail-section">
+							<h3 class="detail-section-title">Result Summary</h3>
+							<div class="result-grid">
+								<div class="result-card success">
+									<span class="result-value">{selectedJob.result.summary.success_count}</span>
+									<span class="result-label">Succeeded</span>
 								</div>
-								<div
-									style="max-height: 200px; overflow-y: auto; background: #f9fafb; border-radius: 6px; padding: 12px;"
-								>
-									{#each selectedJob.result.failures.slice(0, 10) as failure, i (i)}
-										<div
-											style="font-size: 12px; color: #ef4444; padding: 4px 0; border-bottom: 1px solid #e5e7eb;"
-										>
-											{#if failure.line}Line {failure.line}:
-											{/if}{failure.error || 'Unknown error'}
-										</div>
-									{/each}
-									{#if selectedJob.result.failures.length > 10}
-										<div style="font-size: 12px; color: #6b7280; padding-top: 8px;">
-											... and {selectedJob.result.failures.length - 10} more
-										</div>
-									{/if}
+								<div class="result-card danger">
+									<span class="result-value">{selectedJob.result.summary.failure_count}</span>
+									<span class="result-label">Failed</span>
+								</div>
+								<div class="result-card neutral">
+									<span class="result-value">{selectedJob.result.summary.skipped_count}</span>
+									<span class="result-label">Skipped</span>
 								</div>
 							</div>
-						{/if}
 
-						{#if selectedJob.result.download_url && isValidDownloadUrl(selectedJob.result.download_url)}
-							<div style="margin-top: 12px;">
+							{#if selectedJob.result.failures.length > 0}
+								<div class="failures-section">
+									<h4 class="failures-title">Failures ({selectedJob.result.failures.length})</h4>
+									<div class="failures-list">
+										{#each selectedJob.result.failures.slice(0, 10) as failure, i (i)}
+											<div class="failure-item">
+												{#if failure.line}Line {failure.line}:
+												{/if}{failure.error || 'Unknown error'}
+											</div>
+										{/each}
+										{#if selectedJob.result.failures.length > 10}
+											<div class="muted">
+												... and {selectedJob.result.failures.length - 10} more
+											</div>
+										{/if}
+									</div>
+								</div>
+							{/if}
+
+							{#if selectedJob.result.download_url && isValidDownloadUrl(selectedJob.result.download_url)}
 								<a
 									href={selectedJob.result.download_url}
 									target="_blank"
 									rel="noopener noreferrer"
-									style="
-										display: inline-block;
-										padding: 8px 16px;
-										background-color: #3b82f6;
-										color: white;
-										border-radius: 6px;
-										text-decoration: none;
-										font-size: 14px;
-									"
+									class="btn btn-primary"
 								>
+									<i class="i-ph-download"></i>
 									Download Result
 								</a>
-							</div>
-						{/if}
-					</div>
-				{/if}
-
-				{#if selectedJob.parameters && Object.keys(selectedJob.parameters).length > 0}
-					<div>
-						<div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
-							Parameters
+							{/if}
 						</div>
-						<pre
-							style="
-								background: #f9fafb;
-								padding: 12px;
-								border-radius: 6px;
-								font-size: 12px;
-								overflow-x: auto;
-								margin: 0;
-							">{JSON.stringify(selectedJob.parameters, null, 2)}</pre>
-					</div>
-				{/if}
-			{/if}
+					{/if}
 
-			<div style="display: flex; justify-content: flex-end; margin-top: 16px;">
-				<button
-					onclick={closeJobDetailDialog}
-					style="
-						padding: 10px 20px;
-						background-color: #f3f4f6;
-						color: #374151;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-					"
-				>
-					Close
-				</button>
+					{#if selectedJob.parameters && Object.keys(selectedJob.parameters).length > 0}
+						<div class="detail-section">
+							<h3 class="detail-section-title">Parameters</h3>
+							<pre class="code-block">{JSON.stringify(selectedJob.parameters, null, 2)}</pre>
+						</div>
+					{/if}
+				{/if}
+			</div>
+
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={closeJobDetailDialog}>Close</button>
 			</div>
 		</div>
 	</div>
 {/if}
-
-<style>
-	@keyframes pulse {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.5;
-		}
-	}
-</style>

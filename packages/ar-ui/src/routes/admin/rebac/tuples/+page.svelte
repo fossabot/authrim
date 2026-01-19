@@ -183,26 +183,26 @@
 	});
 </script>
 
-<div class="tuples-page">
+<div class="admin-page">
 	<div class="page-header">
-		<div class="header-content">
+		<div class="page-header-info">
 			<nav class="breadcrumb">
 				<a href="/admin/rebac">ReBAC</a>
 				<span>/</span>
 				<span>Relationship Tuples</span>
 			</nav>
-			<h1>Relationship Tuples</h1>
-			<p class="description">
+			<h1 class="page-title">Relationship Tuples</h1>
+			<p class="modal-description">
 				Manage user-relation-object assignments (Zanzibar notation: object#relation@user).
 			</p>
 		</div>
-		<button class="btn-primary" onclick={openCreateDialog}>+ Create Tuple</button>
+		<button class="btn btn-primary" onclick={openCreateDialog}>+ Create Tuple</button>
 	</div>
 
 	{#if error}
-		<div class="error-banner">
+		<div class="alert alert-error">
 			<span>{error}</span>
-			<button onclick={loadTuples}>Retry</button>
+			<button class="btn btn-secondary btn-sm" onclick={loadTuples}>Retry</button>
 		</div>
 	{/if}
 
@@ -238,15 +238,15 @@
 
 	<!-- Tuples Table -->
 	{#if loading}
-		<div class="loading">Loading...</div>
+		<div class="loading-state">Loading...</div>
 	{:else if tuples.length === 0}
 		<div class="empty-state">
 			<p>No relationship tuples found.</p>
-			<button class="btn-primary" onclick={openCreateDialog}>Create Tuple</button>
+			<button class="btn btn-primary" onclick={openCreateDialog}>Create Tuple</button>
 		</div>
 	{:else}
 		<div class="table-container">
-			<table>
+			<table class="data-table">
 				<thead>
 					<tr>
 						<th>Subject</th>
@@ -289,10 +289,15 @@
 								{/if}
 							</td>
 							<td>{formatDate(tuple.created_at)}</td>
-							<td class="actions">
-								<button class="btn-action delete" onclick={(e) => openDeleteDialog(tuple, e)}>
-									Delete
-								</button>
+							<td>
+								<div class="table-actions">
+									<button
+										class="btn btn-ghost btn-sm text-danger"
+										onclick={(e) => openDeleteDialog(tuple, e)}
+									>
+										Delete
+									</button>
+								</div>
 							</td>
 						</tr>
 					{/each}
@@ -303,14 +308,19 @@
 		<!-- Pagination -->
 		{#if pagination.total_pages > 1}
 			<div class="pagination">
-				<button disabled={pagination.page === 1} onclick={() => goToPage(pagination.page - 1)}>
+				<button
+					class="btn btn-secondary btn-sm"
+					disabled={pagination.page === 1}
+					onclick={() => goToPage(pagination.page - 1)}
+				>
 					Previous
 				</button>
-				<span class="page-info">
+				<span class="pagination-info">
 					Page {pagination.page} of {pagination.total_pages}
-					<span class="total">({pagination.total} total)</span>
+					<span class="text-muted">({pagination.total} total)</span>
 				</span>
 				<button
+					class="btn btn-secondary btn-sm"
 					disabled={pagination.page === pagination.total_pages}
 					onclick={() => goToPage(pagination.page + 1)}
 				>
@@ -323,98 +333,123 @@
 
 <!-- Create Dialog -->
 {#if showCreateDialog}
-	<div class="dialog-overlay" onclick={() => (showCreateDialog = false)}>
-		<div class="dialog" onclick={(e) => e.stopPropagation()}>
-			<h2>Create Relationship Tuple</h2>
+	<div class="modal-overlay" onclick={() => (showCreateDialog = false)} role="presentation">
+		<div
+			class="modal-content modal-lg"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+		>
+			<div class="modal-header">
+				<h2 class="modal-title">Create Relationship Tuple</h2>
+			</div>
+			<div class="modal-body">
+				{#if createError}
+					<div class="alert alert-error">{createError}</div>
+				{/if}
 
-			{#if createError}
-				<div class="dialog-error">{createError}</div>
-			{/if}
+				<div class="form-section">
+					<h3>Subject (From)</h3>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="from-type" class="form-label">Type</label>
+							<select id="from-type" class="form-select" bind:value={createForm.from_type}>
+								<option value="subject">subject</option>
+								<option value="group">group</option>
+								<option value="org">org</option>
+							</select>
+						</div>
+						<div class="form-group flex-1">
+							<label for="from-id" class="form-label">ID</label>
+							<input
+								id="from-id"
+								type="text"
+								class="form-input"
+								bind:value={createForm.from_id}
+								placeholder="user_123"
+							/>
+						</div>
+					</div>
+				</div>
 
-			<div class="form-section">
-				<h3>Subject (From)</h3>
-				<div class="form-row">
+				<div class="form-section">
+					<h3>Relation</h3>
 					<div class="form-group">
-						<label for="from-type">Type</label>
-						<select id="from-type" bind:value={createForm.from_type}>
-							<option value="subject">subject</option>
-							<option value="group">group</option>
-							<option value="org">org</option>
+						<label for="relation-type" class="form-label">Relationship Type</label>
+						<input
+							id="relation-type"
+							type="text"
+							class="form-input"
+							bind:value={createForm.relationship_type}
+							placeholder="viewer, editor, owner..."
+						/>
+					</div>
+				</div>
+
+				<div class="form-section">
+					<h3>Object (To)</h3>
+					<div class="form-row">
+						<div class="form-group">
+							<label for="to-type" class="form-label">Type</label>
+							<input
+								id="to-type"
+								type="text"
+								class="form-input"
+								bind:value={createForm.to_type}
+								placeholder="document"
+							/>
+						</div>
+						<div class="form-group flex-1">
+							<label for="to-id" class="form-label">ID</label>
+							<input
+								id="to-id"
+								type="text"
+								class="form-input"
+								bind:value={createForm.to_id}
+								placeholder="doc_456"
+							/>
+						</div>
+					</div>
+				</div>
+
+				<div class="form-section">
+					<h3>Options</h3>
+					<div class="form-group">
+						<label for="permission-level" class="form-label">Permission Level</label>
+						<select
+							id="permission-level"
+							class="form-select"
+							bind:value={createForm.permission_level}
+						>
+							<option value="full">Full</option>
+							<option value="limited">Limited</option>
+							<option value="read_only">Read Only</option>
 						</select>
 					</div>
-					<div class="form-group flex-1">
-						<label for="from-id">ID</label>
-						<input
-							id="from-id"
-							type="text"
-							bind:value={createForm.from_id}
-							placeholder="user_123"
-						/>
-					</div>
-				</div>
-			</div>
 
-			<div class="form-section">
-				<h3>Relation</h3>
-				<div class="form-group">
-					<label for="relation-type">Relationship Type</label>
-					<input
-						id="relation-type"
-						type="text"
-						bind:value={createForm.relationship_type}
-						placeholder="viewer, editor, owner..."
-					/>
-				</div>
-			</div>
-
-			<div class="form-section">
-				<h3>Object (To)</h3>
-				<div class="form-row">
 					<div class="form-group">
-						<label for="to-type">Type</label>
-						<input
-							id="to-type"
-							type="text"
-							bind:value={createForm.to_type}
-							placeholder="document"
-						/>
+						<label class="checkbox-label">
+							<input type="checkbox" bind:checked={createForm.has_expiry} />
+							<span>Set expiration</span>
+						</label>
 					</div>
-					<div class="form-group flex-1">
-						<label for="to-id">ID</label>
-						<input id="to-id" type="text" bind:value={createForm.to_id} placeholder="doc_456" />
-					</div>
+
+					{#if createForm.has_expiry}
+						<div class="form-group">
+							<label for="expires-at" class="form-label">Expires At</label>
+							<input
+								id="expires-at"
+								type="datetime-local"
+								class="form-input"
+								bind:value={createForm.expires_at}
+							/>
+						</div>
+					{/if}
 				</div>
 			</div>
-
-			<div class="form-section">
-				<h3>Options</h3>
-				<div class="form-group">
-					<label for="permission-level">Permission Level</label>
-					<select id="permission-level" bind:value={createForm.permission_level}>
-						<option value="full">Full</option>
-						<option value="limited">Limited</option>
-						<option value="read_only">Read Only</option>
-					</select>
-				</div>
-
-				<div class="form-group">
-					<label class="checkbox-label">
-						<input type="checkbox" bind:checked={createForm.has_expiry} />
-						Set expiration
-					</label>
-				</div>
-
-				{#if createForm.has_expiry}
-					<div class="form-group">
-						<label for="expires-at">Expires At</label>
-						<input id="expires-at" type="datetime-local" bind:value={createForm.expires_at} />
-					</div>
-				{/if}
-			</div>
-
-			<div class="dialog-actions">
-				<button class="btn-secondary" onclick={() => (showCreateDialog = false)}> Cancel </button>
-				<button class="btn-primary" onclick={submitCreate} disabled={creating}>
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={() => (showCreateDialog = false)}>Cancel</button>
+				<button class="btn btn-primary" onclick={submitCreate} disabled={creating}>
 					{creating ? 'Creating...' : 'Create'}
 				</button>
 			</div>
@@ -424,431 +459,33 @@
 
 <!-- Delete Dialog -->
 {#if showDeleteDialog && tupleToDelete}
-	<div class="dialog-overlay" onclick={() => (showDeleteDialog = false)}>
-		<div class="dialog dialog-small" onclick={(e) => e.stopPropagation()}>
-			<h2>Delete Relationship Tuple</h2>
-
-			{#if deleteError}
-				<div class="dialog-error">{deleteError}</div>
-			{/if}
-
-			<p>Are you sure you want to delete this relationship tuple?</p>
-			<div class="tuple-preview">
-				{formatTupleString(tupleToDelete)}
+	<div class="modal-overlay" onclick={() => (showDeleteDialog = false)} role="presentation">
+		<div
+			class="modal-content modal-sm"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+		>
+			<div class="modal-header">
+				<h2 class="modal-title">Delete Relationship Tuple</h2>
 			</div>
-			<p class="warning-text">This action cannot be undone.</p>
+			<div class="modal-body">
+				{#if deleteError}
+					<div class="alert alert-error">{deleteError}</div>
+				{/if}
 
-			<div class="dialog-actions">
-				<button class="btn-secondary" onclick={() => (showDeleteDialog = false)}> Cancel </button>
-				<button class="btn-danger" onclick={confirmDelete} disabled={deleting}>
+				<p>Are you sure you want to delete this relationship tuple?</p>
+				<div class="tuple-preview">
+					{formatTupleString(tupleToDelete)}
+				</div>
+				<p class="text-danger">This action cannot be undone.</p>
+			</div>
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={() => (showDeleteDialog = false)}>Cancel</button>
+				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
 					{deleting ? 'Deleting...' : 'Delete'}
 				</button>
 			</div>
 		</div>
 	</div>
 {/if}
-
-<style>
-	.tuples-page {
-		padding: 24px;
-		max-width: 1400px;
-		margin: 0 auto;
-	}
-
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		margin-bottom: 24px;
-	}
-
-	.breadcrumb {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 14px;
-		color: #6b7280;
-		margin-bottom: 8px;
-	}
-
-	.breadcrumb a {
-		color: #3b82f6;
-		text-decoration: none;
-	}
-
-	.page-header h1 {
-		font-size: 24px;
-		font-weight: 600;
-		color: #111827;
-		margin: 0 0 8px 0;
-	}
-
-	.description {
-		color: #6b7280;
-		margin: 0;
-	}
-
-	.error-banner {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		border-radius: 8px;
-		padding: 12px 16px;
-		margin-bottom: 24px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		color: #b91c1c;
-	}
-
-	.error-banner button {
-		background-color: #b91c1c;
-		color: white;
-		border: none;
-		padding: 6px 12px;
-		border-radius: 4px;
-		cursor: pointer;
-	}
-
-	/* Filters */
-	.filter-bar {
-		display: flex;
-		gap: 12px;
-		margin-bottom: 24px;
-		flex-wrap: wrap;
-	}
-
-	.filter-bar input {
-		padding: 8px 12px;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 14px;
-		width: 160px;
-	}
-
-	.btn-filter,
-	.btn-clear {
-		padding: 8px 16px;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-filter {
-		background-color: #3b82f6;
-		color: white;
-		border: none;
-	}
-
-	.btn-clear {
-		background-color: white;
-		color: #374151;
-		border: 1px solid #d1d5db;
-	}
-
-	/* Table */
-	.table-container {
-		background: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-		overflow: hidden;
-	}
-
-	table {
-		width: 100%;
-		border-collapse: collapse;
-	}
-
-	th,
-	td {
-		padding: 12px 16px;
-		text-align: left;
-		border-bottom: 1px solid #e5e7eb;
-	}
-
-	th {
-		background-color: #f9fafb;
-		font-weight: 500;
-		color: #374151;
-		font-size: 13px;
-		text-transform: uppercase;
-	}
-
-	td {
-		font-size: 14px;
-		color: #111827;
-	}
-
-	tr.expired {
-		opacity: 0.6;
-		background-color: #fef2f2;
-	}
-
-	.entity {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.entity-type {
-		font-size: 11px;
-		color: #6b7280;
-		text-transform: uppercase;
-	}
-
-	.entity-id {
-		font-family: 'Monaco', 'Menlo', monospace;
-		font-size: 13px;
-	}
-
-	.relation-badge {
-		background-color: #dbeafe;
-		color: #1e40af;
-		padding: 4px 10px;
-		border-radius: 4px;
-		font-size: 13px;
-		font-weight: 500;
-	}
-
-	.permission-badge {
-		background-color: #f3f4f6;
-		color: #374151;
-		padding: 4px 8px;
-		border-radius: 4px;
-		font-size: 12px;
-	}
-
-	.expires {
-		font-size: 13px;
-		color: #374151;
-	}
-
-	.expires.expired {
-		color: #b91c1c;
-		font-weight: 500;
-	}
-
-	.no-expiry {
-		color: #6b7280;
-		font-style: italic;
-	}
-
-	.actions {
-		display: flex;
-		gap: 8px;
-	}
-
-	.btn-action {
-		padding: 4px 12px;
-		border-radius: 4px;
-		font-size: 13px;
-		cursor: pointer;
-		background-color: #f3f4f6;
-		color: #374151;
-		border: none;
-	}
-
-	.btn-action.delete {
-		color: #b91c1c;
-	}
-
-	.btn-action.delete:hover {
-		background-color: #fef2f2;
-	}
-
-	/* Pagination */
-	.pagination {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		gap: 16px;
-		margin-top: 24px;
-	}
-
-	.pagination button {
-		padding: 8px 16px;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		background: white;
-		cursor: pointer;
-	}
-
-	.pagination button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.page-info {
-		color: #374151;
-	}
-
-	.loading,
-	.empty-state {
-		text-align: center;
-		padding: 60px;
-		color: #6b7280;
-	}
-
-	.btn-primary {
-		background-color: #3b82f6;
-		color: white;
-		padding: 10px 20px;
-		border: none;
-		border-radius: 6px;
-		font-size: 14px;
-		font-weight: 500;
-		cursor: pointer;
-	}
-
-	.btn-primary:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	/* Dialog */
-	.dialog-overlay {
-		position: fixed;
-		inset: 0;
-		background-color: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 100;
-	}
-
-	.dialog {
-		background: white;
-		border-radius: 12px;
-		padding: 24px;
-		width: 550px;
-		max-width: 90vw;
-		max-height: 90vh;
-		overflow-y: auto;
-	}
-
-	.dialog-small {
-		width: 420px;
-	}
-
-	.dialog h2 {
-		font-size: 18px;
-		font-weight: 600;
-		margin: 0 0 20px 0;
-	}
-
-	.dialog-error {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		border-radius: 6px;
-		padding: 10px 14px;
-		margin-bottom: 16px;
-		color: #b91c1c;
-		font-size: 14px;
-	}
-
-	.form-section {
-		margin-bottom: 20px;
-		padding-bottom: 16px;
-		border-bottom: 1px solid #e5e7eb;
-	}
-
-	.form-section:last-of-type {
-		border-bottom: none;
-		padding-bottom: 0;
-	}
-
-	.form-section h3 {
-		font-size: 14px;
-		font-weight: 600;
-		color: #374151;
-		margin: 0 0 12px 0;
-	}
-
-	.form-row {
-		display: flex;
-		gap: 12px;
-	}
-
-	.form-group {
-		margin-bottom: 12px;
-	}
-
-	.form-group.flex-1 {
-		flex: 1;
-	}
-
-	.form-group label {
-		display: block;
-		font-size: 13px;
-		font-weight: 500;
-		color: #374151;
-		margin-bottom: 4px;
-	}
-
-	.form-group input,
-	.form-group select {
-		width: 100%;
-		padding: 8px 10px;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 14px;
-		box-sizing: border-box;
-	}
-
-	.checkbox-label {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		cursor: pointer;
-	}
-
-	.checkbox-label input {
-		width: auto;
-	}
-
-	.dialog-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 12px;
-		margin-top: 24px;
-	}
-
-	.btn-secondary {
-		background-color: white;
-		color: #374151;
-		padding: 10px 20px;
-		border: 1px solid #d1d5db;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-danger {
-		background-color: #dc2626;
-		color: white;
-		padding: 10px 20px;
-		border: none;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-danger:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	.tuple-preview {
-		font-family: 'Monaco', 'Menlo', monospace;
-		background-color: #f3f4f6;
-		padding: 12px;
-		border-radius: 6px;
-		margin: 12px 0;
-		font-size: 13px;
-		word-break: break-all;
-	}
-
-	.warning-text {
-		color: #b91c1c;
-		font-size: 14px;
-	}
-</style>

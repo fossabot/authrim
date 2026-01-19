@@ -4,9 +4,6 @@
 		adminPluginsAPI,
 		type PluginWithStatus,
 		type PluginHealthResponse,
-		getTrustLevelColor,
-		getStabilityColor,
-		getHealthStatusColor,
 		PLUGIN_CATEGORIES
 	} from '$lib/api/admin-plugins';
 
@@ -241,187 +238,133 @@
 				return '❓';
 		}
 	}
+
+	function getTrustLevelClass(level: string): string {
+		switch (level) {
+			case 'official':
+				return 'badge-trust official';
+			case 'verified':
+				return 'badge-trust verified';
+			case 'community':
+				return 'badge-trust community';
+			default:
+				return 'badge-trust';
+		}
+	}
+
+	function getStabilityClass(stability: string): string {
+		switch (stability) {
+			case 'stable':
+				return 'badge-stability stable';
+			case 'beta':
+				return 'badge-stability beta';
+			case 'alpha':
+				return 'badge-stability alpha';
+			case 'experimental':
+				return 'badge-stability experimental';
+			default:
+				return 'badge-stability';
+		}
+	}
+
+	function getHealthStatusClass(status: string): string {
+		switch (status) {
+			case 'healthy':
+				return 'health-status healthy';
+			case 'unhealthy':
+				return 'health-status unhealthy';
+			case 'degraded':
+				return 'health-status degraded';
+			default:
+				return 'health-status unknown';
+		}
+	}
+
+	function getHealthDotClass(status: string): string {
+		switch (status) {
+			case 'healthy':
+				return 'health-dot healthy';
+			case 'unhealthy':
+				return 'health-dot unhealthy';
+			case 'degraded':
+				return 'health-dot degraded';
+			default:
+				return 'health-dot';
+		}
+	}
 </script>
 
-<div>
-	<div
-		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
-	>
-		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">Plugins</h1>
+<div class="admin-page">
+	<div class="page-header">
+		<div class="page-header-info">
+			<h1 class="page-title">Plugins</h1>
+			<p class="modal-description">
+				Manage installed plugins to extend Authrim's functionality with custom authentication flows,
+				event handlers, claims providers, and integrations.
+			</p>
+		</div>
 	</div>
-
-	<p style="color: #6b7280; margin-bottom: 24px;">
-		Manage installed plugins to extend Authrim's functionality with custom authentication flows,
-		event handlers, claims providers, and integrations.
-	</p>
 
 	<!-- Filters -->
-	<div
-		style="background: white; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 24px;"
-	>
-		<div style="display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;">
-			<div>
-				<label
-					style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
-				>
-					Category
-				</label>
-				<select
-					bind:value={filterCategory}
-					style="
-						padding: 8px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 6px;
-						font-size: 14px;
-						background: white;
-						min-width: 150px;
-					"
-				>
-					<option value="">All Categories</option>
-					{#each PLUGIN_CATEGORIES as category (category.id)}
-						<option value={category.id}>{category.name}</option>
-					{/each}
-				</select>
-			</div>
-			<div>
-				<label
-					style="display: block; font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;"
-				>
-					Status
-				</label>
-				<select
-					bind:value={filterEnabled}
-					style="
-						padding: 8px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 6px;
-						font-size: 14px;
-						background: white;
-						min-width: 120px;
-					"
-				>
-					<option value={undefined}>All</option>
-					<option value={true}>Enabled</option>
-					<option value={false}>Disabled</option>
-				</select>
-			</div>
-			<button
-				onclick={applyFilters}
-				style="
-					padding: 8px 16px;
-					background-color: #3b82f6;
-					color: white;
-					border: none;
-					border-radius: 6px;
-					cursor: pointer;
-					font-size: 14px;
-				"
-			>
-				Apply
-			</button>
-			<button
-				onclick={clearFilters}
-				style="
-					padding: 8px 16px;
-					background-color: #f3f4f6;
-					color: #374151;
-					border: none;
-					border-radius: 6px;
-					cursor: pointer;
-					font-size: 14px;
-				"
-			>
-				Clear
-			</button>
+	<div class="filter-bar">
+		<div class="form-group">
+			<label for="filter-category" class="form-label">Category</label>
+			<select id="filter-category" class="form-select" bind:value={filterCategory}>
+				<option value="">All Categories</option>
+				{#each PLUGIN_CATEGORIES as category (category.id)}
+					<option value={category.id}>{category.name}</option>
+				{/each}
+			</select>
 		</div>
+		<div class="form-group">
+			<label for="filter-status" class="form-label">Status</label>
+			<select id="filter-status" class="form-select" bind:value={filterEnabled}>
+				<option value={undefined}>All</option>
+				<option value={true}>Enabled</option>
+				<option value={false}>Disabled</option>
+			</select>
+		</div>
+		<button class="btn-filter" onclick={applyFilters}>Apply</button>
+		<button class="btn-clear" onclick={clearFilters}>Clear</button>
 	</div>
 
-	{#if error}
-		<div
-			style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-		>
-			{error}
-		</div>
+	{#if error && !showDetailDialog}
+		<div class="alert alert-error">{error}</div>
 	{/if}
 
 	{#if loading}
-		<div style="text-align: center; padding: 48px; color: #6b7280;">Loading...</div>
+		<div class="loading-state">Loading...</div>
 	{:else if plugins.length === 0}
-		<div
-			style="text-align: center; padding: 48px; color: #6b7280; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
-		>
-			<p style="margin: 0 0 16px 0;">No plugins found.</p>
-			<p style="margin: 0; font-size: 14px;">
+		<div class="empty-state">
+			<p>No plugins found.</p>
+			<p class="text-muted">
 				{filterCategory || filterEnabled !== undefined
 					? 'Try adjusting your filters.'
 					: 'Plugins can be added via npm packages or local configuration.'}
 			</p>
 		</div>
 	{:else}
-		<div
-			style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;"
-		>
+		<div class="plugin-grid">
 			{#each plugins as plugin (plugin.id)}
 				<div
-					style="
-						background: white;
-						border-radius: 8px;
-						border: 1px solid #e5e7eb;
-						padding: 20px;
-						cursor: pointer;
-						transition: box-shadow 0.2s, border-color 0.2s;
-					"
+					class="plugin-card"
 					onclick={() => openDetailDialog(plugin)}
 					onkeydown={(e) => e.key === 'Enter' && openDetailDialog(plugin)}
 					tabindex="0"
 					role="button"
-					onmouseenter={(e) => {
-						e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-						e.currentTarget.style.borderColor = '#d1d5db';
-					}}
-					onmouseleave={(e) => {
-						e.currentTarget.style.boxShadow = 'none';
-						e.currentTarget.style.borderColor = '#e5e7eb';
-					}}
 				>
 					<!-- Header -->
-					<div
-						style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;"
-					>
-						<div style="display: flex; align-items: center; gap: 10px;">
-							{#if plugin.meta?.icon}
-								<span style="font-size: 24px;">{plugin.meta.icon}</span>
-							{:else}
-								<span style="font-size: 24px;">🧩</span>
-							{/if}
+					<div class="plugin-card-header">
+						<div class="plugin-card-info">
+							<span class="plugin-icon">{plugin.meta?.icon || '🧩'}</span>
 							<div>
-								<h3 style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0;">
-									{plugin.meta?.name || plugin.id}
-								</h3>
-								<div style="display: flex; gap: 6px; margin-top: 4px;">
-									<span
-										style="
-											font-size: 11px;
-											padding: 2px 6px;
-											border-radius: 4px;
-											background-color: {getTrustLevelColor(plugin.trustLevel)}20;
-											color: {getTrustLevelColor(plugin.trustLevel)};
-											font-weight: 500;
-										"
-									>
+								<h3 class="plugin-name">{plugin.meta?.name || plugin.id}</h3>
+								<div class="plugin-badges">
+									<span class={getTrustLevelClass(plugin.trustLevel)}>
 										{plugin.trustLevel}
 									</span>
 									{#if plugin.meta?.stability}
-										<span
-											style="
-												font-size: 11px;
-												padding: 2px 6px;
-												border-radius: 4px;
-												background-color: {getStabilityColor(plugin.meta.stability)}20;
-												color: {getStabilityColor(plugin.meta.stability)};
-												font-weight: 500;
-											"
-										>
+										<span class={getStabilityClass(plugin.meta.stability)}>
 											{plugin.meta.stability}
 										</span>
 									{/if}
@@ -429,18 +372,8 @@
 							</div>
 						</div>
 						<button
+							class="plugin-status-btn {plugin.enabled ? 'enabled' : 'disabled'}"
 							onclick={(e) => toggleEnabled(plugin, e)}
-							style="
-								padding: 4px 10px;
-								border-radius: 9999px;
-								font-size: 12px;
-								font-weight: 500;
-								border: none;
-								cursor: pointer;
-								{plugin.enabled
-								? 'background-color: #d1fae5; color: #065f46;'
-								: 'background-color: #e5e7eb; color: #374151;'}
-							"
 						>
 							{plugin.enabled ? 'Enabled' : 'Disabled'}
 						</button>
@@ -448,116 +381,49 @@
 
 					<!-- Description -->
 					{#if plugin.meta?.description}
-						<p style="font-size: 14px; color: #6b7280; margin: 0 0 12px 0; line-height: 1.5;">
-							{plugin.meta.description}
-						</p>
+						<p class="plugin-description">{plugin.meta.description}</p>
 					{/if}
 
 					<!-- Metadata -->
-					<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-						<span
-							style="
-								font-size: 12px;
-								color: #6b7280;
-								display: flex;
-								align-items: center;
-								gap: 4px;
-							"
-						>
+					<div class="plugin-meta">
+						<span class="plugin-meta-item">
 							{getSourceIcon(plugin.source.type)}
 							{plugin.source.type}
 						</span>
-						<span style="font-size: 12px; color: #6b7280;">
-							v{plugin.version}
-						</span>
+						<span class="plugin-meta-item">v{plugin.version}</span>
 						{#if plugin.meta?.category}
-							<span
-								style="
-									font-size: 11px;
-									padding: 2px 6px;
-									border-radius: 4px;
-									background-color: #f3f4f6;
-									color: #374151;
-								"
-							>
-								{plugin.meta.category}
-							</span>
+							<span class="badge-category">{plugin.meta.category}</span>
 						{/if}
 					</div>
 
 					<!-- Capabilities -->
 					{#if plugin.capabilities.length > 0}
-						<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px;">
+						<div class="plugin-capabilities">
 							{#each plugin.capabilities as cap (cap)}
-								<span
-									style="
-										font-size: 11px;
-										padding: 2px 6px;
-										border-radius: 4px;
-										background-color: #dbeafe;
-										color: #1e40af;
-									"
-								>
-									{cap}
-								</span>
+								<span class="badge-capability">{cap}</span>
 							{/each}
 						</div>
 					{/if}
 
 					<!-- Health Status -->
-					<div
-						style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid #e5e7eb;"
-					>
+					<div class="plugin-footer">
 						{#if healthStatus[plugin.id]}
-							<span
-								style="
-									font-size: 12px;
-									display: flex;
-									align-items: center;
-									gap: 4px;
-									color: {getHealthStatusColor(healthStatus[plugin.id].status)};
-								"
-							>
-								<span
-									style="width: 8px; height: 8px; border-radius: 50%; background-color: {getHealthStatusColor(
-										healthStatus[plugin.id].status
-									)};"
-								></span>
+							<span class={getHealthStatusClass(healthStatus[plugin.id].status)}>
+								<span class={getHealthDotClass(healthStatus[plugin.id].status)}></span>
 								{healthStatus[plugin.id].status}
 							</span>
 						{:else if plugin.lastHealthCheck}
-							<span
-								style="
-									font-size: 12px;
-									display: flex;
-									align-items: center;
-									gap: 4px;
-									color: {getHealthStatusColor(plugin.lastHealthCheck.status)};
-								"
-							>
-								<span
-									style="width: 8px; height: 8px; border-radius: 50%; background-color: {getHealthStatusColor(
-										plugin.lastHealthCheck.status
-									)};"
-								></span>
+							<span class={getHealthStatusClass(plugin.lastHealthCheck.status)}>
+								<span class={getHealthDotClass(plugin.lastHealthCheck.status)}></span>
 								{plugin.lastHealthCheck.status}
 							</span>
 						{:else}
-							<span style="font-size: 12px; color: #9ca3af;">No health data</span>
+							<span class="health-status unknown">No health data</span>
 						{/if}
 						<button
+							class="health-check-btn"
 							onclick={(e) => checkHealth(plugin, e)}
 							disabled={checkingHealth[plugin.id]}
-							style="
-								padding: 4px 10px;
-								background-color: #f3f4f6;
-								color: #374151;
-								border: none;
-								border-radius: 4px;
-								cursor: pointer;
-								font-size: 12px;
-								opacity: {checkingHealth[plugin.id] ? 0.7 : 1};
-							"
 						>
 							{checkingHealth[plugin.id] ? 'Checking...' : 'Check Health'}
 						</button>
@@ -571,127 +437,84 @@
 <!-- Detail Dialog -->
 {#if showDetailDialog && selectedPlugin}
 	<div
-		style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;"
+		class="modal-overlay"
 		onclick={closeDetailDialog}
 		onkeydown={(e) => e.key === 'Escape' && closeDetailDialog()}
 		tabindex="-1"
-		role="dialog"
+		role="presentation"
 	>
 		<div
-			style="background: white; border-radius: 8px; padding: 24px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;"
+			class="modal-content modal-lg"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
-			role="document"
+			role="dialog"
+			aria-modal="true"
 		>
-			<div
-				style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;"
-			>
-				<div style="display: flex; align-items: center; gap: 12px;">
-					{#if selectedPlugin.meta?.icon}
-						<span style="font-size: 32px;">{selectedPlugin.meta.icon}</span>
-					{:else}
-						<span style="font-size: 32px;">🧩</span>
-					{/if}
+			<div class="plugin-dialog-header">
+				<div class="plugin-dialog-info">
+					<span class="plugin-dialog-icon">{selectedPlugin.meta?.icon || '🧩'}</span>
 					<div>
-						<h2 style="font-size: 20px; font-weight: bold; margin: 0; color: #1f2937;">
+						<h2 class="plugin-dialog-title">
 							{selectedPlugin.meta?.name || selectedPlugin.id}
 						</h2>
-						<div style="font-size: 14px; color: #6b7280;">
-							v{selectedPlugin.version}
-						</div>
+						<div class="plugin-dialog-version">v{selectedPlugin.version}</div>
 					</div>
 				</div>
-				<button
-					onclick={closeDetailDialog}
-					style="
-						padding: 4px 8px;
-						background: none;
-						border: none;
-						cursor: pointer;
-						font-size: 20px;
-						color: #9ca3af;
-					"
-				>
-					×
-				</button>
+				<button class="close-btn" onclick={closeDetailDialog}>×</button>
 			</div>
 
 			{#if selectedPlugin.trustLevel === 'community'}
-				<div
-					style="padding: 12px; background-color: #fef3c7; border-radius: 6px; margin-bottom: 16px; font-size: 13px; color: #92400e;"
-				>
+				<div class="warning-banner">
 					⚠️ This is a community plugin. Authrim does not guarantee its security, reliability, or
 					compatibility.
 				</div>
 			{/if}
 
 			{#if selectedPlugin.meta?.description}
-				<p style="color: #6b7280; margin: 0 0 16px 0;">
-					{selectedPlugin.meta.description}
-				</p>
+				<p class="plugin-description">{selectedPlugin.meta.description}</p>
 			{/if}
 
-			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-				<div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-					<div style="font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
-						Source
-					</div>
-					<div style="font-size: 14px; color: #374151;">
+			<div class="plugin-info-grid">
+				<div class="plugin-info-item">
+					<div class="plugin-info-label">Source</div>
+					<div class="plugin-info-value">
 						{getSourceIcon(selectedPlugin.source.type)}
 						{selectedPlugin.source.type}
 						{#if selectedPlugin.source.identifier}
-							<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
-								{selectedPlugin.source.identifier}
-							</div>
+							<div class="plugin-info-subvalue">{selectedPlugin.source.identifier}</div>
 						{/if}
 					</div>
 				</div>
-				<div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-					<div style="font-size: 12px; font-weight: 500; color: #6b7280; margin-bottom: 4px;">
-						Status
-					</div>
-					<div style="font-size: 14px; color: #374151;">
+				<div class="plugin-info-item">
+					<div class="plugin-info-label">Status</div>
+					<div class="plugin-info-value">
 						{selectedPlugin.enabled ? '✓ Enabled' : '○ Disabled'}
 					</div>
 				</div>
 			</div>
 
 			{#if selectedPlugin.capabilities.length > 0}
-				<div style="margin-bottom: 16px;">
-					<div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
-						Capabilities
-					</div>
-					<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+				<div class="plugin-section">
+					<div class="plugin-section-title">Capabilities</div>
+					<div class="plugin-capabilities">
 						{#each selectedPlugin.capabilities as cap (cap)}
-							<span
-								style="
-									font-size: 12px;
-									padding: 4px 8px;
-									border-radius: 4px;
-									background-color: #dbeafe;
-									color: #1e40af;
-								"
-							>
-								{cap}
-							</span>
+							<span class="badge-capability">{cap}</span>
 						{/each}
 					</div>
 				</div>
 			{/if}
 
 			{#if selectedPlugin.meta?.author}
-				<div style="margin-bottom: 16px;">
-					<div style="font-size: 14px; font-weight: 500; color: #374151; margin-bottom: 8px;">
-						Author
-					</div>
-					<div style="font-size: 14px; color: #6b7280;">
+				<div class="plugin-section">
+					<div class="plugin-section-title">Author</div>
+					<div class="plugin-info-value">
 						{selectedPlugin.meta.author.name}
 						{#if selectedPlugin.meta.author.url}
 							<a
 								href={selectedPlugin.meta.author.url}
 								target="_blank"
 								rel="noopener noreferrer"
-								style="color: #3b82f6; margin-left: 8px;"
+								class="plugin-doc-link"
 							>
 								↗
 							</a>
@@ -701,19 +524,12 @@
 			{/if}
 
 			{#if selectedPlugin.meta?.documentationUrl}
-				<div style="margin-bottom: 16px;">
+				<div class="plugin-section">
 					<a
 						href={selectedPlugin.meta.documentationUrl}
 						target="_blank"
 						rel="noopener noreferrer"
-						style="
-							display: inline-flex;
-							align-items: center;
-							gap: 6px;
-							color: #3b82f6;
-							font-size: 14px;
-							text-decoration: none;
-						"
+						class="plugin-doc-link"
 					>
 						📖 Documentation ↗
 					</a>
@@ -722,130 +538,71 @@
 
 			<!-- Success/Error Messages -->
 			{#if successMessage}
-				<div
-					style="padding: 12px; background-color: #d1fae5; color: #065f46; border-radius: 6px; margin-bottom: 16px; font-size: 14px;"
-				>
-					✓ {successMessage}
-				</div>
+				<div class="alert alert-success">✓ {successMessage}</div>
 			{/if}
 			{#if error && showDetailDialog}
-				<div
-					style="padding: 12px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px; font-size: 14px;"
-				>
-					{error}
-				</div>
+				<div class="alert alert-error">{error}</div>
 			{/if}
 
-			<div style="margin-bottom: 16px;">
-				<div
-					style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"
-				>
-					<div style="font-size: 14px; font-weight: 500; color: #374151;">Configuration</div>
+			<div class="plugin-section">
+				<div class="plugin-config-header">
+					<div class="plugin-config-title">Configuration</div>
 					{#if pluginSchema && !loadingConfig}
 						{#if isEditMode}
-							<div style="display: flex; gap: 8px;">
+							<div class="plugin-config-actions">
 								<button
+									class="btn btn-secondary btn-sm"
 									onclick={cancelEditing}
 									disabled={savingConfig}
-									style="
-										padding: 6px 12px;
-										background-color: #f3f4f6;
-										color: #374151;
-										border: none;
-										border-radius: 4px;
-										cursor: pointer;
-										font-size: 13px;
-									"
 								>
 									Cancel
 								</button>
-								<button
-									onclick={saveConfig}
-									disabled={savingConfig}
-									style="
-										padding: 6px 12px;
-										background-color: #3b82f6;
-										color: white;
-										border: none;
-										border-radius: 4px;
-										cursor: pointer;
-										font-size: 13px;
-										opacity: {savingConfig ? 0.7 : 1};
-									"
-								>
+								<button class="btn btn-primary btn-sm" onclick={saveConfig} disabled={savingConfig}>
 									{savingConfig ? 'Saving...' : 'Save'}
 								</button>
 							</div>
 						{:else}
-							<button
-								onclick={startEditing}
-								style="
-									padding: 6px 12px;
-									background-color: #3b82f6;
-									color: white;
-									border: none;
-									border-radius: 4px;
-									cursor: pointer;
-									font-size: 13px;
-								"
-							>
-								Edit
-							</button>
+							<button class="btn btn-primary btn-sm" onclick={startEditing}>Edit</button>
 						{/if}
 					{/if}
 				</div>
+
 				{#if loadingConfig}
-					<div style="color: #6b7280; font-size: 14px;">Loading configuration...</div>
+					<div class="text-muted">Loading configuration...</div>
 				{:else if pluginSchema && pluginSchema.properties}
 					<!-- Schema-based form -->
-					<div style="display: flex; flex-direction: column; gap: 16px;">
+					<div class="plugin-config-form">
 						{#each Object.entries(pluginSchema.properties) as [key, prop] (key)}
-							<div>
-								<label
-									style="display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px;"
-								>
+							<div class="plugin-config-field">
+								<label class="plugin-config-label">
 									{key}
 									{#if isFieldRequired(key)}
-										<span style="color: #ef4444;">*</span>
+										<span class="plugin-config-required">*</span>
 									{/if}
 								</label>
 								{#if prop.description}
-									<div style="font-size: 12px; color: #6b7280; margin-bottom: 6px;">
-										{prop.description}
-									</div>
+									<div class="plugin-config-hint">{prop.description}</div>
 								{/if}
 
 								{#if prop.type === 'boolean'}
-									<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+									<label class="plugin-config-checkbox">
 										<input
 											type="checkbox"
 											checked={Boolean(editedConfig[key] ?? prop.default)}
 											disabled={!isEditMode}
 											onchange={(e) =>
 												updateConfigValue(key, (e.target as HTMLInputElement).checked)}
-											style="
-												width: 18px;
-												height: 18px;
-												cursor: {isEditMode ? 'pointer' : 'default'};
-											"
 										/>
-										<span style="font-size: 14px; color: #374151;">
+										<span class="plugin-config-checkbox-label">
 											{(editedConfig[key] ?? prop.default) ? 'Enabled' : 'Disabled'}
 										</span>
 									</label>
 								{:else if prop.enum}
 									<select
+										class="plugin-config-select"
 										value={String(editedConfig[key] ?? prop.default ?? '')}
 										disabled={!isEditMode}
 										onchange={(e) => updateConfigValue(key, (e.target as HTMLSelectElement).value)}
-										style="
-											width: 100%;
-											padding: 8px 12px;
-											border: 1px solid #d1d5db;
-											border-radius: 6px;
-											font-size: 14px;
-											background: {isEditMode ? 'white' : '#f9fafb'};
-										"
 									>
 										{#each prop.enum as option (option)}
 											<option value={option}>{option}</option>
@@ -854,6 +611,7 @@
 								{:else}
 									<input
 										type={getInputType(prop)}
+										class="plugin-config-input"
 										value={String(editedConfig[key] ?? prop.default ?? '')}
 										disabled={!isEditMode}
 										oninput={(e) => {
@@ -867,53 +625,21 @@
 										placeholder={prop.default !== undefined ? String(prop.default) : ''}
 										min={prop.minimum}
 										max={prop.maximum}
-										style="
-											width: 100%;
-											padding: 8px 12px;
-											border: 1px solid #d1d5db;
-											border-radius: 6px;
-											font-size: 14px;
-											background: {isEditMode ? 'white' : '#f9fafb'};
-											box-sizing: border-box;
-										"
 									/>
 								{/if}
 							</div>
 						{/each}
 					</div>
 				{:else if Object.keys(pluginConfig).length === 0}
-					<div style="color: #6b7280; font-size: 14px;">No configuration available.</div>
+					<div class="text-muted">No configuration available.</div>
 				{:else}
 					<!-- Fallback: JSON view when no schema -->
-					<pre
-						style="
-							background: #f9fafb;
-							padding: 12px;
-							border-radius: 6px;
-							font-size: 12px;
-							overflow-x: auto;
-							margin: 0;
-						">{JSON.stringify(pluginConfig, null, 2)}</pre>
+					<pre class="plugin-config-json">{JSON.stringify(pluginConfig, null, 2)}</pre>
 				{/if}
 			</div>
 
-			<div
-				style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 16px; border-top: 1px solid #e5e7eb;"
-			>
-				<button
-					onclick={closeDetailDialog}
-					style="
-						padding: 10px 20px;
-						background-color: #f3f4f6;
-						color: #374151;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-					"
-				>
-					Close
-				</button>
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={closeDetailDialog}>Close</button>
 			</div>
 		</div>
 	</div>

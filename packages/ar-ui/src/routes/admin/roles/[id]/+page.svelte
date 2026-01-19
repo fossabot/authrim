@@ -155,16 +155,29 @@
 		}
 	}
 
-	function getRoleTypeBadgeStyle(type: RoleType): string {
+	function getRoleTypeBadgeClass(type: RoleType): string {
 		switch (type) {
 			case 'system':
-				return 'background-color: #dbeafe; color: #1e40af;';
+				return 'badge badge-system';
 			case 'builtin':
-				return 'background-color: #e0e7ff; color: #3730a3;';
+				return 'badge badge-primary';
 			case 'custom':
-				return 'background-color: #d1fae5; color: #065f46;';
+				return 'badge badge-success';
 			default:
-				return 'background-color: #f3f4f6; color: #374151;';
+				return 'badge badge-neutral';
+		}
+	}
+
+	function getScopeBadgeClass(scope: string): string {
+		switch (scope) {
+			case 'global':
+				return 'badge badge-global';
+			case 'org':
+				return 'badge badge-org';
+			case 'resource':
+				return 'badge badge-resource';
+			default:
+				return 'badge badge-neutral';
 		}
 	}
 
@@ -179,50 +192,55 @@
 	}
 </script>
 
-<div class="role-detail-page">
-	<div class="page-header">
-		<button class="back-btn" onclick={navigateBack}>← Back to Roles</button>
-	</div>
+<svelte:head>
+	<title
+		>{role ? `${role.display_name || role.name} - Roles` : 'Role Details'} - Admin Dashboard - Authrim</title
+	>
+</svelte:head>
+
+<div class="admin-page">
+	<a href="/admin/roles" class="back-link">← Back to Roles</a>
 
 	{#if loading}
-		<div class="loading">Loading role details...</div>
+		<div class="loading-state">Loading role details...</div>
 	{:else if error}
-		<div class="error-banner">
+		<div class="alert alert-error">
 			<span>{error}</span>
-			<button onclick={loadRole}>Retry</button>
+			<button class="btn btn-secondary btn-sm" onclick={loadRole}>Retry</button>
 		</div>
 	{:else if role}
-		<div class="role-header">
-			<div class="role-title">
-				<h1>{role.display_name || role.name}</h1>
-				{#if role.display_name && role.display_name !== role.name}
-					<span class="role-id">({role.name})</span>
-				{/if}
+		<!-- Role Header -->
+		<div class="page-header-with-status">
+			<div class="page-header-info">
+				<h1 class="page-title">
+					{role.display_name || role.name}
+					{#if role.display_name && role.display_name !== role.name}
+						<span class="page-subtitle">({role.name})</span>
+					{/if}
+				</h1>
 				{#if roleType}
-					<span class="type-badge" style={getRoleTypeBadgeStyle(roleType)}>
-						{roleType}
-					</span>
+					<span class={getRoleTypeBadgeClass(roleType)}>{roleType}</span>
 				{/if}
 			</div>
-			<div class="role-actions">
+			<div class="action-buttons">
 				{#if canEdit}
-					<button class="btn-secondary" onclick={navigateToEdit}>Edit</button>
+					<button class="btn btn-secondary" onclick={navigateToEdit}>Edit</button>
 				{/if}
 				{#if canDelete}
-					<button class="btn-danger" onclick={openDeleteDialog}>Delete</button>
+					<button class="btn btn-danger" onclick={openDeleteDialog}>Delete</button>
 				{/if}
 			</div>
 		</div>
 
 		{#if role.description}
-			<p class="role-description">{role.description}</p>
+			<p class="modal-description">{role.description}</p>
 		{/if}
 
-		<!-- Inheritance Warning -->
+		<!-- Inheritance Notice -->
 		{#if role.inherits_from}
-			<div class="inheritance-notice">
-				<span class="notice-icon">ℹ️</span>
-				<div class="notice-content">
+			<div class="info-box">
+				<span>ℹ️</span>
+				<div>
 					<strong>This role inherits from: {role.inherits_from}</strong>
 					<p>
 						When the base role is updated, changes will be automatically reflected in this role.
@@ -231,51 +249,51 @@
 			</div>
 		{/if}
 
-		<!-- Role Info -->
-		<div class="info-section">
-			<h2>Role Information</h2>
+		<!-- Role Info Panel -->
+		<div class="panel">
+			<h2 class="panel-title">Role Information</h2>
 			<div class="info-grid">
 				<div class="info-item">
-					<span class="info-label">ID</span>
-					<span class="info-value mono">{role.id}</span>
+					<dt class="info-label">ID</dt>
+					<dd class="info-value mono">{role.id}</dd>
 				</div>
 				<div class="info-item">
-					<span class="info-label">Type</span>
-					<span class="info-value">{roleType}</span>
+					<dt class="info-label">Type</dt>
+					<dd class="info-value">{roleType}</dd>
 				</div>
 				<div class="info-item">
-					<span class="info-label">Assigned Users</span>
-					<span class="info-value">{role.assignment_count}</span>
+					<dt class="info-label">Assigned Users</dt>
+					<dd class="info-value">{role.assignment_count}</dd>
 				</div>
 				<div class="info-item">
-					<span class="info-label">Created</span>
-					<span class="info-value">{formatDate(role.created_at)}</span>
+					<dt class="info-label">Created</dt>
+					<dd class="info-value">{formatDate(role.created_at)}</dd>
 				</div>
 				<div class="info-item">
-					<span class="info-label">Updated</span>
-					<span class="info-value">{formatDate(role.updated_at)}</span>
+					<dt class="info-label">Updated</dt>
+					<dd class="info-value">{formatDate(role.updated_at)}</dd>
 				</div>
 			</div>
 		</div>
 
-		<!-- Permissions Section -->
-		<div class="permissions-section">
-			<h2>Permissions ({role.effectivePermissions?.length || 0})</h2>
+		<!-- Permissions Panel -->
+		<div class="panel">
+			<h2 class="panel-title">Permissions ({role.effectivePermissions?.length || 0})</h2>
 
 			{#if permissionsByCategory.length === 0}
-				<p class="no-permissions">This role has no permissions assigned.</p>
+				<p class="empty-text">This role has no permissions assigned.</p>
 			{:else}
-				<div class="permissions-grid">
+				<div class="permission-grid">
 					{#each permissionsByCategory as category (category.category)}
-						<div class="permission-category">
-							<h3>{category.categoryLabel}</h3>
+						<div class="permission-category-card">
+							<h3 class="permission-category-title">{category.categoryLabel}</h3>
 							<div class="permission-list">
 								{#each category.permissions as perm (perm.id)}
 									{#if perm.hasPermission}
 										<div class="permission-item" class:inherited={perm.isInherited}>
 											<span class="permission-name">{perm.label}</span>
 											{#if perm.isInherited}
-												<span class="inherited-badge">Inherited</span>
+												<span class="badge badge-neutral">Inherited</span>
 											{/if}
 											<span class="permission-id">{perm.id}</span>
 										</div>
@@ -288,25 +306,28 @@
 			{/if}
 		</div>
 
-		<!-- Assigned Users Section -->
-		<div class="assigned-users-section">
-			<h2>Assigned Users ({role.assignment_count})</h2>
-			<p class="section-description">
+		<!-- Assigned Users Panel -->
+		<div class="panel">
+			<h2 class="panel-title">Assigned Users ({role.assignment_count})</h2>
+			<p class="form-hint">
 				Users with this role. To assign or remove this role, go to the user's detail page.
 			</p>
 
 			{#if assignedUsersLoading}
-				<div class="loading-inline">Loading users...</div>
+				<div class="loading-state">Loading users...</div>
 			{:else if assignedUsersError}
-				<div class="error-inline">
+				<div class="alert alert-error">
 					<span>{assignedUsersError}</span>
-					<button onclick={() => loadAssignedUsers(assignedUsersPagination.page)}>Retry</button>
+					<button
+						class="btn btn-secondary btn-sm"
+						onclick={() => loadAssignedUsers(assignedUsersPagination.page)}>Retry</button
+					>
 				</div>
 			{:else if assignedUsers.length === 0}
-				<p class="no-users">No users are assigned to this role.</p>
+				<div class="empty-state">No users are assigned to this role.</div>
 			{:else}
-				<div class="users-table-container">
-					<table class="users-table">
+				<div class="table-container">
+					<table class="data-table">
 						<thead>
 							<tr>
 								<th>User</th>
@@ -318,21 +339,21 @@
 						<tbody>
 							{#each assignedUsers as user (user.assignment_id)}
 								<tr>
-									<td class="user-info-cell">
-										<div class="user-info">
-											<span class="user-name">{user.user_name || 'Unknown'}</span>
-											<span class="user-email">{user.user_email || user.user_id}</span>
+									<td>
+										<div class="user-cell">
+											<span class="user-cell-name">{user.user_name || 'Unknown'}</span>
+											<span class="user-cell-email">{user.user_email || user.user_id}</span>
 										</div>
 									</td>
 									<td>
-										<span class="scope-badge">{user.scope}</span>
+										<span class={getScopeBadgeClass(user.scope)}>{user.scope}</span>
 										{#if user.scope_target}
 											<span class="scope-target">{user.scope_target}</span>
 										{/if}
 									</td>
-									<td class="date-cell">{formatDate(user.assigned_at)}</td>
+									<td class="nowrap text-secondary">{formatDate(user.assigned_at)}</td>
 									<td>
-										<button class="action-link" onclick={() => navigateToUser(user.user_id)}>
+										<button class="btn-link" onclick={() => navigateToUser(user.user_id)}>
 											View User →
 										</button>
 									</td>
@@ -346,7 +367,7 @@
 				{#if assignedUsersPagination.totalPages > 1}
 					<div class="pagination">
 						<button
-							class="pagination-btn"
+							class="btn btn-secondary btn-sm"
 							disabled={!assignedUsersPagination.hasPrev}
 							onclick={() => loadAssignedUsers(assignedUsersPagination.page - 1)}
 						>
@@ -356,7 +377,7 @@
 							Page {assignedUsersPagination.page} of {assignedUsersPagination.totalPages}
 						</span>
 						<button
-							class="pagination-btn"
+							class="btn btn-secondary btn-sm"
 							disabled={!assignedUsersPagination.hasNext}
 							onclick={() => loadAssignedUsers(assignedUsersPagination.page + 1)}
 						>
@@ -369,11 +390,11 @@
 
 		<!-- Delete restriction notice -->
 		{#if roleType === 'custom' && role.assignment_count > 0}
-			<div class="delete-notice">
-				<span class="notice-icon">⚠️</span>
-				<span>
-					This role is assigned to {role.assignment_count} user(s). Remove all assignments before deleting.
-				</span>
+			<div class="warning-box">
+				<p>
+					⚠️ This role is assigned to {role.assignment_count} user(s). Remove all assignments before
+					deleting.
+				</p>
 			</div>
 		{/if}
 	{/if}
@@ -381,546 +402,35 @@
 
 <!-- Delete Confirmation Dialog -->
 {#if showDeleteDialog && role}
-	<div class="dialog-overlay" onclick={closeDeleteDialog} role="presentation">
+	<div class="modal-overlay" onclick={closeDeleteDialog} role="presentation">
 		<div
-			class="dialog"
+			class="modal-content modal-sm"
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="delete-dialog-title"
 		>
-			<h2 id="delete-dialog-title">Delete Role</h2>
-			<p>
-				Are you sure you want to delete the role <strong>{role.name}</strong>?
-			</p>
-			<p class="warning-text">This action cannot be undone.</p>
+			<div class="modal-header">
+				<h2 id="delete-dialog-title" class="modal-title">Delete Role</h2>
+			</div>
+			<div class="modal-body">
+				<p>
+					Are you sure you want to delete the role <strong>{role.name}</strong>?
+				</p>
+				<p class="text-danger">This action cannot be undone.</p>
 
-			{#if deleteError}
-				<div class="dialog-error">{deleteError}</div>
-			{/if}
-
-			<div class="dialog-actions">
-				<button class="btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
+				{#if deleteError}
+					<div class="alert alert-error">{deleteError}</div>
+				{/if}
+			</div>
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
 					Cancel
 				</button>
-				<button class="btn-danger" onclick={confirmDelete} disabled={deleting}>
+				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
 					{deleting ? 'Deleting...' : 'Delete'}
 				</button>
 			</div>
 		</div>
 	</div>
 {/if}
-
-<style>
-	.role-detail-page {
-		padding: 24px;
-		max-width: 1000px;
-		margin: 0 auto;
-	}
-
-	.page-header {
-		margin-bottom: 24px;
-	}
-
-	.back-btn {
-		padding: 8px 16px;
-		background-color: transparent;
-		border: none;
-		color: #2563eb;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.back-btn:hover {
-		text-decoration: underline;
-	}
-
-	.role-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		margin-bottom: 16px;
-	}
-
-	.role-title {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		flex-wrap: wrap;
-	}
-
-	.role-title h1 {
-		margin: 0;
-		font-size: 24px;
-		font-weight: 600;
-	}
-
-	.role-id {
-		color: #9ca3af;
-		font-size: 16px;
-	}
-
-	.type-badge {
-		display: inline-block;
-		padding: 4px 10px;
-		border-radius: 4px;
-		font-size: 12px;
-		font-weight: 500;
-		text-transform: capitalize;
-	}
-
-	.role-actions {
-		display: flex;
-		gap: 8px;
-	}
-
-	.role-description {
-		color: #6b7280;
-		margin: 0 0 24px 0;
-		font-size: 14px;
-	}
-
-	.inheritance-notice {
-		background-color: #eff6ff;
-		border: 1px solid #bfdbfe;
-		border-radius: 8px;
-		padding: 16px;
-		margin-bottom: 24px;
-		display: flex;
-		gap: 12px;
-	}
-
-	.notice-icon {
-		font-size: 20px;
-	}
-
-	.notice-content strong {
-		color: #1e40af;
-		display: block;
-		margin-bottom: 4px;
-	}
-
-	.notice-content p {
-		margin: 0;
-		color: #1e40af;
-		font-size: 14px;
-	}
-
-	.info-section {
-		background-color: #f9fafb;
-		border-radius: 8px;
-		padding: 20px;
-		margin-bottom: 24px;
-	}
-
-	.info-section h2 {
-		margin: 0 0 16px 0;
-		font-size: 16px;
-		font-weight: 600;
-	}
-
-	.info-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-		gap: 16px;
-	}
-
-	.info-item {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-
-	.info-label {
-		font-size: 12px;
-		color: #6b7280;
-		text-transform: uppercase;
-	}
-
-	.info-value {
-		font-size: 14px;
-		color: #111827;
-	}
-
-	.info-value.mono {
-		font-family: monospace;
-		font-size: 13px;
-	}
-
-	.permissions-section {
-		margin-bottom: 24px;
-	}
-
-	.permissions-section h2 {
-		margin: 0 0 16px 0;
-		font-size: 18px;
-		font-weight: 600;
-	}
-
-	.no-permissions {
-		color: #6b7280;
-		font-style: italic;
-	}
-
-	.permissions-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-		gap: 20px;
-	}
-
-	.permission-category {
-		background-color: #fff;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-		padding: 16px;
-	}
-
-	.permission-category h3 {
-		margin: 0 0 12px 0;
-		font-size: 14px;
-		font-weight: 600;
-		color: #374151;
-	}
-
-	.permission-list {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	.permission-item {
-		padding: 8px 12px;
-		background-color: #f9fafb;
-		border-radius: 4px;
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.permission-item.inherited {
-		background-color: #f3f4f6;
-		opacity: 0.8;
-	}
-
-	.permission-name {
-		font-size: 13px;
-		font-weight: 500;
-		color: #111827;
-	}
-
-	.inherited-badge {
-		font-size: 10px;
-		padding: 2px 6px;
-		background-color: #e5e7eb;
-		color: #6b7280;
-		border-radius: 3px;
-	}
-
-	.permission-id {
-		font-size: 11px;
-		color: #9ca3af;
-		font-family: monospace;
-		margin-left: auto;
-	}
-
-	.delete-notice {
-		background-color: #fef3c7;
-		border: 1px solid #fcd34d;
-		border-radius: 8px;
-		padding: 12px 16px;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		color: #92400e;
-		font-size: 14px;
-	}
-
-	.loading {
-		text-align: center;
-		padding: 40px;
-		color: #6b7280;
-	}
-
-	.error-banner {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		color: #b91c1c;
-		padding: 12px 16px;
-		border-radius: 6px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.error-banner button {
-		padding: 6px 12px;
-		background-color: #b91c1c;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-	}
-
-	.btn-secondary {
-		padding: 8px 16px;
-		background-color: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-secondary:hover {
-		background-color: #f3f4f6;
-	}
-
-	.btn-danger {
-		padding: 8px 16px;
-		background-color: #dc2626;
-		color: white;
-		border: none;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-danger:hover {
-		background-color: #b91c1c;
-	}
-
-	.btn-danger:disabled,
-	.btn-secondary:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* Dialog styles */
-	.dialog-overlay {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-
-	.dialog {
-		background-color: white;
-		border-radius: 8px;
-		padding: 24px;
-		max-width: 400px;
-		width: 90%;
-		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-	}
-
-	.dialog h2 {
-		margin: 0 0 16px 0;
-		font-size: 18px;
-		font-weight: 600;
-	}
-
-	.dialog p {
-		margin: 0 0 12px 0;
-		color: #374151;
-	}
-
-	.warning-text {
-		color: #b91c1c;
-		font-size: 14px;
-	}
-
-	.dialog-error {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		color: #b91c1c;
-		padding: 8px 12px;
-		border-radius: 4px;
-		margin-bottom: 16px;
-		font-size: 14px;
-	}
-
-	.dialog-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-		margin-top: 24px;
-	}
-
-	/* Assigned Users Section */
-	.assigned-users-section {
-		margin-bottom: 24px;
-	}
-
-	.assigned-users-section h2 {
-		margin: 0 0 8px 0;
-		font-size: 18px;
-		font-weight: 600;
-	}
-
-	.section-description {
-		color: #6b7280;
-		margin: 0 0 16px 0;
-		font-size: 14px;
-	}
-
-	.loading-inline {
-		padding: 20px;
-		text-align: center;
-		color: #6b7280;
-	}
-
-	.error-inline {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		color: #b91c1c;
-		padding: 12px 16px;
-		border-radius: 6px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.error-inline button {
-		padding: 4px 8px;
-		background-color: #b91c1c;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 12px;
-	}
-
-	.no-users {
-		color: #6b7280;
-		font-style: italic;
-		padding: 20px;
-		text-align: center;
-		background-color: #f9fafb;
-		border-radius: 8px;
-	}
-
-	.users-table-container {
-		overflow-x: auto;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-	}
-
-	.users-table {
-		width: 100%;
-		border-collapse: collapse;
-	}
-
-	.users-table th {
-		text-align: left;
-		padding: 12px 16px;
-		background-color: #f9fafb;
-		font-size: 13px;
-		font-weight: 600;
-		color: #374151;
-		border-bottom: 1px solid #e5e7eb;
-	}
-
-	.users-table td {
-		padding: 12px 16px;
-		border-bottom: 1px solid #e5e7eb;
-		font-size: 14px;
-	}
-
-	.users-table tr:last-child td {
-		border-bottom: none;
-	}
-
-	.user-info-cell {
-		max-width: 250px;
-	}
-
-	.user-info {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.user-name {
-		font-weight: 500;
-		color: #111827;
-	}
-
-	.user-email {
-		font-size: 12px;
-		color: #6b7280;
-	}
-
-	.scope-badge {
-		display: inline-block;
-		padding: 2px 8px;
-		background-color: #e0e7ff;
-		color: #3730a3;
-		border-radius: 4px;
-		font-size: 11px;
-		font-weight: 500;
-		text-transform: capitalize;
-	}
-
-	.scope-target {
-		font-size: 12px;
-		color: #6b7280;
-		margin-left: 4px;
-	}
-
-	.date-cell {
-		color: #6b7280;
-		white-space: nowrap;
-		font-size: 13px;
-	}
-
-	.action-link {
-		background: none;
-		border: none;
-		color: #2563eb;
-		cursor: pointer;
-		font-size: 13px;
-		padding: 0;
-	}
-
-	.action-link:hover {
-		text-decoration: underline;
-	}
-
-	.pagination {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		gap: 16px;
-		margin-top: 16px;
-		padding: 12px;
-	}
-
-	.pagination-btn {
-		padding: 8px 16px;
-		background-color: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 6px;
-		font-size: 13px;
-		cursor: pointer;
-		color: #374151;
-	}
-
-	.pagination-btn:hover:not(:disabled) {
-		background-color: #f3f4f6;
-	}
-
-	.pagination-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.pagination-info {
-		font-size: 13px;
-		color: #6b7280;
-	}
-</style>

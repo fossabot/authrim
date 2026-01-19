@@ -146,144 +146,85 @@
 	}
 </script>
 
-<div>
-	<div
-		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
-	>
-		<h1 style="font-size: 24px; font-weight: bold; margin: 0; color: #1f2937;">
-			Initial Access Tokens
-		</h1>
-		<button
-			onclick={openCreateDialog}
-			style="
-				padding: 10px 20px;
-				background-color: #3b82f6;
-				color: white;
-				border: none;
-				border-radius: 6px;
-				cursor: pointer;
-				font-size: 14px;
-			"
-		>
-			Create Token
-		</button>
+<svelte:head>
+	<title>Initial Access Tokens - Admin Dashboard - Authrim</title>
+</svelte:head>
+
+<div class="admin-page">
+	<!-- Page Header -->
+	<div class="page-header">
+		<div>
+			<h1 class="page-title">Initial Access Tokens</h1>
+			<p class="page-description">
+				Initial Access Tokens (IAT) are used for Dynamic Client Registration (RFC 7591). Clients can
+				use these tokens to register themselves programmatically.
+			</p>
+		</div>
+		<div class="page-actions">
+			<button class="btn btn-primary" onclick={openCreateDialog}>
+				<i class="i-ph-plus"></i>
+				Create Token
+			</button>
+		</div>
 	</div>
 
-	<p style="color: #6b7280; margin-bottom: 24px;">
-		Initial Access Tokens (IAT) are used for Dynamic Client Registration (RFC 7591). Clients can use
-		these tokens to register themselves programmatically.
-	</p>
-
 	{#if error}
-		<div
-			style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-		>
-			{error}
-		</div>
+		<div class="alert alert-error">{error}</div>
 	{/if}
 
 	{#if loading}
-		<div style="text-align: center; padding: 48px; color: #6b7280;">Loading...</div>
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading...</p>
+		</div>
 	{:else if tokens.length === 0}
-		<div
-			style="text-align: center; padding: 48px; color: #6b7280; background: white; border-radius: 8px; border: 1px solid #e5e7eb;"
-		>
-			<p style="margin: 0 0 16px 0;">No Initial Access Tokens found.</p>
-			<p style="margin: 0; font-size: 14px;">
-				Create a token to allow clients to register dynamically using RFC 7591.
-			</p>
+		<div class="panel">
+			<div class="empty-state">
+				<p class="empty-state-description">No Initial Access Tokens found.</p>
+				<p class="empty-state-hint">
+					Create a token to allow clients to register dynamically using RFC 7591.
+				</p>
+				<button class="btn btn-primary" onclick={openCreateDialog}>Create Token</button>
+			</div>
 		</div>
 	{:else}
-		<div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-			<table style="width: 100%; border-collapse: collapse;">
+		<div class="data-table-container">
+			<table class="data-table">
 				<thead>
-					<tr style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Token Hash
-						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Description
-						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Created
-						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Expires
-						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Single Use
-						</th>
-						<th
-							style="text-align: right; padding: 12px 16px; font-weight: 600; font-size: 14px; color: #374151;"
-						>
-							Actions
-						</th>
+					<tr>
+						<th>Token Hash</th>
+						<th>Description</th>
+						<th>Created</th>
+						<th>Expires</th>
+						<th>Single Use</th>
+						<th class="text-right">Actions</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each tokens as token (token.tokenHash)}
-						<tr style="border-bottom: 1px solid #e5e7eb;">
-							<td
-								style="padding: 12px 16px; font-size: 14px; font-family: monospace; color: #374151;"
-							>
-								{formatTokenHash(token.tokenHash)}
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-								{token.description || '-'}
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-								{formatDateTime(token.createdAt)}
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
+						<tr>
+							<td class="mono">{formatTokenHash(token.tokenHash)}</td>
+							<td>{token.description || '-'}</td>
+							<td class="muted nowrap">{formatDateTime(token.createdAt)}</td>
+							<td>
 								{#if token.expiresAt}
-									<span style="color: {isExpired(token.expiresAt) ? '#dc2626' : '#374151'};">
+									<span class={isExpired(token.expiresAt) ? 'danger-text' : ''}>
 										{formatDateTime(token.expiresAt)}
 										{#if isExpired(token.expiresAt)}
-											<span style="color: #dc2626;">(Expired)</span>
+											<span class="badge badge-danger">Expired</span>
 										{/if}
 									</span>
 								{:else}
-									<span style="color: #6b7280;">Never</span>
+									<span class="muted">Never</span>
 								{/if}
 							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #374151;">
-								<span
-									style="
-										display: inline-block;
-										padding: 4px 8px;
-										border-radius: 9999px;
-										font-size: 12px;
-										font-weight: 500;
-										background-color: {token.single_use ? '#dbeafe' : '#e5e7eb'};
-										color: {token.single_use ? '#1e40af' : '#374151'};
-									"
-								>
+							<td>
+								<span class={token.single_use ? 'badge badge-info' : 'badge badge-neutral'}>
 									{token.single_use ? 'Yes' : 'No'}
 								</span>
 							</td>
-							<td style="padding: 12px 16px; text-align: right;">
-								<button
-									onclick={() => openRevokeDialog(token)}
-									style="
-										padding: 6px 12px;
-										background-color: #fee2e2;
-										color: #dc2626;
-										border: none;
-										border-radius: 4px;
-										cursor: pointer;
-										font-size: 13px;
-									"
-								>
+							<td class="text-right">
+								<button class="btn btn-danger btn-sm" onclick={() => openRevokeDialog(token)}>
 									Revoke
 								</button>
 							</td>
@@ -298,106 +239,68 @@
 <!-- Create Token Dialog -->
 {#if showCreateDialog}
 	<div
-		style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;"
+		class="modal-overlay"
 		onclick={closeCreateDialog}
 		onkeydown={(e) => e.key === 'Escape' && closeCreateDialog()}
 		tabindex="-1"
 		role="dialog"
+		aria-modal="true"
 	>
 		<div
-			style="background: white; border-radius: 8px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;"
+			class="modal-content"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;">
-				Create Initial Access Token
-			</h2>
+			<div class="modal-header">
+				<h2 class="modal-title">Create Initial Access Token</h2>
+			</div>
 
-			{#if createError}
-				<div
-					style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-				>
-					{createError}
+			<div class="modal-body">
+				{#if createError}
+					<div class="alert alert-error">{createError}</div>
+				{/if}
+
+				<div class="form-group">
+					<label for="description" class="form-label">Description (optional)</label>
+					<input
+						id="description"
+						type="text"
+						class="form-input"
+						bind:value={newTokenDescription}
+						placeholder="e.g., Mobile App Registration"
+					/>
 				</div>
-			{/if}
 
-			<div style="margin-bottom: 16px;">
-				<label
-					for="description"
-					style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: #374151;"
-				>
-					Description (optional)
-				</label>
-				<input
-					id="description"
-					type="text"
-					bind:value={newTokenDescription}
-					placeholder="e.g., Mobile App Registration"
-					style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; background-color: white; color: #1f2937;"
-				/>
+				<div class="form-group">
+					<label for="expiresInDays" class="form-label">Expires In (Days)</label>
+					<input
+						id="expiresInDays"
+						type="number"
+						min="1"
+						max="365"
+						class="form-input"
+						bind:value={newTokenExpiresInDays}
+					/>
+					<p class="form-hint">Valid range: 1-365 days</p>
+				</div>
+
+				<div class="form-group">
+					<label class="checkbox-label">
+						<input type="checkbox" bind:checked={newTokenSingleUse} />
+						<span>
+							<strong>Single Use</strong>
+							<span class="muted"> - Token can only be used once for registration</span>
+						</span>
+					</label>
+				</div>
 			</div>
 
-			<div style="margin-bottom: 16px;">
-				<label
-					for="expiresInDays"
-					style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: #374151;"
-				>
-					Expires In (Days)
-				</label>
-				<input
-					id="expiresInDays"
-					type="number"
-					min="1"
-					max="365"
-					bind:value={newTokenExpiresInDays}
-					style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; background-color: white; color: #1f2937;"
-				/>
-				<p style="font-size: 12px; color: #6b7280; margin: 4px 0 0 0;">Valid range: 1-365 days</p>
-			</div>
-
-			<div style="margin-bottom: 24px;">
-				<label
-					style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; color: #374151;"
-				>
-					<input type="checkbox" bind:checked={newTokenSingleUse} />
-					<span>
-						<strong style="color: #1f2937;">Single Use</strong>
-						<span style="color: #6b7280;">- Token can only be used once for registration</span>
-					</span>
-				</label>
-			</div>
-
-			<div style="display: flex; justify-content: flex-end; gap: 12px;">
-				<button
-					onclick={closeCreateDialog}
-					disabled={creating}
-					style="
-						padding: 10px 20px;
-						background-color: #f3f4f6;
-						color: #374151;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-					"
-				>
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
 					Cancel
 				</button>
-				<button
-					onclick={confirmCreate}
-					disabled={creating}
-					style="
-						padding: 10px 20px;
-						background-color: #3b82f6;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-						opacity: {creating ? 0.7 : 1};
-					"
-				>
+				<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
 					{creating ? 'Creating...' : 'Create Token'}
 				</button>
 			</div>
@@ -407,89 +310,54 @@
 
 <!-- Token Created Success Dialog -->
 {#if showTokenCreatedDialog && createdToken}
-	<div
-		style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;"
-		role="dialog"
-	>
+	<div class="modal-overlay" role="dialog" aria-modal="true">
 		<div
-			style="background: white; border-radius: 8px; padding: 24px; max-width: 600px; width: 90%;"
+			class="modal-content modal-lg"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 16px 0; color: #065f46;">
-				Token Created Successfully
-			</h2>
-
-			<div
-				style="padding: 12px 16px; background-color: #fef3c7; color: #92400e; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;"
-			>
-				<span style="font-size: 18px;">&#9888;</span>
-				<span style="font-size: 14px;">Save this token now - it will not be shown again!</span>
+			<div class="modal-header">
+				<h2 class="modal-title success">Token Created Successfully</h2>
 			</div>
 
-			<div style="margin-bottom: 16px;">
-				<label
-					style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: #374151;"
-				>
-					Initial Access Token
-				</label>
-				<div
-					style="display: flex; gap: 8px; align-items: stretch; background-color: #f3f4f6; border-radius: 6px; padding: 8px;"
-				>
-					<code
-						style="flex: 1; font-size: 12px; word-break: break-all; padding: 8px; background-color: white; border-radius: 4px; border: 1px solid #e5e7eb; color: #1f2937;"
-					>
-						{createdToken.token}
-					</code>
-					<button
-						onclick={copyTokenToClipboard}
-						style="
-							padding: 8px 16px;
-							background-color: {tokenCopied ? '#d1fae5' : '#3b82f6'};
-							color: {tokenCopied ? '#065f46' : 'white'};
-							border: none;
-							border-radius: 4px;
-							cursor: pointer;
-							font-size: 14px;
-							white-space: nowrap;
-						"
-					>
-						{tokenCopied ? 'Copied!' : 'Copy'}
-					</button>
+			<div class="modal-body">
+				<div class="alert alert-warning">
+					<i class="i-ph-warning"></i>
+					<span>Save this token now - it will not be shown again!</span>
+				</div>
+
+				<div class="form-group">
+					<label class="form-label">Initial Access Token</label>
+					<div class="token-display">
+						<code class="token-value">{createdToken.token}</code>
+						<button
+							class={tokenCopied ? 'btn btn-success btn-sm' : 'btn btn-primary btn-sm'}
+							onclick={copyTokenToClipboard}
+						>
+							{tokenCopied ? 'Copied!' : 'Copy'}
+						</button>
+					</div>
+				</div>
+
+				<div class="info-box">
+					<div class="info-row">
+						<span class="info-label">Description:</span>
+						<span class="info-value">{createdToken.description || 'None'}</span>
+					</div>
+					<div class="info-row">
+						<span class="info-label">Expires In:</span>
+						<span class="info-value">{createdToken.expiresInDays} days</span>
+					</div>
+					<div class="info-row">
+						<span class="info-label">Single Use:</span>
+						<span class="info-value">{createdToken.single_use ? 'Yes' : 'No'}</span>
+					</div>
 				</div>
 			</div>
 
-			<div style="font-size: 14px; color: #6b7280; margin-bottom: 24px;">
-				<p style="margin: 0 0 8px 0;">
-					<strong>Description:</strong>
-					{createdToken.description || 'None'}
-				</p>
-				<p style="margin: 0 0 8px 0;">
-					<strong>Expires In:</strong>
-					{createdToken.expiresInDays} days
-				</p>
-				<p style="margin: 0;">
-					<strong>Single Use:</strong>
-					{createdToken.single_use ? 'Yes' : 'No'}
-				</p>
-			</div>
-
-			<div style="display: flex; justify-content: flex-end;">
-				<button
-					onclick={closeTokenCreatedDialog}
-					style="
-						padding: 10px 20px;
-						background-color: #3b82f6;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-					"
-				>
-					Done
-				</button>
+			<div class="modal-footer">
+				<button class="btn btn-primary" onclick={closeTokenCreatedDialog}>Done</button>
 			</div>
 		</div>
 	</div>
@@ -498,78 +366,50 @@
 <!-- Revoke Confirmation Dialog -->
 {#if showRevokeDialog && tokenToRevoke}
 	<div
-		style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;"
+		class="modal-overlay"
 		onclick={closeRevokeDialog}
 		onkeydown={(e) => e.key === 'Escape' && closeRevokeDialog()}
 		tabindex="-1"
 		role="dialog"
+		aria-modal="true"
 	>
 		<div
-			style="background: white; border-radius: 8px; padding: 24px; max-width: 500px; width: 90%;"
+			class="modal-content"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<h2 style="font-size: 20px; font-weight: bold; margin: 0 0 16px 0; color: #1f2937;">
-				Revoke Initial Access Token
-			</h2>
-
-			{#if revokeError}
-				<div
-					style="padding: 12px 16px; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; margin-bottom: 16px;"
-				>
-					{revokeError}
-				</div>
-			{/if}
-
-			<p style="color: #6b7280; margin: 0 0 16px 0;">
-				Are you sure you want to revoke this Initial Access Token? This action cannot be undone and
-				will prevent any new client registrations using this token.
-			</p>
-
-			<div
-				style="background-color: #f9fafb; padding: 12px; border-radius: 6px; margin-bottom: 24px;"
-			>
-				<p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;">
-					<strong>Token Hash:</strong>
-					<code style="color: #1f2937;">{formatTokenHash(tokenToRevoke.tokenHash)}</code>
-				</p>
-				<p style="margin: 0; font-size: 14px; color: #374151;">
-					<strong>Description:</strong>
-					{tokenToRevoke.description || 'None'}
-				</p>
+			<div class="modal-header">
+				<h2 class="modal-title">Revoke Initial Access Token</h2>
 			</div>
 
-			<div style="display: flex; justify-content: flex-end; gap: 12px;">
-				<button
-					onclick={closeRevokeDialog}
-					disabled={revoking}
-					style="
-						padding: 10px 20px;
-						background-color: #f3f4f6;
-						color: #374151;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-					"
-				>
+			<div class="modal-body">
+				{#if revokeError}
+					<div class="alert alert-error">{revokeError}</div>
+				{/if}
+
+				<p class="modal-description">
+					Are you sure you want to revoke this Initial Access Token? This action cannot be undone
+					and will prevent any new client registrations using this token.
+				</p>
+
+				<div class="info-box">
+					<div class="info-row">
+						<span class="info-label">Token Hash:</span>
+						<code class="info-value">{formatTokenHash(tokenToRevoke.tokenHash)}</code>
+					</div>
+					<div class="info-row">
+						<span class="info-label">Description:</span>
+						<span class="info-value">{tokenToRevoke.description || 'None'}</span>
+					</div>
+				</div>
+			</div>
+
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={closeRevokeDialog} disabled={revoking}>
 					Cancel
 				</button>
-				<button
-					onclick={confirmRevoke}
-					disabled={revoking}
-					style="
-						padding: 10px 20px;
-						background-color: #dc2626;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						cursor: pointer;
-						font-size: 14px;
-						opacity: {revoking ? 0.7 : 1};
-					"
-				>
+				<button class="btn btn-danger" onclick={confirmRevoke} disabled={revoking}>
 					{revoking ? 'Revoking...' : 'Revoke Token'}
 				</button>
 			</div>

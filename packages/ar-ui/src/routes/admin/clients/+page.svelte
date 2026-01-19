@@ -117,14 +117,14 @@
 		return grantTypes.map((gt) => shortNames[gt] || gt).join(', ');
 	}
 
-	function getClientTypeBadgeStyle(grantTypes: string[]): string {
+	function getClientTypeBadgeClass(grantTypes: string[]): string {
 		if (grantTypes.includes('client_credentials')) {
-			return 'background-color: #e0e7ff; color: #3730a3;'; // M2M - indigo
+			return 'badge badge-info'; // M2M
 		}
 		if (grantTypes.includes('urn:ietf:params:oauth:grant-type:device_code')) {
-			return 'background-color: #fef3c7; color: #92400e;'; // IoT - amber
+			return 'badge badge-warning'; // IoT
 		}
-		return 'background-color: #dbeafe; color: #1e40af;'; // Standard - blue
+		return 'badge badge-neutral'; // Standard
 	}
 
 	// Selection handlers
@@ -201,91 +201,44 @@
 	<title>OAuth Clients - Admin Dashboard - Authrim</title>
 </svelte:head>
 
-<div>
-	<div
-		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
-	>
-		<h1 style="font-size: 24px; font-weight: bold; color: #1f2937; margin: 0;">OAuth Clients</h1>
-		<div style="display: flex; gap: 8px; align-items: center;">
+<div class="admin-page">
+	<!-- Page Header -->
+	<div class="page-header">
+		<div>
+			<h1 class="page-title">OAuth Clients</h1>
+			<p class="page-description">Manage OAuth 2.0 client applications</p>
+		</div>
+		<div class="page-actions">
 			{#if hasSelection}
-				<button
-					onclick={openBulkDeleteDialog}
-					style="
-						padding: 10px 20px;
-						background-color: #dc2626;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						font-size: 14px;
-						font-weight: 500;
-						cursor: pointer;
-					"
-				>
+				<button class="btn btn-danger" onclick={openBulkDeleteDialog}>
+					<i class="i-ph-trash"></i>
 					Delete Selected ({selectedIds.size})
 				</button>
 			{/if}
-			<a
-				href="/admin/clients/new"
-				style="
-					padding: 10px 20px;
-					background-color: #3b82f6;
-					color: white;
-					text-decoration: none;
-					border-radius: 6px;
-					font-size: 14px;
-					font-weight: 500;
-				"
-			>
+			<a href="/admin/clients/new" class="btn btn-primary">
+				<i class="i-ph-plus"></i>
 				Create Client
 			</a>
 		</div>
 	</div>
 
 	<!-- Search -->
-	<div
-		style="background-color: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;"
-	>
-		<div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
-			<div style="flex: 1; min-width: 200px;">
-				<label
-					for="search"
-					style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;">Search</label
-				>
+	<div class="panel">
+		<div class="filter-row">
+			<div class="form-group">
+				<label for="search" class="form-label">Search</label>
 				<input
 					id="search"
 					type="text"
+					class="form-input"
 					placeholder="Search by client ID or name..."
 					bind:value={searchQuery}
 					oninput={handleSearch}
-					style="
-						width: 100%;
-						padding: 8px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 4px;
-						font-size: 14px;
-						box-sizing: border-box;
-					"
 				/>
 			</div>
-			<div style="min-width: 120px;">
-				<label
-					for="pageSize"
-					style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;">Show</label
-				>
-				<select
-					id="pageSize"
-					value={limit}
-					onchange={handlePageSizeChange}
-					style="
-						width: 100%;
-						padding: 8px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 4px;
-						font-size: 14px;
-						background-color: white;
-						cursor: pointer;
-					"
-				>
+			<div class="form-group" style="min-width: 120px; flex: 0;">
+				<label for="pageSize" class="form-label">Show</label>
+				<select id="pageSize" class="form-select" value={limit} onchange={handlePageSizeChange}>
 					{#each PAGE_SIZE_OPTIONS as size (size)}
 						<option value={size}>{size} per page</option>
 					{/each}
@@ -295,125 +248,73 @@
 	</div>
 
 	{#if loading}
-		<p style="color: #6b7280; text-align: center; padding: 40px;">Loading clients...</p>
-	{:else if error}
-		<div
-			style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px;"
-		>
-			{error}
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading clients...</p>
 		</div>
+	{:else if error}
+		<div class="alert alert-error">{error}</div>
 	{:else if clients.length === 0}
-		<div
-			style="background-color: white; border-radius: 8px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;"
-		>
-			<p style="color: #9ca3af; margin: 0 0 16px 0;">No OAuth clients found</p>
-			<a
-				href="/admin/clients/new"
-				style="
-					display: inline-block;
-					padding: 10px 20px;
-					background-color: #3b82f6;
-					color: white;
-					text-decoration: none;
-					border-radius: 6px;
-					font-size: 14px;
-				"
-			>
-				Create your first client
-			</a>
+		<div class="panel">
+			<div class="empty-state">
+				<p class="empty-state-description">No OAuth clients found</p>
+				<a href="/admin/clients/new" class="btn btn-primary">Create your first client</a>
+			</div>
 		</div>
 	{:else}
 		<!-- Clients Table -->
-		<div
-			style="background-color: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;"
-		>
-			<table style="width: 100%; border-collapse: collapse;">
+		<div class="data-table-container">
+			<table class="data-table">
 				<thead>
-					<tr style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-						<th style="width: 40px; padding: 12px 8px 12px 16px;">
+					<tr>
+						<th>
 							<input
 								type="checkbox"
+								class="checkbox"
 								checked={isAllSelected}
 								onchange={toggleSelectAll}
-								style="cursor: pointer; width: 16px; height: 16px;"
 								aria-label="Select all clients"
 							/>
 						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Client ID</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Name</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Grant Types</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Auth Method</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Created</th
-						>
+						<th>Client ID</th>
+						<th>Name</th>
+						<th>Grant Types</th>
+						<th>Auth Method</th>
+						<th>Created</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each clients as client (client.client_id)}
 						<tr
-							style="border-bottom: 1px solid #e5e7eb; cursor: pointer; {selectedIds.has(
-								client.client_id
-							)
-								? 'background-color: #eff6ff;'
-								: ''}"
+							class:selected={selectedIds.has(client.client_id)}
 							onclick={() => goto(`/admin/clients/${encodeURIComponent(client.client_id)}`)}
 							onkeydown={(e) =>
 								e.key === 'Enter' && goto(`/admin/clients/${encodeURIComponent(client.client_id)}`)}
 							tabindex="0"
 							role="button"
 						>
-							<td style="padding: 12px 8px 12px 16px;" onclick={(e) => e.stopPropagation()}>
+							<td onclick={(e) => e.stopPropagation()}>
 								<input
 									type="checkbox"
+									class="checkbox"
 									checked={selectedIds.has(client.client_id)}
 									onchange={(e) => toggleSelect(client.client_id, e)}
-									style="cursor: pointer; width: 16px; height: 16px;"
 									aria-label="Select {client.client_name || client.client_id}"
 								/>
 							</td>
-							<td
-								style="padding: 12px 16px; font-size: 14px; color: #1f2937; font-family: monospace;"
-							>
+							<td class="mono">
 								{client.client_id.length > 20
 									? client.client_id.substring(0, 20) + '...'
 									: client.client_id}
 							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #1f2937;">
-								{client.client_name || '-'}
-							</td>
-							<td style="padding: 12px 16px;">
-								<span
-									style="
-									display: inline-block;
-									padding: 2px 8px;
-									border-radius: 12px;
-									font-size: 12px;
-									font-weight: 500;
-									{getClientTypeBadgeStyle(client.grant_types)}
-								"
-								>
+							<td>{client.client_name || '-'}</td>
+							<td>
+								<span class={getClientTypeBadgeClass(client.grant_types)}>
 									{formatGrantTypes(client.grant_types)}
 								</span>
 							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #6b7280;">
-								{client.token_endpoint_auth_method || 'none'}
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #6b7280;">
-								{formatDate(client.created_at)}
-							</td>
+							<td class="muted">{client.token_endpoint_auth_method || 'none'}</td>
+							<td class="muted">{formatDate(client.created_at)}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -422,43 +323,25 @@
 
 		<!-- Pagination -->
 		{#if pagination && pagination.totalPages > 1}
-			<div
-				style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding: 0 4px;"
-			>
-				<p style="color: #6b7280; font-size: 14px; margin: 0;">
+			<div class="pagination">
+				<p class="pagination-info">
 					Showing {(pagination.page - 1) * pagination.limit + 1} to {Math.min(
 						pagination.page * pagination.limit,
 						pagination.total
 					)} of {pagination.total} clients
 				</p>
-				<div style="display: flex; gap: 8px;">
+				<div class="pagination-buttons">
 					<button
+						class="btn btn-secondary btn-sm"
 						onclick={() => goToPage(currentPage - 1)}
 						disabled={!pagination.hasPrev}
-						style="
-							padding: 8px 16px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							background-color: white;
-							color: {pagination.hasPrev ? '#374151' : '#9ca3af'};
-							cursor: {pagination.hasPrev ? 'pointer' : 'not-allowed'};
-							font-size: 14px;
-						"
 					>
 						Previous
 					</button>
 					<button
+						class="btn btn-secondary btn-sm"
 						onclick={() => goToPage(currentPage + 1)}
 						disabled={!pagination.hasNext}
-						style="
-							padding: 8px 16px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							background-color: white;
-							color: {pagination.hasNext ? '#374151' : '#9ca3af'};
-							cursor: {pagination.hasNext ? 'pointer' : 'not-allowed'};
-							font-size: 14px;
-						"
 					>
 						Next
 					</button>
@@ -471,18 +354,7 @@
 <!-- Bulk Delete Confirmation Dialog -->
 {#if showBulkDeleteDialog}
 	<div
-		style="
-			position: fixed;
-			top: 0;
-			left: 0;
-			right: 0;
-			bottom: 0;
-			background-color: rgba(0, 0, 0, 0.5);
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			z-index: 1000;
-		"
+		class="modal-overlay"
 		onclick={closeBulkDeleteDialog}
 		onkeydown={(e) => e.key === 'Escape' && closeBulkDeleteDialog()}
 		role="dialog"
@@ -490,118 +362,83 @@
 		aria-labelledby="bulk-delete-dialog-title"
 	>
 		<div
-			style="
-				background-color: white;
-				border-radius: 8px;
-				padding: 24px;
-				max-width: 700px;
-				width: 90%;
-				max-height: 80vh;
-				overflow-y: auto;
-				box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-			"
+			class="modal-content"
+			style="max-width: 700px;"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<h2
-				id="bulk-delete-dialog-title"
-				style="margin: 0 0 16px 0; font-size: 20px; color: #1f2937;"
-			>
-				Delete {selectedIds.size} Client(s)
-			</h2>
+			<div class="modal-header">
+				<h2 id="bulk-delete-dialog-title" class="modal-title">
+					Delete {selectedIds.size} Client(s)
+				</h2>
+			</div>
 
-			{#if bulkDeleting}
-				<!-- Progress View -->
-				<div>
-					<p style="color: #6b7280; margin-bottom: 16px;">Deleting clients...</p>
-					<div
-						style="background-color: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 8px;"
-					>
-						<div
-							style="
-								background-color: {bulkDeleteProgress.failed > 0 ? '#f59e0b' : '#3b82f6'};
-								height: 100%;
-								width: {(bulkDeleteProgress.current / bulkDeleteProgress.total) * 100}%;
-								transition: width 0.3s ease;
-							"
-						></div>
+			<div class="modal-body">
+				{#if bulkDeleting}
+					<!-- Progress View -->
+					<div>
+						<p style="color: var(--text-secondary); margin-bottom: 16px;">Deleting clients...</p>
+						<div class="progress-bar" style="margin-bottom: 8px;">
+							<div
+								class="progress-bar-fill"
+								class:warning={bulkDeleteProgress.failed > 0}
+								style="width: {(bulkDeleteProgress.current / bulkDeleteProgress.total) * 100}%;"
+							></div>
+						</div>
+						<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">
+							{bulkDeleteProgress.current} / {bulkDeleteProgress.total}
+							{#if bulkDeleteProgress.failed > 0}
+								<span style="color: var(--danger);">({bulkDeleteProgress.failed} failed)</span>
+							{/if}
+						</p>
 					</div>
-					<p style="color: #6b7280; font-size: 14px; margin: 0;">
-						{bulkDeleteProgress.current} / {bulkDeleteProgress.total}
-						{#if bulkDeleteProgress.failed > 0}
-							<span style="color: #dc2626;">({bulkDeleteProgress.failed} failed)</span>
-						{/if}
+				{:else}
+					<!-- Confirmation View -->
+					<p style="color: var(--text-secondary); margin-bottom: 16px;">
+						Are you sure you want to delete the following OAuth clients? This action cannot be
+						undone.
+						<strong style="color: var(--danger);">
+							All tokens issued by these clients will become invalid.
+						</strong>
 					</p>
-				</div>
-			{:else}
-				<!-- Confirmation View -->
-				<p style="color: #6b7280; margin-bottom: 16px;">
-					Are you sure you want to delete the following OAuth clients? This action cannot be undone.
-					<strong style="color: #dc2626;"
-						>All tokens issued by these clients will become invalid.</strong
-					>
-				</p>
 
-				<div
-					style="background-color: #f9fafb; border-radius: 6px; padding: 12px; margin-bottom: 16px; max-height: 200px; overflow-y: auto;"
-				>
-					<ul style="margin: 0; padding-left: 20px; color: #374151;">
-						{#each getSelectedClients() as client (client.client_id)}
-							<li style="margin-bottom: 4px;">
-								<strong style="font-family: monospace;"
-									>{client.client_id.length > 30
-										? client.client_id.substring(0, 30) + '...'
-										: client.client_id}</strong
-								>
-								{#if client.client_name}
-									<span style="color: #6b7280;">({client.client_name})</span>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				</div>
-
-				{#if bulkDeleteError}
 					<div
-						style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;"
+						class="panel"
+						style="max-height: 200px; overflow-y: auto; padding: 0; margin-bottom: 16px;"
 					>
-						{bulkDeleteError}
+						<ul style="margin: 0; padding: 12px 20px; list-style: disc;">
+							{#each getSelectedClients() as client (client.client_id)}
+								<li style="margin-bottom: 4px; color: var(--text-primary);">
+									<strong class="mono" style="font-size: 0.875rem;">
+										{client.client_id.length > 30
+											? client.client_id.substring(0, 30) + '...'
+											: client.client_id}
+									</strong>
+									{#if client.client_name}
+										<span style="color: var(--text-secondary);">({client.client_name})</span>
+									{/if}
+								</li>
+							{/each}
+						</ul>
 					</div>
-				{/if}
 
-				<div style="display: flex; gap: 8px; justify-content: flex-end;">
-					<button
-						onclick={closeBulkDeleteDialog}
-						style="
-							padding: 10px 20px;
-							background-color: white;
-							border: 1px solid #d1d5db;
-							border-radius: 6px;
-							font-size: 14px;
-							cursor: pointer;
-							color: #374151;
-						"
-					>
-						Cancel
-					</button>
-					<button
-						onclick={executeBulkDelete}
-						style="
-							padding: 10px 20px;
-							background-color: #dc2626;
-							color: white;
-							border: none;
-							border-radius: 6px;
-							font-size: 14px;
-							font-weight: 500;
-							cursor: pointer;
-						"
-					>
+					{#if bulkDeleteError}
+						<div class="alert alert-error">{bulkDeleteError}</div>
+					{/if}
+				{/if}
+			</div>
+
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={closeBulkDeleteDialog} disabled={bulkDeleting}>
+					Cancel
+				</button>
+				{#if !bulkDeleting}
+					<button class="btn btn-danger" onclick={executeBulkDelete}>
 						Delete {selectedIds.size} Client(s)
 					</button>
-				</div>
-			{/if}
+				{/if}
+			</div>
 		</div>
 	</div>
 {/if}

@@ -106,16 +106,16 @@
 		return new Date(timestamp).toLocaleDateString();
 	}
 
-	function getStatusBadgeStyle(status: string): string {
+	function getStatusBadgeClass(status: string): string {
 		switch (status) {
 			case 'active':
-				return 'background-color: #d1fae5; color: #065f46;';
+				return 'badge badge-success';
 			case 'suspended':
-				return 'background-color: #fef3c7; color: #92400e;';
+				return 'badge badge-warning';
 			case 'locked':
-				return 'background-color: #fee2e2; color: #991b1b;';
+				return 'badge badge-danger';
 			default:
-				return 'background-color: #e5e7eb; color: #374151;';
+				return 'badge badge-neutral';
 		}
 	}
 
@@ -195,92 +195,49 @@
 	<title>Users - Admin Dashboard - Authrim</title>
 </svelte:head>
 
-<div>
-	<div
-		style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
-	>
-		<h1 style="font-size: 24px; font-weight: bold; color: #1f2937; margin: 0;">Users</h1>
-		<div style="display: flex; gap: 12px; align-items: center;">
+<div class="admin-page">
+	<!-- Page Header -->
+	<div class="page-header">
+		<div>
+			<h1 class="page-title">Users</h1>
+			<p class="page-description">Manage user accounts and access</p>
+		</div>
+		<div class="page-actions">
 			{#if hasSelection}
-				<button
-					onclick={openBulkDeleteDialog}
-					style="
-						padding: 10px 20px;
-						background-color: #dc2626;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						font-size: 14px;
-						font-weight: 500;
-						cursor: pointer;
-					"
-				>
+				<button class="btn btn-danger" onclick={openBulkDeleteDialog}>
+					<i class="i-ph-trash"></i>
 					Delete Selected ({selectedIds.size})
 				</button>
 			{/if}
-			<a
-				href="/admin/users/new"
-				style="
-					padding: 10px 20px;
-					background-color: #3b82f6;
-					color: white;
-					text-decoration: none;
-					border-radius: 6px;
-					font-size: 14px;
-					font-weight: 500;
-				"
-			>
+			<a href="/admin/users/new" class="btn btn-primary">
+				<i class="i-ph-plus"></i>
 				Create User
 			</a>
 		</div>
 	</div>
 
 	<!-- Search and Filters -->
-	<div
-		style="background-color: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;"
-	>
-		<div style="display: flex; gap: 16px; flex-wrap: wrap;">
-			<!-- Search -->
-			<div style="flex: 1; min-width: 200px;">
-				<label
-					for="search"
-					style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;">Search</label
-				>
+	<div class="panel">
+		<div class="filter-row">
+			<div class="form-group">
+				<label for="search" class="form-label">Search</label>
 				<input
 					id="search"
 					type="text"
+					class="form-input"
 					placeholder="Search by email or name..."
 					bind:value={searchQuery}
 					oninput={handleSearch}
-					style="
-						width: 100%;
-						padding: 8px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 4px;
-						font-size: 14px;
-						box-sizing: border-box;
-					"
 				/>
 			</div>
 
-			<!-- Status Filter -->
-			<div style="min-width: 150px;">
-				<label
-					for="status"
-					style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;">Status</label
-				>
+			<div class="form-group">
+				<label for="status" class="form-label">Status</label>
 				<select
 					id="status"
+					class="form-select"
 					bind:value={statusFilter}
 					onchange={handleStatusChange}
-					style="
-						width: 100%;
-						padding: 8px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 4px;
-						font-size: 14px;
-						background-color: white;
-					"
 				>
 					<option value="">All</option>
 					<option value="active">Active</option>
@@ -289,25 +246,9 @@
 				</select>
 			</div>
 
-			<!-- Verified Filter -->
-			<div style="min-width: 150px;">
-				<label
-					for="verified"
-					style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-					>Email Verified</label
-				>
-				<select
-					id="verified"
-					onchange={handleVerifiedChange}
-					style="
-						width: 100%;
-						padding: 8px 12px;
-						border: 1px solid #d1d5db;
-						border-radius: 4px;
-						font-size: 14px;
-						background-color: white;
-					"
-				>
+			<div class="form-group">
+				<label for="verified" class="form-label">Email Verified</label>
+				<select id="verified" class="form-select" onchange={handleVerifiedChange}>
 					<option value="">All</option>
 					<option value="true">Verified</option>
 					<option value="false">Unverified</option>
@@ -317,115 +258,73 @@
 	</div>
 
 	{#if loading}
-		<p style="color: #6b7280; text-align: center; padding: 40px;">Loading users...</p>
-	{:else if error}
-		<div
-			style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px;"
-		>
-			{error}
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading users...</p>
 		</div>
+	{:else if error}
+		<div class="alert alert-error">{error}</div>
 	{:else if users.length === 0}
-		<div
-			style="background-color: white; border-radius: 8px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;"
-		>
-			<p style="color: #9ca3af; margin: 0;">No users found</p>
+		<div class="panel">
+			<div class="empty-state">
+				<p>No users found</p>
+			</div>
 		</div>
 	{:else}
 		<!-- Users Table -->
-		<div
-			style="background-color: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;"
-		>
-			<table style="width: 100%; border-collapse: collapse;">
+		<div class="data-table-container">
+			<table class="data-table">
 				<thead>
-					<tr style="background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-						<th style="width: 40px; padding: 12px 16px;">
+					<tr>
+						<th>
 							<input
 								type="checkbox"
+								class="checkbox"
 								checked={isAllSelected}
 								onchange={toggleSelectAll}
-								style="width: 16px; height: 16px; cursor: pointer;"
 								aria-label="Select all users"
 							/>
 						</th>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Email</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Name</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Status</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Verified</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Created</th
-						>
-						<th
-							style="text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;"
-							>Last Login</th
-						>
+						<th>Email</th>
+						<th>Name</th>
+						<th>Status</th>
+						<th>Verified</th>
+						<th>Created</th>
+						<th>Last Login</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each users as user (user.id)}
 						<tr
-							style="border-bottom: 1px solid #e5e7eb; cursor: pointer; {selectedIds.has(user.id)
-								? 'background-color: #eff6ff;'
-								: ''}"
+							class:selected={selectedIds.has(user.id)}
 							onclick={() => goto(`/admin/users/${user.id}`)}
 							onkeydown={(e) => e.key === 'Enter' && goto(`/admin/users/${user.id}`)}
 							tabindex="0"
 							role="button"
 						>
-							<td style="padding: 12px 16px;" onclick={(e) => e.stopPropagation()}>
+							<td onclick={(e) => e.stopPropagation()}>
 								<input
 									type="checkbox"
+									class="checkbox"
 									checked={selectedIds.has(user.id)}
 									onchange={(e) => toggleSelect(user.id, e)}
-									style="width: 16px; height: 16px; cursor: pointer;"
 									aria-label="Select {user.email || user.id}"
 								/>
 							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #1f2937;">
-								{user.email || '-'}
+							<td>{user.email || '-'}</td>
+							<td>{user.name || '-'}</td>
+							<td>
+								<span class={getStatusBadgeClass(user.status)}>{user.status}</span>
 							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #1f2937;">
-								{user.name || '-'}
-							</td>
-							<td style="padding: 12px 16px;">
-								<span
-									style="
-									display: inline-block;
-									padding: 2px 8px;
-									border-radius: 12px;
-									font-size: 12px;
-									font-weight: 500;
-									{getStatusBadgeStyle(user.status)}
-								"
-								>
-									{user.status}
-								</span>
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px;">
+							<td>
 								{#if user.email_verified}
-									<span style="color: #059669;">✓</span>
+									<span class="check-icon">✓</span>
 								{:else}
-									<span style="color: #9ca3af;">-</span>
+									<span class="cross-icon">-</span>
 								{/if}
 							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #6b7280;">
-								{formatDate(user.created_at)}
-							</td>
-							<td style="padding: 12px 16px; font-size: 14px; color: #6b7280;">
-								{formatDate(user.last_login_at)}
-							</td>
+							<td class="muted">{formatDate(user.created_at)}</td>
+							<td class="muted">{formatDate(user.last_login_at)}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -434,43 +333,25 @@
 
 		<!-- Pagination -->
 		{#if pagination && pagination.totalPages > 1}
-			<div
-				style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding: 0 4px;"
-			>
-				<p style="color: #6b7280; font-size: 14px; margin: 0;">
+			<div class="pagination">
+				<p class="pagination-info">
 					Showing {(pagination.page - 1) * pagination.limit + 1} to {Math.min(
 						pagination.page * pagination.limit,
 						pagination.total
 					)} of {pagination.total} users
 				</p>
-				<div style="display: flex; gap: 8px;">
+				<div class="pagination-buttons">
 					<button
+						class="btn btn-secondary btn-sm"
 						onclick={() => goToPage(currentPage - 1)}
 						disabled={!pagination.hasPrev}
-						style="
-							padding: 8px 16px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							background-color: white;
-							color: {pagination.hasPrev ? '#374151' : '#9ca3af'};
-							cursor: {pagination.hasPrev ? 'pointer' : 'not-allowed'};
-							font-size: 14px;
-						"
 					>
 						Previous
 					</button>
 					<button
+						class="btn btn-secondary btn-sm"
 						onclick={() => goToPage(currentPage + 1)}
 						disabled={!pagination.hasNext}
-						style="
-							padding: 8px 16px;
-							border: 1px solid #d1d5db;
-							border-radius: 4px;
-							background-color: white;
-							color: {pagination.hasNext ? '#374151' : '#9ca3af'};
-							cursor: {pagination.hasNext ? 'pointer' : 'not-allowed'};
-							font-size: 14px;
-						"
 					>
 						Next
 					</button>
@@ -483,15 +364,7 @@
 <!-- Bulk Delete Confirmation Dialog -->
 {#if showBulkDeleteDialog}
 	<div
-		style="
-			position: fixed;
-			inset: 0;
-			background-color: rgba(0, 0, 0, 0.5);
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			z-index: 50;
-		"
+		class="modal-overlay"
 		onclick={closeBulkDeleteDialog}
 		onkeydown={(e) => e.key === 'Escape' && closeBulkDeleteDialog()}
 		role="dialog"
@@ -499,113 +372,73 @@
 		tabindex="-1"
 	>
 		<div
-			style="
-				background-color: white;
-				border-radius: 8px;
-				padding: 24px;
-				max-width: 500px;
-				width: 90%;
-				max-height: 80vh;
-				overflow-y: auto;
-				box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-			"
+			class="modal-content"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 			role="document"
 		>
-			<h2 style="font-size: 18px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0;">
-				Delete {selectedIds.size} User{selectedIds.size === 1 ? '' : 's'}
-			</h2>
-
-			<div
-				style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; margin-bottom: 16px;"
-			>
-				<p style="color: #991b1b; font-size: 14px; margin: 0; font-weight: 500;">
-					⚠️ This action cannot be undone
-				</p>
-				<p style="color: #7f1d1d; font-size: 13px; margin: 8px 0 0 0;">
-					The selected users will be permanently deleted.
-				</p>
+			<div class="modal-header">
+				<h2 class="modal-title">
+					Delete {selectedIds.size} User{selectedIds.size === 1 ? '' : 's'}
+				</h2>
 			</div>
 
-			<div style="margin-bottom: 16px;">
-				<p style="font-size: 14px; color: #374151; margin: 0 0 8px 0; font-weight: 500;">
-					Users to be deleted:
-				</p>
-				<div
-					style="max-height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px;"
-				>
-					{#each getSelectedUsers() as user (user.id)}
-						<div style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">
-							<span style="color: #1f2937;">{user.email || user.id}</span>
-							{#if user.name}
-								<span style="color: #6b7280; margin-left: 8px;">({user.name})</span>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			</div>
-
-			{#if bulkDeleting}
-				<div style="margin-bottom: 16px;">
-					<div
-						style="height: 8px; background-color: #e5e7eb; border-radius: 4px; overflow: hidden;"
-					>
-						<div
-							style="height: 100%; background-color: {bulkDeleteProgress.failed > 0
-								? '#f59e0b'
-								: '#3b82f6'}; transition: width 0.3s; width: {(bulkDeleteProgress.current /
-								bulkDeleteProgress.total) *
-								100}%;"
-						></div>
-					</div>
-					<p style="font-size: 12px; color: #6b7280; margin: 8px 0 0 0; text-align: center;">
-						Deleting {bulkDeleteProgress.current} of {bulkDeleteProgress.total}...
-						{#if bulkDeleteProgress.failed > 0}
-							<span style="color: #dc2626;">({bulkDeleteProgress.failed} failed)</span>
-						{/if}
+			<div class="modal-body">
+				<div class="alert alert-error" style="margin-bottom: 16px;">
+					<p style="margin: 0; font-weight: 500;">⚠️ This action cannot be undone</p>
+					<p style="margin: 8px 0 0 0; font-size: 0.875rem;">
+						The selected users will be permanently deleted.
 					</p>
 				</div>
-			{/if}
 
-			{#if bulkDeleteError}
-				<div
-					style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 8px 12px; border-radius: 4px; font-size: 14px; margin-bottom: 16px;"
-				>
-					{bulkDeleteError}
+				<div style="margin-bottom: 16px;">
+					<p style="font-weight: 500; margin: 0 0 8px 0; color: var(--text-primary);">
+						Users to be deleted:
+					</p>
+					<div class="panel" style="max-height: 200px; overflow-y: auto; padding: 0;">
+						{#each getSelectedUsers() as user (user.id)}
+							<div
+								style="padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 0.875rem;"
+							>
+								<span style="color: var(--text-primary);">{user.email || user.id}</span>
+								{#if user.name}
+									<span style="color: var(--text-secondary); margin-left: 8px;">({user.name})</span>
+								{/if}
+							</div>
+						{/each}
+					</div>
 				</div>
-			{/if}
 
-			<div style="display: flex; justify-content: flex-end; gap: 12px;">
-				<button
-					onclick={closeBulkDeleteDialog}
-					disabled={bulkDeleting}
-					style="
-						padding: 10px 20px;
-						background-color: white;
-						color: #374151;
-						border: 1px solid #d1d5db;
-						border-radius: 6px;
-						font-size: 14px;
-						cursor: pointer;
-					"
-				>
+				{#if bulkDeleting}
+					<div style="margin-bottom: 16px;">
+						<div class="progress-bar">
+							<div
+								class="progress-bar-fill"
+								class:warning={bulkDeleteProgress.failed > 0}
+								style="width: {(bulkDeleteProgress.current / bulkDeleteProgress.total) * 100}%;"
+							></div>
+						</div>
+						<p
+							style="font-size: 0.75rem; color: var(--text-secondary); margin: 8px 0 0 0; text-align: center;"
+						>
+							Deleting {bulkDeleteProgress.current} of {bulkDeleteProgress.total}...
+							{#if bulkDeleteProgress.failed > 0}
+								<span style="color: var(--danger);">({bulkDeleteProgress.failed} failed)</span>
+							{/if}
+						</p>
+					</div>
+				{/if}
+
+				{#if bulkDeleteError}
+					<div class="alert alert-error">{bulkDeleteError}</div>
+				{/if}
+			</div>
+
+			<div class="modal-footer">
+				<button class="btn btn-secondary" onclick={closeBulkDeleteDialog} disabled={bulkDeleting}>
 					Cancel
 				</button>
-				<button
-					onclick={executeBulkDelete}
-					disabled={bulkDeleting}
-					style="
-						padding: 10px 20px;
-						background-color: #dc2626;
-						color: white;
-						border: none;
-						border-radius: 6px;
-						font-size: 14px;
-						cursor: {bulkDeleting ? 'not-allowed' : 'pointer'};
-						opacity: {bulkDeleting ? 0.7 : 1};
-					"
-				>
+				<button class="btn btn-danger" onclick={executeBulkDelete} disabled={bulkDeleting}>
 					{bulkDeleting
 						? 'Deleting...'
 						: `Delete ${selectedIds.size} User${selectedIds.size === 1 ? '' : 's'}`}

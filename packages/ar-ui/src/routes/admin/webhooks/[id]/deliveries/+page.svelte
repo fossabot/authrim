@@ -142,18 +142,18 @@
 		goto('/admin/webhooks');
 	}
 
-	function getStatusBadgeStyle(status: DeliveryStatus): string {
+	function getStatusBadgeClass(status: DeliveryStatus): string {
 		switch (status) {
 			case 'success':
-				return 'background-color: #d1fae5; color: #065f46;';
+				return 'status-badge status-badge-success';
 			case 'failed':
-				return 'background-color: #fee2e2; color: #991b1b;';
+				return 'status-badge status-badge-failed';
 			case 'retrying':
-				return 'background-color: #fef3c7; color: #92400e;';
+				return 'status-badge status-badge-retrying';
 			case 'pending':
-				return 'background-color: #e0e7ff; color: #3730a3;';
+				return 'status-badge status-badge-pending';
 			default:
-				return 'background-color: #f3f4f6; color: #374151;';
+				return 'status-badge badge-neutral';
 		}
 	}
 
@@ -240,15 +240,17 @@
 	}
 </script>
 
-<div class="deliveries-page">
+<div class="deliveries-page admin-page">
 	<div class="page-header">
-		<button class="back-btn" onclick={navigateBack}>← Back to Webhooks</button>
-		{#if webhook}
-			<h1>Delivery History: {webhook.name}</h1>
-			<p class="description">View and manage webhook delivery attempts.</p>
-		{:else}
-			<h1>Delivery History</h1>
-		{/if}
+		<div>
+			<a href="/admin/webhooks" class="back-link">← Back to Webhooks</a>
+			{#if webhook}
+				<h1 class="page-title">Delivery History: {webhook.name}</h1>
+				<p class="page-description">View and manage webhook delivery attempts.</p>
+			{:else}
+				<h1 class="page-title">Delivery History</h1>
+			{/if}
+		</div>
 	</div>
 
 	{#if error}
@@ -286,16 +288,21 @@
 				<label for="date-to">To</label>
 				<input type="date" id="date-to" bind:value={dateTo} />
 			</div>
-			<button class="btn-secondary" onclick={applyFilters}>Apply Filters</button>
+			<button class="btn btn-secondary" onclick={applyFilters}>Apply Filters</button>
 		</div>
 	</div>
 
 	<!-- Deliveries Table -->
 	{#if loading}
-		<div class="loading">Loading deliveries...</div>
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading deliveries...</p>
+		</div>
 	{:else if deliveries.length === 0}
-		<div class="empty-state">
-			<p>No deliveries found.</p>
+		<div class="panel">
+			<div class="empty-state">
+				<p class="empty-state-description">No deliveries found.</p>
+			</div>
 		</div>
 	{:else}
 		<div class="deliveries-table-container">
@@ -319,7 +326,7 @@
 								<span class="event-id">{delivery.event_id.slice(0, 8)}</span>
 							</td>
 							<td>
-								<span class="status-badge" style={getStatusBadgeStyle(delivery.status)}>
+								<span class={getStatusBadgeClass(delivery.status)}>
 									{delivery.status}
 								</span>
 							</td>
@@ -373,7 +380,7 @@
 
 		{#if hasMore}
 			<div class="load-more">
-				<button class="btn-secondary" onclick={loadMoreDeliveries} disabled={loadingMore}>
+				<button class="btn btn-secondary" onclick={loadMoreDeliveries} disabled={loadingMore}>
 					{loadingMore ? 'Loading...' : 'Load More'}
 				</button>
 			</div>
@@ -399,43 +406,43 @@
 			<div class="detail-content">
 				<div class="detail-info">
 					<div class="info-row">
-						<span class="info-label">Event Type:</span>
+						<span class="info-label">Event Type</span>
 						<span class="info-value">{selectedDelivery.event_type}</span>
 					</div>
 					<div class="info-row">
-						<span class="info-label">Event ID:</span>
+						<span class="info-label">Event ID</span>
 						<span class="info-value mono">{selectedDelivery.event_id}</span>
 					</div>
 					<div class="info-row">
-						<span class="info-label">Status:</span>
-						<span class="status-badge" style={getStatusBadgeStyle(selectedDelivery.status)}>
+						<span class="info-label">Status</span>
+						<span class={getStatusBadgeClass(selectedDelivery.status)}>
 							{selectedDelivery.status}
 						</span>
 					</div>
 					<div class="info-row">
-						<span class="info-label">Attempts:</span>
+						<span class="info-label">Attempts</span>
 						<span class="info-value">{selectedDelivery.attempt_count}</span>
 					</div>
 					<div class="info-row">
-						<span class="info-label">Created:</span>
+						<span class="info-label">Created</span>
 						<span class="info-value">{formatDate(selectedDelivery.created_at)}</span>
 					</div>
 					{#if selectedDelivery.completed_at}
 						<div class="info-row">
-							<span class="info-label">Completed:</span>
+							<span class="info-label">Completed</span>
 							<span class="info-value">{formatDate(selectedDelivery.completed_at)}</span>
 						</div>
 					{/if}
 					{#if selectedDelivery.next_retry_at}
 						<div class="info-row">
-							<span class="info-label">Next Retry:</span>
+							<span class="info-label">Next Retry</span>
 							<span class="info-value">{formatDate(selectedDelivery.next_retry_at)}</span>
 						</div>
 					{/if}
 					{#if selectedDelivery.error_message}
-						<div class="info-row error-row">
-							<span class="info-label">Error:</span>
-							<span class="info-value error-text">{selectedDelivery.error_message}</span>
+						<div class="info-row">
+							<span class="info-label">Error</span>
+							<span class="info-value text-danger">{selectedDelivery.error_message}</span>
 						</div>
 					{/if}
 				</div>
@@ -497,469 +504,15 @@
 			<div class="dialog-actions">
 				{#if canReplay(selectedDelivery)}
 					<button
-						class="btn-primary"
+						class="btn btn-primary"
 						onclick={() => selectedDelivery && handleReplay(selectedDelivery)}
 						disabled={replayingId === selectedDelivery.id}
 					>
 						{replayingId === selectedDelivery.id ? 'Replaying...' : 'Replay Delivery'}
 					</button>
 				{/if}
-				<button class="btn-secondary" onclick={closeDetailDialog}>Close</button>
+				<button class="btn btn-secondary" onclick={closeDetailDialog}>Close</button>
 			</div>
 		</div>
 	</div>
 {/if}
-
-<style>
-	.deliveries-page {
-		padding: 24px;
-		max-width: 1400px;
-		margin: 0 auto;
-	}
-
-	.page-header {
-		margin-bottom: 24px;
-	}
-
-	.back-btn {
-		padding: 8px 16px;
-		background-color: transparent;
-		border: none;
-		color: #2563eb;
-		font-size: 14px;
-		cursor: pointer;
-		margin-bottom: 16px;
-	}
-
-	.back-btn:hover {
-		text-decoration: underline;
-	}
-
-	.page-header h1 {
-		margin: 0 0 8px 0;
-		font-size: 24px;
-		font-weight: 600;
-	}
-
-	.description {
-		margin: 0;
-		color: #6b7280;
-		font-size: 14px;
-	}
-
-	.error-banner {
-		background-color: #fef2f2;
-		border: 1px solid #fecaca;
-		color: #b91c1c;
-		padding: 12px 16px;
-		border-radius: 6px;
-		margin-bottom: 16px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.error-banner button {
-		padding: 6px 12px;
-		background-color: #b91c1c;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-	}
-
-	.filter-section {
-		background-color: #f9fafb;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-		padding: 16px;
-		margin-bottom: 16px;
-	}
-
-	.filter-row {
-		display: flex;
-		align-items: flex-end;
-		gap: 16px;
-		flex-wrap: wrap;
-	}
-
-	.filter-group {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-
-	.filter-group label {
-		font-size: 12px;
-		color: #6b7280;
-		font-weight: 500;
-	}
-
-	.filter-group select,
-	.filter-group input {
-		padding: 8px 12px;
-		border: 1px solid #d1d5db;
-		border-radius: 4px;
-		font-size: 14px;
-	}
-
-	.loading {
-		text-align: center;
-		padding: 40px;
-		color: #6b7280;
-	}
-
-	.empty-state {
-		text-align: center;
-		padding: 40px;
-		color: #6b7280;
-		background-color: #f9fafb;
-		border-radius: 8px;
-	}
-
-	.deliveries-table-container {
-		overflow-x: auto;
-		border: 1px solid #e5e7eb;
-		border-radius: 8px;
-	}
-
-	.deliveries-table {
-		width: 100%;
-		border-collapse: collapse;
-	}
-
-	.deliveries-table th {
-		text-align: left;
-		padding: 12px 16px;
-		background-color: #f9fafb;
-		font-size: 13px;
-		font-weight: 600;
-		color: #374151;
-		border-bottom: 1px solid #e5e7eb;
-	}
-
-	.deliveries-table td {
-		padding: 12px 16px;
-		border-bottom: 1px solid #e5e7eb;
-		font-size: 14px;
-	}
-
-	.delivery-row {
-		cursor: pointer;
-		transition: background-color 0.2s;
-	}
-
-	.delivery-row:hover {
-		background-color: #f9fafb;
-	}
-
-	.delivery-row:last-child td {
-		border-bottom: none;
-	}
-
-	.event-cell {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.event-type {
-		font-weight: 500;
-		color: #111827;
-	}
-
-	.event-id {
-		font-size: 11px;
-		color: #9ca3af;
-		font-family: monospace;
-	}
-
-	.status-badge {
-		display: inline-block;
-		padding: 4px 8px;
-		border-radius: 4px;
-		font-size: 12px;
-		font-weight: 500;
-		text-transform: capitalize;
-	}
-
-	.response-cell .response-code {
-		font-family: monospace;
-		font-size: 13px;
-	}
-
-	.response-code.success {
-		color: #065f46;
-	}
-
-	.response-code.error {
-		color: #991b1b;
-	}
-
-	.error-text {
-		color: #991b1b;
-		font-size: 12px;
-	}
-
-	.duration-cell,
-	.attempts-cell,
-	.date-cell {
-		color: #6b7280;
-		white-space: nowrap;
-	}
-
-	.actions-cell {
-		white-space: nowrap;
-	}
-
-	.action-btn {
-		padding: 4px 8px;
-		border: 1px solid #e5e7eb;
-		border-radius: 4px;
-		font-size: 12px;
-		cursor: pointer;
-		margin-right: 4px;
-		transition: all 0.2s;
-	}
-
-	.view-btn {
-		background-color: white;
-		color: #374151;
-	}
-
-	.view-btn:hover {
-		background-color: #f3f4f6;
-	}
-
-	.replay-btn {
-		background-color: #eff6ff;
-		color: #1d4ed8;
-		border-color: #bfdbfe;
-	}
-
-	.replay-btn:hover:not(:disabled) {
-		background-color: #dbeafe;
-	}
-
-	.replay-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.load-more {
-		text-align: center;
-		padding: 16px;
-	}
-
-	.btn-secondary {
-		padding: 8px 16px;
-		background-color: white;
-		border: 1px solid #e5e7eb;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-secondary:hover:not(:disabled) {
-		background-color: #f3f4f6;
-	}
-
-	.btn-secondary:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.btn-primary {
-		padding: 8px 16px;
-		background-color: #2563eb;
-		color: white;
-		border: none;
-		border-radius: 6px;
-		font-size: 14px;
-		cursor: pointer;
-	}
-
-	.btn-primary:hover:not(:disabled) {
-		background-color: #1d4ed8;
-	}
-
-	.btn-primary:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* Dialog styles */
-	.dialog-overlay {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-
-	.dialog {
-		background-color: white;
-		border-radius: 8px;
-		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-	}
-
-	.detail-dialog {
-		max-width: 800px;
-		width: 95%;
-		max-height: 90vh;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.dialog-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 16px 24px;
-		border-bottom: 1px solid #e5e7eb;
-	}
-
-	.dialog-header h2 {
-		margin: 0;
-		font-size: 18px;
-		font-weight: 600;
-	}
-
-	.close-btn {
-		background: none;
-		border: none;
-		font-size: 24px;
-		color: #6b7280;
-		cursor: pointer;
-		padding: 4px 8px;
-		line-height: 1;
-	}
-
-	.close-btn:hover {
-		color: #111827;
-	}
-
-	.detail-content {
-		padding: 24px;
-		overflow-y: auto;
-		flex: 1;
-	}
-
-	.detail-info {
-		margin-bottom: 24px;
-	}
-
-	.info-row {
-		display: flex;
-		align-items: flex-start;
-		gap: 12px;
-		padding: 8px 0;
-		border-bottom: 1px solid #f3f4f6;
-	}
-
-	.info-row:last-child {
-		border-bottom: none;
-	}
-
-	.info-label {
-		font-size: 13px;
-		color: #6b7280;
-		width: 100px;
-		flex-shrink: 0;
-	}
-
-	.info-value {
-		font-size: 13px;
-		color: #111827;
-	}
-
-	.info-value.mono {
-		font-family: monospace;
-		word-break: break-all;
-	}
-
-	.error-row .info-value {
-		color: #991b1b;
-	}
-
-	.view-mode-tabs {
-		display: flex;
-		gap: 4px;
-		margin-bottom: 16px;
-	}
-
-	.tab-btn {
-		padding: 6px 16px;
-		background-color: #f3f4f6;
-		border: 1px solid #e5e7eb;
-		border-radius: 4px;
-		font-size: 13px;
-		cursor: pointer;
-	}
-
-	.tab-btn.active {
-		background-color: #2563eb;
-		border-color: #2563eb;
-		color: white;
-	}
-
-	.payload-section {
-		margin-bottom: 16px;
-	}
-
-	.payload-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 8px;
-	}
-
-	.payload-header h3 {
-		margin: 0;
-		font-size: 14px;
-		font-weight: 600;
-		color: #374151;
-	}
-
-	.copy-btn {
-		padding: 4px 8px;
-		background-color: #f3f4f6;
-		border: 1px solid #e5e7eb;
-		border-radius: 4px;
-		font-size: 12px;
-		cursor: pointer;
-	}
-
-	.copy-btn:hover {
-		background-color: #e5e7eb;
-	}
-
-	.payload-content {
-		background-color: #f9fafb;
-		border: 1px solid #e5e7eb;
-		border-radius: 4px;
-		padding: 12px;
-		font-family: monospace;
-		font-size: 12px;
-		line-height: 1.5;
-		overflow-x: auto;
-		white-space: pre-wrap;
-		word-break: break-word;
-		max-height: 300px;
-		overflow-y: auto;
-		margin: 0;
-	}
-
-	.dialog-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-		padding: 16px 24px;
-		border-top: 1px solid #e5e7eb;
-	}
-</style>

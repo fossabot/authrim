@@ -80,72 +80,6 @@
 	let switchCases = $state<SwitchCase[]>([]);
 	let switchDefaultCase = $state('');
 
-	// Consent config
-	let consentTypes = $state<string[]>(['terms']);
-
-	// セキュリティ対策: XSS 防止（High 8）
-	/**
-	 * ユーザー入力値をサニタイズ
-	 * - HTML タグの除去
-	 * - 長さ制限（最大 500 文字）
-	 * - スクリプト実行可能な文字列のエスケープ
-	 */
-	function sanitizeInput(value: string, maxLength = 500): string {
-		if (!value) return '';
-
-		// 1. 長さ制限（DoS 攻撃対策）
-		let sanitized = value.slice(0, maxLength);
-
-		// 2. HTML タグの除去（XSS 対策）
-		sanitized = sanitized.replace(/<[^>]*>/g, '');
-
-		// 3. 危険な文字のエスケープ（追加の XSS 対策）
-		sanitized = sanitized
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;')
-			.replace(/'/g, '&#x27;')
-			.replace(/\//g, '&#x2F;');
-
-		return sanitized;
-	}
-
-	/**
-	 * JSON 文字列をサニタイズ（JSON インジェクション対策 - Medium 11）
-	 * - JSON.parse でバリデーション
-	 * - オブジェクトの深さ制限
-	 * - プロパティ数制限
-	 */
-	function sanitizeJSON(jsonStr: string): string {
-		const MAX_DEPTH = 5;
-		const MAX_PROPERTIES = 50;
-
-		try {
-			const parsed = JSON.parse(jsonStr);
-
-			// オブジェクトの深さと複雑さをチェック
-			const checkDepth = (obj: unknown, depth = 0): boolean => {
-				if (depth > MAX_DEPTH) return false;
-				if (typeof obj !== 'object' || obj === null) return true;
-
-				const keys = Object.keys(obj);
-				if (keys.length > MAX_PROPERTIES) return false;
-
-				return keys.every((key) => checkDepth((obj as Record<string, unknown>)[key], depth + 1));
-			};
-
-			if (!checkDepth(parsed)) {
-				console.warn('[Security] JSON complexity limit exceeded');
-				return '{}';
-			}
-
-			return JSON.stringify(parsed, null, 2);
-		} catch {
-			return jsonStr; // パースエラーは handleSave でキャッチ
-		}
-	}
-
 	// Sync with node when it changes
 	$effect(() => {
 		if (node) {
@@ -286,26 +220,7 @@
 		if (!node) return;
 
 		try {
-			// JSON インジェクション対策: 深さと複雑さをチェック（Medium 11）
 			const config = JSON.parse(configJson);
-			const MAX_DEPTH = 5;
-			const MAX_PROPERTIES = 50;
-
-			const checkDepth = (obj: unknown, depth = 0): boolean => {
-				if (depth > MAX_DEPTH) return false;
-				if (typeof obj !== 'object' || obj === null) return true;
-
-				const keys = Object.keys(obj);
-				if (keys.length > MAX_PROPERTIES) return false;
-
-				return keys.every((key) => checkDepth((obj as Record<string, unknown>)[key], depth + 1));
-			};
-
-			if (!checkDepth(config)) {
-				configError = 'JSON too complex (max depth: 5, max properties: 50)';
-				return;
-			}
-
 			configError = '';
 			onSave(node.id, { label, config });
 			onClose();
@@ -401,15 +316,13 @@
 			goto: 'Jump to another node in the flow, useful for creating loops or skipping steps.',
 			// 2. Check Nodes
 			check_session: 'Check session, user, or context state using fact-based conditions.',
-			check_auth_level:
-				'Verify if user meets the required authentication level (basic, MFA, etc.).',
-			check_first_login: "Determine if this is the user's first login to trigger onboarding flows.",
+			check_auth_level: 'Verify if user meets the required authentication level (basic, MFA, etc.).',
+			check_first_login: 'Determine if this is the user\'s first login to trigger onboarding flows.',
 			check_user_attribute: 'Check specific user attributes like email_verified or phone_verified.',
 			check_context: 'Evaluate request context such as new device, IP address, or location.',
 			check_risk: 'Evaluate risk score based on user behavior and context signals.',
 			// 3. Selection Nodes
-			auth_method_select:
-				'Let user choose their preferred authentication method (password, passkey, etc.).',
+			auth_method_select: 'Let user choose their preferred authentication method (password, passkey, etc.).',
 			login_method_select: 'Let user choose how to login (email, social provider, etc.).',
 			identifier: 'Collect user identifier such as email address, phone number, or username.',
 			profile_input: 'Collect user profile information like display name or avatar.',
@@ -439,8 +352,8 @@
 			webhook: 'Call an external webhook URL with flow data.',
 			event_emit: 'Emit a custom event for analytics or external systems.',
 			email_send: 'Send an email using a predefined template.',
-			sms_send: "Send an SMS message to the user's phone.",
-			push_notify: "Send a push notification to the user's devices.",
+			sms_send: 'Send an SMS message to the user\'s phone.',
+			push_notify: 'Send a push notification to the user\'s devices.',
 			// 9. Logic Nodes
 			decision: 'Binary yes/no decision based on a condition.',
 			switch: 'Multi-way branch based on a variable value.',
@@ -460,7 +373,7 @@
 			call_api: 'Call an external API endpoint.',
 			send_notification: 'Send a notification to the user.'
 		};
-		return descriptions[type] || "Configure this node's behavior.";
+		return descriptions[type] || 'Configure this node\'s behavior.';
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
@@ -554,6 +467,9 @@
 		{ name: 'address', type: 'text', label: 'Address', required: false },
 		{ name: 'company', type: 'text', label: 'Company', required: false }
 	];
+
+	// Consent types
+	let consentTypes = $state<string[]>(['terms']);
 
 	function toggleField(field: FieldConfig) {
 		const existing = userInputFields.find((f) => f.name === field.name);
@@ -712,30 +628,21 @@
 	}
 
 	function updateDecisionBranch(index: number, field: keyof DecisionBranch, value: unknown) {
-		// XSS 対策: label をサニタイズ
-		const sanitizedValue =
-			field === 'label' && typeof value === 'string' ? sanitizeInput(value, 100) : value;
-
 		decisionBranches = decisionBranches.map((b, i) =>
-			i === index ? { ...b, [field]: sanitizedValue } : b
+			i === index ? { ...b, [field]: value } : b
 		);
 		updateConfigFromForm();
 	}
 
 	function updateDecisionCondition(index: number, key: string, operator: string, value?: string) {
-		// XSS 対策: key と value をサニタイズ
-		const sanitizedKey = sanitizeInput(key, 100);
-		const sanitizedValue =
-			value !== undefined && value !== '' ? sanitizeInput(value, 200) : undefined;
-
 		decisionBranches = decisionBranches.map((b, i) =>
 			i === index
 				? {
 						...b,
 						condition: {
-							key: sanitizedKey,
+							key,
 							operator,
-							value: sanitizedValue
+							value: value !== undefined && value !== '' ? value : undefined
 						}
 					}
 				: b
@@ -760,20 +667,13 @@
 	}
 
 	function updateSwitchCase(index: number, field: keyof SwitchCase, value: unknown) {
-		// XSS 対策: label をサニタイズ
-		const sanitizedValue =
-			field === 'label' && typeof value === 'string' ? sanitizeInput(value, 100) : value;
-
-		switchCases = switchCases.map((c, i) => (i === index ? { ...c, [field]: sanitizedValue } : c));
+		switchCases = switchCases.map((c, i) => (i === index ? { ...c, [field]: value } : c));
 		updateConfigFromForm();
 	}
 
 	function updateSwitchCaseValues(index: number, valuesStr: string) {
-		// XSS 対策: values をサニタイズ
-		const sanitizedStr = sanitizeInput(valuesStr, 500);
-
 		// Parse comma-separated values
-		const values = sanitizedStr
+		const values = valuesStr
 			.split(',')
 			.map((v) => v.trim())
 			.filter((v) => v !== '');
@@ -869,8 +769,7 @@
 				<!-- Auth Method Select: Checkboxes (available methods for user to choose) -->
 				{#if node.type === 'auth_method_select'}
 					<div class="form-group">
-						<label>Available Methods <span class="hint">(methods user can select from)</span></label
-						>
+						<label>Available Methods <span class="hint">(methods user can select from)</span></label>
 						<div class="checkbox-group">
 							{#each [{ value: 'password', label: 'Password' }, { value: 'passkey', label: 'Passkey' }, { value: 'email_otp', label: 'Email OTP' }, { value: 'sms_otp', label: 'SMS OTP' }, { value: 'magic_link', label: 'Magic Link' }, { value: 'social', label: 'Social Login' }] as option (option.value)}
 								<label class="checkbox-label">
@@ -889,10 +788,7 @@
 				<!-- Login Method Select: Checkboxes (login options for user to choose) -->
 				{#if node.type === 'login_method_select'}
 					<div class="form-group">
-						<label
-							>Available Methods <span class="hint">(login options user can select from)</span
-							></label
-						>
+						<label>Available Methods <span class="hint">(login options user can select from)</span></label>
 						<div class="checkbox-group">
 							{#each [{ value: 'email', label: 'Email + Password' }, { value: 'social', label: 'Social Login' }, { value: 'passkey', label: 'Passkey' }, { value: 'enterprise', label: 'Enterprise SSO' }] as option (option.value)}
 								<label class="checkbox-label">
@@ -1091,155 +987,6 @@
 					</div>
 				{/if}
 
-				<!-- Decision Node Branches -->
-				{#if node.type === 'decision'}
-					<div class="form-group">
-						<label>Decision Branches <span class="hint">(priority-based evaluation)</span></label>
-						<div class="decision-branches">
-							{#each decisionBranches as branch, index (branch.id)}
-								<div class="branch-item">
-									<div class="branch-header">
-										<span class="branch-priority">#{branch.priority}</span>
-										<input
-											type="text"
-											class="branch-label-input"
-											value={branch.label}
-											oninput={(e) => updateDecisionBranch(index, 'label', e.currentTarget.value)}
-											placeholder="Branch label"
-										/>
-										<button
-											class="btn-remove-small"
-											onclick={() => removeDecisionBranch(index)}
-											type="button"
-										>
-											×
-										</button>
-									</div>
-									<div class="branch-condition">
-										<div class="condition-row">
-											<input
-												type="text"
-												class="condition-key"
-												value={branch.condition.key}
-												oninput={(e) =>
-													updateDecisionCondition(
-														index,
-														e.currentTarget.value,
-														branch.condition.operator,
-														branch.condition.value as string
-													)}
-												placeholder="key (e.g., prevNode.success)"
-											/>
-											<select
-												class="condition-operator"
-												value={branch.condition.operator}
-												onchange={(e) =>
-													updateDecisionCondition(
-														index,
-														branch.condition.key,
-														e.currentTarget.value,
-														branch.condition.value as string
-													)}
-											>
-												<option value="isTrue">is True</option>
-												<option value="isFalse">is False</option>
-												<option value="equals">equals</option>
-												<option value="notEquals">not equals</option>
-												<option value="greaterThan">greater than</option>
-												<option value="lessThan">less than</option>
-												<option value="contains">contains</option>
-												<option value="in">in</option>
-												<option value="exists">exists</option>
-											</select>
-											{#if !['isTrue', 'isFalse', 'exists', 'notExists'].includes(branch.condition.operator)}
-												<input
-													type="text"
-													class="condition-value"
-													value={(branch.condition.value as string) || ''}
-													oninput={(e) =>
-														updateDecisionCondition(
-															index,
-															branch.condition.key,
-															branch.condition.operator,
-															e.currentTarget.value
-														)}
-													placeholder="value"
-												/>
-											{/if}
-										</div>
-									</div>
-								</div>
-							{/each}
-						</div>
-						<button class="btn-add" onclick={addDecisionBranch} type="button">+ Add Branch</button>
-						<div class="form-group" style="margin-top: 12px;">
-							<label>Default Branch ID <span class="hint">(fallback if no match)</span></label>
-							<input
-								type="text"
-								bind:value={decisionDefaultBranch}
-								oninput={updateConfigFromForm}
-								placeholder="branch_default"
-							/>
-						</div>
-					</div>
-				{/if}
-
-				<!-- Switch Node Cases -->
-				{#if node.type === 'switch'}
-					<div class="form-group">
-						<label>Switch Key <span class="hint">(e.g., risk.level)</span></label>
-						<input
-							type="text"
-							bind:value={switchKey}
-							oninput={updateConfigFromForm}
-							placeholder="risk.level"
-						/>
-					</div>
-					<div class="form-group">
-						<label>Switch Cases <span class="hint">(value matching)</span></label>
-						<div class="switch-cases">
-							{#each switchCases as switchCase, index (switchCase.id)}
-								<div class="case-item">
-									<div class="case-header">
-										<input
-											type="text"
-											class="case-label-input"
-											value={switchCase.label}
-											oninput={(e) => updateSwitchCase(index, 'label', e.currentTarget.value)}
-											placeholder="Case label"
-										/>
-										<button
-											class="btn-remove-small"
-											onclick={() => removeSwitchCase(index)}
-											type="button"
-										>
-											×
-										</button>
-									</div>
-									<div class="case-values">
-										<input
-											type="text"
-											class="values-input"
-											value={switchCase.values.join(', ')}
-											oninput={(e) => updateSwitchCaseValues(index, e.currentTarget.value)}
-											placeholder="low, none (comma-separated)"
-										/>
-									</div>
-								</div>
-							{/each}
-						</div>
-						<button class="btn-add" onclick={addSwitchCase} type="button">+ Add Case</button>
-						<div class="form-group" style="margin-top: 12px;">
-							<label>Default Case ID <span class="hint">(fallback if no match)</span></label>
-							<input
-								type="text"
-								bind:value={switchDefaultCase}
-								oninput={updateConfigFromForm}
-								placeholder="case_default"
-							/>
-						</div>
-					</div>
-				{/if}
 				<!-- Collapsible JSON Config -->
 				<div class="json-section">
 					<button class="json-toggle" onclick={() => (jsonExpanded = !jsonExpanded)} type="button">
@@ -1685,128 +1432,5 @@
 	.selected-fields .hint {
 		font-size: 11px;
 		color: #6b7280;
-	}
-
-	/* Decision/Switch Node Styles */
-	.decision-branches,
-	.switch-cases {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-bottom: 12px;
-	}
-
-	.branch-item,
-	.case-item {
-		background: #f9fafb;
-		border: 1px solid #e5e7eb;
-		border-radius: 6px;
-		padding: 12px;
-	}
-
-	.branch-header,
-	.case-header {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 8px;
-	}
-
-	.branch-priority {
-		font-size: 12px;
-		font-weight: 600;
-		color: #6b7280;
-		min-width: 24px;
-	}
-
-	.branch-label-input,
-	.case-label-input {
-		flex: 1;
-		padding: 6px 10px;
-		border: 1px solid #d1d5db;
-		border-radius: 4px;
-		font-size: 14px;
-	}
-
-	.btn-remove-small {
-		background: #ef4444;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		width: 24px;
-		height: 24px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		cursor: pointer;
-		font-size: 18px;
-		line-height: 1;
-	}
-
-	.btn-remove-small:hover {
-		background: #dc2626;
-	}
-
-	.branch-condition {
-		margin-top: 8px;
-	}
-
-	.condition-row {
-		display: flex;
-		gap: 8px;
-		align-items: center;
-	}
-
-	.condition-key {
-		flex: 2;
-		padding: 6px 10px;
-		border: 1px solid #d1d5db;
-		border-radius: 4px;
-		font-size: 13px;
-		font-family: 'Monaco', 'Menlo', monospace;
-	}
-
-	.condition-operator {
-		flex: 1;
-		padding: 6px 10px;
-		border: 1px solid #d1d5db;
-		border-radius: 4px;
-		font-size: 13px;
-	}
-
-	.condition-value {
-		flex: 1;
-		padding: 6px 10px;
-		border: 1px solid #d1d5db;
-		border-radius: 4px;
-		font-size: 13px;
-	}
-
-	.case-values {
-		margin-top: 8px;
-	}
-
-	.values-input {
-		width: 100%;
-		padding: 6px 10px;
-		border: 1px solid #d1d5db;
-		border-radius: 4px;
-		font-size: 13px;
-		font-family: 'Monaco', 'Menlo', monospace;
-	}
-
-	.btn-add {
-		padding: 8px 16px;
-		background: #3b82f6;
-		color: white;
-		border: none;
-		border-radius: 6px;
-		cursor: pointer;
-		font-size: 14px;
-		font-weight: 500;
-	}
-
-	.btn-add:hover {
-		background: #2563eb;
 	}
 </style>

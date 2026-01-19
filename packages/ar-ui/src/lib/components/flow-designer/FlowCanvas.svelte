@@ -22,6 +22,8 @@
 	import MfaNode from './nodes/MfaNode.svelte';
 	import ConsentNode from './nodes/ConsentNode.svelte';
 	import ConditionNode from './nodes/ConditionNode.svelte';
+	import DecisionNode from './nodes/DecisionNode.svelte';
+	import SwitchNode from './nodes/SwitchNode.svelte';
 	import ActionNode from './nodes/ActionNode.svelte';
 	import LogicNode from './nodes/LogicNode.svelte';
 	import RegisterNode from './nodes/RegisterNode.svelte';
@@ -112,8 +114,8 @@
 		push_notify: ActionNode,
 
 		// === 9. Logic/Decision Nodes ===
-		decision: ConditionNode,
-		switch: ConditionNode,
+		decision: DecisionNode,
+		switch: SwitchNode,
 
 		// === 10. Policy Nodes ===
 		policy_check: LogicNode,

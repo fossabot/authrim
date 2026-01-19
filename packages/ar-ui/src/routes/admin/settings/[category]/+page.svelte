@@ -202,80 +202,32 @@
 	}
 </script>
 
-<div>
+<div class="settings-detail-page">
 	<!-- Back link and header -->
-	<div style="margin-bottom: 24px;">
-		<a
-			href="/admin/settings"
-			style="color: #3b82f6; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; gap: 4px;"
-		>
-			← Back to Settings
-		</a>
+	<div class="settings-detail-header">
+		<a href="/admin/settings" class="back-link">← Back to Settings</a>
 		{#if meta}
-			<div style="display: flex; align-items: center; gap: 12px; margin: 8px 0 4px 0;">
-				<h1 style="font-size: 24px; font-weight: bold; color: #111827; margin: 0;">
-					{meta.label}
-				</h1>
+			<div class="settings-header-row">
+				<h1 class="page-title">{meta.label}</h1>
 				<!-- Scope Badge -->
-				<span
-					style="
-						display: inline-flex;
-						align-items: center;
-						gap: 4px;
-						padding: 4px 10px;
-						background-color: {currentLevel === 'platform'
-						? '#dbeafe'
-						: currentLevel === 'tenant'
-							? '#d1fae5'
-							: '#fef3c7'};
-						color: {currentLevel === 'platform'
-						? '#1d4ed8'
-						: currentLevel === 'tenant'
-							? '#065f46'
-							: '#92400e'};
-						border-radius: 9999px;
-						font-size: 12px;
-						font-weight: 500;
-					"
-				>
+				<span class="scope-badge {currentLevel}">
 					{currentLevel === 'platform' ? '🏗️' : currentLevel === 'tenant' ? '🏢' : '📦'}
 					{currentLevel.charAt(0).toUpperCase() + currentLevel.slice(1)}
 				</span>
 				{#if !canEdit}
-					<span
-						style="
-							display: inline-flex;
-							align-items: center;
-							gap: 4px;
-							padding: 4px 10px;
-							background-color: #fef3c7;
-							color: #92400e;
-							border-radius: 9999px;
-							font-size: 12px;
-							font-weight: 500;
-						"
-					>
-						🔒 Read-only
-					</span>
+					<span class="readonly-badge">🔒 Read-only</span>
 				{/if}
 			</div>
-			<p style="color: #6b7280; margin: 0;">
-				{meta.description}
-			</p>
+			<p class="page-description">{meta.description}</p>
 		{/if}
 	</div>
 
 	<!-- Error message -->
 	{#if error}
-		<div
-			style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px; margin-bottom: 16px;"
-		>
+		<div class="alert alert-error">
 			{error}
 			{#if error.includes('another user')}
-				<button
-					onclick={loadData}
-					style="margin-left: 12px; padding: 4px 8px; background-color: #b91c1c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;"
-				>
+				<button onclick={loadData} class="btn btn-sm btn-danger" style="margin-left: 12px;">
 					Reload
 				</button>
 			{/if}
@@ -284,41 +236,25 @@
 
 	<!-- Success message -->
 	{#if successMessage}
-		<div
-			style="background-color: #d1fae5; border: 1px solid #10b981; color: #065f46; padding: 12px; border-radius: 6px; margin-bottom: 16px;"
-		>
-			{successMessage}
-		</div>
+		<div class="alert alert-success">{successMessage}</div>
 	{/if}
 
 	{#if loading}
-		<div style="display: flex; justify-content: center; padding: 48px;">
-			<p style="color: #6b7280;">Loading settings...</p>
+		<div class="loading-state">
+			<p class="text-secondary">Loading settings...</p>
 		</div>
 	{:else if meta && settings}
 		<!-- Settings form -->
-		<div
-			style="background-color: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;"
-		>
-			{#each Object.entries(meta.settings) as [key, settingMeta], index (key)}
+		<div class="settings-form-card">
+			{#each Object.entries(meta.settings) as [key, settingMeta] (key)}
 				{@const value = getCurrentValue(key)}
 				{@const locked = isSettingLocked(key, settingMeta)}
 				{@const hasPendingChange = pendingPatches.some((p) => p.key === key)}
-				<div
-					style="
-						padding: 16px 20px;
-						{index > 0 ? 'border-top: 1px solid #e5e7eb;' : ''}
-						{hasPendingChange ? 'background-color: #fefce8;' : ''}
-					"
-				>
-					<div
-						style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;"
-					>
-						<div style="flex: 1;">
-							<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-								<label for={key} style="font-weight: 500; color: #111827; font-size: 14px;">
-									{settingMeta.label}
-								</label>
+				<div class="setting-item" class:modified={hasPendingChange}>
+					<div class="setting-item-content">
+						<div class="setting-info">
+							<div class="setting-label-row">
+								<label for={key} class="setting-label">{settingMeta.label}</label>
 								<InheritanceIndicator
 									source={(settings?.sources[key] as SettingSource) || 'default'}
 									currentScope={currentLevel}
@@ -326,36 +262,32 @@
 									compact={true}
 								/>
 								{#if locked && !isLockedByEnv(key)}
-									<span style="font-size: 12px; color: #92400e;">🔒 Locked</span>
+									<span class="setting-locked">🔒 Locked</span>
 								{/if}
 								{#if hasPendingChange}
-									<span style="font-size: 12px; color: #ca8a04;">● Modified</span>
+									<span class="setting-modified">● Modified</span>
 								{/if}
 							</div>
-							<p style="font-size: 13px; color: #6b7280; margin: 0 0 8px 0;">
+							<p class="setting-description">
 								{settingMeta.description}
 								{#if settingMeta.unit}
-									<span style="color: #9ca3af;">({settingMeta.unit})</span>
+									<span class="setting-unit">({settingMeta.unit})</span>
 								{/if}
 							</p>
 						</div>
 
-						<div style="flex-shrink: 0; min-width: 200px;">
+						<div class="setting-control">
 							{#if settingMeta.type === 'boolean'}
-								<label
-									style="display: flex; align-items: center; gap: 8px; cursor: {locked
-										? 'not-allowed'
-										: 'pointer'};"
-								>
+								<label class="settings-checkbox-label" class:disabled={locked}>
 									<input
 										type="checkbox"
 										id={key}
 										checked={Boolean(value)}
 										disabled={locked}
 										onchange={(e) => handleChange(key, e.currentTarget.checked)}
-										style="width: 18px; height: 18px; cursor: inherit;"
+										class="settings-checkbox"
 									/>
-									<span style="font-size: 14px; color: {locked ? '#9ca3af' : '#374151'};">
+									<span class="settings-checkbox-text">
 										{value ? 'Enabled' : 'Disabled'}
 									</span>
 								</label>
@@ -365,16 +297,7 @@
 									value={String(value)}
 									disabled={locked}
 									onchange={(e) => handleChange(key, e.currentTarget.value)}
-									style="
-										width: 100%;
-										padding: 8px 12px;
-										border: 1px solid #d1d5db;
-										border-radius: 6px;
-										font-size: 14px;
-										background-color: {locked ? '#f3f4f6' : 'white'};
-										color: {locked ? '#9ca3af' : '#374151'};
-										cursor: {locked ? 'not-allowed' : 'pointer'};
-									"
+									class="settings-select"
 								>
 									{#each settingMeta.enum as option (option)}
 										<option value={option}>{option}</option>
@@ -395,20 +318,11 @@
 												: e.currentTarget.value;
 										handleChange(key, inputValue);
 									}}
-									style="
-										width: 100%;
-										padding: 8px 12px;
-										border: 1px solid #d1d5db;
-										border-radius: 6px;
-										font-size: 14px;
-										background-color: {locked ? '#f3f4f6' : 'white'};
-										color: {locked ? '#9ca3af' : '#374151'};
-										cursor: {locked ? 'not-allowed' : 'auto'};
-									"
+									class="settings-input"
 								/>
 							{/if}
 							{#if settingMeta.min !== undefined || settingMeta.max !== undefined}
-								<p style="font-size: 11px; color: #9ca3af; margin: 4px 0 0 0;">
+								<p class="settings-range-hint">
 									{#if settingMeta.min !== undefined && settingMeta.max !== undefined}
 										Range: {settingMeta.min} - {settingMeta.max}
 									{:else if settingMeta.min !== undefined}
@@ -425,46 +339,11 @@
 		</div>
 
 		<!-- Action buttons -->
-		<div
-			style="
-				display: flex;
-				justify-content: flex-end;
-				gap: 12px;
-				margin-top: 20px;
-				padding: 16px 20px;
-				background-color: #f9fafb;
-				border: 1px solid #e5e7eb;
-				border-radius: 8px;
-			"
-		>
-			<button
-				onclick={discardChanges}
-				disabled={!hasChanges || saving}
-				style="
-					padding: 10px 20px;
-					background-color: white;
-					color: {hasChanges ? '#374151' : '#9ca3af'};
-					border: 1px solid {hasChanges ? '#d1d5db' : '#e5e7eb'};
-					border-radius: 6px;
-					font-size: 14px;
-					cursor: {hasChanges && !saving ? 'pointer' : 'not-allowed'};
-				"
-			>
+		<div class="settings-actions">
+			<button onclick={discardChanges} disabled={!hasChanges || saving} class="btn btn-secondary">
 				Discard Changes
 			</button>
-			<button
-				onclick={saveChanges}
-				disabled={!hasChanges || saving}
-				style="
-					padding: 10px 20px;
-					background-color: {hasChanges ? '#3b82f6' : '#9ca3af'};
-					color: white;
-					border: none;
-					border-radius: 6px;
-					font-size: 14px;
-					cursor: {hasChanges && !saving ? 'pointer' : 'not-allowed'};
-				"
-			>
+			<button onclick={saveChanges} disabled={!hasChanges || saving} class="btn btn-primary">
 				{saving ? 'Saving...' : `Save Changes${hasChanges ? ` (${pendingPatches.length})` : ''}`}
 			</button>
 		</div>

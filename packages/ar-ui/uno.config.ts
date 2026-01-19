@@ -12,19 +12,29 @@ import {
 export default defineConfig({
 	presets: [
 		presetUno({
-			dark: 'media' // Enable dark mode based on prefers-color-scheme
+			dark: 'class' // Enable dark mode via data-theme attribute
 		}),
 		presetAttributify(), // Allows using utilities as HTML attributes
 		presetIcons({
-			// Icon support
+			// Icon support - includes Heroicons and Phosphor Icons
 			scale: 1.2,
-			warn: false
+			warn: false,
+			collections: {
+				// Heroicons (legacy support)
+				heroicons: () => import('@iconify-json/heroicons/icons.json').then((i) => i.default),
+				// Phosphor Icons (new design system)
+				ph: () => import('@iconify-json/ph/icons.json').then((i) => i.default)
+			}
 		}),
 		presetTypography(), // Typography utilities
 		presetWebFonts({
 			provider: 'google',
 			fonts: {
-				sans: 'Inter:400,500,600,700',
+				// Display font for headings
+				display: 'Plus Jakarta Sans:400,500,600,700,800',
+				// Body font for general text
+				sans: ['DM Sans:400,500,600', 'Inter:400,500,600,700'],
+				// Monospace font for code
 				mono: 'Fira Code:400,500'
 			}
 		})
@@ -163,7 +173,52 @@ export default defineConfig({
 		'btn-primary',
 		'btn-secondary',
 		'btn-ghost',
-		'btn-danger'
+		'btn-danger',
+		// Common Phosphor icons used in navigation
+		'i-ph-squares-four',
+		'i-ph-users',
+		'i-ph-clock',
+		'i-ph-buildings',
+		'i-ph-shield-check',
+		'i-ph-file-text',
+		'i-ph-monitor',
+		'i-ph-key',
+		'i-ph-webhooks-logo',
+		'i-ph-flow-arrow',
+		'i-ph-globe',
+		'i-ph-gear',
+		'i-ph-gear-six',
+		'i-ph-puzzle-piece',
+		'i-ph-database',
+		'i-ph-lock-key',
+		'i-ph-stack',
+		'i-ph-moon',
+		'i-ph-sun',
+		'i-ph-bell',
+		'i-ph-list',
+		'i-ph-magnifying-glass',
+		'i-ph-plus',
+		'i-ph-trending-up',
+		'i-ph-trending-down',
+		'i-ph-warning',
+		'i-ph-user-plus',
+		'i-ph-x',
+		'i-ph-circle-notch',
+		'i-ph-check-circle',
+		'i-ph-x-circle',
+		'i-ph-info',
+		'i-ph-sign-in',
+		'animate-spin',
+		// Additional navigation icons
+		'i-ph-tag',
+		'i-ph-git-branch',
+		'i-ph-scales',
+		'i-ph-graph',
+		'i-ph-path',
+		'i-ph-identification-card',
+		'i-ph-queue',
+		'i-ph-certificate',
+		'i-ph-trash'
 	],
 	rules: []
 });

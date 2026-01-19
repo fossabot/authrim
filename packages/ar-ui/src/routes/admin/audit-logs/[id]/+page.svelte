@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
 	import { adminAuditLogsAPI, type AuditLogEntry } from '$lib/api/admin-audit-logs';
 
 	let entry: AuditLogEntry | null = $state(null);
@@ -45,20 +44,20 @@
 			.join(' ');
 	}
 
-	function getActionBadgeStyle(action: string): string {
+	function getActionBadgeClass(action: string): string {
 		if (action.includes('delete') || action.includes('revoke')) {
-			return 'background-color: #fee2e2; color: #991b1b;';
+			return 'badge badge-danger';
 		}
 		if (action.includes('create')) {
-			return 'background-color: #d1fae5; color: #065f46;';
+			return 'badge badge-success';
 		}
 		if (action.includes('update') || action.includes('rotate')) {
-			return 'background-color: #dbeafe; color: #1e40af;';
+			return 'badge badge-info';
 		}
 		if (action.includes('suspend') || action.includes('lock')) {
-			return 'background-color: #fef3c7; color: #92400e;';
+			return 'badge badge-warning';
 		}
-		return 'background-color: #e5e7eb; color: #374151;';
+		return 'badge badge-neutral';
 	}
 
 	function formatMetadata(metadata: Record<string, unknown> | null): string {
@@ -92,244 +91,137 @@
 	<title>Audit Log Details - Admin Dashboard - Authrim</title>
 </svelte:head>
 
-<div>
+<div class="admin-page">
 	<!-- Back Button -->
-	<button
-		onclick={() => goto('/admin/audit-logs')}
-		style="
-			display: inline-flex;
-			align-items: center;
-			gap: 8px;
-			padding: 8px 16px;
-			margin-bottom: 16px;
-			background-color: white;
-			border: 1px solid #d1d5db;
-			border-radius: 4px;
-			font-size: 14px;
-			cursor: pointer;
-			color: #374151;
-		"
-	>
-		&larr; Back to Audit Logs
-	</button>
+	<a href="/admin/audit-logs" class="back-link">← Back to Audit Logs</a>
 
 	{#if loading}
-		<p style="color: #6b7280; text-align: center; padding: 40px;">Loading audit log entry...</p>
-	{:else if error}
-		<div
-			style="background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px; border-radius: 6px;"
-		>
-			{error}
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading audit log entry...</p>
 		</div>
+	{:else if error}
+		<div class="alert alert-error">{error}</div>
 	{:else if entry}
-		<div
-			style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;"
-		>
-			<div style="display: flex; align-items: center; gap: 16px;">
-				<h1 style="font-size: 24px; font-weight: bold; color: #1f2937; margin: 0;">
-					Audit Log Entry
-				</h1>
-				<span
-					style="
-					display: inline-block;
-					padding: 4px 12px;
-					border-radius: 16px;
-					font-size: 14px;
-					font-weight: 500;
-					{getActionBadgeStyle(entry.action)}
-				"
-				>
+		<div class="page-header">
+			<div class="flow-title-row">
+				<h1 class="page-title">Audit Log Entry</h1>
+				<span class={getActionBadgeClass(entry.action)}>
 					{formatAction(entry.action)}
 				</span>
 			</div>
 		</div>
 
 		<!-- Basic Information -->
-		<div
-			style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;"
-		>
-			<h2
-				style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;"
-			>
-				Basic Information
-			</h2>
+		<div class="panel">
+			<h2 class="section-title-border">Basic Information</h2>
 
-			<div
-				style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;"
-			>
-				<div>
-					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Entry ID</span
-					>
-					<p style="margin: 0; font-size: 14px; color: #1f2937; font-family: monospace;">
-						{entry.id}
-					</p>
+			<div class="info-grid">
+				<div class="info-item">
+					<dt class="info-label">Entry ID</dt>
+					<dd class="info-value mono">{entry.id}</dd>
 				</div>
 
-				<div>
-					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Action</span
-					>
-					<p style="margin: 0; font-size: 14px; color: #1f2937; font-family: monospace;">
-						{entry.action}
-					</p>
+				<div class="info-item">
+					<dt class="info-label">Action</dt>
+					<dd class="info-value mono">{entry.action}</dd>
 				</div>
 
-				<div>
-					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Date/Time</span
-					>
-					<p style="margin: 0; font-size: 14px; color: #1f2937;">
-						{formatDateTime(entry.createdAt)}
-					</p>
+				<div class="info-item">
+					<dt class="info-label">Date/Time</dt>
+					<dd class="info-value">{formatDateTime(entry.createdAt)}</dd>
 				</div>
 			</div>
 		</div>
 
 		<!-- Actor Information -->
-		<div
-			style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;"
-		>
-			<h2
-				style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;"
-			>
-				Actor Information
-			</h2>
+		<div class="panel">
+			<h2 class="section-title-border">Actor Information</h2>
 
-			<div
-				style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;"
-			>
-				<div>
-					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>User ID</span
-					>
-					{#if entry.userId}
-						<a
-							href="/admin/users/{entry.userId}"
-							style="font-size: 14px; color: #3b82f6; text-decoration: none; font-family: monospace;"
-						>
-							{entry.userId}
-						</a>
-					{:else}
-						<p style="margin: 0; font-size: 14px; color: #9ca3af;">System / Anonymous</p>
-					{/if}
+			<div class="info-grid">
+				<div class="info-item">
+					<dt class="info-label">User ID</dt>
+					<dd class="info-value">
+						{#if entry.userId}
+							<a href="/admin/users/{entry.userId}" class="mono">
+								{entry.userId}
+							</a>
+						{:else}
+							<span class="text-muted">System / Anonymous</span>
+						{/if}
+					</dd>
 				</div>
 
-				<div>
-					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>IP Address</span
-					>
-					<p style="margin: 0; font-size: 14px; color: #1f2937;">
-						{entry.ipAddress || '-'}
-					</p>
+				<div class="info-item">
+					<dt class="info-label">IP Address</dt>
+					<dd class="info-value">{entry.ipAddress || '-'}</dd>
 				</div>
 
 				{#if entry.userAgent}
 					{@const parsedUA = parseUserAgent(entry.userAgent)}
-					<div>
-						<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-							>Browser / OS</span
-						>
-						<p style="margin: 0; font-size: 14px; color: #1f2937;">
+					<div class="info-item">
+						<dt class="info-label">Browser / OS</dt>
+						<dd class="info-value">
 							{parsedUA ? `${parsedUA.browser} on ${parsedUA.os}` : '-'}
-						</p>
+						</dd>
 					</div>
 				{/if}
 			</div>
 
 			{#if entry.userAgent}
-				<div style="margin-top: 16px;">
-					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Full User Agent</span
-					>
-					<p
-						style="margin: 0; font-size: 12px; color: #6b7280; font-family: monospace; word-break: break-all;"
+				<div class="info-item" style="margin-top: 16px;">
+					<dt class="info-label">Full User Agent</dt>
+					<dd
+						class="info-value mono text-secondary"
+						style="word-break: break-all; font-size: 0.75rem;"
 					>
 						{entry.userAgent}
-					</p>
+					</dd>
 				</div>
 			{/if}
 		</div>
 
 		<!-- Resource Information -->
-		<div
-			style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px;"
-		>
-			<h2
-				style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;"
-			>
-				Resource Information
-			</h2>
+		<div class="panel">
+			<h2 class="section-title-border">Resource Information</h2>
 
-			<div
-				style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;"
-			>
-				<div>
-					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Resource Type</span
-					>
-					<p style="margin: 0; font-size: 14px; color: #1f2937;">
-						{entry.resourceType || '-'}
-					</p>
+			<div class="info-grid">
+				<div class="info-item">
+					<dt class="info-label">Resource Type</dt>
+					<dd class="info-value">{entry.resourceType || '-'}</dd>
 				</div>
 
-				<div>
-					<span style="display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px;"
-						>Resource ID</span
-					>
-					{#if entry.resourceId}
-						{#if entry.resourceType === 'user'}
-							<a
-								href="/admin/users/{entry.resourceId}"
-								style="font-size: 14px; color: #3b82f6; text-decoration: none; font-family: monospace;"
-							>
-								{entry.resourceId}
-							</a>
-						{:else if entry.resourceType === 'client'}
-							<a
-								href="/admin/clients/{entry.resourceId}"
-								style="font-size: 14px; color: #3b82f6; text-decoration: none; font-family: monospace;"
-							>
-								{entry.resourceId}
-							</a>
+				<div class="info-item">
+					<dt class="info-label">Resource ID</dt>
+					<dd class="info-value">
+						{#if entry.resourceId}
+							{#if entry.resourceType === 'user'}
+								<a href="/admin/users/{entry.resourceId}" class="mono">
+									{entry.resourceId}
+								</a>
+							{:else if entry.resourceType === 'client'}
+								<a href="/admin/clients/{entry.resourceId}" class="mono">
+									{entry.resourceId}
+								</a>
+							{:else}
+								<span class="mono">{entry.resourceId}</span>
+							{/if}
 						{:else}
-							<p style="margin: 0; font-size: 14px; color: #1f2937; font-family: monospace;">
-								{entry.resourceId}
-							</p>
+							<span class="text-muted">-</span>
 						{/if}
-					{:else}
-						<p style="margin: 0; font-size: 14px; color: #9ca3af;">-</p>
-					{/if}
+					</dd>
 				</div>
 			</div>
 		</div>
 
 		<!-- Metadata -->
-		<div
-			style="background-color: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
-		>
-			<h2
-				style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 0 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;"
-			>
-				Metadata
-			</h2>
+		<div class="panel">
+			<h2 class="section-title-border">Metadata</h2>
 
 			{#if entry.metadata && Object.keys(entry.metadata).length > 0}
-				<pre
-					style="
-					background-color: #f3f4f6;
-					padding: 16px;
-					border-radius: 6px;
-					font-size: 13px;
-					font-family: monospace;
-					overflow-x: auto;
-					margin: 0;
-					white-space: pre-wrap;
-					word-break: break-word;
-					color: #1f2937;
-				">{formatMetadata(entry.metadata)}</pre>
+				<pre class="code-block"><code>{formatMetadata(entry.metadata)}</code></pre>
 			{:else}
-				<p style="margin: 0; color: #9ca3af; font-style: italic;">
+				<p class="text-muted" style="font-style: italic; margin: 0;">
 					No additional metadata recorded for this event.
 				</p>
 			{/if}

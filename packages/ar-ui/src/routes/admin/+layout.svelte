@@ -4,6 +4,12 @@
 	import { onMount } from 'svelte';
 	import { adminAuth } from '$lib/stores/admin-auth.svelte';
 	import { adminAuthAPI } from '$lib/api/admin-auth';
+	import { themeStore } from '$lib/stores/theme.svelte';
+	import FloatingNav from '$lib/components/admin/FloatingNav.svelte';
+	import NavSection from '$lib/components/admin/NavSection.svelte';
+	import NavItem from '$lib/components/admin/NavItem.svelte';
+	import NavGroupLabel from '$lib/components/admin/NavGroupLabel.svelte';
+	import AdminHeader from '$lib/components/admin/AdminHeader.svelte';
 	import type { Snippet } from 'svelte';
 
 	let { children }: { children: Snippet } = $props();
@@ -11,41 +17,102 @@
 	// Check if current page is login page
 	const isLoginPage = $derived($page.url.pathname === '/admin/login');
 
-	// Navigation items
-	const navItems = [
-		{ path: '/admin', label: 'Dashboard', exact: true },
-		{ path: '/admin/users', label: 'Users', exact: false },
-		{ path: '/admin/clients', label: 'Clients', exact: false },
-		{ path: '/admin/sessions', label: 'Sessions', exact: false },
-		{ path: '/admin/audit-logs', label: 'Audit Logs', exact: false },
-		// Phase 5: IdP・SCIM・IAT
-		{ path: '/admin/external-idp', label: 'External IdP', exact: false },
-		{ path: '/admin/scim-tokens', label: 'SCIM Tokens', exact: false },
-		{ path: '/admin/iat-tokens', label: 'IAT Tokens', exact: false },
-		// Phase 6: Settings
-		{ path: '/admin/settings', label: 'Settings', exact: false },
-		// Phase 6-B: Enterprise Features
-		{ path: '/admin/organizations', label: 'Organizations', exact: false },
-		{ path: '/admin/roles', label: 'Roles', exact: false },
-		{ path: '/admin/role-rules', label: 'Role Rules', exact: false },
-		{ path: '/admin/webhooks', label: 'Webhooks', exact: false },
-		{ path: '/admin/plugins', label: 'Plugins', exact: false },
-		{ path: '/admin/flows', label: 'Flows', exact: false },
-		// Phase 7: Compliance & Security & Jobs
-		{ path: '/admin/compliance', label: 'Compliance', exact: false },
-		{ path: '/admin/security', label: 'Security', exact: false },
-		{ path: '/admin/jobs', label: 'Jobs', exact: false }
+	// Mobile menu state
+	let mobileMenuOpen = $state(false);
+
+	// Navigation structure - Tenant scope (managed by tenant admins)
+	const tenantNavItems = {
+		// Users & Identity
+		usersIdentity: [
+			{ path: '/admin/users', label: 'Users', icon: 'i-ph-users' },
+			{ path: '/admin/sessions', label: 'Sessions', icon: 'i-ph-clock' },
+			{ path: '/admin/organizations', label: 'Organizations', icon: 'i-ph-buildings' }
+		],
+		// Applications
+		applications: [
+			{ path: '/admin/clients', label: 'Clients', icon: 'i-ph-monitor' },
+			{ path: '/admin/iat-tokens', label: 'IAT Tokens', icon: 'i-ph-key' },
+			{ path: '/admin/webhooks', label: 'Webhooks', icon: 'i-ph-webhooks-logo' }
+		],
+		// Authentication
+		authentication: [
+			{ path: '/admin/flows', label: 'Flows', icon: 'i-ph-flow-arrow' },
+			{ path: '/admin/external-idp', label: 'External IdP', icon: 'i-ph-globe' }
+		],
+		// Monitoring
+		monitoring: [{ path: '/admin/audit-logs', label: 'Audit Logs', icon: 'i-ph-file-text' }],
+		// Configuration
+		configuration: [
+			{ path: '/admin/settings', label: 'Settings', icon: 'i-ph-gear' },
+			{ path: '/admin/plugins', label: 'Plugins', icon: 'i-ph-puzzle-piece' }
+		]
+	};
+
+	// Navigation structure - Platform scope (managed by system admins)
+	const platformNavItems = {
+		// Access Control (system-wide definitions)
+		accessControl: [
+			{ path: '/admin/roles', label: 'Roles', icon: 'i-ph-shield-check' },
+			{ path: '/admin/role-rules', label: 'Role Rules', icon: 'i-ph-git-branch' },
+			{ path: '/admin/policies', label: 'Policies', icon: 'i-ph-scales' },
+			{ path: '/admin/rebac', label: 'ReBAC', icon: 'i-ph-graph' },
+			{ path: '/admin/access-trace', label: 'Access Trace', icon: 'i-ph-path' }
+		],
+		// Identity Schema
+		identitySchema: [
+			{ path: '/admin/attributes', label: 'Attributes', icon: 'i-ph-tag' },
+			{ path: '/admin/scim-tokens', label: 'SCIM Tokens', icon: 'i-ph-identification-card' }
+		],
+		// Security & Compliance
+		securityCompliance: [
+			{ path: '/admin/security', label: 'Security', icon: 'i-ph-lock-key' },
+			{ path: '/admin/compliance', label: 'Compliance', icon: 'i-ph-certificate' }
+		],
+		// System Operations
+		operations: [{ path: '/admin/jobs', label: 'Jobs', icon: 'i-ph-queue' }]
+	};
+
+	// All nav items flattened for breadcrumb lookup
+	const allNavItems = [
+		...tenantNavItems.usersIdentity,
+		...tenantNavItems.applications,
+		...tenantNavItems.authentication,
+		...tenantNavItems.monitoring,
+		...tenantNavItems.configuration,
+		...platformNavItems.accessControl,
+		...platformNavItems.identitySchema,
+		...platformNavItems.securityCompliance,
+		...platformNavItems.operations
 	];
 
 	// Check if nav item is active
-	function isActive(path: string, exact: boolean): boolean {
+	function isActive(path: string, exact: boolean = false): boolean {
 		if (exact) {
 			return $page.url.pathname === path;
 		}
 		return $page.url.pathname.startsWith(path);
 	}
 
+	// Get current page breadcrumb
+	const currentBreadcrumb = $derived(() => {
+		const path = $page.url.pathname;
+		if (path === '/admin') {
+			return [{ label: 'Dashboard', icon: 'i-ph-squares-four', level: 'tenant' as const }];
+		}
+
+		// Find matching nav item
+		const match = allNavItems.find((item) => path.startsWith(item.path));
+		if (match) {
+			return [{ label: match.label, icon: match.icon, level: 'tenant' as const }];
+		}
+
+		return [{ label: 'Admin', icon: 'i-ph-squares-four', level: 'tenant' as const }];
+	});
+
 	onMount(async () => {
+		// Initialize theme
+		themeStore.init();
+
 		// Capture current path at mount time to avoid race conditions with navigation
 		const currentPath = $page.url.pathname;
 		const isOnLoginPage = currentPath === '/admin/login';
@@ -69,6 +136,10 @@
 		adminAuth.clearAuth();
 		await adminAuthAPI.logout();
 	}
+
+	function toggleMobileMenu() {
+		mobileMenuOpen = !mobileMenuOpen;
+	}
 </script>
 
 {#if isLoginPage}
@@ -76,73 +147,263 @@
 	{@render children()}
 {:else if adminAuth.isLoading}
 	<!-- Loading state -->
-	<div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+	<div class="loading-container">
+		<div class="loading-spinner">
+			<i class="i-ph-circle-notch animate-spin w-8 h-8"></i>
+		</div>
 		<p>Loading...</p>
 	</div>
 {:else if adminAuth.isAuthenticated}
-	<!-- Authenticated - layout with sidebar -->
-	<div style="min-height: 100vh; background-color: #f9fafb; display: flex; flex-direction: column;">
-		<!-- Header -->
-		<header
-			style="background-color: #1f2937; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;"
-		>
-			<h1 style="font-size: 20px; font-weight: bold; margin: 0;">Authrim Admin</h1>
-			<div style="display: flex; align-items: center; gap: 16px;">
-				<span style="font-size: 14px; color: #9ca3af;">{adminAuth.user?.email || 'Admin'}</span>
-				<button
-					onclick={handleLogout}
-					style="
-						padding: 8px 16px;
-						background-color: #374151;
-						color: #d1d5db;
-						border: none;
-						border-radius: 4px;
-						cursor: pointer;
-						font-size: 14px;
-					"
-				>
-					Logout
-				</button>
-			</div>
-		</header>
+	<!-- Authenticated - layout with floating sidebar -->
+	<div class="app-layout">
+		<FloatingNav userName={adminAuth.user?.email?.split('@')[0] || 'Admin'} userRole="Super Admin">
+			<!-- Tenant Section -->
+			<NavSection level="tenant" tenantName="Default">
+				<!-- Dashboard -->
+				<NavItem
+					href="/admin"
+					icon="i-ph-squares-four"
+					label="Dashboard"
+					active={isActive('/admin', true)}
+				/>
 
-		<!-- Body with sidebar and main content -->
-		<div style="display: flex; flex: 1;">
-			<!-- Sidebar -->
-			<aside style="width: 200px; background-color: #1f2937; padding: 16px 0; flex-shrink: 0;">
-				<nav>
-					<ul style="list-style: none; padding: 0; margin: 0;">
-						{#each navItems as item (item.path)}
-							<li>
-								<a
-									href={item.path}
-									style="
-										display: block;
-										padding: 12px 24px;
-										color: {isActive(item.path, item.exact) ? '#ffffff' : '#9ca3af'};
-										background-color: {isActive(item.path, item.exact) ? '#374151' : 'transparent'};
-										text-decoration: none;
-										font-size: 14px;
-										border-left: 3px solid {isActive(item.path, item.exact) ? '#3b82f6' : 'transparent'};
-									"
-								>
-									{item.label}
-								</a>
-							</li>
-						{/each}
-					</ul>
-				</nav>
-			</aside>
+				<!-- Users & Identity -->
+				<NavGroupLabel label="Users & Identity" />
+				{#each tenantNavItems.usersIdentity as item (item.path)}
+					<NavItem
+						href={item.path}
+						icon={item.icon}
+						label={item.label}
+						active={isActive(item.path)}
+					/>
+				{/each}
 
-			<!-- Main content -->
-			<main style="flex: 1; padding: 24px; overflow-y: auto;">
+				<!-- Applications -->
+				<NavGroupLabel label="Applications" />
+				{#each tenantNavItems.applications as item (item.path)}
+					<NavItem
+						href={item.path}
+						icon={item.icon}
+						label={item.label}
+						active={isActive(item.path)}
+					/>
+				{/each}
+
+				<!-- Authentication -->
+				<NavGroupLabel label="Authentication" />
+				{#each tenantNavItems.authentication as item (item.path)}
+					<NavItem
+						href={item.path}
+						icon={item.icon}
+						label={item.label}
+						active={isActive(item.path)}
+					/>
+				{/each}
+
+				<!-- Monitoring -->
+				<NavGroupLabel label="Monitoring" />
+				{#each tenantNavItems.monitoring as item (item.path)}
+					<NavItem
+						href={item.path}
+						icon={item.icon}
+						label={item.label}
+						active={isActive(item.path)}
+					/>
+				{/each}
+
+				<!-- Configuration -->
+				<NavGroupLabel label="Configuration" />
+				{#each tenantNavItems.configuration as item (item.path)}
+					<NavItem
+						href={item.path}
+						icon={item.icon}
+						label={item.label}
+						active={isActive(item.path)}
+					/>
+				{/each}
+			</NavSection>
+
+			<!-- Platform Section -->
+			<NavSection level="system" label="Platform">
+				<!-- Access Control -->
+				<NavGroupLabel label="Access Control" />
+				{#each platformNavItems.accessControl as item (item.path)}
+					<NavItem
+						href={item.path}
+						icon={item.icon}
+						label={item.label}
+						active={isActive(item.path)}
+					/>
+				{/each}
+
+				<!-- Identity Schema -->
+				<NavGroupLabel label="Identity Schema" />
+				{#each platformNavItems.identitySchema as item (item.path)}
+					<NavItem
+						href={item.path}
+						icon={item.icon}
+						label={item.label}
+						active={isActive(item.path)}
+					/>
+				{/each}
+
+				<!-- Security & Compliance -->
+				<NavGroupLabel label="Security" />
+				{#each platformNavItems.securityCompliance as item (item.path)}
+					<NavItem
+						href={item.path}
+						icon={item.icon}
+						label={item.label}
+						active={isActive(item.path)}
+					/>
+				{/each}
+
+				<!-- Operations -->
+				<NavGroupLabel label="Operations" />
+				{#each platformNavItems.operations as item (item.path)}
+					<NavItem
+						href={item.path}
+						icon={item.icon}
+						label={item.label}
+						active={isActive(item.path)}
+					/>
+				{/each}
+			</NavSection>
+
+			{#snippet footer()}
+				<div class="nav-user">
+					<div class="nav-user-avatar">
+						{(adminAuth.user?.email?.charAt(0) || 'A').toUpperCase()}
+					</div>
+					<div class="nav-user-info">
+						<div class="nav-user-name">{adminAuth.user?.email?.split('@')[0] || 'Admin'}</div>
+						<button class="nav-logout-btn" onclick={handleLogout}> Logout </button>
+					</div>
+				</div>
+			{/snippet}
+		</FloatingNav>
+
+		<!-- Main Content -->
+		<main class="main-content">
+			<AdminHeader
+				breadcrumbs={currentBreadcrumb()}
+				tenants={[
+					{ id: 'default', name: 'Default' },
+					{ id: 'acme', name: 'Acme Corporation' }
+				]}
+				selectedTenantId="default"
+				onMobileMenuClick={toggleMobileMenu}
+			/>
+
+			<div class="page-content">
 				{@render children()}
-			</main>
-		</div>
+			</div>
+		</main>
 	</div>
 {:else}
 	<!-- Not authenticated - redirect happens in onMount -->
-	<div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+	<div class="loading-container">
 		<p>Redirecting to login...</p>
 	</div>
 {/if}
+
+<style>
+	/* App Layout */
+	.app-layout {
+		display: flex;
+		min-height: 100vh;
+	}
+
+	/* Main Content */
+	.main-content {
+		flex: 1;
+		margin-left: calc(var(--nav-width-collapsed) + 48px);
+		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
+		padding: 24px 48px 24px 24px;
+	}
+
+	.page-content {
+		flex: 1;
+	}
+
+	/* Loading State */
+	.loading-container {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		height: 100vh;
+		gap: 16px;
+		color: var(--text-secondary);
+	}
+
+	.loading-spinner {
+		color: var(--primary);
+	}
+
+	/* Nav User Footer Override */
+	:global(.nav-user) {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	:global(.nav-user-avatar) {
+		width: 40px;
+		height: 40px;
+		border-radius: var(--radius-full);
+		background: var(--gradient-accent);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: white;
+		font-family: var(--font-display);
+		font-weight: 700;
+		font-size: 0.875rem;
+		flex-shrink: 0;
+	}
+
+	:global(.nav-user-info) {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	:global(.nav-user-name) {
+		color: var(--text-inverse);
+		font-weight: 600;
+		font-size: 0.875rem;
+	}
+
+	.nav-logout-btn {
+		background: transparent;
+		border: none;
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		cursor: pointer;
+		padding: 0;
+		text-align: left;
+		transition: color var(--transition-fast);
+	}
+
+	.nav-logout-btn:hover {
+		color: var(--text-inverse);
+	}
+
+	/* Responsive */
+	@media (max-width: 1024px) {
+		.main-content {
+			margin-left: calc(var(--nav-width-collapsed) + 32px);
+			padding: 20px;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.main-content {
+			margin-left: 0;
+			padding: 16px;
+		}
+	}
+</style>

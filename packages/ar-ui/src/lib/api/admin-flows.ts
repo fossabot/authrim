@@ -568,6 +568,16 @@ export function getProfileBadgeStyle(profileId: ProfileId): string {
 	return styles[profileId] || 'background-color: #f3f4f6; color: #374151;';
 }
 
+export function getProfileBadgeClass(profileId: ProfileId): string {
+	const classes: Record<ProfileId, string> = {
+		'human-basic': 'badge badge-info',
+		'human-org': 'badge badge-info',
+		'ai-agent': 'badge badge-success',
+		'iot-device': 'badge badge-warning'
+	};
+	return classes[profileId] || 'badge badge-neutral';
+}
+
 /**
  * Check if flow can be edited
  */
