@@ -83,8 +83,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -114,8 +114,8 @@ importers:
         specifier: ^13.2.2
         version: 13.2.2
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -145,8 +145,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -173,8 +173,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -192,8 +192,8 @@ importers:
   packages/ar-lib-core:
     dependencies:
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -214,8 +214,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       zod:
         specifier: ^3.24.4
         version: 3.25.76
@@ -258,8 +258,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20251121.0
@@ -289,8 +289,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-scim
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -317,8 +317,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-policy
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20251121.0
@@ -339,8 +339,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20251121.0
@@ -364,8 +364,8 @@ importers:
         specifier: ^0.9.6
         version: 0.9.8
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -401,8 +401,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -435,6 +435,9 @@ importers:
       '@iconify-json/heroicons':
         specifier: ^1.2.3
         version: 1.2.3
+      '@iconify-json/ph':
+        specifier: ^1.2.2
+        version: 1.2.2
       '@melt-ui/pp':
         specifier: ^0.3.2
         version: 0.3.2(@melt-ui/svelte@0.86.6(svelte@5.43.14))(svelte@5.43.14)
@@ -520,8 +523,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -545,8 +548,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.10.6
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       jose:
         specifier: ^6.1.2
         version: 6.1.2
@@ -585,8 +588,8 @@ importers:
   packages/setup:
     dependencies:
       '@hono/node-server':
-        specifier: ^1.13.8
-        version: 1.19.7(hono@4.10.6)
+        specifier: ^1.19.9
+        version: 1.19.9(hono@4.11.4)
       '@inquirer/prompts':
         specifier: ^7.2.1
         version: 7.10.1(@types/node@22.19.1)
@@ -603,8 +606,8 @@ importers:
         specifier: ^9.5.2
         version: 9.6.1
       hono:
-        specifier: ^4.6.18
-        version: 4.10.6
+        specifier: ^4.11.4
+        version: 4.11.4
       ora:
         specifier: ^8.1.1
         version: 8.2.0
@@ -1305,8 +1308,8 @@ packages:
   '@hexagon/base64@1.1.28':
     resolution: {integrity: sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw==}
 
-  '@hono/node-server@1.19.7':
-    resolution: {integrity: sha512-vUcD0uauS7EU2caukW8z5lJKtoGMokxNbJtBiwHgpqxEXokaHCBkQUmCHhjFB1VUTWdqj25QoMkMKzgjq+uhrw==}
+  '@hono/node-server@1.19.9':
+    resolution: {integrity: sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
@@ -1329,6 +1332,9 @@ packages:
 
   '@iconify-json/heroicons@1.2.3':
     resolution: {integrity: sha512-n+vmCEgTesRsOpp5AB5ILB6srsgsYK+bieoQBNlafvoEhjVXLq8nIGN4B0v/s4DUfa0dOrjwE/cKJgIKdJXOEg==}
+
+  '@iconify-json/ph@1.2.2':
+    resolution: {integrity: sha512-PgkEZNtqa8hBGjHXQa4pMwZa93hmfu8FUSjs/nv4oUU6yLsgv+gh9nu28Kqi8Fz9CCVu4hj1MZs9/60J57IzFw==}
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
@@ -3185,6 +3191,10 @@ packages:
 
   hono@4.10.6:
     resolution: {integrity: sha512-BIdolzGpDO9MQ4nu3AUuDwHZZ+KViNm+EZ75Ae55eMXMqLVhDFqEMXxtUe9Qh8hjL+pIna/frs2j6Y2yD5Ua/g==}
+    engines: {node: '>=16.9.0'}
+
+  hono@4.11.4:
+    resolution: {integrity: sha512-U7tt8JsyrxSRKspfhtLET79pU8K+tInj5QZXs1jSugO1Vq5dFj3kmZsRldo29mTBfcjDRVRXrEZ6LS63Cog9ZA==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@4.0.0:
@@ -5402,9 +5412,9 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hono/node-server@1.19.7(hono@4.10.6)':
+  '@hono/node-server@1.19.9(hono@4.11.4)':
     dependencies:
-      hono: 4.10.6
+      hono: 4.11.4
 
   '@humanfs/core@0.19.1': {}
 
@@ -5418,6 +5428,10 @@ snapshots:
   '@humanwhocodes/retry@0.4.3': {}
 
   '@iconify-json/heroicons@1.2.3':
+    dependencies:
+      '@iconify/types': 2.0.0
+
+  '@iconify-json/ph@1.2.2':
     dependencies:
       '@iconify/types': 2.0.0
 
@@ -6571,7 +6585,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 3.0.3
-      vitest: 4.0.13(@types/node@20.19.25)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
+      vitest: 4.0.13(@types/node@22.19.1)(@vitest/ui@4.0.13)(jiti@2.6.1)(jsdom@27.2.0)(tsx@4.20.6)(yaml@2.8.1)
 
   '@vitest/utils@2.1.9':
     dependencies:
@@ -7608,6 +7622,8 @@ snapshots:
       function-bind: 1.1.2
 
   hono@4.10.6: {}
+
+  hono@4.11.4: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:
