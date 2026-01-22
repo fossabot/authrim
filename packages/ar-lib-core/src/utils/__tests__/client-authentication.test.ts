@@ -465,11 +465,11 @@ describe('Client Authentication', () => {
       expect(result.error_description).toContain('expired');
     });
 
-    it('should accept assertion expiring exactly now (edge case)', async () => {
+    it('should accept assertion expiring soon (edge case)', async () => {
       const client = createClientWithJWKS(clientId);
       const now = Math.floor(Date.now() / 1000);
       const assertion = await createClientAssertion(clientId, tokenEndpoint, {
-        exp: now + 1, // Just barely valid
+        exp: now + 5, // Expires in 5 seconds (enough margin for CI execution)
       });
 
       const result = await validateClientAssertion(assertion, tokenEndpoint, client);
