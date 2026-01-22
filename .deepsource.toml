@@ -9,3 +9,6 @@ name = "javascript"
     "nodejs",
     "browser"
   ]
+
+[[code_formatters]]
+name = "prettier"
