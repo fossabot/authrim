@@ -212,9 +212,16 @@
 		try {
 			tenantSettings = await adminSettingsAPI.getSettings('tenant');
 		} catch (err) {
-			// Tenant settings may not be available, continue without CORS check
+			// Tenant settings may not be available, initialize with empty values
+			// This allows CORS addition to work even when settings haven't been created yet
 			console.warn('Failed to load tenant settings for CORS check:', err);
-			tenantSettings = null;
+			tenantSettings = {
+				category: 'tenant',
+				scope: { type: 'tenant', id: 'default' },
+				version: '',
+				values: {},
+				sources: {}
+			};
 		}
 	}
 

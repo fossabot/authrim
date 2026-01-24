@@ -123,8 +123,27 @@ app.use('*', async (c, next) => {
 });
 
 // CORS configuration with origin validation
+// Priority: KV (tenant.allowed_origins) > env (ALLOWED_ORIGINS) > ISSUER_URL
 app.use('*', async (c, next) => {
-  const allowedOriginsEnv = c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
+  // Try to get allowed origins from KV (Settings Manager format)
+  let allowedOriginsValue: string | undefined;
+
+  if (c.env.AUTHRIM_CONFIG) {
+    try {
+      const kvData = await c.env.AUTHRIM_CONFIG.get('settings:tenant:default:tenant');
+      if (kvData) {
+        const settings = JSON.parse(kvData) as Record<string, unknown>;
+        if (typeof settings['tenant.allowed_origins'] === 'string') {
+          allowedOriginsValue = settings['tenant.allowed_origins'];
+        }
+      }
+    } catch {
+      // KV read failed, fall through to env
+    }
+  }
+
+  // Fallback to environment variable, then ISSUER_URL
+  const allowedOriginsEnv = allowedOriginsValue || c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
   const allowedOrigins = parseAllowedOrigins(allowedOriginsEnv);
 
   const corsMiddleware = cors({

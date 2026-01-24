@@ -76,6 +76,31 @@ interface RegistrationInfoCompat {
   };
 }
 
+/**
+ * Get allowed origins from KV (Settings Manager format) with fallback to env
+ * Priority: KV (tenant.allowed_origins) > env (ALLOWED_ORIGINS) > ISSUER_URL
+ */
+async function getAllowedOriginsFromKV(env: Env): Promise<string[]> {
+  let allowedOriginsValue: string | undefined;
+
+  if (env.AUTHRIM_CONFIG) {
+    try {
+      const kvData = await env.AUTHRIM_CONFIG.get('settings:tenant:default:tenant');
+      if (kvData) {
+        const settings = JSON.parse(kvData) as Record<string, unknown>;
+        if (typeof settings['tenant.allowed_origins'] === 'string') {
+          allowedOriginsValue = settings['tenant.allowed_origins'];
+        }
+      }
+    } catch {
+      // KV read failed, fall through to env
+    }
+  }
+
+  const allowedOriginsEnv = allowedOriginsValue || env.ALLOWED_ORIGINS || env.ISSUER_URL;
+  return parseAllowedOrigins(allowedOriginsEnv);
+}
+
 // RP (Relying Party) configuration
 const RP_NAME = 'Authrim';
 
@@ -140,8 +165,7 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
 
     // Validate Origin header against allowlist
     const originHeader = c.req.header('origin');
-    const allowedOriginsEnv = c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
-    const allowedOrigins = parseAllowedOrigins(allowedOriginsEnv);
+    const allowedOrigins = await getAllowedOriginsFromKV(c.env);
 
     // Reject unauthorized origins
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
@@ -359,8 +383,7 @@ export async function passkeyRegisterVerifyHandler(c: Context<{ Bindings: Env }>
 
     // Validate Origin header against allowlist
     const originHeader = c.req.header('origin');
-    const allowedOriginsEnv = c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
-    const allowedOrigins = parseAllowedOrigins(allowedOriginsEnv);
+    const allowedOrigins = await getAllowedOriginsFromKV(c.env);
 
     // Reject unauthorized origins
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
@@ -520,8 +543,7 @@ export async function passkeyLoginOptionsHandler(c: Context<{ Bindings: Env }>) 
 
     // Validate Origin header against allowlist
     const originHeader = c.req.header('origin');
-    const allowedOriginsEnv = c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
-    const allowedOrigins = parseAllowedOrigins(allowedOriginsEnv);
+    const allowedOrigins = await getAllowedOriginsFromKV(c.env);
 
     // Reject unauthorized origins
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
@@ -696,8 +718,7 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
 
     // Validate Origin header against allowlist
     const originHeader = c.req.header('origin');
-    const allowedOriginsEnv = c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
-    const allowedOrigins = parseAllowedOrigins(allowedOriginsEnv);
+    const allowedOrigins = await getAllowedOriginsFromKV(c.env);
 
     // Reject unauthorized origins
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {

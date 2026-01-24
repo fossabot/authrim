@@ -15,7 +15,7 @@
  */
 
 import { Hono, type Context } from 'hono';
-import type { Env } from '@authrim/ar-lib-core';
+import type { Env, AdminAuthContext } from '@authrim/ar-lib-core';
 import { getLogger, sanitizeObject } from '@authrim/ar-lib-core';
 
 /**
@@ -372,24 +372,30 @@ const migrateRouter = new Hono<{
   Bindings: Env;
   Variables: {
     adminUser?: { id: string; role?: string };
+    adminAuth?: AdminAuthContext;
   };
 }>();
 
 /**
- * Platform admin middleware for migration routes
- * Per spec: "Migration API execution restriction - platform admin only"
+ * System admin middleware for migration routes
+ * Per spec: "Migration API execution restriction - system admin only"
+ * Updated: Now checks for super_admin or system_admin roles (consistent with other admin APIs)
  */
 migrateRouter.use('/migrate', async (c, next) => {
-  const adminUser = c.get('adminUser');
+  const adminAuth = c.get('adminAuth');
+  const userRoles = adminAuth?.roles || [];
 
-  // Check if user has platform_admin role
+  // Check if user has super_admin or system_admin role
   // Note: The adminAuthMiddleware at /api/admin/* handles basic auth
-  // This middleware adds the platform admin restriction for migration operations
-  if (!adminUser || adminUser.role !== 'platform_admin') {
+  // This middleware adds the system admin restriction for migration operations
+  const hasSystemAdminAccess =
+    userRoles.includes('super_admin') || userRoles.includes('system_admin');
+
+  if (!adminAuth || !hasSystemAdminAccess) {
     return c.json(
       {
         error: 'forbidden',
-        message: 'Migration API requires platform admin privileges',
+        message: 'Migration API requires system admin privileges',
       },
       403
     );
@@ -402,7 +408,7 @@ migrateRouter.use('/migrate', async (c, next) => {
  * POST /api/admin/settings/migrate
  *
  * Execute settings migration from v1 to v2 format
- * Requires: platform_admin role
+ * Requires: super_admin or system_admin role
  */
 migrateRouter.post('/migrate', async (c) => {
   const kv = c.env.AUTHRIM_CONFIG;

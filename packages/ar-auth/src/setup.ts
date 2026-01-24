@@ -84,6 +84,33 @@ function toBase64URLString(input: CredentialIDLike): string {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+/**
+ * Get allowed origins from KV (priority) or environment variables
+ * Priority: KV > env > ISSUER_URL
+ */
+async function getAllowedOriginsFromKV(env: Env): Promise<string[]> {
+  let allowedOriginsValue: string | undefined;
+
+  // Try to read from KV first
+  if (env.AUTHRIM_CONFIG) {
+    try {
+      const kvData = await env.AUTHRIM_CONFIG.get('settings:tenant:default:tenant');
+      if (kvData) {
+        const settings = JSON.parse(kvData) as Record<string, unknown>;
+        if (typeof settings['tenant.allowed_origins'] === 'string') {
+          allowedOriginsValue = settings['tenant.allowed_origins'];
+        }
+      }
+    } catch {
+      // Ignore KV read errors, fall back to env
+    }
+  }
+
+  // Fall back to environment variables
+  const allowedOriginsEnv = allowedOriginsValue || env.ALLOWED_ORIGINS || env.ISSUER_URL;
+  return parseAllowedOrigins(allowedOriginsEnv);
+}
+
 // Setup session header name
 const SETUP_SESSION_HEADER = 'X-Setup-Session';
 const CSRF_TOKEN_HEADER = 'X-CSRF-Token';
@@ -498,8 +525,7 @@ setupApp.post('/api/admin-init-setup/initialize', async (c) => {
 
     // Validate Origin header for WebAuthn
     const originHeader = c.req.header('origin');
-    const allowedOriginsEnv = c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
-    const allowedOrigins = parseAllowedOrigins(allowedOriginsEnv);
+    const allowedOrigins = await getAllowedOriginsFromKV(c.env);
 
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
       await releaseSetupLock(c.env);

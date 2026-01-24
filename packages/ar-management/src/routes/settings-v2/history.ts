@@ -19,7 +19,7 @@
  */
 
 import type { Context } from 'hono';
-import type { Env } from '@authrim/ar-lib-core';
+import type { Env, AdminAuthContext } from '@authrim/ar-lib-core';
 import {
   createSettingsHistoryManager,
   type SettingsHistoryManager,
@@ -30,6 +30,10 @@ import {
   SETTINGS_EVENTS,
   type SettingsEventData,
   getLogger,
+  // Authorization
+  getScopedCategoryMeta,
+  type CategoryName,
+  type SettingScopeLevel,
 } from '@authrim/ar-lib-core';
 
 // =============================================================================
@@ -57,8 +61,68 @@ type SettingsContext = Context<{
   Bindings: Env;
   Variables: {
     adminUser?: AdminUser;
+    adminAuth?: AdminAuthContext;
   };
 }>;
+
+// =============================================================================
+// Authorization Helpers (mirrored from index.ts for consistency)
+// =============================================================================
+
+/**
+ * Check if user has permission for a category at a given scope level
+ */
+function checkRolePermission(
+  userRoles: string[],
+  category: CategoryName,
+  scopeLevel: SettingScopeLevel,
+  action: 'view' | 'edit'
+): boolean {
+  // super_admin and system_admin always have access
+  if (userRoles.includes('super_admin') || userRoles.includes('system_admin')) {
+    return true;
+  }
+
+  const scopedMeta = getScopedCategoryMeta(category);
+  const perms = scopedMeta.scopePermissions[scopeLevel];
+
+  if (action === 'edit') {
+    return perms.editRoles.some((role) => userRoles.includes(role));
+  }
+  return perms.viewRoles.some((role) => userRoles.includes(role));
+}
+
+/**
+ * Check if user can access a specific tenant's data
+ * super_admin, system_admin and distributor_admin can access any tenant
+ * org_admin can only access their own tenant
+ */
+function canAccessTenant(adminAuth: AdminAuthContext | undefined, tenantId: string): boolean {
+  if (!adminAuth) return false;
+
+  const userRoles = adminAuth.roles;
+
+  // super_admin, system_admin and distributor_admin can access any tenant
+  if (
+    userRoles.includes('super_admin') ||
+    userRoles.includes('system_admin') ||
+    userRoles.includes('distributor_admin')
+  ) {
+    return true;
+  }
+
+  // org_admin can only access their own tenant
+  if (userRoles.includes('org_admin')) {
+    return adminAuth.org_id === tenantId;
+  }
+
+  // viewer with tenant association
+  if (userRoles.includes('viewer')) {
+    return !adminAuth.org_id || adminAuth.org_id === tenantId;
+  }
+
+  return false;
+}
 
 // =============================================================================
 // Constants
@@ -184,6 +248,19 @@ export async function listSettingsHistory(c: SettingsContext) {
     );
   }
 
+  // Authorization check
+  const adminAuth = c.get('adminAuth');
+  const userRoles = adminAuth?.roles || [];
+  const tenantId = c.req.query('tenantId') || DEFAULT_TENANT_ID;
+
+  if (!checkRolePermission(userRoles, category as CategoryName, 'tenant', 'view')) {
+    return c.json({ error: 'forbidden', error_description: 'Insufficient permissions' }, 403);
+  }
+
+  if (!canAccessTenant(adminAuth, tenantId)) {
+    return c.json({ error: 'forbidden', error_description: 'Cannot access this tenant' }, 403);
+  }
+
   // Parse and validate pagination parameters
   const rawLimit = parseInt(c.req.query('limit') || '50', 10);
   const rawOffset = parseInt(c.req.query('offset') || '0', 10);
@@ -243,6 +320,19 @@ export async function getSettingsVersion(c: SettingsContext) {
       },
       400
     );
+  }
+
+  // Authorization check
+  const adminAuth = c.get('adminAuth');
+  const userRoles = adminAuth?.roles || [];
+  const tenantId = c.req.query('tenantId') || DEFAULT_TENANT_ID;
+
+  if (!checkRolePermission(userRoles, category as CategoryName, 'tenant', 'view')) {
+    return c.json({ error: 'forbidden', error_description: 'Insufficient permissions' }, 403);
+  }
+
+  if (!canAccessTenant(adminAuth, tenantId)) {
+    return c.json({ error: 'forbidden', error_description: 'Cannot access this tenant' }, 403);
   }
 
   const version = parseInt(versionStr, 10);
@@ -308,7 +398,7 @@ export async function getSettingsVersion(c: SettingsContext) {
 export async function rollbackSettings(c: SettingsContext) {
   const log = getLogger(c as unknown as BaseContext).module('SettingsHistoryAPI');
   const category = c.req.param('category');
-  const tenantId = DEFAULT_TENANT_ID;
+  const tenantId = c.req.query('tenantId') || DEFAULT_TENANT_ID;
 
   if (!isValidCategory(category)) {
     return c.json(
@@ -318,6 +408,18 @@ export async function rollbackSettings(c: SettingsContext) {
       },
       400
     );
+  }
+
+  // Authorization check (requires edit permission for rollback)
+  const adminAuth = c.get('adminAuth');
+  const userRoles = adminAuth?.roles || [];
+
+  if (!checkRolePermission(userRoles, category as CategoryName, 'tenant', 'edit')) {
+    return c.json({ error: 'forbidden', error_description: 'Insufficient permissions to rollback settings' }, 403);
+  }
+
+  if (!canAccessTenant(adminAuth, tenantId)) {
+    return c.json({ error: 'forbidden', error_description: 'Cannot modify settings for this tenant' }, 403);
   }
 
   let body: { targetVersion: number; reason?: string };
@@ -457,6 +559,19 @@ export async function getCurrentSettings(c: SettingsContext) {
     );
   }
 
+  // Authorization check
+  const adminAuth = c.get('adminAuth');
+  const userRoles = adminAuth?.roles || [];
+  const tenantId = c.req.query('tenantId') || DEFAULT_TENANT_ID;
+
+  if (!checkRolePermission(userRoles, category as CategoryName, 'tenant', 'view')) {
+    return c.json({ error: 'forbidden', error_description: 'Insufficient permissions' }, 403);
+  }
+
+  if (!canAccessTenant(adminAuth, tenantId)) {
+    return c.json({ error: 'forbidden', error_description: 'Cannot access this tenant' }, 403);
+  }
+
   try {
     const snapshot = await getCurrentSnapshot(c, category);
     const historyManager = getHistoryManager(c);
@@ -500,6 +615,19 @@ export async function compareSettingsVersions(c: SettingsContext) {
       },
       400
     );
+  }
+
+  // Authorization check
+  const adminAuth = c.get('adminAuth');
+  const userRoles = adminAuth?.roles || [];
+  const tenantId = c.req.query('tenantId') || DEFAULT_TENANT_ID;
+
+  if (!checkRolePermission(userRoles, category as CategoryName, 'tenant', 'view')) {
+    return c.json({ error: 'forbidden', error_description: 'Insufficient permissions' }, 403);
+  }
+
+  if (!canAccessTenant(adminAuth, tenantId)) {
+    return c.json({ error: 'forbidden', error_description: 'Cannot access this tenant' }, 403);
   }
 
   if (!fromStr || !toStr) {

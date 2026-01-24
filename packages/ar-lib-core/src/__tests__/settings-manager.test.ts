@@ -142,7 +142,7 @@ describe('SettingsManager', () => {
       expect(result.sources['test.string_setting']).toBe('default');
     });
 
-    it('should prioritize env over KV over default', async () => {
+    it('should prioritize KV over env over default (per CLAUDE.md)', async () => {
       // Set up KV value - use correct key format: settings:tenant:${id}:${category}
       mockKV = createMockKV({
         'settings:tenant:tenant_1:test': JSON.stringify({
@@ -161,13 +161,41 @@ describe('SettingsManager', () => {
 
       const result = await manager.getAll('test', { type: 'tenant', id: 'tenant_1' });
 
-      // env > KV > default
-      expect(result.values['test.string_setting']).toBe('env_value');
-      expect(result.sources['test.string_setting']).toBe('env');
+      // KV > env > default (per CLAUDE.md: Priority: Cache → KV → Env → Default)
+      // KV is set, so KV value takes priority over env
+      expect(result.values['test.string_setting']).toBe('kv_value');
+      expect(result.sources['test.string_setting']).toBe('kv');
       expect(result.values['test.number_setting']).toBe(200);
       expect(result.sources['test.number_setting']).toBe('kv');
+      // No KV for boolean, and no env, so default is used
       expect(result.values['test.boolean_setting']).toBe(true);
       expect(result.sources['test.boolean_setting']).toBe('default');
+    });
+
+    it('should use env when KV is not set', async () => {
+      // No KV value for string_setting
+      mockKV = createMockKV({
+        'settings:tenant:tenant_1:test': JSON.stringify({
+          'test.number_setting': 200,
+        }),
+      });
+
+      // Set up env value
+      manager = createSettingsManager({
+        env: { TEST_STRING_SETTING: 'env_value' },
+        kv: mockKV,
+        cacheTTL: 0,
+      });
+      manager.registerCategory(TEST_CATEGORY_META);
+
+      const result = await manager.getAll('test', { type: 'tenant', id: 'tenant_1' });
+
+      // No KV for string_setting, so env value is used
+      expect(result.values['test.string_setting']).toBe('env_value');
+      expect(result.sources['test.string_setting']).toBe('env');
+      // KV is set for number_setting
+      expect(result.values['test.number_setting']).toBe(200);
+      expect(result.sources['test.number_setting']).toBe('kv');
     });
 
     it('should handle DISABLED_MARKER correctly', async () => {
@@ -221,7 +249,9 @@ describe('SettingsManager', () => {
       expect(patchResult.rejected).toEqual({});
     });
 
-    it('should reject env-overridden settings', async () => {
+    it('should allow KV override when env is set (KV takes priority per CLAUDE.md)', async () => {
+      // Per CLAUDE.md: Priority is Cache → KV → Environment variables → Default values
+      // So KV writes should be allowed even when env is set
       manager = createSettingsManager({
         env: { TEST_STRING_SETTING: 'env_value' },
         kv: mockKV,
@@ -243,7 +273,14 @@ describe('SettingsManager', () => {
         'test_actor'
       );
 
-      expect(patchResult.rejected['test.string_setting']).toContain('env override');
+      // KV write should be allowed, not rejected
+      expect(patchResult.applied).toContain('test.string_setting');
+      expect(patchResult.rejected).toEqual({});
+
+      // After KV write, the KV value should take priority over env
+      const afterPatch = await manager.getAll('test', { type: 'tenant', id: 'tenant_1' });
+      expect(afterPatch.values['test.string_setting']).toBe('new_value');
+      expect(afterPatch.sources['test.string_setting']).toBe('kv');
     });
 
     it('should throw ConflictError on version mismatch', async () => {

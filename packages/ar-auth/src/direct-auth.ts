@@ -109,6 +109,31 @@ type CredentialIDLike = string | ArrayBuffer | ArrayBufferView;
 // ===== Helper Functions =====
 
 /**
+ * Get allowed origins from KV (Settings Manager format) with fallback to env
+ * Priority: KV (tenant.allowed_origins) > env (ALLOWED_ORIGINS) > ISSUER_URL
+ */
+async function getAllowedOriginsFromKV(env: Env): Promise<string[]> {
+  let allowedOriginsValue: string | undefined;
+
+  if (env.AUTHRIM_CONFIG) {
+    try {
+      const kvData = await env.AUTHRIM_CONFIG.get('settings:tenant:default:tenant');
+      if (kvData) {
+        const settings = JSON.parse(kvData) as Record<string, unknown>;
+        if (typeof settings['tenant.allowed_origins'] === 'string') {
+          allowedOriginsValue = settings['tenant.allowed_origins'];
+        }
+      }
+    } catch {
+      // KV read failed, fall through to env
+    }
+  }
+
+  const allowedOriginsEnv = allowedOriginsValue || env.ALLOWED_ORIGINS || env.ISSUER_URL;
+  return parseAllowedOrigins(allowedOriginsEnv);
+}
+
+/**
  * Normalize any credential identifier to an unpadded base64url string.
  */
 function toBase64URLString(input: CredentialIDLike): string {
@@ -383,8 +408,7 @@ export async function directPasskeyLoginStartHandler(c: Context<{ Bindings: Env 
 
     // Validate Origin header against allowlist
     const originHeader = c.req.header('origin');
-    const allowedOriginsEnv = c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
-    const allowedOrigins = parseAllowedOrigins(allowedOriginsEnv);
+    const allowedOrigins = await getAllowedOriginsFromKV(c.env);
 
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
       return createErrorResponse(c, AR_ERROR_CODES.POLICY_INSUFFICIENT_PERMISSIONS);
@@ -685,8 +709,7 @@ export async function directPasskeySignupStartHandler(c: Context<{ Bindings: Env
 
     // Validate Origin
     const originHeader = c.req.header('origin');
-    const allowedOriginsEnv = c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
-    const allowedOrigins = parseAllowedOrigins(allowedOriginsEnv);
+    const allowedOrigins = await getAllowedOriginsFromKV(c.env);
 
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
       return createErrorResponse(c, AR_ERROR_CODES.POLICY_INSUFFICIENT_PERMISSIONS);
@@ -1611,8 +1634,7 @@ export async function directPasskeyRegisterStartHandler(c: Context<{ Bindings: E
 
     // Validate Origin header
     const originHeader = c.req.header('origin');
-    const allowedOriginsEnv = c.env.ALLOWED_ORIGINS || c.env.ISSUER_URL;
-    const allowedOrigins = parseAllowedOrigins(allowedOriginsEnv);
+    const allowedOrigins = await getAllowedOriginsFromKV(c.env);
 
     if (!originHeader || !isAllowedOrigin(originHeader, allowedOrigins)) {
       return createErrorResponse(c, AR_ERROR_CODES.POLICY_INSUFFICIENT_PERMISSIONS);

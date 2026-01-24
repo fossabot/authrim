@@ -408,11 +408,9 @@ export class SettingsManager {
           continue;
         }
 
-        // Check if env override exists (cannot be overridden)
-        if (settingMeta.envKey && this.env[settingMeta.envKey] !== undefined) {
-          rejected[key] = 'read-only (env override)';
-          continue;
-        }
+        // Note: KV values take priority over env values (per CLAUDE.md policy)
+        // Priority: Cache → KV → Environment variables → Default values
+        // So we allow KV writes even when env is set
 
         // Validate value
         const validation = this.validateSingleValue(key, value, settingMeta);
@@ -445,11 +443,8 @@ export class SettingsManager {
           continue;
         }
 
-        // Check if env override exists
-        if (settingMeta.envKey && this.env[settingMeta.envKey] !== undefined) {
-          rejected[key] = 'read-only (env override)';
-          continue;
-        }
+        // Note: KV values take priority over env values (per CLAUDE.md policy)
+        // Clearing KV allows env fallback to take effect
 
         if (key in kvData) {
           const before = kvData[key];
@@ -469,11 +464,8 @@ export class SettingsManager {
           continue;
         }
 
-        // Check if env override exists
-        if (settingMeta.envKey && this.env[settingMeta.envKey] !== undefined) {
-          rejected[key] = 'read-only (env override)';
-          continue;
-        }
+        // Note: KV values take priority over env values (per CLAUDE.md policy)
+        // Disabling via KV marker takes precedence over env value
 
         // Only boolean settings can be disabled
         if (settingMeta.type !== 'boolean') {
@@ -656,22 +648,17 @@ export class SettingsManager {
   }
 
   /**
-   * Resolve a single value with priority: env > KV > default
+   * Resolve a single value with priority: KV > env > default
+   * (per CLAUDE.md: Priority: Cache → KV → Environment variables → Default values)
+   *
+   * This allows Admin UI to override environment variables without redeployment.
    */
   private resolveValue(
     key: string,
     meta: SettingMeta,
     kvData: Record<string, unknown>
   ): { value: unknown; source: SettingSource } {
-    // 1. Check env override (highest priority)
-    if (meta.envKey) {
-      const envValue = parseEnvValue(this.env[meta.envKey], meta.type);
-      if (envValue !== undefined) {
-        return { value: envValue, source: 'env' };
-      }
-    }
-
-    // 2. Check KV value
+    // 1. Check KV value (highest priority - allows dynamic override)
     const kvValue = kvData[key];
     if (kvValue !== undefined) {
       // Handle disabled marker
@@ -679,6 +666,14 @@ export class SettingsManager {
         return { value: false, source: 'kv' };
       }
       return { value: kvValue, source: 'kv' };
+    }
+
+    // 2. Check env value (fallback when KV not set)
+    if (meta.envKey) {
+      const envValue = parseEnvValue(this.env[meta.envKey], meta.type);
+      if (envValue !== undefined) {
+        return { value: envValue, source: 'env' };
+      }
     }
 
     // 3. Use default

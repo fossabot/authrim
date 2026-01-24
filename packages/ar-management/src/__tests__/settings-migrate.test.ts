@@ -77,13 +77,17 @@ function createTestApp(options: { kv?: KVNamespace; env?: Record<string, string>
 
   const app = new Hono<{
     Bindings: Env;
-    Variables: { adminUser?: { id: string; role?: string } };
+    Variables: {
+      adminUser?: { id: string; role?: string };
+      adminAuth?: { userId: string; roles: string[]; authMethod: string };
+    };
   }>();
 
-  // Mock admin auth middleware with platform_admin role
-  // (Migration API requires platform_admin per spec)
+  // Mock admin auth middleware with system_admin role
+  // (Migration API requires super_admin or system_admin per spec)
   app.use('*', async (c, next) => {
-    c.set('adminUser', { id: 'test_admin', role: 'platform_admin' });
+    c.set('adminUser', { id: 'test_admin', role: 'system_admin' });
+    c.set('adminAuth', { userId: 'test_admin', roles: ['system_admin'], authMethod: 'bearer' });
     await next();
   });
 
@@ -410,11 +414,15 @@ describe('Settings Migration API', () => {
     it('should handle KV not configured', async () => {
       const app = new Hono<{
         Bindings: Env;
-        Variables: { adminUser?: { id: string; role?: string } };
+        Variables: {
+          adminUser?: { id: string; role?: string };
+          adminAuth?: { userId: string; roles: string[]; authMethod: string };
+        };
       }>();
 
       app.use('*', async (c, next) => {
-        c.set('adminUser', { id: 'test_admin', role: 'platform_admin' });
+        c.set('adminUser', { id: 'test_admin', role: 'system_admin' });
+        c.set('adminAuth', { userId: 'test_admin', roles: ['system_admin'], authMethod: 'bearer' });
         await next();
       });
 
@@ -456,17 +464,21 @@ describe('Settings Migration API', () => {
       expect(body.error).toBe('bad_request');
     });
 
-    it('should reject non-platform-admin users', async () => {
+    it('should reject non-system-admin users', async () => {
       const mockKV = createMockKV();
 
-      // Create app with non-platform-admin user
+      // Create app with non-system-admin user
       const app = new Hono<{
         Bindings: Env;
-        Variables: { adminUser?: { id: string; role?: string } };
+        Variables: {
+          adminUser?: { id: string; role?: string };
+          adminAuth?: { userId: string; roles: string[]; authMethod: string };
+        };
       }>();
 
       app.use('*', async (c, next) => {
-        c.set('adminUser', { id: 'test_admin', role: 'tenant_admin' }); // Not platform_admin
+        c.set('adminUser', { id: 'test_admin', role: 'tenant_admin' }); // Not system_admin
+        c.set('adminAuth', { userId: 'test_admin', roles: ['tenant_admin'], authMethod: 'bearer' });
         await next();
       });
 
@@ -489,7 +501,7 @@ describe('Settings Migration API', () => {
       expect(res.status).toBe(403);
       const body = (await res.json()) as ApiResponse;
       expect(body.error).toBe('forbidden');
-      expect(body.message).toContain('platform admin');
+      expect(body.message).toContain('system admin');
     });
 
     it('should reject users without role', async () => {
@@ -498,11 +510,15 @@ describe('Settings Migration API', () => {
       // Create app with user without role
       const app = new Hono<{
         Bindings: Env;
-        Variables: { adminUser?: { id: string; role?: string } };
+        Variables: {
+          adminUser?: { id: string; role?: string };
+          adminAuth?: { userId: string; roles: string[]; authMethod: string };
+        };
       }>();
 
       app.use('*', async (c, next) => {
         c.set('adminUser', { id: 'test_admin' }); // No role
+        c.set('adminAuth', { userId: 'test_admin', roles: [], authMethod: 'bearer' }); // Empty roles
         await next();
       });
 

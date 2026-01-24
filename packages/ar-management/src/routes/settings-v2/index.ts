@@ -132,7 +132,7 @@ async function getClientTenantId(env: Env, clientId: string): Promise<string | n
 
 /**
  * Check if user can access a specific tenant's data
- * system_admin and distributor_admin can access any tenant
+ * super_admin, system_admin and distributor_admin can access any tenant
  * org_admin can only access their own tenant
  */
 function canAccessTenant(adminAuth: AdminAuthContext | undefined, tenantId: string): boolean {
@@ -140,8 +140,12 @@ function canAccessTenant(adminAuth: AdminAuthContext | undefined, tenantId: stri
 
   const userRoles = adminAuth.roles;
 
-  // system_admin and distributor_admin can access any tenant
-  if (userRoles.includes('system_admin') || userRoles.includes('distributor_admin')) {
+  // super_admin, system_admin and distributor_admin can access any tenant
+  if (
+    userRoles.includes('super_admin') ||
+    userRoles.includes('system_admin') ||
+    userRoles.includes('distributor_admin')
+  ) {
     return true;
   }
 
