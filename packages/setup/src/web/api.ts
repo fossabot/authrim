@@ -25,6 +25,7 @@ import {
   checkAdminSetupStatus,
   generateAndStoreSetupToken,
   runMigrationsForEnvironment,
+  getWorkerDeployments,
   type CloudflareAuth,
 } from '../core/cloudflare.js';
 import {
@@ -35,7 +36,7 @@ import {
   type AuthrimConfig,
 } from '../core/config.js';
 import { generateAllSecrets, saveKeysToDirectory, keysExistForEnvironment } from '../core/keys.js';
-import { createLockFile, saveLockFile, loadLockFile } from '../core/lock.js';
+import { createLockFile, saveLockFile } from '../core/lock.js';
 import {
   getEnvironmentPaths,
   resolvePaths,
@@ -589,7 +590,8 @@ export function createApiRoutes(): Hono {
 
         addProgress('Creating lock file...');
         const lock = createLockFile(env, resources);
-        await saveLockFile(lock);
+        const rootDir = process.cwd();
+        await saveLockFile(lock, { env, baseDir: rootDir });
 
         state.status = 'configuring';
         addProgress('Provisioning complete!');
@@ -614,8 +616,9 @@ export function createApiRoutes(): Hono {
         const body = await c.req.json();
         const { env, rootDir = '.' } = body;
 
-        // Load lock file
-        const lock = await loadLockFile();
+        // Load lock file (use loadLockFileAuto to correctly resolve new structure path)
+        const { loadLockFileAuto } = await import('../core/lock.js');
+        const { lock } = await loadLockFileAuto(rootDir, env);
         if (!lock) {
           return c.json({ success: false, error: 'Lock file not found' }, 400);
         }
@@ -770,6 +773,85 @@ export function createApiRoutes(): Hono {
           addProgress(`Warning: Keys directory not found at ${keysDir}`);
         }
 
+        // Validate wrangler.toml files against lock file before deploying
+        // This prevents deployment failures due to stale resource IDs
+        if (!dryRun) {
+          const { loadLockFileAuto } = await import('../core/lock.js');
+          const { lock } = await loadLockFileAuto(rootDir, env);
+
+          if (lock) {
+            const { validateWranglerConfigs, generateWranglerConfig, toToml } = await import(
+              '../core/wrangler.js'
+            );
+            const { getEnabledComponents } = await import('../core/naming.js');
+            const { getWorkersSubdomain } = await import('../core/cloudflare.js');
+
+            // Build resource IDs from lock file
+            const lockResourceIds = {
+              d1: lock.d1,
+              kv: Object.fromEntries(
+                Object.entries(lock.kv).map(([k, v]) => [k, { id: v.id, name: v.name }])
+              ),
+              queues: lock.queues,
+              r2: lock.r2,
+            };
+
+            // Get enabled components
+            const cfg = state.config || {};
+            const enabledForValidation = getEnabledComponents({
+              saml: cfg.components?.saml,
+              async: cfg.components?.async,
+              vc: cfg.components?.vc,
+              bridge: cfg.components?.bridge,
+              policy: cfg.components?.policy,
+            });
+
+            // Validate wrangler.toml files
+            const enabledComponentsArray = [...enabledForValidation];
+            const validation = await validateWranglerConfigs(
+              resolve(rootDir),
+              env,
+              lockResourceIds,
+              enabledComponentsArray
+            );
+
+            if (!validation.valid) {
+              addProgress(
+                `⚠️ Detected outdated wrangler.toml files (${validation.mismatches.length} mismatches)`
+              );
+              addProgress('Regenerating wrangler.toml files with correct resource IDs...');
+
+              // Regenerate wrangler.toml files
+              const workersSubdomain = await getWorkersSubdomain();
+              let config: AuthrimConfig;
+              if (state.config) {
+                config = AuthrimConfigSchema.parse(state.config);
+              } else {
+                config = createDefaultConfig(env);
+              }
+
+              for (const component of enabledForValidation) {
+                const componentDir = join(resolve(rootDir), 'packages', component);
+                if (!existsSync(componentDir)) {
+                  continue;
+                }
+
+                const wranglerConfig = generateWranglerConfig(
+                  component,
+                  config,
+                  lockResourceIds,
+                  workersSubdomain ?? undefined
+                );
+                const tomlContent = toToml(wranglerConfig, env);
+                const tomlPath = join(componentDir, 'wrangler.toml');
+                await writeFile(tomlPath, tomlContent, 'utf-8');
+              }
+
+              addProgress('✓ wrangler.toml files regenerated');
+            }
+          }
+        }
+
         addProgress('Deploying workers...');
 
         // Determine enabled components from config (same logic as CLI)
@@ -814,12 +896,21 @@ export function createApiRoutes(): Hono {
         const cfg = state.config;
         if (cfg?.components?.loginUi || cfg?.components?.adminUi) {
           addProgress('Deploying Login/Admin UI to Cloudflare Pages...');
+
+          // Determine the API base URL for the UI to connect to
+          // Priority: custom API domain > workers.dev domain
+          const apiBaseUrl =
+            cfg?.urls?.api?.custom ||
+            cfg?.urls?.api?.auto ||
+            `https://${env}-ar-router.workers.dev`;
+
           pagesSummary = await deployAllPages(
             {
               env,
               rootDir: resolve(rootDir),
               dryRun,
               onProgress: addProgress,
+              apiBaseUrl,
             },
             {
               loginUi: cfg?.components?.loginUi ?? true,
@@ -857,7 +948,7 @@ export function createApiRoutes(): Hono {
             addProgress('✅ Database migrations completed successfully');
           } else {
             addProgress(
-              `⚠️ Some migrations failed - core: ${migrationsResult.core.error || 'ok'}, pii: ${migrationsResult.pii.error || 'ok'}`
+              `⚠️ Some migrations failed - core: ${migrationsResult.core.error || 'ok'}, pii: ${migrationsResult.pii.error || 'ok'}, admin: ${migrationsResult.admin.error || 'ok'}`
             );
           }
         }
@@ -875,7 +966,11 @@ export function createApiRoutes(): Hono {
             const failedPages = pagesSummary?.results.filter((r) => !r.success) ?? [];
             state.error = `Pages deployment failed: ${failedPages.map((r) => `${r.component}: ${r.error}`).join(', ')}`;
           } else if (!migrationsSuccess) {
-            state.error = `Migrations failed: ${migrationsResult?.core.error || migrationsResult?.pii.error}`;
+            const errors = [];
+            if (migrationsResult?.core.error) errors.push(`core: ${migrationsResult.core.error}`);
+            if (migrationsResult?.pii.error) errors.push(`pii: ${migrationsResult.pii.error}`);
+            if (migrationsResult?.admin.error) errors.push(`admin: ${migrationsResult.admin.error}`);
+            state.error = `Migrations failed: ${errors.join(', ')}`;
           }
         }
 
@@ -968,6 +1063,7 @@ export function createApiRoutes(): Hono {
           return c.json({
             success: true,
             setupUrl: result.setupUrl,
+            expiresAt: result.expiresAt,
             message: 'Visit the setup URL to create the initial administrator',
           });
         }
@@ -1042,6 +1138,7 @@ export function createApiRoutes(): Hono {
         return c.json({
           success: true,
           setupUrl,
+          expiresAt: result.expiresAt,
           message: 'Setup token generated. Visit the URL to create the initial administrator.',
         });
       } catch (error) {
@@ -1144,19 +1241,13 @@ export function createApiRoutes(): Hono {
       const { loadLockFileAuto } = await import('../core/lock.js');
       const { lock } = await loadLockFileAuto(rootDir, env);
 
-      if (!lock) {
-        return c.json(
-          {
-            success: false,
-            error: `Environment "${env}" not found. Lock file does not exist.`,
-          },
-          404
-        );
-      }
-
-      // Build deployed versions from lock file
+      // Build deployed versions from lock file or fallback to wrangler check
       const deployedVersions: Record<string, { version?: string; deployedAt?: string }> = {};
-      if (lock.workers) {
+      let hasLockWorkers = false;
+
+      if (lock?.workers && Object.keys(lock.workers).length > 0) {
+        // Use lock file data if available
+        hasLockWorkers = true;
         for (const [component, info] of Object.entries(lock.workers)) {
           deployedVersions[component] = {
             version: info.version,
@@ -1168,6 +1259,50 @@ export function createApiRoutes(): Hono {
       // Get local package versions
       const localVersions = await getLocalPackageVersions(rootDir);
 
+      // If no lock file or no workers in lock, check wrangler for deployment status
+      if (!hasLockWorkers) {
+        const { WORKER_COMPONENTS } = await import('../core/naming.js');
+        // Check a subset of core workers to determine deployment status
+        const coreWorkers: WorkerComponent[] = ['ar-lib-core', 'ar-router', 'ar-auth'];
+
+        for (const component of coreWorkers) {
+          const workerName = `${env}-${component}`;
+          try {
+            const deployInfo = await getWorkerDeployments(workerName);
+            if (deployInfo.exists) {
+              // Worker exists on Cloudflare but version unknown
+              deployedVersions[component] = {
+                version: undefined, // Version unknown without lock file
+                deployedAt: deployInfo.lastDeployedAt || undefined,
+              };
+            }
+          } catch {
+            // Ignore errors, worker likely doesn't exist
+          }
+        }
+
+        // If core workers are deployed, assume all enabled workers are deployed
+        if (Object.keys(deployedVersions).length > 0) {
+          for (const component of WORKER_COMPONENTS) {
+            if (!deployedVersions[component]) {
+              // Mark as potentially deployed (will show as "deployed, version unknown")
+              const workerName = `${env}-${component}`;
+              try {
+                const deployInfo = await getWorkerDeployments(workerName);
+                if (deployInfo.exists) {
+                  deployedVersions[component] = {
+                    version: undefined,
+                    deployedAt: deployInfo.lastDeployedAt || undefined,
+                  };
+                }
+              } catch {
+                // Worker doesn't exist or check failed
+              }
+            }
+          }
+        }
+      }
+
       // Compare versions
       const comparison = compareVersions(localVersions, deployedVersions);
 
@@ -1175,6 +1310,8 @@ export function createApiRoutes(): Hono {
         success: true,
         env,
         comparison,
+        hasLockFile: !!lock,
+        hasLockWorkers,
         summary: {
           total: comparison.length,
           needsUpdate: comparison.filter((c) => c.needsUpdate).length,

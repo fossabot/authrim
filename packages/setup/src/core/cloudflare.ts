@@ -67,6 +67,7 @@ export interface D1CreateOptions {
 /** Database configuration for provisioning */
 export interface DatabaseProvisionConfig {
   core?: D1CreateOptions;
+  /** PII database config - also used for admin-db (both contain sensitive data) */
   pii?: D1CreateOptions;
 }
 
@@ -483,6 +484,7 @@ export async function runMigrationsForEnvironment(
   success: boolean;
   core: { success: boolean; appliedCount: number; error?: string };
   pii: { success: boolean; appliedCount: number; error?: string };
+  admin: { success: boolean; appliedCount: number; error?: string };
 }> {
   const { existsSync } = await import('node:fs');
   const { join, resolve } = await import('node:path');
@@ -490,6 +492,7 @@ export async function runMigrationsForEnvironment(
   // Database names for this environment
   const coreDbName = getD1DatabaseName(env, 'core');
   const piiDbName = getD1DatabaseName(env, 'pii');
+  const adminDbName = getD1DatabaseName(env, 'admin');
 
   // Search for migrations directory in multiple locations
   const searchPaths = [
@@ -516,6 +519,7 @@ export async function runMigrationsForEnvironment(
       success: false,
       core: { success: false, appliedCount: 0, error: errorMsg },
       pii: { success: false, appliedCount: 0, error: errorMsg },
+      admin: { success: false, appliedCount: 0, error: errorMsg },
     };
   }
 
@@ -545,10 +549,28 @@ export async function runMigrationsForEnvironment(
     }
   }
 
+  // Run Admin database migrations
+  const adminMigrationsDir = join(migrationsRoot, 'admin');
+  onProgress?.(`📜 Running migrations for ${adminDbName}...`);
+
+  let adminResult: { success: boolean; appliedCount: number; error?: string };
+  if (!existsSync(adminMigrationsDir)) {
+    onProgress?.(`  ⚠️ Admin migrations directory not found: ${adminMigrationsDir}`);
+    adminResult = { success: true, appliedCount: 0 };
+  } else {
+    adminResult = await runD1Migrations(adminDbName, adminMigrationsDir, onProgress);
+    if (!adminResult.success) {
+      onProgress?.(`  ❌ Admin migration failed: ${adminResult.error}`);
+    } else {
+      onProgress?.(`  ✅ Applied ${adminResult.appliedCount} admin migrations`);
+    }
+  }
+
   return {
-    success: coreResult.success && piiResult.success,
+    success: coreResult.success && piiResult.success && adminResult.success,
     core: coreResult,
     pii: piiResult,
+    admin: adminResult,
   };
 }
 
@@ -630,11 +652,14 @@ export async function checkAdminSetupStatus(
 export async function generateAndStoreSetupToken(
   kvNamespaceId: string,
   ttlSeconds: number = 3600
-): Promise<{ success: boolean; token?: string; error?: string }> {
+): Promise<{ success: boolean; token?: string; expiresAt?: string; error?: string }> {
   try {
     // Generate URL-safe token (32 bytes = 43 characters in base64url)
     const { randomBytes } = await import('node:crypto');
     const token = randomBytes(32).toString('base64url');
+
+    // Calculate expiration time
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
 
     // Store token in KV with TTL
     await wrangler([
@@ -650,7 +675,7 @@ export async function generateAndStoreSetupToken(
       '--remote',
     ]);
 
-    return { success: true, token };
+    return { success: true, token, expiresAt };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { success: false, error: message };
@@ -866,6 +891,7 @@ export async function provisionResources(options: ProvisionOptions): Promise<Pro
       onProgress(`  ⏳ Creating: ${dbName}...`);
 
       // Get location options for this database type
+      // Note: admin-db uses the same region as pii-db (both contain sensitive data)
       const dbLocationKey = db.dbType === 'core-db' ? 'core' : 'pii';
       const dbOptions = options.databaseConfig?.[dbLocationKey];
 
@@ -895,32 +921,20 @@ export async function provisionResources(options: ProvisionOptions): Promise<Pro
     onProgress('');
 
     // Run migrations if rootDir is provided
+    // Use runMigrationsForEnvironment which supports searching multiple paths
     if (options.runMigrations !== false && options.rootDir) {
-      const { join } = await import('node:path');
+      onProgress('📜 Running database migrations...');
 
-      // Core database migrations
-      const coreDbName = getD1DatabaseName(env, 'core');
-      const coreMigrationsDir = join(options.rootDir, 'migrations');
-      onProgress(`📜 Running migrations for ${coreDbName}...`);
+      const migrationsResult = await runMigrationsForEnvironment(env, options.rootDir, onProgress);
 
-      const coreResult = await runD1Migrations(coreDbName, coreMigrationsDir, onProgress);
-      if (!coreResult.success) {
-        onProgress(`  ❌ Migration failed: ${coreResult.error}`);
-        throw new Error(`Failed to run migrations for ${coreDbName}: ${coreResult.error}`);
+      if (!migrationsResult.success) {
+        const errors = [];
+        if (!migrationsResult.core.success) errors.push(`core: ${migrationsResult.core.error}`);
+        if (!migrationsResult.pii.success) errors.push(`pii: ${migrationsResult.pii.error}`);
+        if (!migrationsResult.admin.success) errors.push(`admin: ${migrationsResult.admin.error}`);
+        throw new Error(`Failed to run migrations: ${errors.join(', ')}`);
       }
-      onProgress(`  ✅ Applied ${coreResult.appliedCount} migrations`);
 
-      // PII database migrations
-      const piiDbName = getD1DatabaseName(env, 'pii');
-      const piiMigrationsDir = join(options.rootDir, 'migrations', 'pii');
-      onProgress(`📜 Running migrations for ${piiDbName}...`);
-
-      const piiResult = await runD1Migrations(piiDbName, piiMigrationsDir, onProgress);
-      if (!piiResult.success) {
-        onProgress(`  ❌ Migration failed: ${piiResult.error}`);
-        throw new Error(`Failed to run migrations for ${piiDbName}: ${piiResult.error}`);
-      }
-      onProgress(`  ✅ Applied ${piiResult.appliedCount} migrations`);
       onProgress('');
     }
   }

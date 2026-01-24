@@ -410,10 +410,19 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
   ) {
     console.log(chalk.bold('\n📱 Deploying UI to Cloudflare Pages...\n'));
 
-    const pagesResult = await deployAllPages(deployOptions, {
-      loginUi: config.components.loginUi ?? true,
-      adminUi: config.components.adminUi ?? true,
-    });
+    // Determine the API base URL for the UI to connect to
+    const apiBaseUrl =
+      config.urls?.api?.custom ||
+      config.urls?.api?.auto ||
+      `https://${env}-ar-router.workers.dev`;
+
+    const pagesResult = await deployAllPages(
+      { ...deployOptions, apiBaseUrl },
+      {
+        loginUi: config.components.loginUi ?? true,
+        adminUi: config.components.adminUi ?? true,
+      }
+    );
 
     if (pagesResult.failedCount === 0) {
       console.log(chalk.green('\n✓ All UI packages deployed successfully'));
@@ -455,7 +464,7 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
 
       if (migrationsResult.success) {
         migrationsSpinner.succeed(
-          `Migrations completed - core: ${migrationsResult.core.appliedCount}, pii: ${migrationsResult.pii.appliedCount} applied`
+          `Migrations completed - core: ${migrationsResult.core.appliedCount}, pii: ${migrationsResult.pii.appliedCount}, admin: ${migrationsResult.admin.appliedCount} applied`
         );
       } else {
         migrationsSpinner.warn('Some migrations failed');
@@ -464,6 +473,9 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
         }
         if (migrationsResult.pii.error) {
           console.log(chalk.yellow(`  PII: ${migrationsResult.pii.error}`));
+        }
+        if (migrationsResult.admin.error) {
+          console.log(chalk.yellow(`  Admin: ${migrationsResult.admin.error}`));
         }
         migrationsSuccess = false;
       }

@@ -54,6 +54,8 @@ export interface SetupInfo {
   success: boolean;
   /** Setup URL for initial admin creation */
   setupUrl?: string;
+  /** Token expiration time in ISO 8601 format */
+  expiresAt?: string;
   /** Error message if failed */
   error?: string;
   /** Whether setup is already completed */
@@ -310,9 +312,13 @@ export async function storeSetupToken(options: SetupTokenOptions): Promise<Setup
 
     onProgress?.('Setup token stored successfully');
 
+    // Calculate expiration time
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+
     return {
       success: true,
       setupUrl: `/admin-init-setup?token=${setupToken}`,
+      expiresAt,
     };
   } catch (error) {
     return {
@@ -420,5 +426,6 @@ export async function completeInitialSetup(options: {
   return {
     success: true,
     setupUrl: fullSetupUrl,
+    expiresAt: result.expiresAt,
   };
 }

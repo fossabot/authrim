@@ -96,6 +96,7 @@ export type KVNamespace = (typeof KV_NAMESPACES)[number];
 export const D1_DATABASES = [
   { binding: 'DB', dbType: 'core-db' },
   { binding: 'DB_PII', dbType: 'pii-db' },
+  { binding: 'DB_ADMIN', dbType: 'admin-db' },
 ] as const;
 
 export type D1Database = (typeof D1_DATABASES)[number];
@@ -180,7 +181,7 @@ export function getAutoWorkerUrl(
  * Generate auto URL for Pages (pages.dev domain)
  *
  * @example
- * getAutoPagesUrl('prod', 'ar-ui') => 'https://prod-ar-ui.pages.dev'
+ * getAutoPagesUrl('prod', 'ar-login-ui') => 'https://prod-ar-login-ui.pages.dev'
  */
 export function getAutoPagesUrl(env: string, projectName: string): string {
   return `https://${env}-${projectName}.pages.dev`;

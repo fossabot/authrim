@@ -932,3 +932,120 @@ export function generateRoutes(
 
   return routes;
 }
+
+// =============================================================================
+// Wrangler Config Validation
+// =============================================================================
+
+export interface WranglerValidationResult {
+  valid: boolean;
+  mismatches: Array<{
+    component: string;
+    type: 'kv' | 'd1';
+    binding: string;
+    expected: string;
+    actual: string;
+  }>;
+}
+
+/**
+ * Parse wrangler.toml and extract resource IDs for a specific environment
+ */
+export function parseWranglerToml(
+  content: string,
+  env: string
+): { kv: Record<string, string>; d1: Record<string, string> } {
+  const result = { kv: {} as Record<string, string>, d1: {} as Record<string, string> };
+
+  // Find the [env.{env}] section
+  const envSectionRegex = new RegExp(`\\[env\\.${env}\\]`, 'g');
+  const envStart = content.search(envSectionRegex);
+  if (envStart === -1) {
+    return result;
+  }
+
+  // Find the next [env.*] section or end of file
+  const nextEnvMatch = content.slice(envStart + 1).search(/\[env\.[^\]]+\]/);
+  const envEnd = nextEnvMatch === -1 ? content.length : envStart + 1 + nextEnvMatch;
+  const envSection = content.slice(envStart, envEnd);
+
+  // Parse KV namespaces: [[env.{env}.kv_namespaces]]
+  const kvRegex = new RegExp(
+    `\\[\\[env\\.${env}\\.kv_namespaces\\]\\]\\s*\\nbinding\\s*=\\s*"([^"]+)"\\s*\\nid\\s*=\\s*"([^"]+)"`,
+    'g'
+  );
+  let kvMatch;
+  while ((kvMatch = kvRegex.exec(envSection)) !== null) {
+    result.kv[kvMatch[1]] = kvMatch[2];
+  }
+
+  // Parse D1 databases: [[env.{env}.d1_databases]]
+  const d1Regex = new RegExp(
+    `\\[\\[env\\.${env}\\.d1_databases\\]\\]\\s*\\nbinding\\s*=\\s*"([^"]+)"\\s*\\ndatabase_name\\s*=\\s*"[^"]+"\\s*\\ndatabase_id\\s*=\\s*"([^"]+)"`,
+    'g'
+  );
+  let d1Match;
+  while ((d1Match = d1Regex.exec(envSection)) !== null) {
+    result.d1[d1Match[1]] = d1Match[2];
+  }
+
+  return result;
+}
+
+/**
+ * Validate wrangler.toml files against lock file resource IDs
+ */
+export async function validateWranglerConfigs(
+  rootDir: string,
+  env: string,
+  lockResourceIds: ResourceIds,
+  components: WorkerComponent[]
+): Promise<WranglerValidationResult> {
+  const { readFile } = await import('node:fs/promises');
+  const { existsSync } = await import('node:fs');
+  const { join } = await import('node:path');
+
+  const result: WranglerValidationResult = { valid: true, mismatches: [] };
+
+  for (const component of components) {
+    const tomlPath = join(rootDir, 'packages', component, 'wrangler.toml');
+    if (!existsSync(tomlPath)) {
+      continue;
+    }
+
+    const content = await readFile(tomlPath, 'utf-8');
+    const parsed = parseWranglerToml(content, env);
+
+    // Check KV namespaces
+    for (const [binding, id] of Object.entries(parsed.kv)) {
+      const expected = lockResourceIds.kv[binding]?.id;
+      if (expected && id !== expected) {
+        result.valid = false;
+        result.mismatches.push({
+          component,
+          type: 'kv',
+          binding,
+          expected,
+          actual: id,
+        });
+      }
+    }
+
+    // Check D1 databases
+    for (const [binding, id] of Object.entries(parsed.d1)) {
+      const expected = lockResourceIds.d1[binding]?.id;
+      if (expected && id !== expected) {
+        result.valid = false;
+        result.mismatches.push({
+          component,
+          type: 'd1',
+          binding,
+          expected,
+          actual: id,
+        });
+      }
+    }
+  }
+
+  return result;
+}

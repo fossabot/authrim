@@ -1800,8 +1800,8 @@ export function getHtmlTemplate(
       }
     }
 
-    // Initialize translations on page load
-    (function() {
+    // Initialize translations on page load (must wait for DOM to be ready)
+    document.addEventListener('DOMContentLoaded', function() {
       const savedLang = localStorage.getItem('authrim_setup_lang');
       const url = new URL(window.location.href);
       const urlLang = url.searchParams.get('lang');
@@ -1827,7 +1827,7 @@ export function getHtmlTemplate(
       if (langSelect) {
         langSelect.value = _currentLocale;
       }
-    })();
+    });
   </script>
 </head>
 <body>
@@ -2103,7 +2103,7 @@ export function getHtmlTemplate(
           <span class="domain-label" data-i18n="web.domain.loginUi">Login UI</span>
           <div class="domain-input-wrapper">
             <input type="text" id="login-domain" placeholder="login.example.com" data-i18n-placeholder="web.form.loginDomainPlaceholder">
-            <span class="domain-default" id="login-default">{env}-ar-ui.pages.dev</span>
+            <span class="domain-default" id="login-default">{env}-ar-login-ui.pages.dev</span>
           </div>
         </div>
 
@@ -2111,7 +2111,7 @@ export function getHtmlTemplate(
           <span class="domain-label" data-i18n="web.domain.adminUi">Admin UI</span>
           <div class="domain-input-wrapper">
             <input type="text" id="admin-domain" placeholder="admin.example.com" data-i18n-placeholder="web.form.adminDomainPlaceholder">
-            <span class="domain-default" id="admin-default">{env}-ar-ui.pages.dev/admin</span>
+            <span class="domain-default" id="admin-default">{env}-ar-admin-ui.pages.dev</span>
           </div>
         </div>
 
@@ -2137,11 +2137,11 @@ export function getHtmlTemplate(
         </div>
         <div class="infra-item">
           <span class="infra-label" data-i18n="web.preview.loginUi">Login UI:</span>
-          <span class="infra-value" id="preview-login">{env}-ar-ui.pages.dev</span>
+          <span class="infra-value" id="preview-login">{env}-ar-login-ui.pages.dev</span>
         </div>
         <div class="infra-item">
           <span class="infra-label" data-i18n="web.preview.adminUi">Admin UI:</span>
-          <span class="infra-value" id="preview-admin">{env}-ar-ui.pages.dev/admin</span>
+          <span class="infra-value" id="preview-admin">{env}-ar-admin-ui.pages.dev</span>
         </div>
       </div>
 
@@ -3418,7 +3418,8 @@ export function getHtmlTemplate(
         ? env + '-ar-router.' + workersSubdomain + '.workers.dev'
         : env + '-ar-router.workers.dev';
       // Note: Pages uses {project}.pages.dev format (no account subdomain, unlike Workers)
-      const pagesDomain = env + '-ar-ui.pages.dev';
+      const loginPagesDomain = env + '-ar-login-ui.pages.dev';
+      const adminPagesDomain = env + '-ar-admin-ui.pages.dev';
 
       // Issuer URL
       // Note: Tenant subdomain is only supported with custom domains, NOT workers.dev
@@ -3446,10 +3447,10 @@ export function getHtmlTemplate(
         previewLogin.textContent = 'https://' + loginDomain;
         previewLogin.style.color = '';
       } else {
-        previewLogin.textContent = 'https://' + pagesDomain;
+        previewLogin.textContent = 'https://' + loginPagesDomain;
         previewLogin.style.color = '';
       }
-      document.getElementById('login-default').textContent = pagesDomain;
+      document.getElementById('login-default').textContent = loginPagesDomain;
 
       // Admin UI - check if component is enabled (in custom mode)
       const adminUiEnabled = document.getElementById('comp-admin-ui').checked;
@@ -3461,10 +3462,10 @@ export function getHtmlTemplate(
         previewAdmin.textContent = 'https://' + adminDomain;
         previewAdmin.style.color = '';
       } else {
-        previewAdmin.textContent = 'https://' + pagesDomain + '/admin';
+        previewAdmin.textContent = 'https://' + adminPagesDomain;
         previewAdmin.style.color = '';
       }
-      document.getElementById('admin-default').textContent = pagesDomain + '/admin';
+      document.getElementById('admin-default').textContent = adminPagesDomain;
     }
 
     // Attach event listeners to all inputs
@@ -4100,8 +4101,8 @@ export function getHtmlTemplate(
             apiUrl = 'https://' + workersDomain;
           }
           // Login UI URL for setup page (setup page is in Login UI, not API)
-          const pagesDomain = config.env + '-ar-ui.pages.dev';
-          const loginUiUrl = config.loginUiDomain ? 'https://' + config.loginUiDomain : 'https://' + pagesDomain;
+          const loginPagesDomain = config.env + '-ar-login-ui.pages.dev';
+          const loginUiUrl = config.loginUiDomain ? 'https://' + config.loginUiDomain : 'https://' + loginPagesDomain;
 
           output.textContent += '  API URL: ' + apiUrl + '\\n';
           output.textContent += '  Login UI URL: ' + loginUiUrl + '\\n';
@@ -4141,10 +4142,11 @@ export function getHtmlTemplate(
           status.textContent = t('web.status.complete');
           status.className = 'status-badge status-success';
 
-          // Show completion with setup URL and debug info
+          // Show completion with setup URL, expiration time, and debug info
           showComplete({
             ...result,
             setupUrl: adminSetupResult.setupUrl,
+            expiresAt: adminSetupResult.expiresAt,
             adminSetupDebug: adminSetupResult,
           });
         } else {
@@ -4169,7 +4171,8 @@ export function getHtmlTemplate(
         ? env + '-ar-router.' + workersSubdomain + '.workers.dev'
         : env + '-ar-router.workers.dev';
       // Note: Pages uses {project}.pages.dev format (no account subdomain, unlike Workers)
-      const pagesDomain = env + '-ar-ui.pages.dev';
+      const loginPagesDomain = env + '-ar-login-ui.pages.dev';
+      const adminPagesDomain = env + '-ar-admin-ui.pages.dev';
 
       // Build API URL
       // Note: Tenant subdomain only works with custom domains, NOT workers.dev
@@ -4185,8 +4188,8 @@ export function getHtmlTemplate(
         // Workers.dev - no tenant prefix (wildcard subdomains not supported)
         apiUrl = 'https://' + workersDomain;
       }
-      const loginUrl = config.loginUiDomain ? 'https://' + config.loginUiDomain : 'https://' + pagesDomain;
-      const adminUrl = config.adminUiDomain ? 'https://' + config.adminUiDomain : 'https://' + pagesDomain + '/admin';
+      const loginUrl = config.loginUiDomain ? 'https://' + config.loginUiDomain : 'https://' + loginPagesDomain;
+      const adminUrl = config.adminUiDomain ? 'https://' + config.adminUiDomain : 'https://' + adminPagesDomain;
 
       // Clear and rebuild URLs section safely
       urlsEl.textContent = '';
@@ -4204,6 +4207,17 @@ export function getHtmlTemplate(
       adminSetupSection.style.cssText = 'margin-top: 1.5rem; padding: 1.25rem; background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%); border: 2px solid var(--primary); border-radius: 12px;';
 
       if (result && result.setupUrl) {
+        // Format expiration time
+        let expiresText = 'in 1 hour';
+        if (result.expiresAt) {
+          const expiresDate = new Date(result.expiresAt);
+          const month = expiresDate.getMonth() + 1;
+          const day = expiresDate.getDate();
+          const hours = expiresDate.getHours().toString().padStart(2, '0');
+          const minutes = expiresDate.getMinutes().toString().padStart(2, '0');
+          expiresText = \`on \${month}/\${day} at \${hours}:\${minutes}\`;
+        }
+
         adminSetupSection.innerHTML = \`
           <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
             <span style="font-size: 1.5rem;">🔐</span>
@@ -4221,7 +4235,7 @@ export function getHtmlTemplate(
             <a href="\${result.setupUrl}" target="_blank" class="btn-primary">🔑 Open Setup</a>
           </div>
           <div class="hint-box" style="margin-top: 0.75rem;">
-            ⚠️ This URL can only be used <strong>once</strong> and expires in <strong>1 hour</strong>.
+            ⚠️ This URL can only be used <strong>once</strong> and expires <strong>\${expiresText}</strong>.
           </div>
         \`;
       } else {
@@ -4259,7 +4273,8 @@ export function getHtmlTemplate(
       return {
         d1: [
           env + '-authrim-core-db',
-          env + '-authrim-pii-db'
+          env + '-authrim-pii-db',
+          env + '-authrim-admin-db'
         ],
         kv: [
           env + '-CLIENTS_CACHE',
@@ -4317,6 +4332,9 @@ export function getHtmlTemplate(
       // D1 databases with region info
       const coreDbName = env + '-authrim-core-db';
       const piiDbName = env + '-authrim-pii-db';
+      const adminDbName = env + '-authrim-admin-db';
+      // admin-db uses the same region as pii-db (both contain sensitive data)
+      const adminRegion = piiRegion;
 
       const coreLi = document.createElement('li');
       coreLi.innerHTML = coreDbName + ' <span style="color: var(--text-muted); font-size: 0.85em;">(' + getRegionLabel(coreRegion.location, coreRegion.jurisdiction) + ')</span>';
@@ -4325,6 +4343,10 @@ export function getHtmlTemplate(
       const piiLi = document.createElement('li');
       piiLi.innerHTML = piiDbName + ' <span style="color: var(--text-muted); font-size: 0.85em;">(' + getRegionLabel(piiRegion.location, piiRegion.jurisdiction) + ')</span>';
       d1List.appendChild(piiLi);
+
+      const adminLi = document.createElement('li');
+      adminLi.innerHTML = adminDbName + ' <span style="color: var(--text-muted); font-size: 0.85em;">(' + getRegionLabel(adminRegion.location, adminRegion.jurisdiction) + ')</span>';
+      d1List.appendChild(adminLi);
 
       resources.kv.forEach(name => {
         const li = document.createElement('li');
@@ -4374,7 +4396,8 @@ export function getHtmlTemplate(
 
       // Calculate auto-generated URLs
       const workersDomain = env + '-ar-router.workers.dev';
-      const pagesDomain = env + '-ar-ui.pages.dev';
+      const loginPagesDomain = env + '-ar-login-ui.pages.dev';
+      const adminPagesDomain = env + '-ar-admin-ui.pages.dev';
 
       // Build issuer URL based on tenant settings
       let issuerAutoUrl = 'https://' + workersDomain;
@@ -4402,11 +4425,11 @@ export function getHtmlTemplate(
           },
           loginUi: {
             custom: config.loginUiDomain || null,
-            auto: 'https://' + pagesDomain,
+            auto: 'https://' + loginPagesDomain,
           },
           adminUi: {
             custom: config.adminUiDomain || null,
-            auto: 'https://' + pagesDomain + '/admin',
+            auto: 'https://' + adminPagesDomain,
           },
         },
         tenant: {
@@ -4470,7 +4493,7 @@ export function getHtmlTemplate(
 
     // Back to main button (from complete screen)
     document.getElementById('btn-back-to-main').addEventListener('click', () => {
-      showSection('welcome');
+      showSection('topMenu');
       setStep(1);
     });
 

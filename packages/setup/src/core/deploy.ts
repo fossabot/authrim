@@ -488,6 +488,8 @@ export interface PagesDeployResult {
 export interface PagesDeployOptions extends DeployOptions {
   /** Cloudflare Pages project name (defaults to {env}-{component}) */
   projectName?: string;
+  /** API base URL for the UI to connect to (e.g., https://prod-ar-router.workers.dev) */
+  apiBaseUrl?: string;
 }
 
 /**
@@ -497,7 +499,7 @@ export async function deployPagesComponent(
   component: PagesComponent,
   options: PagesDeployOptions
 ): Promise<PagesDeployResult> {
-  const { env, rootDir, projectName, onProgress, dryRun } = options;
+  const { env, rootDir, projectName, onProgress, dryRun, apiBaseUrl } = options;
 
   // Security: Validate environment name
   if (!isValidEnv(env)) {
@@ -530,8 +532,16 @@ export async function deployPagesComponent(
     onProgress?.(`Building ${component}...`);
 
     if (!dryRun) {
+      // Set PUBLIC_API_BASE_URL for the build so the UI knows where to send API requests
+      const buildEnv: NodeJS.ProcessEnv = { ...process.env };
+      if (apiBaseUrl) {
+        buildEnv.PUBLIC_API_BASE_URL = apiBaseUrl;
+        onProgress?.(`  API URL: ${apiBaseUrl}`);
+      }
+
       await execa('pnpm', ['run', 'build'], {
         cwd: uiDir,
+        env: buildEnv,
       });
     }
 
@@ -618,7 +628,7 @@ export interface PagesDeploymentSummary {
  * Deploy all enabled UI packages to Cloudflare Pages
  */
 export async function deployAllPages(
-  options: DeployOptions,
+  options: DeployOptions & { apiBaseUrl?: string },
   enabledComponents: { loginUi: boolean; adminUi: boolean }
 ): Promise<PagesDeploymentSummary> {
   const results: PagesDeployResult[] = [];
