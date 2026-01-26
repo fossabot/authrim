@@ -858,6 +858,27 @@ app.get('/api/admin/settings/diff', adminSettingsDiffHandler);
 app.get('/api/admin/settings/schema', adminSettingsSchemaHandler);
 app.post('/api/admin/settings/validate', adminSettingsValidateHandler);
 
+// Tenant List API
+// - GET /api/admin/tenants - List available tenants
+// Currently Authrim is single-tenant, so this returns only the default tenant
+app.get('/api/admin/tenants', async (c) => {
+  // For now, return only the default tenant
+  // Multi-tenant support will be added in future versions
+  return c.json({
+    tenants: [
+      {
+        id: 'default',
+        name: 'Default Tenant',
+        createdAt: new Date().toISOString(),
+        status: 'active',
+      },
+    ],
+    _links: {
+      self: '/api/admin/tenants',
+    },
+  });
+});
+
 // Tenant Clone (Phase 3)
 // - POST /api/admin/tenants/:id/clone - Clone tenant settings to new tenant
 app.post('/api/admin/tenants/:id/clone', adminTenantCloneHandler);
