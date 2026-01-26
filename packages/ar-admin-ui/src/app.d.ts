@@ -6,7 +6,13 @@ declare global {
 		// interface Locals {}
 		// interface PageData {}
 		// interface PageState {}
-		// interface Platform {}
+		interface Platform {
+			env?: {
+				API_BACKEND_URL?: string;
+				ENABLE_API_PROXY?: string;
+				[key: string]: string | undefined;
+			};
+		}
 	}
 }
 

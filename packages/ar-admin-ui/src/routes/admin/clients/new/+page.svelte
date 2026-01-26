@@ -217,7 +217,6 @@
 			console.warn('Failed to load tenant settings for CORS check:', err);
 			tenantSettings = {
 				category: 'tenant',
-				scope: { type: 'tenant', id: 'default' },
 				version: '',
 				values: {},
 				sources: {}
