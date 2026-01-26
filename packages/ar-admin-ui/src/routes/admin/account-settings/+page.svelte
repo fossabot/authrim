@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { startRegistration } from '@simplewebauthn/browser';
 	import {
 		themeStore,
 		LIGHT_VARIANTS,
@@ -10,6 +11,11 @@
 	} from '$lib/stores/theme.svelte';
 	import { adminAuth } from '$lib/stores/admin-auth.svelte';
 	import { adminAuthAPI } from '$lib/api/admin-auth';
+	import {
+		myPasskeysAPI,
+		getPasskeyErrorMessage,
+		type AdminPasskey
+	} from '$lib/api/my-passkeys';
 
 	// Available languages (for future expansion)
 	const LANGUAGES = [
@@ -21,6 +27,18 @@
 
 	// State
 	let selectedLanguage = $state('en');
+
+	// PassKey state
+	let passkeys = $state<AdminPasskey[]>([]);
+	let passkeysLoading = $state(true);
+	let passkeysError = $state('');
+	let addingPasskey = $state(false);
+	let deletingPasskeyId = $state<string | null>(null);
+	let editingPasskeyId = $state<string | null>(null);
+	let editDeviceName = $state('');
+	let showAddModal = $state(false);
+	let newDeviceName = $state('');
+	let showDeleteConfirm = $state<string | null>(null);
 
 	function handleLightVariant(variant: LightVariant) {
 		themeStore.setLightVariant(variant);
@@ -42,8 +60,160 @@
 		goto('/admin/login');
 	}
 
+	// PassKey functions
+	async function loadPasskeys() {
+		passkeysLoading = true;
+		passkeysError = '';
+		try {
+			const response = await myPasskeysAPI.list();
+			passkeys = response.passkeys;
+		} catch (error) {
+			passkeysError = getPasskeyErrorMessage(error);
+		} finally {
+			passkeysLoading = false;
+		}
+	}
+
+	function openAddModal() {
+		newDeviceName = '';
+		showAddModal = true;
+	}
+
+	function closeAddModal() {
+		showAddModal = false;
+		newDeviceName = '';
+	}
+
+	async function handleAddPasskey() {
+		if (!newDeviceName.trim()) {
+			passkeysError = 'Please enter a device name.';
+			return;
+		}
+
+		addingPasskey = true;
+		passkeysError = '';
+
+		try {
+			const rpId = window.location.hostname;
+			const origin = window.location.origin;
+
+			// Step 1: Get registration options
+			const { options, challenge_id } = await myPasskeysAPI.getRegistrationOptions(
+				rpId,
+				newDeviceName.trim()
+			);
+
+			// Step 2: Start registration (browser native WebAuthn)
+			const credential = await startRegistration({ optionsJSON: options });
+
+			// Step 3: Complete registration
+			const result = await myPasskeysAPI.completeRegistration(
+				challenge_id,
+				credential,
+				origin,
+				newDeviceName.trim()
+			);
+
+			if (result.success) {
+				// Add the new passkey to the list
+				passkeys = [result.passkey, ...passkeys];
+				closeAddModal();
+			}
+		} catch (error) {
+			passkeysError = getPasskeyErrorMessage(error);
+		} finally {
+			addingPasskey = false;
+		}
+	}
+
+	function startEditPasskey(passkey: AdminPasskey) {
+		editingPasskeyId = passkey.id;
+		editDeviceName = passkey.device_name || '';
+	}
+
+	function cancelEditPasskey() {
+		editingPasskeyId = null;
+		editDeviceName = '';
+	}
+
+	async function saveEditPasskey(passkeyId: string) {
+		if (!editDeviceName.trim()) {
+			passkeysError = 'Device name cannot be empty.';
+			return;
+		}
+
+		passkeysError = '';
+
+		try {
+			const result = await myPasskeysAPI.updateDeviceName(passkeyId, editDeviceName.trim());
+			if (result.success) {
+				// Update the passkey in the list
+				passkeys = passkeys.map((pk) =>
+					pk.id === passkeyId ? { ...pk, device_name: editDeviceName.trim() } : pk
+				);
+				editingPasskeyId = null;
+				editDeviceName = '';
+			}
+		} catch (error) {
+			passkeysError = getPasskeyErrorMessage(error);
+		}
+	}
+
+	function confirmDeletePasskey(passkeyId: string) {
+		showDeleteConfirm = passkeyId;
+	}
+
+	function cancelDeletePasskey() {
+		showDeleteConfirm = null;
+	}
+
+	async function handleDeletePasskey(passkeyId: string) {
+		deletingPasskeyId = passkeyId;
+		passkeysError = '';
+
+		try {
+			await myPasskeysAPI.delete(passkeyId);
+			// Remove the passkey from the list
+			passkeys = passkeys.filter((pk) => pk.id !== passkeyId);
+			showDeleteConfirm = null;
+		} catch (error) {
+			passkeysError = getPasskeyErrorMessage(error);
+		} finally {
+			deletingPasskeyId = null;
+		}
+	}
+
+	function formatDate(timestamp: number | null): string {
+		if (!timestamp) return 'Never';
+		const date = new Date(timestamp);
+		return date.toLocaleDateString('en-US', {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric'
+		});
+	}
+
+	function formatRelativeTime(timestamp: number | null): string {
+		if (!timestamp) return 'Never';
+
+		const now = Date.now();
+		const diff = now - timestamp;
+
+		const minutes = Math.floor(diff / 60000);
+		const hours = Math.floor(diff / 3600000);
+		const days = Math.floor(diff / 86400000);
+
+		if (minutes < 1) return 'Just now';
+		if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+		if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+		if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
+
+		return formatDate(timestamp);
+	}
+
 	onMount(() => {
 		// Theme is already initialized in +layout.svelte
+		loadPasskeys();
 	});
 </script>
 
@@ -62,6 +232,141 @@
 
 	<!-- Settings Sections -->
 	<div class="settings-container">
+		<!-- Security Section -->
+		<section class="settings-section">
+			<h2 class="section-title">
+				<i class="i-ph-shield-check"></i>
+				Security
+			</h2>
+
+			<div class="settings-card">
+				<!-- PassKeys Header -->
+				<div class="setting-row passkeys-header">
+					<div class="setting-info">
+						<h3 class="setting-label">PassKeys</h3>
+						<p class="setting-description">
+							Manage your passkeys for secure passwordless authentication
+						</p>
+					</div>
+					<button class="add-btn" onclick={openAddModal} disabled={addingPasskey}>
+						<i class="i-ph-plus"></i>
+						Add New
+					</button>
+				</div>
+
+				<!-- PassKeys List -->
+				<div class="passkeys-section">
+					{#if passkeysLoading}
+						<div class="passkeys-loading">
+							<i class="i-ph-spinner spinner"></i>
+							<span>Loading passkeys...</span>
+						</div>
+					{:else if passkeysError}
+						<div class="passkeys-error">
+							<i class="i-ph-warning-circle"></i>
+							<span>{passkeysError}</span>
+							<button class="retry-btn" onclick={loadPasskeys}>Retry</button>
+						</div>
+					{:else if passkeys.length === 0}
+						<div class="passkeys-empty">
+							<i class="i-ph-key"></i>
+							<p>No passkeys registered yet.</p>
+							<button class="add-btn-small" onclick={openAddModal}>
+								<i class="i-ph-plus"></i>
+								Add your first passkey
+							</button>
+						</div>
+					{:else}
+						<div class="passkeys-list">
+							{#each passkeys as passkey (passkey.id)}
+								<div class="passkey-item">
+									<div class="passkey-icon">
+										<i class="i-ph-key"></i>
+									</div>
+									<div class="passkey-info">
+										{#if editingPasskeyId === passkey.id}
+											<div class="passkey-edit-form">
+												<input
+													type="text"
+													class="passkey-name-input"
+													bind:value={editDeviceName}
+													placeholder="Device name"
+													maxlength="100"
+												/>
+												<div class="passkey-edit-actions">
+													<button
+														class="save-btn"
+														onclick={() => saveEditPasskey(passkey.id)}
+													>
+														Save
+													</button>
+													<button class="cancel-btn" onclick={cancelEditPasskey}>
+														Cancel
+													</button>
+												</div>
+											</div>
+										{:else}
+											<h4 class="passkey-name">{passkey.device_name || 'Unnamed Passkey'}</h4>
+											<p class="passkey-meta">
+												Created: {formatDate(passkey.created_at)} • Last used: {formatRelativeTime(
+													passkey.last_used_at
+												)}
+											</p>
+										{/if}
+									</div>
+									{#if editingPasskeyId !== passkey.id}
+										<div class="passkey-actions">
+											{#if showDeleteConfirm === passkey.id}
+												<div class="delete-confirm">
+													<span>Delete?</span>
+													<button
+														class="confirm-yes"
+														onclick={() => handleDeletePasskey(passkey.id)}
+														disabled={deletingPasskeyId === passkey.id}
+													>
+														{#if deletingPasskeyId === passkey.id}
+															<i class="i-ph-spinner spinner"></i>
+														{:else}
+															Yes
+														{/if}
+													</button>
+													<button class="confirm-no" onclick={cancelDeletePasskey}>
+														No
+													</button>
+												</div>
+											{:else}
+												<button
+													class="action-btn edit-action"
+													onclick={() => startEditPasskey(passkey)}
+													title="Edit device name"
+												>
+													<i class="i-ph-pencil-simple"></i>
+												</button>
+												<button
+													class="action-btn delete-action"
+													onclick={() => confirmDeletePasskey(passkey.id)}
+													title="Delete passkey"
+													disabled={passkeys.length <= 1}
+												>
+													<i class="i-ph-trash"></i>
+												</button>
+											{/if}
+										</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
+						{#if passkeys.length === 1}
+							<div class="passkeys-notice">
+								<i class="i-ph-info"></i>
+								<span>You need at least one passkey to sign in.</span>
+							</div>
+						{/if}
+					{/if}
+				</div>
+			</div>
+		</section>
+
 		<!-- Appearance Section -->
 		<section class="settings-section">
 			<h2 class="section-title">
@@ -201,6 +506,61 @@
 	</div>
 </div>
 
+<!-- Add PassKey Modal -->
+{#if showAddModal}
+	<div class="modal-overlay" onclick={closeAddModal}>
+		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-header">
+				<h3 class="modal-title">
+					<i class="i-ph-key"></i>
+					Add New PassKey
+				</h3>
+				<button class="modal-close" onclick={closeAddModal}>
+					<i class="i-ph-x"></i>
+				</button>
+			</div>
+			<div class="modal-body">
+				<p class="modal-description">
+					Enter a name for this passkey to help you identify it later (e.g., "MacBook Pro",
+					"YubiKey").
+				</p>
+				<div class="form-group">
+					<label for="device-name">Device Name</label>
+					<input
+						id="device-name"
+						type="text"
+						class="form-input"
+						bind:value={newDeviceName}
+						placeholder="e.g., MacBook Pro Touch ID"
+						maxlength="100"
+						disabled={addingPasskey}
+					/>
+				</div>
+				{#if passkeysError}
+					<div class="modal-error">
+						<i class="i-ph-warning-circle"></i>
+						{passkeysError}
+					</div>
+				{/if}
+			</div>
+			<div class="modal-footer">
+				<button class="modal-btn secondary" onclick={closeAddModal} disabled={addingPasskey}>
+					Cancel
+				</button>
+				<button class="modal-btn primary" onclick={handleAddPasskey} disabled={addingPasskey}>
+					{#if addingPasskey}
+						<i class="i-ph-spinner spinner"></i>
+						Registering...
+					{:else}
+						<i class="i-ph-fingerprint"></i>
+						Register PassKey
+					{/if}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <style>
 	.settings-container {
 		display: flex;
@@ -272,6 +632,523 @@
 		font-size: 0.8125rem;
 		color: var(--text-secondary);
 		margin: 0;
+	}
+
+	/* PassKeys Section */
+	.passkeys-header {
+		border-bottom: 1px solid var(--border-light);
+	}
+
+	.passkeys-section {
+		padding: 0;
+	}
+
+	.passkeys-loading,
+	.passkeys-empty,
+	.passkeys-error {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 40px 24px;
+		gap: 12px;
+		color: var(--text-secondary);
+	}
+
+	.passkeys-loading :global(i),
+	.passkeys-empty :global(i) {
+		width: 40px;
+		height: 40px;
+		color: var(--text-muted);
+	}
+
+	.passkeys-error {
+		color: var(--danger);
+	}
+
+	.passkeys-error :global(i) {
+		width: 32px;
+		height: 32px;
+	}
+
+	.spinner {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	.passkeys-list {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.passkey-item {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		padding: 16px 24px;
+		border-bottom: 1px solid var(--border-light);
+	}
+
+	.passkey-item:last-child {
+		border-bottom: none;
+	}
+
+	.passkey-icon {
+		width: 44px;
+		height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--bg-tertiary);
+		border-radius: var(--radius-md);
+		flex-shrink: 0;
+	}
+
+	.passkey-icon :global(i) {
+		width: 24px;
+		height: 24px;
+		color: var(--primary);
+	}
+
+	.passkey-info {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.passkey-name {
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		margin: 0 0 4px 0;
+	}
+
+	.passkey-meta {
+		font-size: 0.8125rem;
+		color: var(--text-secondary);
+		margin: 0;
+	}
+
+	.passkey-edit-form {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.passkey-name-input {
+		padding: 8px 12px;
+		border: 1px solid var(--border-light);
+		border-radius: var(--radius-sm);
+		background: var(--bg-primary);
+		color: var(--text-primary);
+		font-size: 0.875rem;
+	}
+
+	.passkey-name-input:focus {
+		outline: none;
+		border-color: var(--primary);
+	}
+
+	.passkey-edit-actions {
+		display: flex;
+		gap: 8px;
+	}
+
+	.save-btn,
+	.cancel-btn {
+		padding: 6px 12px;
+		border-radius: var(--radius-sm);
+		font-size: 0.8125rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.save-btn {
+		background: var(--primary);
+		color: white;
+		border: none;
+	}
+
+	.save-btn:hover {
+		background: var(--primary-dark);
+	}
+
+	.cancel-btn {
+		background: transparent;
+		color: var(--text-secondary);
+		border: 1px solid var(--border-light);
+	}
+
+	.cancel-btn:hover {
+		background: var(--bg-tertiary);
+	}
+
+	.passkey-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.action-btn {
+		width: 36px;
+		height: 36px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: none;
+		background: transparent;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.action-btn :global(i) {
+		width: 18px;
+		height: 18px;
+	}
+
+	.action-btn.edit-action {
+		color: var(--text-secondary);
+	}
+
+	.action-btn.edit-action:hover {
+		background: var(--bg-tertiary);
+		color: var(--primary);
+	}
+
+	.action-btn.delete-action {
+		color: var(--text-muted);
+	}
+
+	.action-btn.delete-action:hover:not(:disabled) {
+		background: rgba(220, 38, 38, 0.1);
+		color: var(--danger);
+	}
+
+	.action-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.delete-confirm {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 0.8125rem;
+	}
+
+	.delete-confirm span {
+		color: var(--danger);
+		font-weight: 500;
+	}
+
+	.confirm-yes,
+	.confirm-no {
+		padding: 4px 10px;
+		border-radius: var(--radius-sm);
+		font-size: 0.8125rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.confirm-yes {
+		background: var(--danger);
+		color: white;
+		border: none;
+	}
+
+	.confirm-yes:hover:not(:disabled) {
+		background: #b91c1c;
+	}
+
+	.confirm-yes:disabled {
+		opacity: 0.7;
+	}
+
+	.confirm-no {
+		background: transparent;
+		color: var(--text-secondary);
+		border: 1px solid var(--border-light);
+	}
+
+	.confirm-no:hover {
+		background: var(--bg-tertiary);
+	}
+
+	.passkeys-notice {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 12px 24px;
+		background: var(--bg-tertiary);
+		border-top: 1px solid var(--border-light);
+		font-size: 0.8125rem;
+		color: var(--text-secondary);
+	}
+
+	.passkeys-notice :global(i) {
+		width: 16px;
+		height: 16px;
+		color: var(--info);
+	}
+
+	.add-btn {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 16px;
+		border: none;
+		background: var(--primary);
+		border-radius: var(--radius-md);
+		color: white;
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.add-btn:hover:not(:disabled) {
+		background: var(--primary-dark);
+	}
+
+	.add-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.add-btn :global(i) {
+		width: 18px;
+		height: 18px;
+	}
+
+	.add-btn-small {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 16px;
+		border: 1px solid var(--primary);
+		background: transparent;
+		border-radius: var(--radius-md);
+		color: var(--primary);
+		font-size: 0.8125rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		margin-top: 8px;
+	}
+
+	.add-btn-small:hover {
+		background: var(--primary);
+		color: white;
+	}
+
+	.add-btn-small :global(i) {
+		width: 16px;
+		height: 16px;
+	}
+
+	.retry-btn {
+		padding: 8px 16px;
+		border: 1px solid var(--danger);
+		background: transparent;
+		border-radius: var(--radius-md);
+		color: var(--danger);
+		font-size: 0.8125rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.retry-btn:hover {
+		background: var(--danger);
+		color: white;
+	}
+
+	/* Modal */
+	.modal-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 100;
+		padding: 24px;
+	}
+
+	.modal-content {
+		background: var(--bg-card);
+		border-radius: var(--radius-lg);
+		border: 1px solid var(--border-light);
+		width: 100%;
+		max-width: 480px;
+		box-shadow: var(--shadow-lg);
+	}
+
+	.modal-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 20px 24px;
+		border-bottom: 1px solid var(--border-light);
+	}
+
+	.modal-title {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		margin: 0;
+	}
+
+	.modal-title :global(i) {
+		width: 24px;
+		height: 24px;
+		color: var(--primary);
+	}
+
+	.modal-close {
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: none;
+		background: transparent;
+		border-radius: var(--radius-sm);
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.modal-close:hover {
+		background: var(--bg-tertiary);
+		color: var(--text-primary);
+	}
+
+	.modal-close :global(i) {
+		width: 20px;
+		height: 20px;
+	}
+
+	.modal-body {
+		padding: 24px;
+	}
+
+	.modal-description {
+		font-size: 0.875rem;
+		color: var(--text-secondary);
+		margin: 0 0 20px 0;
+		line-height: 1.5;
+	}
+
+	.form-group {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.form-group label {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+
+	.form-input {
+		padding: 12px 16px;
+		border: 1px solid var(--border-light);
+		border-radius: var(--radius-md);
+		background: var(--bg-primary);
+		color: var(--text-primary);
+		font-size: 0.9375rem;
+	}
+
+	.form-input:focus {
+		outline: none;
+		border-color: var(--primary);
+	}
+
+	.form-input:disabled {
+		opacity: 0.6;
+	}
+
+	.modal-error {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 16px;
+		padding: 12px;
+		background: rgba(220, 38, 38, 0.1);
+		border-radius: var(--radius-md);
+		color: var(--danger);
+		font-size: 0.8125rem;
+	}
+
+	.modal-error :global(i) {
+		width: 18px;
+		height: 18px;
+		flex-shrink: 0;
+	}
+
+	.modal-footer {
+		display: flex;
+		justify-content: flex-end;
+		gap: 12px;
+		padding: 16px 24px;
+		border-top: 1px solid var(--border-light);
+	}
+
+	.modal-btn {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 20px;
+		border-radius: var(--radius-md);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.modal-btn :global(i) {
+		width: 18px;
+		height: 18px;
+	}
+
+	.modal-btn.primary {
+		background: var(--primary);
+		color: white;
+		border: none;
+	}
+
+	.modal-btn.primary:hover:not(:disabled) {
+		background: var(--primary-dark);
+	}
+
+	.modal-btn.secondary {
+		background: transparent;
+		color: var(--text-secondary);
+		border: 1px solid var(--border-light);
+	}
+
+	.modal-btn.secondary:hover:not(:disabled) {
+		background: var(--bg-tertiary);
+	}
+
+	.modal-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	/* Theme Mode Toggle */
@@ -439,6 +1316,11 @@
 			gap: 16px;
 		}
 
+		.passkeys-header {
+			flex-direction: row;
+			align-items: center;
+		}
+
 		.theme-mode-toggle,
 		.color-variant-options {
 			width: 100%;
@@ -467,6 +1349,20 @@
 		.logout-btn {
 			width: 100%;
 			justify-content: center;
+		}
+
+		.modal-overlay {
+			padding: 16px;
+		}
+
+		.passkey-item {
+			flex-wrap: wrap;
+		}
+
+		.passkey-actions {
+			width: 100%;
+			justify-content: flex-end;
+			margin-top: 8px;
 		}
 	}
 </style>

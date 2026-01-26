@@ -27,6 +27,7 @@ import { adminAuditRouter } from './admin-audit';
 import { adminAbacRouter } from './admin-abac';
 import { adminRebacRouter } from './admin-rebac';
 import { adminPoliciesRouter } from './admin-policies';
+import { myPasskeysRouter } from './my-passkeys';
 
 // Create main router for admin management
 export const adminManagementRouter = new Hono<{ Bindings: Env }>();
@@ -44,6 +45,7 @@ adminManagementRouter.route('/admins', adminUsersRouter);
 adminManagementRouter.route('/admin-roles', adminRolesRouter);
 adminManagementRouter.route('/ip-allowlist', ipAllowlistRouter);
 adminManagementRouter.route('/admin-audit-log', adminAuditRouter);
+adminManagementRouter.route('/me/passkeys', myPasskeysRouter);
 
 // Mount sub-routers - Admin ABAC/ReBAC/Policies (these also have /admins/:userId subroutes)
 adminManagementRouter.route('/', adminAbacRouter);
@@ -58,5 +60,6 @@ export { adminAuditRouter } from './admin-audit';
 export { adminAbacRouter } from './admin-abac';
 export { adminRebacRouter } from './admin-rebac';
 export { adminPoliciesRouter } from './admin-policies';
+export { myPasskeysRouter } from './my-passkeys';
 
 export default adminManagementRouter;
