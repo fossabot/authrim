@@ -1843,6 +1843,84 @@ export function createApiRoutes(): Hono {
           // Deploy Worker component
           // deployWorker and buildApiPackages are already imported at the top
 
+          // Sync wrangler configs before deploying (required for the environment to exist)
+          addProgress('Syncing wrangler configs...');
+          try {
+            const { syncWranglerConfigs } = await import('../core/wrangler-sync.js');
+            const { generateWranglerConfig, toToml } = await import('../core/wrangler.js');
+            const { loadLockFileAuto } = await import('../core/lock.js');
+            const { getEnvironmentPaths } = await import('../core/paths.js');
+            const { getWorkersSubdomain } = await import('../core/cloudflare.js');
+            const { AuthrimConfigSchema } = await import('../core/config.js');
+
+            const envPaths = getEnvironmentPaths({ baseDir: rootDir, env });
+
+            // Try to sync from master wrangler configs first
+            if (existsSync(envPaths.wrangler)) {
+              const syncResult = await syncWranglerConfigs({
+                baseDir: rootDir,
+                env,
+                packagesDir: join(rootDir, 'packages'),
+                force: true,
+                dryRun: false,
+                onProgress: addProgress,
+              });
+
+              if (syncResult.success) {
+                addProgress(`Synced ${syncResult.synced.length} wrangler config(s)`);
+              } else if (syncResult.errors.length > 0) {
+                addProgress(`Warning: Sync had errors: ${syncResult.errors.join(', ')}`);
+              }
+            } else {
+              // No master configs, try to generate from lock file
+              const { lock: currentLock } = await loadLockFileAuto(rootDir, env);
+
+              if (currentLock && cfg) {
+                addProgress('Generating wrangler config from lock file...');
+
+                // Build resource IDs from lock file
+                const resourceIds: { d1: Record<string, { id: string; name: string }>; kv: Record<string, { id: string; name: string }> } = {
+                  d1: {},
+                  kv: {},
+                };
+
+                for (const [key, value] of Object.entries(currentLock.d1 || {})) {
+                  resourceIds.d1[key] = { id: value.id, name: value.name };
+                }
+                for (const [key, value] of Object.entries(currentLock.kv || {})) {
+                  resourceIds.kv[key] = { id: value.id, name: value.name };
+                }
+
+                // Get workers subdomain
+                const workersSubdomain = await getWorkersSubdomain();
+
+                // Parse config
+                const parsedConfig = AuthrimConfigSchema.parse(cfg);
+
+                // Generate wrangler config for this component
+                const componentDir = join(rootDir, 'packages', componentName);
+                if (existsSync(componentDir)) {
+                  const wranglerConfig = generateWranglerConfig(
+                    componentName as WorkerComponent,
+                    parsedConfig,
+                    resourceIds,
+                    workersSubdomain ?? undefined
+                  );
+                  const tomlContent = toToml(wranglerConfig, env);
+                  const tomlPath = join(componentDir, 'wrangler.toml');
+
+                  await writeFile(tomlPath, tomlContent, 'utf-8');
+                  addProgress(`Generated wrangler.toml for ${componentName}`);
+                }
+              } else {
+                addProgress('Warning: No lock file or config found, wrangler config may be missing');
+              }
+            }
+          } catch (syncError) {
+            addProgress(`Warning: Could not sync wrangler configs: ${sanitizeError(syncError)}`);
+            // Continue anyway - the config might already exist
+          }
+
           // Build first (unless skipped)
           if (!skipBuild && !dryRun) {
             addProgress('Building packages...');
