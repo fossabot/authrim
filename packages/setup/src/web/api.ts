@@ -596,7 +596,17 @@ export function createApiRoutes(): Hono {
 
         // Save config.json
         addProgress('Saving config.json...');
-        const config = createDefaultConfig(env);
+        // Use existing state.config if available (from /config/default), otherwise create new
+        // Merge with default config to ensure all required fields are present
+        const baseConfig = createDefaultConfig(env);
+        const config = state.config
+          ? {
+              ...baseConfig,
+              ...state.config,
+              // Preserve components from state.config
+              components: { ...baseConfig.components, ...state.config.components },
+            }
+          : baseConfig;
         config.createdAt = new Date().toISOString();
         config.updatedAt = new Date().toISOString();
 
