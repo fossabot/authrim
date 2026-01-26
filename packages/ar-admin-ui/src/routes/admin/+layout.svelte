@@ -88,7 +88,10 @@
 			{ path: '/admin/compliance', label: 'Compliance', icon: 'i-ph-certificate' }
 		],
 		// System Operations
-		operations: [{ path: '/admin/jobs', label: 'Jobs', icon: 'i-ph-queue' }],
+		operations: [
+			{ path: '/admin/scale', label: 'Scale', icon: 'i-ph-chart-bar' },
+			{ path: '/admin/jobs', label: 'Jobs', icon: 'i-ph-queue' }
+		],
 		// Admin Management (Admin operators, not end users)
 		adminManagement: [
 			{ path: '/admin/admins', label: 'Admin Users', icon: 'i-ph-user-gear' },

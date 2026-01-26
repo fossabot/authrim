@@ -44,6 +44,11 @@ export async function getRefreshTokenShardingConfig(c: Context<{ Bindings: Env }
 /**
  * PUT /api/admin/settings/refresh-token-sharding
  * Update refresh token sharding configuration (creates new generation)
+ *
+ * IMPORTANT: AuthCode and RefreshToken MUST have identical shard counts.
+ * This is enforced at the API level to prevent data inconsistency.
+ *
+ * @param skip_sync_check - Set to true when updating both values together (e.g., from Scale UI)
  */
 export async function updateRefreshTokenShardingConfig(c: Context<{ Bindings: Env }>) {
   const log = getLogger(c).module('RefreshTokenShardingAPI');
@@ -52,6 +57,7 @@ export async function updateRefreshTokenShardingConfig(c: Context<{ Bindings: En
       clientId?: string;
       shardCount: number;
       notes?: string;
+      skip_sync_check?: boolean;
     };
 
     // Validation
@@ -66,6 +72,28 @@ export async function updateRefreshTokenShardingConfig(c: Context<{ Bindings: En
     }
 
     const clientId = body.clientId || null;
+
+    // AuthCode/RefreshToken sync validation (only for global config)
+    // Skip if explicitly requested (used when updating both values together from Scale UI)
+    if (!body.skip_sync_check && !clientId) {
+      const kvValue = await c.env.AUTHRIM_CONFIG?.get('code_shards');
+      const envValue = c.env.AUTHRIM_CODE_SHARDS;
+      const codeShards = parseInt(kvValue || envValue || '4', 10);
+
+      if (codeShards !== body.shardCount) {
+        return c.json(
+          {
+            error: 'validation_failed',
+            error_description: `AuthCode and RefreshToken must have identical shard counts. ` +
+              `Current AuthCode: ${codeShards}, Requested RefreshToken: ${body.shardCount}`,
+            hint: 'Update both values together or use the Scale sliders',
+            current_code_shards: codeShards,
+            requested_refresh_token_shards: body.shardCount,
+          },
+          400
+        );
+      }
+    }
 
     // Get current config
     const currentConfig = await getRefreshTokenShardConfig(c.env, clientId || '__global__');

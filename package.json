@@ -1,7 +1,7 @@
 {
   "name": "authrim",
-  "version": "0.1.13",
-  "description": "A lightweight OpenID Connect Provider built on Cloudflare Workers - Monorepo",
+  "version": "0.1.14",
+  "description": "A scalable Edge Identity Provider built on Cloudflare Workers - OIDC, OAuth 2.0, SAML",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.0.0",

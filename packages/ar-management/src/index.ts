@@ -241,6 +241,8 @@ import {
   validateRegionShardsConfig,
 } from './routes/settings/region-shards';
 import { getFlowStateShards, updateFlowStateShards } from './routes/settings/flow-state-shards';
+import { getSessionShards, updateSessionShards } from './routes/settings/session-shards';
+import { getChallengeShards, updateChallengeShards } from './routes/settings/challenge-shards';
 import {
   getPartitionSettings,
   updatePartitionSettings,
@@ -975,6 +977,16 @@ app.get('/api/admin/settings/region-shards/validate', validateRegionShardsConfig
 // Flow Engine session state DO sharding (default: 32 shards)
 app.get('/api/admin/settings/flow-state-shards', getFlowStateShards);
 app.put('/api/admin/settings/flow-state-shards', updateFlowStateShards);
+
+// Admin Session Shards Configuration
+// Session Store DO sharding (default: 4 shards)
+app.get('/api/admin/settings/session-shards', getSessionShards);
+app.put('/api/admin/settings/session-shards', updateSessionShards);
+
+// Admin Challenge Shards Configuration
+// Challenge Store DO sharding (default: 4 shards)
+app.get('/api/admin/settings/challenge-shards', getChallengeShards);
+app.put('/api/admin/settings/challenge-shards', updateChallengeShards);
 
 // [DEPRECATED] Admin PII Partition
 // → Migrate to: /api/admin/platform/settings/infrastructure
