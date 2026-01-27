@@ -17,6 +17,7 @@
 		type RegionShardConfig,
 		type RefreshTokenShardConfig
 	} from '$lib/api/admin-infrastructure';
+	import WorldMap from '$lib/components/WorldMap.svelte';
 
 	// =========================================================================
 	// Types
@@ -56,9 +57,10 @@
 		{ key: 'enam', label: 'ENAM (Eastern North America)' },
 		{ key: 'weur', label: 'WEUR (Western Europe)' },
 		{ key: 'wnam', label: 'WNAM (Western North America)' },
-		{ key: 'oc', label: 'OC (Oceania)' },
-		{ key: 'afr', label: 'AFR (Africa)' },
-		{ key: 'me', label: 'ME (Middle East)' }
+		{ key: 'oc', label: 'OC (Oceania)' }
+		// AFR and ME are not DO-capable, commented out for future use
+		// { key: 'afr', label: 'AFR (Africa)' },
+		// { key: 'me', label: 'ME (Middle East)' }
 	];
 
 	const DEFAULT_REGIONS = ['apac', 'enam', 'weur'];
@@ -224,16 +226,18 @@
 			// Initialize region distribution from config
 			if (region && region.currentRegions) {
 				const regions = Object.keys(region.currentRegions);
-				if (regions.length > 0) {
+				const total = region.currentTotalShards || 0;
+				if (regions.length > 0 && total > 0) {
 					selectedRegions = regions;
-					const total = region.currentTotalShards;
 					const dist: RegionDistribution = {};
 					for (const [key, data] of Object.entries(region.currentRegions)) {
 						dist[key] = Math.round((data.count / total) * 100);
 					}
 					regionDistribution = dist;
 				}
+				// If no valid region config from server, keep initial default values
 			}
+			// Else: keep initial default values (selectedRegions = DEFAULT_REGIONS, regionDistribution = { apac: 33, enam: 34, weur: 33 })
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load configuration';
 		} finally {
@@ -389,7 +393,8 @@
 			<span class="lps-value">~{estimatedTotalLPS} Login/sec</span>
 			<span class="lps-qualifier">(Est.)</span>
 			<span class="summary-divider">·</span>
-			<span class="region-info">{activeRegionCount} region{activeRegionCount !== 1 ? 's' : ''}</span>
+			<span class="region-info">{activeRegionCount} region{activeRegionCount !== 1 ? 's' : ''}</span
+			>
 		{/if}
 	</div>
 
@@ -413,9 +418,24 @@
 			<span>Loading configuration...</span>
 		</div>
 	{:else}
+		<!-- World Map Visualization -->
+		<section class="map-section">
+			<WorldMap {selectedRegions} {regionDistribution} onRegionClick={toggleRegion} />
+		</section>
+
 		<!-- Section 1: Region Distribution -->
 		<section class="config-section">
-			<h2 class="section-title">Region Distribution</h2>
+			<h2 class="section-title">
+				Region Distribution
+				<span class="help-tooltip">
+					<i class="i-ph-question help-icon"></i>
+					<span class="tooltip-content">
+						Configure where authentication data (sessions, tokens, etc.) is stored.
+						Set percentages based on your users' geographic distribution.
+						For example, if 50% of your users are in Asia, set APAC to ~50%.
+					</span>
+				</span>
+			</h2>
 			<p class="section-description">
 				<i class="i-ph-info info-icon"></i>
 				Select regions and configure <strong>request routing ratio</strong>.
@@ -494,7 +514,8 @@
 						<div class="scale-warning">
 							<i class="i-ph-info"></i>
 							<span>
-								Optimal shard count varies by environment. Please conduct load testing based on your actual usage patterns.
+								Optimal shard count varies by environment. Please conduct load testing based on your
+								actual usage patterns.
 							</span>
 						</div>
 					{/if}
@@ -511,7 +532,8 @@
 					</div>
 					<div class="rps-item">
 						<span class="rps-label">RefreshToken</span>
-						<span class="rps-value">~{estimateComponentRPS(calculatedShards.refreshToken)} RPS</span>
+						<span class="rps-value">~{estimateComponentRPS(calculatedShards.refreshToken)} RPS</span
+						>
 					</div>
 					<div class="rps-item">
 						<span class="rps-label">Session</span>
@@ -689,6 +711,11 @@
 		max-width: 900px;
 	}
 
+	/* World Map Section */
+	.map-section {
+		margin-bottom: 24px;
+	}
+
 	/* Current Scale Summary (Compact Inline) */
 	.summary-inline {
 		display: flex;
@@ -793,6 +820,68 @@
 		font-weight: 600;
 		color: var(--text-primary);
 		margin: 0 0 8px 0;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	/* Help Tooltip */
+	.help-tooltip {
+		position: relative;
+		display: inline-flex;
+		cursor: help;
+	}
+
+	.help-icon {
+		width: 16px;
+		height: 16px;
+		color: var(--text-tertiary);
+		background: var(--surface-secondary);
+		border-radius: 50%;
+		padding: 2px;
+		transition: color 0.2s ease;
+	}
+
+	.help-tooltip:hover .help-icon {
+		color: var(--primary);
+	}
+
+	.tooltip-content {
+		position: absolute;
+		left: 50%;
+		bottom: calc(100% + 8px);
+		transform: translateX(-50%);
+		width: 280px;
+		padding: 12px;
+		background: var(--surface-elevated);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		font-size: 0.8125rem;
+		font-weight: 400;
+		line-height: 1.5;
+		color: var(--text-secondary);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		opacity: 0;
+		visibility: hidden;
+		transition:
+			opacity 0.2s ease,
+			visibility 0.2s ease;
+		z-index: 100;
+	}
+
+	.tooltip-content::after {
+		content: '';
+		position: absolute;
+		top: 100%;
+		left: 50%;
+		transform: translateX(-50%);
+		border: 6px solid transparent;
+		border-top-color: var(--surface-elevated);
+	}
+
+	.help-tooltip:hover .tooltip-content {
+		opacity: 1;
+		visibility: visible;
 	}
 
 	.section-description {

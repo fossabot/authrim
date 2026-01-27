@@ -193,12 +193,7 @@
 {:else if adminAuth.isAuthenticated}
 	<!-- Authenticated - layout with floating sidebar -->
 	<div class="app-layout">
-		<FloatingNav
-			userName={adminAuth.user?.email?.split('@')[0] || 'Admin'}
-			userRole="Super Admin"
-			mobileOpen={mobileMenuOpen}
-			onMobileClose={() => (mobileMenuOpen = false)}
-		>
+		<FloatingNav mobileOpen={mobileMenuOpen} onMobileClose={() => (mobileMenuOpen = false)}>
 			<!-- Tenant Section -->
 			<NavSection level="tenant" tenantName="Default">
 				<!-- Dashboard -->
@@ -273,9 +268,9 @@
 
 			<!-- Platform Section -->
 			<NavSection level="system" label="Platform">
-				<!-- Identity Schema -->
-				<NavGroupLabel label="Identity Schema" />
-				{#each platformNavItems.identitySchema as item (item.path)}
+				<!-- Operations -->
+				<NavGroupLabel label="Operations" />
+				{#each platformNavItems.operations as item (item.path)}
 					<NavItem
 						href={item.path}
 						icon={item.icon}
@@ -295,9 +290,9 @@
 					/>
 				{/each}
 
-				<!-- Operations -->
-				<NavGroupLabel label="Operations" />
-				{#each platformNavItems.operations as item (item.path)}
+				<!-- Identity Schema -->
+				<NavGroupLabel label="Identity Schema" />
+				{#each platformNavItems.identitySchema as item (item.path)}
 					<NavItem
 						href={item.path}
 						icon={item.icon}
@@ -317,18 +312,6 @@
 					/>
 				{/each}
 			</NavSection>
-
-			{#snippet footer()}
-				<a href="/admin/account-settings" class="nav-user nav-user-link">
-					<div class="nav-user-avatar">
-						{(adminAuth.user?.email?.charAt(0) || 'A').toUpperCase()}
-					</div>
-					<div class="nav-user-info">
-						<div class="nav-user-name">{adminAuth.user?.email?.split('@')[0] || 'Admin'}</div>
-						<span class="nav-user-role">Preferences</span>
-					</div>
-				</a>
-			{/snippet}
 		</FloatingNav>
 
 		<!-- Main Content -->
@@ -387,60 +370,6 @@
 
 	.loading-spinner {
 		color: var(--primary);
-	}
-
-	/* Nav User Footer Override */
-	:global(.nav-user) {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	:global(.nav-user-avatar) {
-		width: 40px;
-		height: 40px;
-		border-radius: var(--radius-full);
-		background: var(--gradient-accent);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		color: white;
-		font-family: var(--font-display);
-		font-weight: 700;
-		font-size: 0.875rem;
-		flex-shrink: 0;
-	}
-
-	:global(.nav-user-info) {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		min-width: 0;
-	}
-
-	:global(.nav-user-name) {
-		color: var(--text-inverse);
-		font-weight: 600;
-		font-size: 0.875rem;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	:global(.nav-user-role) {
-		color: var(--text-muted);
-		font-size: 0.75rem;
-	}
-
-	:global(.nav-user-link) {
-		text-decoration: none;
-		border-radius: var(--radius-md);
-		padding: 8px;
-		margin: -8px;
-		transition: background var(--transition-fast);
-	}
-
-	:global(.nav-user-link:hover) {
-		background: rgba(255, 255, 255, 0.08);
 	}
 
 	/* Responsive */
