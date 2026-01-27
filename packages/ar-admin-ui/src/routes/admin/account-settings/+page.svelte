@@ -11,11 +11,7 @@
 	} from '$lib/stores/theme.svelte';
 	import { adminAuth } from '$lib/stores/admin-auth.svelte';
 	import { adminAuthAPI } from '$lib/api/admin-auth';
-	import {
-		myPasskeysAPI,
-		getPasskeyErrorMessage,
-		type AdminPasskey
-	} from '$lib/api/my-passkeys';
+	import { myPasskeysAPI, getPasskeyErrorMessage, type AdminPasskey } from '$lib/api/my-passkeys';
 
 	// Available languages (for future expansion)
 	const LANGUAGES = [
@@ -294,15 +290,10 @@
 													maxlength="100"
 												/>
 												<div class="passkey-edit-actions">
-													<button
-														class="save-btn"
-														onclick={() => saveEditPasskey(passkey.id)}
-													>
+													<button class="save-btn" onclick={() => saveEditPasskey(passkey.id)}>
 														Save
 													</button>
-													<button class="cancel-btn" onclick={cancelEditPasskey}>
-														Cancel
-													</button>
+													<button class="cancel-btn" onclick={cancelEditPasskey}> Cancel </button>
 												</div>
 											</div>
 										{:else}
@@ -330,9 +321,7 @@
 															Yes
 														{/if}
 													</button>
-													<button class="confirm-no" onclick={cancelDeletePasskey}>
-														No
-													</button>
+													<button class="confirm-no" onclick={cancelDeletePasskey}> No </button>
 												</div>
 											{:else}
 												<button

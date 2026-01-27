@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { adminAuthAPI } from '$lib/api/admin-auth';
 	import Avatar from '$lib/components/Avatar.svelte';
+	import { themeStore } from '$lib/stores/theme.svelte';
 
 	interface Breadcrumb {
 		label: string;
@@ -142,6 +143,32 @@
 									Last login: {new Date(lastLoginAt).toLocaleString()}
 								</span>
 							{/if}
+						</div>
+					</div>
+					<div class="user-menu-divider"></div>
+					<!-- Theme Toggle -->
+					<div class="theme-toggle-row">
+						<span class="theme-toggle-label">
+							<i class={themeStore.isLight ? 'i-ph-sun' : 'i-ph-moon'}></i>
+							Theme
+						</span>
+						<div class="theme-toggle-buttons">
+							<button
+								class="theme-btn"
+								class:active={themeStore.isLight}
+								onclick={() => themeStore.setMode('light')}
+								title="Light mode"
+							>
+								<i class="i-ph-sun"></i>
+							</button>
+							<button
+								class="theme-btn"
+								class:active={themeStore.isDark}
+								onclick={() => themeStore.setMode('dark')}
+								title="Dark mode"
+							>
+								<i class="i-ph-moon"></i>
+							</button>
 						</div>
 					</div>
 					<div class="user-menu-divider"></div>
@@ -385,7 +412,7 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-lg);
 		box-shadow: var(--shadow-lg);
-		z-index: 100;
+		z-index: 1000;
 		overflow: hidden;
 	}
 
@@ -474,9 +501,67 @@
 		position: fixed;
 		inset: 0;
 		background: transparent;
-		z-index: 99;
+		z-index: 999;
 		border: none;
 		cursor: default;
+	}
+
+	/* Theme Toggle */
+	.theme-toggle-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 10px 16px;
+	}
+
+	.theme-toggle-label {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		font-size: 0.875rem;
+		color: var(--text-primary);
+	}
+
+	.theme-toggle-label :global(i) {
+		width: 18px;
+		height: 18px;
+	}
+
+	.theme-toggle-buttons {
+		display: flex;
+		gap: 4px;
+		background: var(--bg-tertiary);
+		padding: 3px;
+		border-radius: var(--radius-md);
+	}
+
+	.theme-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 28px;
+		border: none;
+		background: transparent;
+		border-radius: var(--radius-sm);
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.theme-btn:hover {
+		color: var(--text-primary);
+	}
+
+	.theme-btn.active {
+		background: var(--bg-card);
+		color: var(--primary);
+		box-shadow: var(--shadow-sm);
+	}
+
+	.theme-btn :global(i) {
+		width: 16px;
+		height: 16px;
 	}
 
 	/* Responsive */

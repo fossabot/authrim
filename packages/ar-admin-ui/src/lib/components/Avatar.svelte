@@ -87,7 +87,8 @@
 	}
 
 	.avatar.ring {
-		box-shadow: 0 0 0 2px var(--color-bg-primary, #fff),
+		box-shadow:
+			0 0 0 2px var(--color-bg-primary, #fff),
 			0 0 0 4px var(--color-accent, #6366f1);
 	}
 

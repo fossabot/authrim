@@ -1,28 +1,13 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import Avatar from '$lib/components/Avatar.svelte';
 
 	interface Props {
-		userName?: string;
-		userEmail?: string;
-		userPicture?: string | null;
-		userRole?: string;
 		mobileOpen?: boolean;
 		onMobileClose?: () => void;
 		children: Snippet;
-		footer?: Snippet;
 	}
 
-	let {
-		userName = 'Admin',
-		userEmail,
-		userPicture,
-		userRole = 'Super Admin',
-		mobileOpen = false,
-		onMobileClose,
-		children,
-		footer
-	}: Props = $props();
+	let { mobileOpen = false, onMobileClose, children }: Props = $props();
 
 	// Navigation expansion state
 	let isExpanded = $state(false);
@@ -41,7 +26,7 @@
 	function handleMouseLeave() {
 		closeTimeout = setTimeout(() => {
 			isExpanded = false;
-		}, 1000); // 1 second delay
+		}, 500); // 0.5 second delay
 	}
 
 	// Cleanup on destroy
@@ -86,20 +71,7 @@
 		{@render children()}
 	</div>
 
-	<!-- Footer with user info -->
-	<div class="nav-footer">
-		{#if footer}
-			{@render footer()}
-		{:else}
-			<div class="nav-user">
-				<Avatar email={userEmail} name={userName} picture={userPicture} size="md" />
-				<div class="nav-user-info">
-					<div class="nav-user-name">{userName}</div>
-					<div class="nav-user-role">{userRole}</div>
-				</div>
-			</div>
-		{/if}
-	</div>
+	<!-- Footer removed - user info is now in the header -->
 </nav>
 
 <style>
@@ -197,56 +169,6 @@
 		background: rgba(255, 255, 255, 0.3);
 	}
 
-	/* === Nav Footer === */
-	.nav-footer {
-		padding: 16px;
-		border-top: 1px solid var(--nav-border);
-	}
-
-	.nav-user {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	.nav-user-avatar {
-		width: 40px;
-		height: 40px;
-		border-radius: var(--radius-full);
-		background: var(--gradient-accent);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		color: white;
-		font-family: var(--font-display);
-		font-weight: 700;
-		font-size: 0.875rem;
-		flex-shrink: 0;
-	}
-
-	/* Use :global for nav-user-info to apply to snippet content */
-	:global(.nav-user-info) {
-		opacity: 0;
-		transition: opacity var(--transition-base);
-		white-space: nowrap;
-		overflow: hidden;
-	}
-
-	.nav-floating.expanded :global(.nav-user-info) {
-		opacity: 1;
-	}
-
-	.nav-user-name {
-		color: var(--text-inverse);
-		font-weight: 600;
-		font-size: 0.875rem;
-	}
-
-	.nav-user-role {
-		color: var(--text-muted);
-		font-size: 0.75rem;
-	}
-
 	/* === Mobile Overlay === */
 	.mobile-overlay {
 		display: none;
@@ -311,8 +233,7 @@
 			transform: translateX(0);
 		}
 
-		.nav-floating.open .nav-logo-text,
-		.nav-floating.open :global(.nav-user-info) {
+		.nav-floating.open .nav-logo-text {
 			opacity: 1;
 		}
 	}

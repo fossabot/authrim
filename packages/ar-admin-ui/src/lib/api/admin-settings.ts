@@ -310,6 +310,8 @@ export const CATEGORY_NAMES = [
 	'external-idp',
 	'credentials',
 	'federation',
+	// Dynamic Client Registration (RFC 7591)
+	'dcr',
 	// Client settings
 	'client',
 	// Cache settings
@@ -328,6 +330,8 @@ export const CATEGORY_NAMES = [
 	'plugin',
 	// Assurance Levels (NIST SP 800-63-4)
 	'assurance',
+	// Check API Audit
+	'check-api-audit',
 	// Platform settings (read-only)
 	'infrastructure',
 	'encryption'
