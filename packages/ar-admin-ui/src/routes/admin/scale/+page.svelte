@@ -132,8 +132,16 @@
 	// Total LPS (all shards use same scale now)
 	let estimatedTotalLPS = $derived(estimateLPS(scaleState.unifiedScale));
 
+	// Initial LPS (for "Current" display - doesn't change with slider)
+	let initialLPS = $derived(estimateLPS(initialScaleState.unifiedScale));
+
 	// Active region count
 	let activeRegionCount = $derived(selectedRegions.length);
+
+	// Minimum shard count = 4 (practical minimum for any meaningful load)
+	const minShardCount = 4;
+	const maxShardCount = 128;
+	const shardStep = 4;
 
 	// Calculate individual shard counts from unified scale
 	function calculateShardCounts(scale: ScaleState) {
@@ -173,6 +181,16 @@
 			});
 		}
 		return items;
+	});
+
+	// Enforce min/max bounds (no divisibility constraint needed - backend handles percentage-based allocation)
+	$effect(() => {
+		if (scaleState.unifiedScale < minShardCount) {
+			scaleState.unifiedScale = minShardCount;
+		}
+		if (scaleState.unifiedScale > maxShardCount) {
+			scaleState.unifiedScale = maxShardCount;
+		}
 	});
 
 	// =========================================================================
@@ -384,18 +402,18 @@
 		</p>
 	</div>
 
-	<!-- Current Scale Summary (Compact) -->
-	<div class="summary-inline">
-		<span class="summary-label">Current:</span>
-		{#if loading}
-			<span class="loading-text">Loading...</span>
-		{:else}
-			<span class="lps-value">~{estimatedTotalLPS} Login/sec</span>
-			<span class="lps-qualifier">(Est.)</span>
-			<span class="summary-divider">·</span>
-			<span class="region-info">{activeRegionCount} region{activeRegionCount !== 1 ? 's' : ''}</span
-			>
-		{/if}
+	<!-- Current Scale Summary - Shows saved server config, not live slider -->
+	<div class="current-badge-wrapper">
+		<div class="current-badge">
+			<i class="i-ph-gauge current-badge-icon"></i>
+			{#if loading}
+				<span class="loading-text">Loading...</span>
+			{:else}
+				<span class="current-badge-label">Current:</span>
+				<span class="current-badge-shards">{initialScaleState.unifiedScale} Shards</span>
+				<span class="current-badge-lps">(~{initialLPS} Login/sec)</span>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Success/Error Messages -->
@@ -418,21 +436,85 @@
 			<span>Loading configuration...</span>
 		</div>
 	{:else}
-		<!-- World Map Visualization -->
+		<!-- Section 1: Scale Configuration (Compact Control Panel) -->
+		<section class="scale-control-panel">
+			<div class="scale-panel-header">
+				<div class="scale-panel-title">
+					<i class="i-ph-sliders-horizontal"></i>
+					<span>System Scale</span>
+					<span class="help-tooltip scale-tooltip">
+						<i class="i-ph-question help-icon-cyber"></i>
+						<span class="tooltip-content tooltip-below">
+							Set shards based on your service's maximum expected load.
+							Too few may cause errors under high traffic;
+							too many may increase response latency.
+						</span>
+					</span>
+				</div>
+				<div class="scale-panel-main">
+					<input
+						type="range"
+						min={minShardCount}
+						max={maxShardCount}
+						step={shardStep}
+						bind:value={scaleState.unifiedScale}
+						class="cyber-slider"
+					/>
+					<div class="scale-readout">
+						<span class="shard-count">{scaleState.unifiedScale}</span>
+						<span class="shard-label">shards</span>
+					</div>
+				</div>
+				<div class="scale-lps-badge">
+					<span class="lps-value">~{estimateLPS(scaleState.unifiedScale)}</span>
+					<span class="lps-unit">LPS</span>
+				</div>
+			</div>
+			<div class="rps-mini-grid">
+				<div class="rps-mini-item">
+					<span class="rps-mini-label">Auth</span>
+					<span class="rps-mini-value">{estimateComponentRPS(calculatedShards.authCode)}</span>
+				</div>
+				<div class="rps-mini-item">
+					<span class="rps-mini-label">Token</span>
+					<span class="rps-mini-value">{estimateComponentRPS(calculatedShards.refreshToken)}</span>
+				</div>
+				<div class="rps-mini-item">
+					<span class="rps-mini-label">Session</span>
+					<span class="rps-mini-value">{estimateComponentRPS(calculatedShards.session)}</span>
+				</div>
+				<div class="rps-mini-item">
+					<span class="rps-mini-label">Challenge</span>
+					<span class="rps-mini-value">{estimateComponentRPS(calculatedShards.challenge)}</span>
+				</div>
+				<div class="rps-mini-item">
+					<span class="rps-mini-label">Revoke</span>
+					<span class="rps-mini-value">{estimateComponentRPS(calculatedShards.revocation)}</span>
+				</div>
+				<div class="rps-mini-item">
+					<span class="rps-mini-label">Flow</span>
+					<span class="rps-mini-value">{estimateComponentRPS(calculatedShards.flowState)}</span>
+				</div>
+			</div>
+		</section>
+
+		<!-- Section 2: World Map Visualization -->
 		<section class="map-section">
 			<WorldMap {selectedRegions} {regionDistribution} onRegionClick={toggleRegion} />
 		</section>
 
-		<!-- Section 1: Region Distribution -->
+		<!-- Section 3: Region Distribution -->
 		<section class="config-section">
-			<h2 class="section-title">
+				<h2 class="section-title">
 				Region Distribution
 				<span class="help-tooltip">
-					<i class="i-ph-question help-icon"></i>
+					<span class="help-icon-circle">
+						<i class="i-ph-question help-icon-inner"></i>
+					</span>
 					<span class="tooltip-content">
-						Configure where authentication data (sessions, tokens, etc.) is stored.
+						Configure where authentication data (sessions, tokens) is stored.
 						Set percentages based on your users' geographic distribution.
-						For example, if 50% of your users are in Asia, set APAC to ~50%.
+						Example: If 50% of users are in Asia, set APAC to ~50%.
 					</span>
 				</span>
 			</h2>
@@ -446,13 +528,14 @@
 					{@const isSelected = selectedRegions.includes(region.key)}
 					{@const isLastSelected = selectedRegions.length === 1 && isSelected}
 					<div class="region-row" class:selected={isSelected}>
-						<label class="region-checkbox-inline">
+						<label class="toggle-switch" class:disabled={isLastSelected}>
 							<input
 								type="checkbox"
 								checked={isSelected}
 								onchange={() => toggleRegion(region.key)}
 								disabled={isLastSelected}
 							/>
+							<span class="toggle-slider"></span>
 						</label>
 						<span class="region-label">{region.label}</span>
 						{#if isSelected && selectedRegions.length > 1}
@@ -479,89 +562,6 @@
 			{#if selectedRegions.length > 1}
 				<p class="slider-note">Note: Adjusting one slider will auto-balance others.</p>
 			{/if}
-		</section>
-
-		<!-- Section 3: Scale Configuration (Unified) -->
-		<section class="config-section">
-			<h2 class="section-title">Scale Configuration</h2>
-			<p class="section-description">
-				<i class="i-ph-info info-icon"></i>
-				Shard scale controls <strong>capacity per region</strong>.
-			</p>
-
-			<div class="scale-sliders">
-				<div class="scale-group">
-					<div class="scale-header">
-						<h3>System Scale</h3>
-					</div>
-					<div class="slider-container">
-						<input
-							type="range"
-							min="4"
-							max="128"
-							step="4"
-							bind:value={scaleState.unifiedScale}
-							class="scale-slider"
-						/>
-						<span class="scale-value">{scaleState.unifiedScale} shards</span>
-					</div>
-					<div class="scale-info">
-						<span class="lps-estimate"
-							>Estimated ~{estimateLPS(scaleState.unifiedScale)} Login/sec</span
-						>
-					</div>
-					{#if scaleState.unifiedScale >= 32}
-						<div class="scale-warning">
-							<i class="i-ph-info"></i>
-							<span>
-								Optimal shard count varies by environment. Please conduct load testing based on your
-								actual usage patterns.
-							</span>
-						</div>
-					{/if}
-				</div>
-			</div>
-
-			<!-- Per-type RPS breakdown -->
-			<div class="rps-breakdown">
-				<h4>Estimated RPS by Component</h4>
-				<div class="rps-grid">
-					<div class="rps-item">
-						<span class="rps-label">AuthCode</span>
-						<span class="rps-value">~{estimateComponentRPS(calculatedShards.authCode)} RPS</span>
-					</div>
-					<div class="rps-item">
-						<span class="rps-label">RefreshToken</span>
-						<span class="rps-value">~{estimateComponentRPS(calculatedShards.refreshToken)} RPS</span
-						>
-					</div>
-					<div class="rps-item">
-						<span class="rps-label">Session</span>
-						<span class="rps-value">~{estimateComponentRPS(calculatedShards.session)} RPS</span>
-					</div>
-					<div class="rps-item">
-						<span class="rps-label">Challenge</span>
-						<span class="rps-value">~{estimateComponentRPS(calculatedShards.challenge)} RPS</span>
-					</div>
-					<div class="rps-item">
-						<span class="rps-label">Revocation</span>
-						<span class="rps-value">~{estimateComponentRPS(calculatedShards.revocation)} RPS</span>
-					</div>
-					<div class="rps-item">
-						<span class="rps-label">FlowState</span>
-						<span class="rps-value">~{estimateComponentRPS(calculatedShards.flowState)} RPS</span>
-					</div>
-				</div>
-			</div>
-
-			<!-- Disclaimer -->
-			<div class="disclaimer">
-				<i class="i-ph-warning"></i>
-				<span>
-					Estimates based on internal load tests. Actual capacity varies by flow type, region, and
-					token TTL.
-				</span>
-			</div>
 		</section>
 
 		<!-- Section 4: Advanced Settings -->
@@ -716,40 +716,43 @@
 		margin-bottom: 24px;
 	}
 
-	/* Current Scale Summary (Compact Inline) */
-	.summary-inline {
+	/* Current Scale Badge */
+	.current-badge-wrapper {
 		display: flex;
+		justify-content: center;
+		margin-bottom: 20px;
+	}
+
+	.current-badge {
+		display: inline-flex;
 		align-items: center;
 		gap: 8px;
-		padding: 12px 16px;
-		background: var(--bg-tertiary);
-		border-radius: var(--radius-md);
-		margin-bottom: 24px;
-		font-size: 0.9375rem;
+		padding: 10px 20px;
+		background: var(--bg-card);
+		border: 1px solid var(--border-secondary);
+		border-radius: 100px;
+		font-size: 0.875rem;
 	}
 
-	.summary-label {
-		font-weight: 600;
+	.current-badge-icon {
+		width: 16px;
+		height: 16px;
+		color: var(--text-muted);
+	}
+
+	.current-badge-label {
+		font-weight: 500;
 		color: var(--text-secondary);
 	}
 
-	.lps-value {
+	.current-badge-shards {
 		font-weight: 700;
-		color: var(--primary);
+		color: var(--text-primary);
 	}
 
-	.lps-qualifier {
+	.current-badge-lps {
 		font-size: 0.8125rem;
 		color: var(--text-muted);
-	}
-
-	.summary-divider {
-		color: var(--text-muted);
-	}
-
-	.region-info {
-		font-size: 0.875rem;
-		color: var(--text-secondary);
 	}
 
 	.loading-text {
@@ -815,6 +818,281 @@
 		margin-bottom: 24px;
 	}
 
+	/* Scale Control Panel - Cyberpunk Style */
+	.scale-control-panel {
+		background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
+		border: 1px solid rgba(0, 255, 213, 0.2);
+		border-radius: var(--radius-lg);
+		padding: 16px 20px;
+		margin-bottom: 16px;
+		position: relative;
+		overflow: visible;
+	}
+
+	.scale-control-panel::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 1px;
+		background: linear-gradient(90deg, transparent, rgba(0, 255, 213, 0.5), transparent);
+	}
+
+	.scale-panel-header {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		flex-wrap: wrap;
+	}
+
+	.scale-panel-title {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		color: rgba(0, 255, 213, 0.9);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		min-width: 110px;
+	}
+
+	.scale-panel-title i {
+		width: 16px;
+		height: 16px;
+	}
+
+	.scale-panel-main {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex: 1;
+		min-width: 200px;
+	}
+
+	/* Custom Cyber Slider */
+	.cyber-slider {
+		flex: 1;
+		height: 6px;
+		-webkit-appearance: none;
+		appearance: none;
+		background: linear-gradient(90deg, rgba(0, 255, 213, 0.15), rgba(59, 130, 246, 0.15));
+		border-radius: 3px;
+		outline: none;
+		max-width: 280px;
+	}
+
+	.cyber-slider::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 18px;
+		height: 18px;
+		background: linear-gradient(135deg, #00ffd5, #3b82f6);
+		border-radius: 50%;
+		cursor: pointer;
+		box-shadow: 0 0 12px rgba(0, 255, 213, 0.5);
+		transition: box-shadow 0.2s ease;
+	}
+
+	.cyber-slider::-webkit-slider-thumb:hover {
+		box-shadow: 0 0 20px rgba(0, 255, 213, 0.8);
+	}
+
+	.cyber-slider::-moz-range-thumb {
+		width: 18px;
+		height: 18px;
+		background: linear-gradient(135deg, #00ffd5, #3b82f6);
+		border-radius: 50%;
+		cursor: pointer;
+		border: none;
+		box-shadow: 0 0 12px rgba(0, 255, 213, 0.5);
+	}
+
+	.scale-readout {
+		display: flex;
+		align-items: baseline;
+		gap: 4px;
+		min-width: 85px;
+	}
+
+	.shard-count {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: #fff;
+		font-variant-numeric: tabular-nums;
+		text-shadow: 0 0 10px rgba(0, 255, 213, 0.3);
+	}
+
+	.shard-label {
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+
+	.scale-lps-badge {
+		display: flex;
+		align-items: baseline;
+		gap: 4px;
+		padding: 6px 14px;
+		background: linear-gradient(135deg, rgba(0, 255, 213, 0.15), rgba(59, 130, 246, 0.1));
+		border: 1px solid rgba(0, 255, 213, 0.3);
+		border-radius: 20px;
+	}
+
+	.lps-value {
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: #00ffd5;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.lps-unit {
+		font-size: 0.6875rem;
+		color: rgba(0, 255, 213, 0.7);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	/* RPS Mini Grid */
+	.rps-mini-grid {
+		display: grid;
+		grid-template-columns: repeat(6, 1fr);
+		gap: 8px;
+		margin-top: 12px;
+		padding-top: 12px;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	.rps-mini-item {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+		padding: 6px 4px;
+		background: rgba(255, 255, 255, 0.02);
+		border-radius: var(--radius-sm);
+		transition: background 0.2s ease;
+	}
+
+	.rps-mini-item:hover {
+		background: rgba(0, 255, 213, 0.08);
+	}
+
+	.rps-mini-label {
+		font-size: 0.625rem;
+		color: rgba(255, 255, 255, 0.4);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+	}
+
+	.rps-mini-value {
+		font-size: 1rem;
+		font-weight: 700;
+		color: rgba(59, 130, 246, 0.95);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.rps-mini-value::after {
+		content: ' rps';
+		font-size: 0.625rem;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.35);
+		text-transform: uppercase;
+	}
+
+	/* Light theme adjustments for scale panel */
+	:global([data-theme='light']) .scale-control-panel {
+		background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+		border-color: rgba(14, 165, 233, 0.3);
+	}
+
+	:global([data-theme='light']) .scale-control-panel::before {
+		background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.5), transparent);
+	}
+
+	:global([data-theme='light']) .scale-panel-title {
+		color: #0ea5e9;
+	}
+
+	:global([data-theme='light']) .shard-count {
+		color: #0f172a;
+		text-shadow: none;
+	}
+
+	:global([data-theme='light']) .shard-label {
+		color: #64748b;
+	}
+
+	:global([data-theme='light']) .scale-lps-badge {
+		background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(59, 130, 246, 0.08));
+		border-color: rgba(14, 165, 233, 0.3);
+	}
+
+	:global([data-theme='light']) .lps-value {
+		color: #0ea5e9;
+	}
+
+	:global([data-theme='light']) .lps-unit {
+		color: rgba(14, 165, 233, 0.7);
+	}
+
+	:global([data-theme='light']) .rps-mini-grid {
+		border-top-color: rgba(0, 0, 0, 0.06);
+	}
+
+	:global([data-theme='light']) .rps-mini-item {
+		background: rgba(0, 0, 0, 0.02);
+	}
+
+	:global([data-theme='light']) .rps-mini-item:hover {
+		background: rgba(14, 165, 233, 0.08);
+	}
+
+	:global([data-theme='light']) .rps-mini-label {
+		color: #64748b;
+	}
+
+	:global([data-theme='light']) .rps-mini-value {
+		color: #2563eb;
+		font-weight: 700;
+	}
+
+	:global([data-theme='light']) .rps-mini-value::after {
+		color: #64748b;
+	}
+
+	:global([data-theme='light']) .cyber-slider {
+		background: linear-gradient(90deg, rgba(14, 165, 233, 0.15), rgba(59, 130, 246, 0.15));
+	}
+
+	:global([data-theme='light']) .cyber-slider::-webkit-slider-thumb {
+		background: linear-gradient(135deg, #0ea5e9, #3b82f6);
+		box-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
+	}
+
+	/* Responsive for RPS grid */
+	@media (max-width: 640px) {
+		.rps-mini-grid {
+			grid-template-columns: repeat(3, 1fr);
+		}
+
+		.scale-panel-header {
+			gap: 12px;
+		}
+
+		.scale-panel-main {
+			order: 3;
+			width: 100%;
+			min-width: unset;
+		}
+
+		.cyber-slider {
+			max-width: none;
+		}
+	}
+
 	.section-title {
 		font-size: 1.125rem;
 		font-weight: 600;
@@ -832,17 +1110,31 @@
 		cursor: help;
 	}
 
-	.help-icon {
-		width: 16px;
-		height: 16px;
-		color: var(--text-tertiary);
-		background: var(--surface-secondary);
+	.help-icon-circle {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		background: var(--bg-tertiary);
+		border: 1px solid var(--border-secondary);
 		border-radius: 50%;
-		padding: 2px;
+		transition: all 0.2s ease;
+	}
+
+	.help-icon-inner {
+		width: 12px;
+		height: 12px;
+		color: var(--text-muted);
 		transition: color 0.2s ease;
 	}
 
-	.help-tooltip:hover .help-icon {
+	.help-tooltip:hover .help-icon-circle {
+		border-color: var(--primary);
+		background: var(--primary-bg);
+	}
+
+	.help-tooltip:hover .help-icon-inner {
 		color: var(--primary);
 	}
 
@@ -853,20 +1145,29 @@
 		transform: translateX(-50%);
 		width: 280px;
 		padding: 12px;
-		background: var(--surface-elevated);
-		border: 1px solid var(--border);
+		background: #1e293b;
+		border: 1px solid #334155;
 		border-radius: 8px;
 		font-size: 0.8125rem;
 		font-weight: 400;
-		line-height: 1.5;
-		color: var(--text-secondary);
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		line-height: 1.6;
+		color: #cbd5e1;
+		text-transform: none;
+		letter-spacing: normal;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 		opacity: 0;
 		visibility: hidden;
 		transition:
 			opacity 0.2s ease,
 			visibility 0.2s ease;
-		z-index: 100;
+		z-index: 200;
+	}
+
+	:global([data-theme='light']) .tooltip-content {
+		background: #ffffff;
+		border: 1px solid #e2e8f0;
+		color: #475569;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 	}
 
 	.tooltip-content::after {
@@ -876,12 +1177,60 @@
 		left: 50%;
 		transform: translateX(-50%);
 		border: 6px solid transparent;
-		border-top-color: var(--surface-elevated);
+		border-top-color: #1e293b;
+	}
+
+	:global([data-theme='light']) .tooltip-content::after {
+		border-top-color: #ffffff;
 	}
 
 	.help-tooltip:hover .tooltip-content {
 		opacity: 1;
 		visibility: visible;
+	}
+
+	/* Cyber panel tooltip styles */
+	.scale-tooltip {
+		margin-left: 4px;
+	}
+
+	.help-icon-cyber {
+		width: 14px;
+		height: 14px;
+		color: rgba(0, 255, 213, 0.5);
+		transition: color 0.2s ease;
+	}
+
+	.help-tooltip:hover .help-icon-cyber {
+		color: rgba(0, 255, 213, 0.9);
+	}
+
+	.tooltip-below {
+		left: 50%;
+		bottom: auto;
+		top: calc(100% + 10px);
+		transform: translateX(-50%);
+	}
+
+	.tooltip-below::after {
+		top: -12px;
+		left: 50%;
+		transform: translateX(-50%);
+		border: 6px solid transparent;
+		border-bottom-color: #1e293b;
+		border-top-color: transparent;
+	}
+
+	:global([data-theme='light']) .tooltip-below::after {
+		border-bottom-color: #ffffff;
+	}
+
+	:global([data-theme='light']) .help-icon-cyber {
+		color: rgba(14, 165, 233, 0.5);
+	}
+
+	:global([data-theme='light']) .help-tooltip:hover .help-icon-cyber {
+		color: rgba(14, 165, 233, 0.9);
 	}
 
 	.section-description {
@@ -924,17 +1273,68 @@
 		border-color: var(--primary);
 	}
 
-	.region-checkbox-inline {
-		display: flex;
-		align-items: center;
+	/* Toggle Switch */
+	.toggle-switch {
+		position: relative;
+		display: inline-block;
+		width: 44px;
+		height: 24px;
+		flex-shrink: 0;
 		cursor: pointer;
 	}
 
-	.region-checkbox-inline input {
-		accent-color: var(--primary);
-		width: 18px;
-		height: 18px;
+	.toggle-switch.disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.toggle-switch input {
+		opacity: 0;
+		width: 0;
+		height: 0;
+	}
+
+	.toggle-slider {
+		position: absolute;
 		cursor: pointer;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-color: var(--bg-tertiary);
+		border: 1px solid var(--border-secondary);
+		transition: 0.3s;
+		border-radius: 24px;
+	}
+
+	.toggle-slider::before {
+		position: absolute;
+		content: '';
+		height: 18px;
+		width: 18px;
+		left: 2px;
+		bottom: 2px;
+		background-color: var(--text-muted);
+		transition: 0.3s;
+		border-radius: 50%;
+	}
+
+	.toggle-switch input:checked + .toggle-slider {
+		background-color: var(--primary);
+		border-color: var(--primary);
+	}
+
+	.toggle-switch input:checked + .toggle-slider::before {
+		background-color: white;
+		transform: translateX(20px);
+	}
+
+	.toggle-switch input:focus + .toggle-slider {
+		box-shadow: 0 0 0 2px var(--primary-bg);
+	}
+
+	.toggle-switch.disabled .toggle-slider {
+		cursor: not-allowed;
 	}
 
 	.region-label {
