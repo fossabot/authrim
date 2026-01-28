@@ -39,6 +39,8 @@ import { generateAllSecrets, saveKeysToDirectory, keysExistForEnvironment } from
 import { createLockFile, saveLockFile } from '../core/lock.js';
 import {
   getEnvironmentPaths,
+  getExternalKeysDir,
+  findKeysDirectory,
   resolvePaths,
   listEnvironments,
   findAuthrimBaseDir,
@@ -65,7 +67,7 @@ import {
   getComponentsToUpdate,
 } from '../core/version.js';
 import { completeInitialSetup } from '../core/admin.js';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 
 // =============================================================================
@@ -408,7 +410,8 @@ export function createApiRoutes(): Hono {
   api.get('/keys/check/:env', async (c) => {
     try {
       const env = c.req.param('env');
-      const exists = keysExistForEnvironment(process.cwd(), env);
+      const baseDir = findAuthrimBaseDir(process.cwd());
+      const exists = keysExistForEnvironment(baseDir, env, process.cwd());
       return c.json({ exists, env });
     } catch (error) {
       return c.json({ exists: false, error: sanitizeError(error) });
@@ -416,21 +419,22 @@ export function createApiRoutes(): Hono {
   });
 
   // Generate keys (with lock)
-  // Saves to new structure: .authrim/{env}/keys/
+  // Saves to external structure: {cwd}/.authrim-keys/{env}/
   api.post('/keys/generate', async (c) => {
     return withLock(async () => {
       try {
         const body = await c.req.json();
         const { keyId, env } = body;
-        const baseDir = findAuthrimBaseDir(process.cwd());
+        const envName = env || 'default';
+        const keysBaseDir = process.cwd();
 
         addProgress('Generating cryptographic keys...');
         const secrets = generateAllSecrets(keyId);
 
-        // Use new structure for saving keys
-        const envPaths = getEnvironmentPaths({ baseDir, env: env || 'default' });
-        addProgress(`Saving keys to directory: ${envPaths.keys}/`);
-        await saveKeysToDirectory(secrets, { baseDir, env: env || 'default' });
+        // Save to external keys directory: {cwd}/.authrim-keys/{env}/
+        const externalKeysDir = getExternalKeysDir(envName, keysBaseDir);
+        addProgress(`Saving keys to directory: ${externalKeysDir}/`);
+        await saveKeysToDirectory(secrets, { keysBaseDir, env: envName });
 
         addProgress('Keys generated successfully');
 
@@ -439,7 +443,7 @@ export function createApiRoutes(): Hono {
           success: true,
           keyId: secrets.keyPair.keyId,
           publicKeyJwk: secrets.keyPair.publicKeyJwk,
-          keysPath: envPaths.keys,
+          keysPath: externalKeysDir,
         });
       } catch (error) {
         state.error = sanitizeError(error);
@@ -483,27 +487,31 @@ export function createApiRoutes(): Hono {
           addProgress('Warning: Resend API key should start with "re_"');
         }
 
-        // Save secrets to keys directory (use new structure)
-        const baseDir = findAuthrimBaseDir(process.cwd());
-        const envPaths = getEnvironmentPaths({ baseDir, env });
-        const keysDir = envPaths.keys;
+        // Save secrets to external keys directory: {cwd}/.authrim-keys/{env}/
+        const keysBaseDir = process.cwd();
+        const keysDir = getExternalKeysDir(env, keysBaseDir);
+        const baseDir = findAuthrimBaseDir(keysBaseDir);
+        const envPaths = getEnvironmentPaths({ baseDir, env, keysBaseDir });
 
-        // Ensure directory exists
+        // Ensure directory exists with restrictive permissions
         const { mkdir } = await import('node:fs/promises');
-        await mkdir(keysDir, { recursive: true });
+        await mkdir(keysDir, { recursive: true, mode: 0o700 });
 
-        // Save API key
+        // Save API key with restrictive permissions
         await writeFile(envPaths.keyFiles.resendApiKey, apiKey.trim());
+        await chmod(envPaths.keyFiles.resendApiKey, 0o600);
         addProgress(`Saved ${provider} API key to ${envPaths.keyFiles.resendApiKey}`);
 
-        // Save from address
+        // Save from address with restrictive permissions
         await writeFile(envPaths.keyFiles.emailFrom, fromAddress.trim());
+        await chmod(envPaths.keyFiles.emailFrom, 0o600);
         addProgress(`Saved email from address to ${envPaths.keyFiles.emailFrom}`);
 
         // Save from name if provided
         if (fromName) {
           const fromNameFile = join(keysDir, 'email_from_name.txt');
           await writeFile(fromNameFile, fromName.trim());
+          await chmod(fromNameFile, 0o600);
           addProgress(`Saved email from name to ${fromNameFile}`);
         }
 
@@ -809,11 +817,14 @@ export function createApiRoutes(): Hono {
         }
 
         // Upload secrets first (secrets are read but not stored in state)
-        // Check both new (.authrim/{env}/keys/) and legacy (.keys/{env}/) structures
+        // Check external (.authrim-keys/), new (.authrim/{env}/keys/), and legacy (.keys/{env}/) structures
         const baseDir = findAuthrimBaseDir(process.cwd());
         const resolved = resolvePaths({ baseDir, env });
         let keysDir: string;
-        if (resolved.type === 'new') {
+        const foundKeys = findKeysDirectory({ env, sourceDir: baseDir, keysBaseDir: process.cwd() });
+        if (foundKeys) {
+          keysDir = foundKeys.path;
+        } else if (resolved.type === 'new') {
           keysDir = (resolved.paths as EnvironmentPaths).keys;
         } else {
           keysDir = (resolved.paths as LegacyPaths).keys;
@@ -1180,7 +1191,7 @@ export function createApiRoutes(): Hono {
   });
 
   // Complete initial admin setup (store setup token in KV)
-  // Supports both new (.authrim/{env}/keys/) and legacy (.keys/{env}/) structures
+  // Supports external (.authrim-keys/), internal (.authrim/{env}/keys/), and legacy (.keys/{env}/) structures
   api.post('/admin/setup', async (c) => {
     return withLock(async () => {
       try {
@@ -1191,9 +1202,14 @@ export function createApiRoutes(): Hono {
         // Determine structure type
         const resolved = resolvePaths({ baseDir, env });
         const isLegacy = resolved.type === 'legacy';
-        const tokenPath = isLegacy
-          ? (resolved.paths as LegacyPaths).keyFiles.setupToken
-          : (resolved.paths as EnvironmentPaths).keyFiles.setupToken;
+
+        // Detect actual token path using 3-tier fallback (external → internal → legacy)
+        const foundKeys = findKeysDirectory({ env, sourceDir: baseDir, keysBaseDir: process.cwd() });
+        const tokenPath = foundKeys
+          ? join(foundKeys.path, 'setup_token.txt')
+          : isLegacy
+            ? (resolved.paths as LegacyPaths).keyFiles.setupToken
+            : (resolved.paths as EnvironmentPaths).keyFiles.setupToken;
 
         addProgress(
           `Admin setup request: env=${env}, baseUrl=${baseUrl}, structure=${resolved.type}`
@@ -1211,6 +1227,7 @@ export function createApiRoutes(): Hono {
           env,
           baseUrl,
           baseDir,
+          keysBaseDir: process.cwd(),
           legacy: isLegacy,
           onProgress: addProgress,
         });

@@ -4,7 +4,8 @@
  * Handles the initial admin creation flow by storing the setup token in KV
  * and providing the setup URL to the user.
  *
- * Supports both legacy (.keys/{env}/) and new (.authrim/{env}/keys/) structures.
+ * Supports external (.authrim-keys/{env}/), internal (.authrim/{env}/keys/),
+ * and legacy (.keys/{env}/) key storage structures.
  *
  * Flow:
  * 1. Generate setup token (done in keys.ts)
@@ -21,6 +22,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   getEnvironmentPaths,
+  getExternalKeysDir,
   getLegacyPaths,
   resolvePaths,
   type EnvironmentPaths,
@@ -43,6 +45,8 @@ export interface SetupTokenOptions {
   keysDir?: string;
   /** Use legacy structure (.keys/{env}/) */
   legacy?: boolean;
+  /** Base directory for external keys ({keysBaseDir}/.authrim-keys/{env}/) */
+  keysBaseDir?: string;
   /** TTL in seconds (default: 3600 = 1 hour) */
   ttlSeconds?: number;
   /** Progress callback */
@@ -127,16 +131,23 @@ export async function isSetupCompleted(env: string, configPath: string = '.'): P
 
 /**
  * Resolve setup token path based on options
- * Supports both new (.authrim/{env}/keys/) and legacy (.keys/{env}/) structures
+ * Supports external (.authrim-keys/{env}/), new (.authrim/{env}/keys/), and legacy (.keys/{env}/) structures
  * Also searches in subdirectories (e.g., authrim/) for cases where setup is run from parent directory
+ *
+ * Search order:
+ * 1. External: {keysBaseDir}/.authrim-keys/{env}/setup_token.txt
+ * 2. Subdirectory search (authrim/): both internal and legacy
+ * 3. Internal: {baseDir}/.authrim/{env}/keys/setup_token.txt
+ * 4. Legacy: {baseDir}/.keys/{env}/setup_token.txt
  */
 function resolveSetupTokenPath(options: {
   env: string;
   baseDir?: string;
   keysDir?: string;
+  keysBaseDir?: string;
   legacy?: boolean;
 }): string {
-  const { env, baseDir = process.cwd(), keysDir, legacy } = options;
+  const { env, baseDir = process.cwd(), keysDir, keysBaseDir, legacy } = options;
 
   // If explicit keysDir is provided (legacy API), use it directly
   if (keysDir && keysDir !== '.keys') {
@@ -148,7 +159,17 @@ function resolveSetupTokenPath(options: {
     return getLegacyPaths(baseDir, env).keyFiles.setupToken;
   }
 
-  // Auto-detect structure - also check in 'authrim/' subdirectory
+  // 1. Check external keys directory first (only when keysBaseDir is explicitly provided)
+  if (keysBaseDir) {
+    const externalTokenPath = join(getExternalKeysDir(env, keysBaseDir), 'setup_token.txt');
+    if (existsSync(externalTokenPath)) {
+      return externalTokenPath;
+    }
+  }
+
+  // 2. Auto-detect structure - also check in 'authrim/' subdirectory
+  //    Note: External keys are only searched at keysBaseDir (handled above),
+  //    not in subdirectories. Subdirectory search is for internal/legacy only.
   const dirsToCheck = [baseDir, join(baseDir, 'authrim')];
 
   for (const dir of dirsToCheck) {
@@ -163,33 +184,30 @@ function resolveSetupTokenPath(options: {
     }
   }
 
-  // Fall back to baseDir resolution (for error messaging)
-  const resolved = resolvePaths({ baseDir, env });
-  if (resolved.type === 'legacy') {
-    return (resolved.paths as LegacyPaths).keyFiles.setupToken;
-  }
-
-  return (resolved.paths as EnvironmentPaths).keyFiles.setupToken;
+  // Fall back to external path for error messaging (new default)
+  const fallbackBase = keysBaseDir || baseDir;
+  return join(getExternalKeysDir(env, fallbackBase), 'setup_token.txt');
 }
 
 /**
  * Store setup token in KV for initial admin creation
  */
 export async function storeSetupToken(options: SetupTokenOptions): Promise<SetupInfo> {
-  const { env, baseDir = process.cwd(), keysDir, legacy, ttlSeconds = 3600, onProgress } = options;
+  const { env, baseDir = process.cwd(), keysDir, keysBaseDir, legacy, ttlSeconds = 3600, onProgress } = options;
 
   validateEnv(env);
 
   // Read setup token from file
-  // Supports both new (.authrim/{env}/keys/) and legacy (.keys/{env}/) structures
-  const tokenPath = resolveSetupTokenPath({ env, baseDir, keysDir, legacy });
+  // Supports external (.authrim-keys/), new (.authrim/{env}/keys/), and legacy (.keys/{env}/) structures
+  const tokenPath = resolveSetupTokenPath({ env, baseDir, keysDir, keysBaseDir, legacy });
   if (!existsSync(tokenPath)) {
-    // Provide helpful error message with both possible locations
+    // Provide helpful error message with all possible locations
+    const externalPath = join(getExternalKeysDir(env, keysBaseDir || baseDir), 'setup_token.txt');
     const newPath = getEnvironmentPaths({ baseDir, env }).keyFiles.setupToken;
     const legacyPath = getLegacyPaths(baseDir, env).keyFiles.setupToken;
     return {
       success: false,
-      error: `Setup token file not found. Expected at:\n  - ${newPath} (new structure)\n  - ${legacyPath} (legacy structure)\nRun key generation first.`,
+      error: `Setup token file not found. Expected at:\n  - ${externalPath} (external)\n  - ${newPath} (internal)\n  - ${legacyPath} (legacy)\nRun key generation first.`,
     };
   }
 
@@ -389,15 +407,18 @@ export async function completeInitialSetup(options: {
   keysDir?: string;
   /** Use legacy structure (.keys/{env}/) */
   legacy?: boolean;
+  /** Base directory for external keys */
+  keysBaseDir?: string;
   onProgress?: (message: string) => void;
 }): Promise<SetupInfo> {
-  const { env, baseUrl, baseDir = process.cwd(), keysDir, legacy, onProgress } = options;
+  const { env, baseUrl, baseDir = process.cwd(), keysDir, keysBaseDir, legacy, onProgress } = options;
 
   // Store setup token in KV
   const result = await storeSetupToken({
     env,
     baseDir,
     keysDir,
+    keysBaseDir,
     legacy,
     onProgress,
   });
@@ -414,8 +435,8 @@ export async function completeInitialSetup(options: {
   }
 
   // Read token and generate full URL
-  // Supports both new (.authrim/{env}/keys/) and legacy (.keys/{env}/) structures
-  const tokenPath = resolveSetupTokenPath({ env, baseDir, keysDir, legacy });
+  // Supports external (.authrim-keys/), new (.authrim/{env}/keys/), and legacy (.keys/{env}/) structures
+  const tokenPath = resolveSetupTokenPath({ env, baseDir, keysDir, keysBaseDir, legacy });
   const setupToken = (await readFile(tokenPath, 'utf-8')).trim();
   const fullSetupUrl = getFullSetupUrl(baseUrl, setupToken);
 

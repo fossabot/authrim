@@ -22,13 +22,15 @@
 
 import { existsSync } from 'node:fs';
 import { mkdir, copyFile, readFile, writeFile, readdir, rm, chmod } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import {
   LEGACY_CONFIG_FILE,
   LEGACY_LOCK_FILE,
   LEGACY_KEYS_DIR,
   getEnvironmentPaths,
+  getExternalKeysDir,
+  findKeysDirectory,
   getLegacyPaths,
   detectStructure,
   listEnvironments,
@@ -715,5 +717,144 @@ export function getMigrationStatus(baseDir: string = process.cwd()): {
     currentStructure: structure.type,
     environments,
     legacyFiles,
+  };
+}
+
+// =============================================================================
+// External Keys Migration
+// =============================================================================
+
+export interface MigrateKeysToExternalOptions {
+  /** Source directory containing .authrim/ or .keys/ */
+  sourceDir: string;
+  /** Target base directory for external keys (keys go to {keysBaseDir}/.authrim-keys/{env}/) */
+  keysBaseDir: string;
+  /** Environment name */
+  env: string;
+  /** Dry run - don't actually copy files */
+  dryRun?: boolean;
+  /** Progress callback */
+  onProgress?: (msg: string) => void;
+}
+
+export interface MigrateKeysToExternalResult {
+  success: boolean;
+  /** Source location where keys were found */
+  sourceLocation?: 'internal' | 'legacy';
+  /** Source path */
+  sourcePath?: string;
+  /** Destination path */
+  destPath?: string;
+  /** Files copied */
+  files: string[];
+  /** Error message if failed */
+  error?: string;
+}
+
+/**
+ * Migrate keys from internal/legacy location to external .authrim-keys/{env}/ directory
+ *
+ * Copies key files from:
+ * - {sourceDir}/.authrim/{env}/keys/ (internal), or
+ * - {sourceDir}/.keys/{env}/ (legacy)
+ *
+ * To: {keysBaseDir}/.authrim-keys/{env}/
+ *
+ * After copy, updates config.json with new secretsPath and storageType.
+ */
+export async function migrateKeysToExternal(
+  options: MigrateKeysToExternalOptions
+): Promise<MigrateKeysToExternalResult> {
+  const { sourceDir, keysBaseDir, env, dryRun = false, onProgress } = options;
+
+  // Security: Validate environment name
+  if (!validateEnvName(env)) {
+    return {
+      success: false,
+      files: [],
+      error: `Invalid environment name: ${env}`,
+    };
+  }
+
+  // Security: Validate keysBaseDir to prevent path traversal
+  if (keysBaseDir.includes('\0')) {
+    return {
+      success: false,
+      files: [],
+      error: 'Invalid keysBaseDir: null bytes not allowed',
+    };
+  }
+
+  // Find existing keys
+  const found = findKeysDirectory({ env, sourceDir });
+  if (!found) {
+    return {
+      success: false,
+      files: [],
+      error: `No keys found for environment "${env}" in ${sourceDir}`,
+    };
+  }
+
+  const destDir = getExternalKeysDir(env, keysBaseDir);
+  const files: string[] = [];
+
+  onProgress?.(`Migrating keys from ${found.path} to ${destDir}`);
+
+  if (!dryRun) {
+    // Create destination directory with secure permissions
+    await mkdir(destDir, { recursive: true, mode: DIRECTORY_MODE });
+
+    // Copy all key files
+    const entries = await readdir(found.path, { withFileTypes: true });
+    for (const entry of entries) {
+      // Skip symbolic links and directories
+      if (entry.isSymbolicLink() || entry.isDirectory()) {
+        continue;
+      }
+
+      const srcPath = join(found.path, entry.name);
+      const destPath = join(destDir, entry.name);
+      await copyFile(srcPath, destPath);
+
+      // Set restrictive permissions on sensitive files
+      if (isSensitiveFile(entry.name)) {
+        await chmod(destPath, SENSITIVE_FILE_MODE);
+      }
+
+      files.push(entry.name);
+    }
+
+    onProgress?.(`  Copied ${files.length} key files`);
+
+    // Update config.json if it exists
+    const configPath = getEnvironmentPaths({ baseDir: sourceDir, env }).config;
+    if (existsSync(configPath)) {
+      try {
+        const content = await readFile(configPath, 'utf-8');
+        const config = JSON.parse(content) as AuthrimConfig;
+
+        if (config.keys) {
+          config.keys.secretsPath = resolve(keysBaseDir, '.authrim-keys', env) + '/';
+          config.keys.storageType = 'external';
+        }
+
+        await writeFile(configPath, JSON.stringify(config, null, 2));
+        onProgress?.('  Updated config.json with external keys path');
+      } catch (error) {
+        onProgress?.(
+          `  Warning: Could not update config.json: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+  } else {
+    onProgress?.(`  Would copy keys from ${found.path} to ${destDir}`);
+  }
+
+  return {
+    success: true,
+    sourceLocation: found.location === 'legacy' ? 'legacy' : 'internal',
+    sourcePath: found.path,
+    destPath: destDir,
+    files,
   };
 }

@@ -2,22 +2,30 @@
  * Path Management Module
  *
  * Centralized path resolution for Authrim configuration files.
- * Supports both legacy (flat files) and new (.authrim/{env}/) structures.
+ * Supports legacy, internal, and external key storage structures.
+ *
+ * External Keys Structure (new default):
+ *   CWD/
+ *   ├── .authrim-keys/{env}/     <-- Keys stored outside source
+ *   └── authrim/                  (source code)
+ *       └── .authrim/{env}/
+ *           ├── config.json
+ *           ├── lock.json
+ *           └── version.txt
+ *
+ * Internal Structure:
+ *   project/
+ *   └── .authrim/{env}/
+ *       ├── config.json
+ *       ├── lock.json
+ *       ├── version.txt
+ *       └── keys/
  *
  * Legacy Structure:
  *   project/
  *   ├── authrim-config.json
  *   ├── authrim-lock.json
  *   └── .keys/{env}/
- *
- * New Structure:
- *   project/
- *   └── .authrim/
- *       └── {env}/
- *           ├── config.json
- *           ├── lock.json
- *           ├── version.txt
- *           └── keys/
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -32,6 +40,8 @@ export interface PathConfig {
   baseDir: string;
   /** Environment name */
   env: string;
+  /** External keys base directory (usually process.cwd()) - keys stored at {keysBaseDir}/.authrim-keys/{env}/ */
+  keysBaseDir?: string;
 }
 
 export interface EnvironmentPaths {
@@ -114,6 +124,9 @@ export const VERSION_FILE = 'version.txt';
 /** Keys subdirectory name */
 export const KEYS_DIR = 'keys';
 
+/** External keys directory name (at CWD level) */
+export const AUTHRIM_KEYS_DIR = '.authrim-keys';
+
 /** Wrangler configs subdirectory name */
 export const WRANGLER_DIR = 'wrangler';
 
@@ -143,11 +156,16 @@ function getKeyFilePaths(keysDir: string): KeyFilePaths {
 
 /**
  * Get paths for new directory structure (.authrim/{env}/)
+ *
+ * If keysBaseDir is provided, keys paths resolve to {keysBaseDir}/.authrim-keys/{env}/
+ * instead of {baseDir}/.authrim/{env}/keys/
  */
 export function getEnvironmentPaths(config: PathConfig): EnvironmentPaths {
-  const { baseDir, env } = config;
+  const { baseDir, env, keysBaseDir } = config;
   const root = join(baseDir, AUTHRIM_DIR, env);
-  const keysDir = join(root, KEYS_DIR);
+  const keysDir = keysBaseDir
+    ? join(keysBaseDir, AUTHRIM_KEYS_DIR, env)
+    : join(root, KEYS_DIR);
   const wranglerDir = join(root, WRANGLER_DIR);
 
   return {
@@ -334,10 +352,27 @@ export function needsMigration(baseDir: string): boolean {
  *
  * For new structure: returns environments from .authrim/
  * For legacy structure: returns environment from .keys/
+ * For external keys: returns environments from .authrim-keys/
  * For mixed: returns all found environments
+ *
+ * @param baseDir - Source directory containing .authrim/
+ * @param keysBaseDir - Optional base directory for external keys (checks .authrim-keys/)
  */
-export function listEnvironments(baseDir: string): string[] {
+export function listEnvironments(baseDir: string, keysBaseDir?: string): string[] {
   const envs = new Set<string>();
+
+  // Check external keys structure: {keysBaseDir}/.authrim-keys/
+  if (keysBaseDir) {
+    const externalKeysDir = join(keysBaseDir, AUTHRIM_KEYS_DIR);
+    if (existsSync(externalKeysDir)) {
+      try {
+        const entries = readdirSync(externalKeysDir, { withFileTypes: true });
+        entries.filter((d) => d.isDirectory()).forEach((d) => envs.add(d.name));
+      } catch {
+        // Ignore errors
+      }
+    }
+  }
 
   // Check new structure
   const authrimDir = join(baseDir, AUTHRIM_DIR);
@@ -371,9 +406,21 @@ export function listEnvironments(baseDir: string): string[] {
 }
 
 /**
- * Check if an environment exists (in either structure)
+ * Check if an environment exists (in any structure)
+ *
+ * @param baseDir - Source directory
+ * @param env - Environment name
+ * @param keysBaseDir - Optional base directory for external keys
  */
-export function environmentExists(baseDir: string, env: string): boolean {
+export function environmentExists(baseDir: string, env: string, keysBaseDir?: string): boolean {
+  // Check external keys structure
+  if (keysBaseDir) {
+    const externalDir = getExternalKeysDir(env, keysBaseDir);
+    if (existsSync(externalDir)) {
+      return true;
+    }
+  }
+
   // Check new structure
   const newPaths = getEnvironmentPaths({ baseDir, env });
   if (existsSync(newPaths.root) && (existsSync(newPaths.config) || existsSync(newPaths.keys))) {
@@ -463,6 +510,91 @@ export function getLegacyRelativeKeysPath(env: string): string {
 }
 
 // =============================================================================
+// External Keys Directory Functions
+// =============================================================================
+
+/**
+ * Get the external keys directory path for an environment
+ *
+ * @param env - Environment name (must be a valid env name)
+ * @param keysBaseDir - Base directory for external keys (usually process.cwd())
+ * @returns Path to the external keys directory: {keysBaseDir}/.authrim-keys/{env}/
+ * @throws Error if env contains path traversal or invalid characters
+ */
+export function getExternalKeysDir(env: string, keysBaseDir: string): string {
+  validateEnvForPath(env);
+  return join(keysBaseDir, AUTHRIM_KEYS_DIR, env);
+}
+
+/**
+ * Get the absolute path for secretsPath in config.json when using external keys
+ *
+ * @param env - Environment name (must be a valid env name)
+ * @param keysBaseDir - Base directory for external keys (usually process.cwd())
+ * @returns Absolute path to the external keys directory
+ * @throws Error if env contains path traversal or invalid characters
+ */
+export function getExternalKeysPathForConfig(env: string, keysBaseDir: string): string {
+  validateEnvForPath(env);
+  return resolve(keysBaseDir, AUTHRIM_KEYS_DIR, env) + '/';
+}
+
+export type KeysLocation = 'external' | 'internal' | 'legacy';
+
+export interface FindKeysResult {
+  /** Resolved path to the keys directory */
+  path: string;
+  /** Where the keys were found */
+  location: KeysLocation;
+}
+
+export interface FindKeysOptions {
+  /** Environment name */
+  env: string;
+  /** Source directory containing .authrim/ (usually the authrim project root) */
+  sourceDir: string;
+  /** Base directory for external keys (usually process.cwd()) */
+  keysBaseDir?: string;
+}
+
+/**
+ * Find keys directory with 3-tier fallback:
+ * 1. External: {keysBaseDir}/.authrim-keys/{env}/
+ * 2. Internal: {sourceDir}/.authrim/{env}/keys/
+ * 3. Legacy: {sourceDir}/.keys/{env}/
+ *
+ * @returns Found keys directory info, or null if not found anywhere
+ */
+export function findKeysDirectory(options: FindKeysOptions): FindKeysResult | null {
+  const { env, sourceDir, keysBaseDir } = options;
+
+  // Security: Validate env to prevent path traversal
+  validateEnvForPath(env);
+
+  // 1. External: {keysBaseDir}/.authrim-keys/{env}/
+  if (keysBaseDir) {
+    const externalDir = getExternalKeysDir(env, keysBaseDir);
+    if (existsSync(externalDir)) {
+      return { path: externalDir, location: 'external' };
+    }
+  }
+
+  // 2. Internal: {sourceDir}/.authrim/{env}/keys/
+  const internalDir = join(sourceDir, AUTHRIM_DIR, env, KEYS_DIR);
+  if (existsSync(internalDir)) {
+    return { path: internalDir, location: 'internal' };
+  }
+
+  // 3. Legacy: {sourceDir}/.keys/{env}/
+  const legacyDir = join(sourceDir, LEGACY_KEYS_DIR, env);
+  if (existsSync(legacyDir)) {
+    return { path: legacyDir, location: 'legacy' };
+  }
+
+  return null;
+}
+
+// =============================================================================
 // Utility Functions
 // =============================================================================
 
@@ -472,6 +604,24 @@ export function getLegacyRelativeKeysPath(env: string): string {
 export function validateEnvName(env: string): boolean {
   // Must start with lowercase letter, contain only lowercase letters, numbers, and hyphens
   return /^[a-z][a-z0-9-]*$/.test(env);
+}
+
+/**
+ * Security: Validate env string before using it in path construction.
+ * Rejects path traversal, null bytes, and invalid characters.
+ *
+ * @throws Error if env is not safe for use in file paths
+ */
+function validateEnvForPath(env: string): void {
+  if (!env || typeof env !== 'string') {
+    throw new Error('Invalid environment name: must be a non-empty string');
+  }
+  if (env.includes('..') || env.includes('/') || env.includes('\\') || env.includes('\0')) {
+    throw new Error('Invalid environment name: path traversal characters not allowed');
+  }
+  if (!/^[a-z][a-z0-9-]*$/.test(env)) {
+    throw new Error('Invalid environment name: must be lowercase alphanumeric with hyphens, starting with a letter');
+  }
 }
 
 /**

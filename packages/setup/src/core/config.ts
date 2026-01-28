@@ -137,13 +137,13 @@ export const OidcConfigSchema = z.object({
 
 export const ShardingConfigSchema = z.object({
   /** Number of authorization code store shards */
-  authCodeShards: z.number().int().positive().default(64),
+  authCodeShards: z.number().int().positive().default(4),
   /** Number of refresh token rotator shards */
-  refreshTokenShards: z.number().int().positive().default(8),
+  refreshTokenShards: z.number().int().positive().default(4),
   /** Number of session store shards */
-  sessionShards: z.number().int().positive().default(32),
+  sessionShards: z.number().int().positive().default(4),
   /** Number of challenge store shards */
-  challengeShards: z.number().int().positive().default(16),
+  challengeShards: z.number().int().positive().default(4),
   /** Number of flow state store shards (Flow Engine) */
   flowStateShards: z.number().int().positive().default(32),
 });
@@ -190,13 +190,20 @@ export const KeysConfigSchema = z.object({
   /** Public key in JWK format */
   publicKeyJwk: z.record(z.unknown()).optional(),
   /**
-   * Path to secrets directory (relative from config file location)
-   * - New structure (.authrim/{env}/): './keys/'
-   * - Legacy structure: './.keys/{env}/'
+   * Path to secrets directory
+   * - External (.authrim-keys/{env}/): absolute path
+   * - Internal (.authrim/{env}/keys/): './keys/'
+   * - Legacy (.keys/{env}/): './.keys/{env}/'
    */
   secretsPath: z.string().default('./keys/'),
   /** Whether to include secrets in config (not recommended) */
   includeSecrets: z.boolean().default(false),
+  /**
+   * Key storage type
+   * - 'external': Keys stored in {cwd}/.authrim-keys/{env}/ (new default)
+   * - 'internal': Keys stored in .authrim/{env}/keys/ (within source)
+   */
+  storageType: z.enum(['internal', 'external']).optional().default('external'),
 });
 
 // =============================================================================

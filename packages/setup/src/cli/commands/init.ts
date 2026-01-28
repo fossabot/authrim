@@ -37,7 +37,7 @@ import {
   getWorkersSubdomain,
 } from '../../core/cloudflare.js';
 import { createLockFile, saveLockFile, loadLockFile } from '../../core/lock.js';
-import { getEnvironmentPaths, getRelativeKeysPath, AUTHRIM_DIR } from '../../core/paths.js';
+import { getEnvironmentPaths, getExternalKeysDir, getExternalKeysPathForConfig, AUTHRIM_DIR } from '../../core/paths.js';
 import { downloadSource, verifySourceStructure, checkForUpdate } from '../../core/source.js';
 import { saveUiEnv } from '../../core/ui-env.js';
 
@@ -1347,15 +1347,20 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
 
   // Save email secrets if configured
   if (emailConfig.provider === 'resend' && emailConfig.apiKey) {
-    // Use new structure for fresh setups
-    const paths = getEnvironmentPaths({ baseDir: process.cwd(), env: envPrefix });
-    const keysDir = paths.keys;
+    // Save to external keys directory: {cwd}/.authrim-keys/{env}/
+    const keysDir = getExternalKeysDir(envPrefix, process.cwd());
     await import('node:fs/promises').then(async (fs) => {
-      await fs.mkdir(keysDir, { recursive: true });
-      await fs.writeFile(paths.keyFiles.resendApiKey, emailConfig.apiKey!.trim());
-      await fs.writeFile(paths.keyFiles.emailFrom, emailConfig.fromAddress!.trim());
+      await fs.mkdir(keysDir, { recursive: true, mode: 0o700 });
+      const resendApiKeyPath = join(keysDir, 'resend_api_key.txt');
+      await fs.writeFile(resendApiKeyPath, emailConfig.apiKey!.trim());
+      await fs.chmod(resendApiKeyPath, 0o600);
+      const emailFromPath = join(keysDir, 'email_from.txt');
+      await fs.writeFile(emailFromPath, emailConfig.fromAddress!.trim());
+      await fs.chmod(emailFromPath, 0o600);
       if (emailConfig.fromName) {
-        await fs.writeFile(`${keysDir}/email_from_name.txt`, emailConfig.fromName.trim());
+        const emailFromNamePath = join(keysDir, 'email_from_name.txt');
+        await fs.writeFile(emailFromNamePath, emailConfig.fromName.trim());
+        await fs.chmod(emailFromNamePath, 0o600);
       }
     });
     console.log(chalk.gray(`📧 Email secrets saved to ${keysDir}/`));
@@ -2063,15 +2068,20 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
 
   // Save email secrets if configured
   if (emailConfigNormal.provider === 'resend' && emailConfigNormal.apiKey) {
-    // Use new structure for fresh setups
-    const paths = getEnvironmentPaths({ baseDir: process.cwd(), env: envPrefix });
-    const keysDir = paths.keys;
+    // Save to external keys directory: {cwd}/.authrim-keys/{env}/
+    const keysDir = getExternalKeysDir(envPrefix, process.cwd());
     await import('node:fs/promises').then(async (fs) => {
-      await fs.mkdir(keysDir, { recursive: true });
-      await fs.writeFile(paths.keyFiles.resendApiKey, emailConfigNormal.apiKey!.trim());
-      await fs.writeFile(paths.keyFiles.emailFrom, emailConfigNormal.fromAddress!.trim());
+      await fs.mkdir(keysDir, { recursive: true, mode: 0o700 });
+      const resendApiKeyPath = join(keysDir, 'resend_api_key.txt');
+      await fs.writeFile(resendApiKeyPath, emailConfigNormal.apiKey!.trim());
+      await fs.chmod(resendApiKeyPath, 0o600);
+      const emailFromPath = join(keysDir, 'email_from.txt');
+      await fs.writeFile(emailFromPath, emailConfigNormal.fromAddress!.trim());
+      await fs.chmod(emailFromPath, 0o600);
       if (emailConfigNormal.fromName) {
-        await fs.writeFile(`${keysDir}/email_from_name.txt`, emailConfigNormal.fromName.trim());
+        const emailFromNamePath = join(keysDir, 'email_from_name.txt');
+        await fs.writeFile(emailFromNamePath, emailConfigNormal.fromName.trim());
+        await fs.chmod(emailFromNamePath, 0o600);
       }
     });
     console.log(chalk.gray(`📧 Email secrets saved to ${keysDir}/`));
@@ -2140,9 +2150,10 @@ async function executeSetup(
     return;
   }
 
-  // Step 1: Generate keys (environment-specific directory)
+  // Step 1: Generate keys (external directory: .authrim-keys/{env}/)
   // Check if keys already exist for this environment
-  if (keysExistForEnvironment(outputDir, env)) {
+  const cwdDir = process.cwd();
+  if (keysExistForEnvironment(outputDir, env, cwdDir)) {
     console.log(chalk.yellow(`⚠️  Warning: Keys already exist for environment "${env}"`));
     console.log(chalk.yellow('   Existing keys will be overwritten.'));
     console.log('');
@@ -2153,18 +2164,19 @@ async function executeSetup(
     const keyId = generateKeyId(env);
     secrets = generateAllSecrets(keyId);
 
-    // Save to new structure: .authrim/{env}/keys/
-    const envPaths = getEnvironmentPaths({ baseDir: outputDir, env });
-    await saveKeysToDirectory(secrets, { baseDir: outputDir, env });
+    // Save to external structure: {cwd}/.authrim-keys/{env}/
+    const externalKeysDir = getExternalKeysDir(env, cwdDir);
+    await saveKeysToDirectory(secrets, { keysBaseDir: cwdDir, env });
 
     config.keys = {
       keyId: secrets.keyPair.keyId,
       publicKeyJwk: secrets.keyPair.publicKeyJwk as Record<string, unknown>,
-      secretsPath: getRelativeKeysPath(), // './keys/' (relative from config location)
+      secretsPath: getExternalKeysPathForConfig(env, cwdDir),
       includeSecrets: false,
+      storageType: 'external',
     };
 
-    keysSpinner.succeed(`Keys generated (${envPaths.keys})`);
+    keysSpinner.succeed(`Keys generated (${externalKeysDir})`);
   } catch (error) {
     keysSpinner.fail('Failed to generate keys');
     throw error;

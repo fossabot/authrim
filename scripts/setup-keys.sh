@@ -4,9 +4,10 @@
 # Generates RSA key pair for JWT signing and initial admin setup token
 #
 # Usage:
-#   ./setup-keys.sh [--kid=custom-key-id] [--skip-setup-token] [--setup-url=URL] [--kv-namespace-id=ID]
+#   ./setup-keys.sh [--env=ENV] [--kid=custom-key-id] [--skip-setup-token] [--setup-url=URL] [--kv-namespace-id=ID]
 #
 # Options:
+#   --env=ENV              Environment name (default: "default"). Keys are saved to .authrim-keys/{env}/
 #   --kid=KEY_ID           Custom key ID for RSA key pair
 #   --skip-setup-token     Skip setup token generation
 #   --setup-url=URL        Base URL for setup page (e.g., https://auth.example.com)
@@ -31,12 +32,15 @@ NC='\033[0m'
 
 # Parse arguments
 KID=""
+ENV=""
 SKIP_SETUP_TOKEN=""
 SETUP_URL=""
 KV_NAMESPACE_ID=""
 for arg in "$@"; do
     if [[ $arg == --kid=* ]]; then
         KID="${arg#--kid=}"
+    elif [[ $arg == --env=* ]]; then
+        ENV="${arg#--env=}"
     elif [[ $arg == --skip-setup-token ]]; then
         SKIP_SETUP_TOKEN="true"
     elif [[ $arg == --setup-url=* ]]; then
@@ -45,6 +49,21 @@ for arg in "$@"; do
         KV_NAMESPACE_ID="${arg#--kv-namespace-id=}"
     fi
 done
+
+# Default environment name
+if [ -z "$ENV" ]; then
+    ENV="default"
+fi
+
+# Validate environment name (prevent path traversal)
+if [[ "$ENV" =~ \.\. ]] || [[ "$ENV" =~ / ]] || [[ "$ENV" =~ \\ ]]; then
+    echo -e "${RED}❌ Error: Invalid environment name '${ENV}': path traversal characters not allowed${NC}"
+    exit 1
+fi
+if ! [[ "$ENV" =~ ^[a-z][a-z0-9-]*$ ]]; then
+    echo -e "${RED}❌ Error: Invalid environment name '${ENV}': must be lowercase alphanumeric with hyphens, starting with a letter${NC}"
+    exit 1
+fi
 
 # Generate default KID if not provided
 if [ -z "$KID" ]; then
@@ -57,11 +76,11 @@ echo -e "${BLUE}🔐 Generating RSA key pair...${NC}"
 echo "   Key ID: $KID"
 echo ""
 
-# Check if .keys directory exists
-KEYS_DIR=".keys"
+# Check if .authrim-keys/{env} directory exists
+KEYS_DIR=".authrim-keys/$ENV"
 if [ ! -d "$KEYS_DIR" ]; then
-    mkdir -p "$KEYS_DIR"
-    echo "📁 Created .keys directory"
+    mkdir -p -m 700 "$KEYS_DIR"
+    echo "📁 Created $KEYS_DIR directory"
 fi
 
 # Generate RSA private key (2048-bit)
@@ -72,6 +91,7 @@ if [ ! -f "$PRIVATE_KEY_PATH" ]; then
     echo -e "${RED}❌ Error: Failed to generate private key${NC}"
     exit 1
 fi
+chmod 600 "$PRIVATE_KEY_PATH"
 
 echo -e "${GREEN}✅ Private key generated${NC}"
 echo "📝 Saved to: $PRIVATE_KEY_PATH"
@@ -81,6 +101,7 @@ echo ""
 RP_ENCRYPTION_KEY_PATH="$KEYS_DIR/rp_token_encryption_key.txt"
 RP_TOKEN_ENCRYPTION_KEY=$(head -c 32 /dev/urandom | xxd -p -c 64)
 echo -n "$RP_TOKEN_ENCRYPTION_KEY" > "$RP_ENCRYPTION_KEY_PATH"
+chmod 600 "$RP_ENCRYPTION_KEY_PATH"
 
 echo -e "${GREEN}✅ RP Token Encryption Key generated${NC}"
 echo "📝 Saved to: $RP_ENCRYPTION_KEY_PATH"
@@ -135,6 +156,7 @@ fs.writeFileSync('$PUBLIC_JWK_PATH', JSON.stringify(publicJWK, null, 2), 'utf-8'
 " 2>/dev/null
 
     if [ -f "$PUBLIC_JWK_PATH" ]; then
+        chmod 600 "$PUBLIC_JWK_PATH"
         echo -e "${GREEN}✅ Public key (JWK) generated${NC}"
         echo "📝 Saved to: $PUBLIC_JWK_PATH"
     else
@@ -165,6 +187,7 @@ cat > "$METADATA_PATH" << EOF
 }
 EOF
 
+chmod 600 "$METADATA_PATH"
 echo -e "${GREEN}✅ Metadata saved${NC}"
 echo "📝 Saved to: $METADATA_PATH"
 echo ""
@@ -197,7 +220,7 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo -e "${YELLOW}⚠️  Security Note:${NC}"
-echo "   The .keys directory is gitignored by default."
+echo "   The .authrim-keys directory is gitignored by default."
 echo "   Never commit private keys to version control!"
 echo ""
 echo "📊 Public JWK (for JWKS endpoint):"
@@ -230,6 +253,7 @@ SETUP_TOKEN=$(head -c 32 /dev/urandom | xxd -p -c 64)
 # Save setup token to file
 SETUP_TOKEN_PATH="$KEYS_DIR/setup_token.txt"
 echo -n "$SETUP_TOKEN" > "$SETUP_TOKEN_PATH"
+chmod 600 "$SETUP_TOKEN_PATH"
 
 echo -e "${GREEN}✅ Setup token generated${NC}"
 echo "📝 Saved to: $SETUP_TOKEN_PATH"

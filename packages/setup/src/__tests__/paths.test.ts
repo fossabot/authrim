@@ -4,6 +4,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   getEnvironmentPaths,
+  getExternalKeysDir,
+  getExternalKeysPathForConfig,
+  findKeysDirectory,
   getLegacyPaths,
   detectStructure,
   needsMigration,
@@ -14,6 +17,7 @@ import {
   getRelativeKeysPath,
   getLegacyRelativeKeysPath,
   AUTHRIM_DIR,
+  AUTHRIM_KEYS_DIR,
   LEGACY_CONFIG_FILE,
   LEGACY_LOCK_FILE,
   LEGACY_KEYS_DIR,
@@ -357,6 +361,230 @@ describe('paths module', () => {
     it('should return relative path for legacy structure', () => {
       expect(getLegacyRelativeKeysPath('dev')).toBe('./.keys/dev/');
       expect(getLegacyRelativeKeysPath('prod')).toBe('./.keys/prod/');
+    });
+  });
+
+  describe('getExternalKeysDir', () => {
+    it('should return correct external keys directory path', () => {
+      const result = getExternalKeysDir('prod', '/home/user');
+
+      expect(result).toBe('/home/user/.authrim-keys/prod');
+    });
+
+    it('should handle different environments', () => {
+      expect(getExternalKeysDir('dev', '/cwd')).toBe('/cwd/.authrim-keys/dev');
+      expect(getExternalKeysDir('staging', '/cwd')).toBe('/cwd/.authrim-keys/staging');
+    });
+
+    it('should reject env with path traversal (..)', () => {
+      expect(() => getExternalKeysDir('../etc', '/cwd')).toThrow('path traversal');
+    });
+
+    it('should reject env with forward slash', () => {
+      expect(() => getExternalKeysDir('a/b', '/cwd')).toThrow('path traversal');
+    });
+
+    it('should reject env with backslash', () => {
+      expect(() => getExternalKeysDir('a\\b', '/cwd')).toThrow('path traversal');
+    });
+
+    it('should reject env with null byte', () => {
+      expect(() => getExternalKeysDir('prod\0', '/cwd')).toThrow('path traversal');
+    });
+
+    it('should reject empty env', () => {
+      expect(() => getExternalKeysDir('', '/cwd')).toThrow('non-empty string');
+    });
+
+    it('should reject env starting with digit', () => {
+      expect(() => getExternalKeysDir('123', '/cwd')).toThrow('must be lowercase alphanumeric');
+    });
+
+    it('should reject env with uppercase', () => {
+      expect(() => getExternalKeysDir('Prod', '/cwd')).toThrow('must be lowercase alphanumeric');
+    });
+
+    it('should reject env with spaces', () => {
+      expect(() => getExternalKeysDir('my env', '/cwd')).toThrow('must be lowercase alphanumeric');
+    });
+
+    it('should reject env with underscores', () => {
+      expect(() => getExternalKeysDir('my_env', '/cwd')).toThrow('must be lowercase alphanumeric');
+    });
+  });
+
+  describe('getExternalKeysPathForConfig', () => {
+    it('should return absolute path with trailing slash', () => {
+      const result = getExternalKeysPathForConfig('prod', '/home/user');
+
+      expect(result).toMatch(/\.authrim-keys\/prod\/$/);
+      // Should be absolute
+      expect(result.startsWith('/')).toBe(true);
+    });
+
+    it('should reject env with path traversal', () => {
+      expect(() => getExternalKeysPathForConfig('../etc', '/home/user')).toThrow('path traversal');
+    });
+
+    it('should reject invalid env name', () => {
+      expect(() => getExternalKeysPathForConfig('PROD', '/home/user')).toThrow('must be lowercase alphanumeric');
+    });
+  });
+
+  describe('getEnvironmentPaths with keysBaseDir', () => {
+    it('should use external keys directory when keysBaseDir is provided', () => {
+      const paths = getEnvironmentPaths({ baseDir: '/project', env: 'dev', keysBaseDir: '/cwd' });
+
+      // Keys should be in external location
+      expect(paths.keys).toBe('/cwd/.authrim-keys/dev');
+      expect(paths.keyFiles.privateKey).toBe('/cwd/.authrim-keys/dev/private.pem');
+      expect(paths.keyFiles.setupToken).toBe('/cwd/.authrim-keys/dev/setup_token.txt');
+
+      // Config/lock should still be in internal location
+      expect(paths.config).toBe('/project/.authrim/dev/config.json');
+      expect(paths.lock).toBe('/project/.authrim/dev/lock.json');
+    });
+
+    it('should use internal keys when keysBaseDir is not provided', () => {
+      const paths = getEnvironmentPaths({ baseDir: '/project', env: 'dev' });
+
+      expect(paths.keys).toBe('/project/.authrim/dev/keys');
+    });
+  });
+
+  describe('findKeysDirectory', () => {
+    it('should find keys in external directory first', () => {
+      const externalDir = join(testDir, AUTHRIM_KEYS_DIR, 'prod');
+      mkdirSync(externalDir, { recursive: true });
+
+      // Also create internal keys
+      const internalDir = join(testDir, AUTHRIM_DIR, 'prod', 'keys');
+      mkdirSync(internalDir, { recursive: true });
+
+      const result = findKeysDirectory({ env: 'prod', sourceDir: testDir, keysBaseDir: testDir });
+
+      expect(result).not.toBeNull();
+      expect(result!.location).toBe('external');
+      expect(result!.path).toBe(externalDir);
+    });
+
+    it('should fall back to internal directory', () => {
+      const internalDir = join(testDir, AUTHRIM_DIR, 'prod', 'keys');
+      mkdirSync(internalDir, { recursive: true });
+
+      const result = findKeysDirectory({ env: 'prod', sourceDir: testDir, keysBaseDir: testDir });
+
+      expect(result).not.toBeNull();
+      expect(result!.location).toBe('internal');
+      expect(result!.path).toBe(internalDir);
+    });
+
+    it('should fall back to legacy directory', () => {
+      const legacyDir = join(testDir, LEGACY_KEYS_DIR, 'prod');
+      mkdirSync(legacyDir, { recursive: true });
+
+      const result = findKeysDirectory({ env: 'prod', sourceDir: testDir, keysBaseDir: testDir });
+
+      expect(result).not.toBeNull();
+      expect(result!.location).toBe('legacy');
+      expect(result!.path).toBe(legacyDir);
+    });
+
+    it('should return null when no keys found', () => {
+      const result = findKeysDirectory({ env: 'prod', sourceDir: testDir, keysBaseDir: testDir });
+
+      expect(result).toBeNull();
+    });
+
+    it('should skip external check when keysBaseDir is not provided', () => {
+      const internalDir = join(testDir, AUTHRIM_DIR, 'dev', 'keys');
+      mkdirSync(internalDir, { recursive: true });
+
+      const result = findKeysDirectory({ env: 'dev', sourceDir: testDir });
+
+      expect(result).not.toBeNull();
+      expect(result!.location).toBe('internal');
+    });
+
+    it('should reject env with path traversal (..)', () => {
+      expect(() =>
+        findKeysDirectory({ env: '../etc', sourceDir: testDir, keysBaseDir: testDir })
+      ).toThrow('path traversal');
+    });
+
+    it('should reject env with slash', () => {
+      expect(() =>
+        findKeysDirectory({ env: 'a/b', sourceDir: testDir, keysBaseDir: testDir })
+      ).toThrow('path traversal');
+    });
+
+    it('should reject env with null byte', () => {
+      expect(() =>
+        findKeysDirectory({ env: 'prod\0', sourceDir: testDir })
+      ).toThrow('path traversal');
+    });
+
+    it('should reject invalid env format', () => {
+      expect(() =>
+        findKeysDirectory({ env: 'PROD', sourceDir: testDir })
+      ).toThrow('must be lowercase alphanumeric');
+    });
+  });
+
+  describe('listEnvironments with keysBaseDir', () => {
+    it('should include environments from external keys directory', () => {
+      const externalDir = join(testDir, AUTHRIM_KEYS_DIR, 'external-env');
+      mkdirSync(externalDir, { recursive: true });
+
+      const envs = listEnvironments(testDir, testDir);
+
+      expect(envs).toContain('external-env');
+    });
+
+    it('should combine environments from external, internal, and legacy', () => {
+      // External
+      mkdirSync(join(testDir, AUTHRIM_KEYS_DIR, 'ext-env'), { recursive: true });
+
+      // Internal
+      const internalDir = join(testDir, AUTHRIM_DIR, 'int-env');
+      mkdirSync(internalDir, { recursive: true });
+      writeFileSync(join(internalDir, 'config.json'), '{}');
+
+      // Legacy
+      mkdirSync(join(testDir, LEGACY_KEYS_DIR, 'leg-env'), { recursive: true });
+
+      const envs = listEnvironments(testDir, testDir);
+
+      expect(envs).toHaveLength(3);
+      expect(envs).toContain('ext-env');
+      expect(envs).toContain('int-env');
+      expect(envs).toContain('leg-env');
+    });
+
+    it('should deduplicate environments that exist in multiple locations', () => {
+      // Same env in both external and internal
+      mkdirSync(join(testDir, AUTHRIM_KEYS_DIR, 'shared-env'), { recursive: true });
+      const internalDir = join(testDir, AUTHRIM_DIR, 'shared-env');
+      mkdirSync(internalDir, { recursive: true });
+      writeFileSync(join(internalDir, 'config.json'), '{}');
+
+      const envs = listEnvironments(testDir, testDir);
+
+      expect(envs).toHaveLength(1);
+      expect(envs).toContain('shared-env');
+    });
+  });
+
+  describe('environmentExists with keysBaseDir', () => {
+    it('should return true for environment with external keys', () => {
+      const externalDir = join(testDir, AUTHRIM_KEYS_DIR, 'ext-env');
+      mkdirSync(externalDir, { recursive: true });
+
+      expect(environmentExists(testDir, 'ext-env', testDir)).toBe(true);
+    });
+
+    it('should return false when environment does not exist externally or internally', () => {
+      expect(environmentExists(testDir, 'nonexistent', testDir)).toBe(false);
     });
   });
 });

@@ -3962,8 +3962,8 @@ export function getHtmlTemplate(
         output.textContent += '\\n';
         scrollToBottom(log);
 
-        // Show keys saved location (new structure: .authrim/{env}/keys/)
-        keysPath.textContent = workingDirectory ? workingDirectory + '/.authrim/' + config.env + '/keys/' : './.authrim/' + config.env + '/keys/';
+        // Show keys saved location (external: .authrim-keys/{env}/)
+        keysPath.textContent = workingDirectory ? workingDirectory + '/.authrim-keys/' + config.env + '/' : './.authrim-keys/' + config.env + '/';
 
         // Provision resources
         output.textContent += '☁️ Provisioning Cloudflare resources...\\n';
@@ -4148,7 +4148,7 @@ export function getHtmlTemplate(
 
           output.textContent += '  API URL: ' + apiUrl + '\\n';
           output.textContent += '  Login UI URL: ' + loginUiUrl + '\\n';
-          output.textContent += '  Keys Dir: .authrim/' + config.env + '/keys/\\n';
+          output.textContent += '  Keys Dir: .authrim-keys/' + config.env + '/\\n';
           scrollToBottom(log);
 
           let adminSetupResult;
@@ -4310,8 +4310,8 @@ export function getHtmlTemplate(
 
     // Resource naming functions
     function getResourceNames(env) {
-      // Keys are stored in environment-specific subdirectory: .authrim/{env}/keys/
-      const keysDir = workingDirectory ? workingDirectory + '/.authrim/' + env + '/keys' : '.authrim/' + env + '/keys';
+      // Keys are stored in external directory: .authrim-keys/{env}/
+      const keysDir = workingDirectory ? workingDirectory + '/.authrim-keys/' + env : '.authrim-keys/' + env;
       return {
         d1: [
           env + '-authrim-core-db',
@@ -4491,7 +4491,8 @@ export function getHtmlTemplate(
           policy: true,
         },
         keys: {
-          secretsPath: './keys/',  // Relative path within .authrim/{env}/ structure
+          secretsPath: (workingDirectory || '.') + '/.authrim-keys/' + config.env + '/',
+          storageType: 'external',
         },
         database: config.database || {
           core: { location: 'auto', jurisdiction: 'none' },

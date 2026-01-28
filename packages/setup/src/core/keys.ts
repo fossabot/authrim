@@ -4,16 +4,19 @@
  * Generates RSA key pairs for JWT signing and other cryptographic secrets.
  * Based on the existing setup-keys.sh script functionality.
  *
- * Supports both legacy (.keys/{env}/) and new (.authrim/{env}/keys/) structures.
+ * Supports external (.authrim-keys/{env}/), internal (.authrim/{env}/keys/),
+ * and legacy (.keys/{env}/) key storage structures.
  */
 
 import { randomBytes, generateKeyPairSync, createPublicKey, createPrivateKey } from 'node:crypto';
-import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { writeFile, mkdir, readFile, chmod } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   getEnvironmentPaths,
+  getExternalKeysDir,
   getLegacyPaths,
+  findKeysDirectory,
   resolvePaths,
   type EnvironmentPaths,
   type LegacyPaths,
@@ -222,12 +225,19 @@ function validateKeysDirectory(keysDir: string): void {
 export interface KeysDirectoryOptions {
   /** Use legacy .keys/{env}/ structure instead of .authrim/{env}/keys/ */
   legacy?: boolean;
+  /** Base directory for external keys (keys stored at {keysBaseDir}/.authrim-keys/{env}/) */
+  keysBaseDir?: string;
 }
 
 /**
  * Get environment-specific keys directory path
  *
- * @param baseDir - Base directory (usually cwd)
+ * Search order when keysBaseDir is provided:
+ * 1. External: {keysBaseDir}/.authrim-keys/{env}/
+ * 2. Internal: {baseDir}/.authrim/{env}/keys/
+ * 3. Legacy: {baseDir}/.keys/{env}/
+ *
+ * @param baseDir - Base directory (usually source dir)
  * @param env - Environment name
  * @param options - Options for path resolution
  * @returns Path to the keys directory
@@ -239,6 +249,16 @@ export function getKeysDirectory(
 ): string {
   if (options?.legacy) {
     return getLegacyPaths(baseDir, env).keys;
+  }
+
+  // If keysBaseDir is provided, use findKeysDirectory for 3-tier fallback
+  if (options?.keysBaseDir) {
+    const found = findKeysDirectory({ env, sourceDir: baseDir, keysBaseDir: options.keysBaseDir });
+    if (found) {
+      return found.path;
+    }
+    // Default to external for new environments
+    return getExternalKeysDir(env, options.keysBaseDir);
   }
 
   // Check if existing structure should be used
@@ -267,9 +287,21 @@ export function getLegacyKeysDirectory(baseDir: string, env: string): string {
 
 /**
  * Check if keys already exist for an environment
- * Checks both new and legacy structures
+ * Checks external, internal (new), and legacy structures
+ *
+ * @param baseDir - Source directory
+ * @param env - Environment name
+ * @param keysBaseDir - Optional base directory for external keys
  */
-export function keysExistForEnvironment(baseDir: string, env: string): boolean {
+export function keysExistForEnvironment(baseDir: string, env: string, keysBaseDir?: string): boolean {
+  // Check external structure
+  if (keysBaseDir) {
+    const externalDir = getExternalKeysDir(env, keysBaseDir);
+    if (existsSync(join(externalDir, 'metadata.json'))) {
+      return true;
+    }
+  }
+
   // Check new structure
   const newPaths = getEnvironmentPaths({ baseDir, env });
   const newMetadataPath = join(newPaths.keys, 'metadata.json');
@@ -292,6 +324,8 @@ export interface SaveKeysOptions {
   legacy?: boolean;
   /** Direct path to keys directory (overrides baseDir/env/legacy) */
   targetDir?: string;
+  /** Base directory for external keys (saves to {keysBaseDir}/.authrim-keys/{env}/) */
+  keysBaseDir?: string;
 }
 
 /**
@@ -316,12 +350,15 @@ export async function saveKeysToDirectory(
     // Legacy call: saveKeysToDirectory(secrets, '.keys', 'dev')
     targetDir = legacyEnv ? join(options, legacyEnv) : options;
   } else {
-    const { baseDir = process.cwd(), env, legacy, targetDir: explicitDir } = options;
+    const { baseDir = process.cwd(), env, legacy, targetDir: explicitDir, keysBaseDir } = options;
 
     if (explicitDir) {
       targetDir = explicitDir;
     } else if (env) {
-      if (legacy) {
+      if (keysBaseDir) {
+        // External keys: {keysBaseDir}/.authrim-keys/{env}/
+        targetDir = getExternalKeysDir(env, keysBaseDir);
+      } else if (legacy) {
         targetDir = getLegacyPaths(baseDir, env).keys;
       } else {
         targetDir = getEnvironmentPaths({ baseDir, env }).keys;
@@ -334,9 +371,9 @@ export async function saveKeysToDirectory(
   // Security: Validate directory path to prevent path traversal
   validateKeysDirectory(targetDir);
 
-  // Ensure directory exists
+  // Ensure directory exists with restrictive permissions (owner-only access)
   if (!existsSync(targetDir)) {
-    await mkdir(targetDir, { recursive: true });
+    await mkdir(targetDir, { recursive: true, mode: 0o700 });
   }
 
   const paths = {
@@ -349,19 +386,28 @@ export async function saveKeysToDirectory(
     metadata: join(targetDir, 'metadata.json'),
   };
 
+  // Sensitive file permission: owner read/write only
+  const SENSITIVE_FILE_MODE = 0o600;
+
   // Write private key
   await writeFile(paths.privateKey, secrets.keyPair.privateKeyPem, 'utf-8');
+  await chmod(paths.privateKey, SENSITIVE_FILE_MODE);
 
   // Write public key (JWK)
   await writeFile(paths.publicKey, JSON.stringify(secrets.keyPair.publicKeyJwk, null, 2), 'utf-8');
+  await chmod(paths.publicKey, SENSITIVE_FILE_MODE);
 
   // Write other secrets
   await writeFile(paths.rpTokenEncryptionKey, secrets.rpTokenEncryptionKey, 'utf-8');
+  await chmod(paths.rpTokenEncryptionKey, SENSITIVE_FILE_MODE);
   await writeFile(paths.adminApiSecret, secrets.adminApiSecret, 'utf-8');
+  await chmod(paths.adminApiSecret, SENSITIVE_FILE_MODE);
   await writeFile(paths.keyManagerSecret, secrets.keyManagerSecret, 'utf-8');
+  await chmod(paths.keyManagerSecret, SENSITIVE_FILE_MODE);
 
   if (secrets.setupToken) {
     await writeFile(paths.setupToken, secrets.setupToken, 'utf-8');
+    await chmod(paths.setupToken, SENSITIVE_FILE_MODE);
   }
 
   // Write metadata
@@ -378,6 +424,7 @@ export async function saveKeysToDirectory(
   };
 
   await writeFile(paths.metadata, JSON.stringify(metadata, null, 2), 'utf-8');
+  await chmod(paths.metadata, SENSITIVE_FILE_MODE);
 }
 
 export interface LoadKeysOptions {
@@ -387,6 +434,8 @@ export interface LoadKeysOptions {
   env?: string;
   /** Direct path to keys directory (overrides baseDir/env) */
   targetDir?: string;
+  /** Base directory for external keys (searches {keysBaseDir}/.authrim-keys/{env}/ first) */
+  keysBaseDir?: string;
 }
 
 /**
@@ -410,17 +459,28 @@ export async function loadKeysFromDirectory(
   if (typeof options === 'string') {
     targetDir = legacyEnv ? join(options, legacyEnv) : options;
   } else {
-    const { baseDir = process.cwd(), env, targetDir: explicitDir } = options;
+    const { baseDir = process.cwd(), env, targetDir: explicitDir, keysBaseDir } = options;
 
     if (explicitDir) {
       targetDir = explicitDir;
     } else if (env) {
-      // Auto-detect which structure to use
-      const resolved = resolvePaths({ baseDir, env });
-      if (resolved.type === 'legacy') {
-        targetDir = (resolved.paths as LegacyPaths).keys;
+      // Use findKeysDirectory for 3-tier search when keysBaseDir is provided
+      if (keysBaseDir) {
+        const found = findKeysDirectory({ env, sourceDir: baseDir, keysBaseDir });
+        if (found) {
+          targetDir = found.path;
+        } else {
+          // No keys found anywhere
+          return {};
+        }
       } else {
-        targetDir = (resolved.paths as EnvironmentPaths).keys;
+        // Auto-detect which structure to use
+        const resolved = resolvePaths({ baseDir, env });
+        if (resolved.type === 'legacy') {
+          targetDir = (resolved.paths as LegacyPaths).keys;
+        } else {
+          targetDir = (resolved.paths as EnvironmentPaths).keys;
+        }
       }
     } else {
       throw new Error('Either env or targetDir must be provided');

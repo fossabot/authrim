@@ -19,6 +19,7 @@ import {
   resolvePaths,
   listEnvironments,
   findAuthrimBaseDir,
+  findKeysDirectory,
   AUTHRIM_DIR,
   type EnvironmentPaths,
   type LegacyPaths,
@@ -40,6 +41,7 @@ import {
 import { type WorkerComponent, CORE_WORKER_COMPONENTS } from '../../core/naming.js';
 import { generateWranglerConfig, toToml, type ResourceIds } from '../../core/wrangler.js';
 import { completeInitialSetup, displaySetupInstructions } from '../../core/admin.js';
+import { ensureLoginUiClient } from '../../core/login-ui-client.js';
 import type { SyncAction } from '../../core/wrangler-sync.js';
 
 // =============================================================================
@@ -553,9 +555,12 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
 
   // Upload secrets first (if not skipped)
   if (!options.skipSecrets && !options.component) {
-    // Determine keys directory based on structure
+    // Determine keys directory using 3-tier fallback search
     let keysDir: string;
-    if (structureType === 'new') {
+    const foundKeys = findKeysDirectory({ env, sourceDir: baseDir, keysBaseDir: process.cwd() });
+    if (foundKeys) {
+      keysDir = foundKeys.path;
+    } else if (structureType === 'new') {
       const envPaths = getEnvironmentPaths({ baseDir, env });
       keysDir = envPaths.keys;
     } else {
@@ -653,6 +658,35 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
       const adminUiHasCustomDomain = !!config.urls?.adminUi?.custom;
       const useDirectMode = apiHasCustomDomain && adminUiHasCustomDomain;
 
+      // Auto-create Login UI OAuth client (idempotent)
+      let loginUiClientId: string | undefined;
+      if (config.components.loginUi && !options.dryRun) {
+        const loginUiUrl =
+          config.urls?.loginUi?.custom ||
+          config.urls?.loginUi?.auto ||
+          `https://${env}-ar-login-ui.pages.dev`;
+
+        const clientResult = await ensureLoginUiClient({
+          apiBaseUrl,
+          loginUiUrl,
+          adminApiSecretPath: envPaths.keyFiles.adminApiSecret,
+          onProgress: (msg) => console.log(chalk.gray(`  ${msg}`)),
+        });
+
+        if (clientResult.success && clientResult.clientId) {
+          loginUiClientId = clientResult.clientId;
+          if (clientResult.alreadyExists) {
+            console.log(chalk.gray(`  ✓ Login UI client exists: ${loginUiClientId}`));
+          } else {
+            console.log(chalk.green(`  ✓ Login UI client created: ${loginUiClientId}`));
+          }
+        } else {
+          console.log(
+            chalk.yellow(`  ⚠️  Login UI client creation skipped: ${clientResult.error}`)
+          );
+        }
+      }
+
       // Safari ITP Proxy Mode (default for workers.dev/pages.dev):
       //   - PUBLIC_API_BASE_URL is empty (frontend sends to same-origin /api/*)
       //   - API_BACKEND_URL is set (server-side proxy forwards to backend)
@@ -665,6 +699,8 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
           await saveUiEnv(uiEnvPath, {
             PUBLIC_API_BASE_URL: apiBaseUrl, // Frontend sends directly to backend
             API_BACKEND_URL: '', // Proxy disabled
+            PUBLIC_AUTHRIM_ISSUER: apiBaseUrl,
+            PUBLIC_LOGIN_UI_CLIENT_ID: loginUiClientId,
           });
           console.log(chalk.gray(`  ui.env synced (direct mode: ${apiBaseUrl})`));
           console.log(chalk.gray(`  Custom domains detected - Safari ITP proxy disabled`));
@@ -672,6 +708,8 @@ export async function deployCommand(options: DeployCommandOptions): Promise<void
           await saveUiEnv(uiEnvPath, {
             PUBLIC_API_BASE_URL: '', // Empty for proxy mode (same-origin)
             API_BACKEND_URL: apiBaseUrl, // Server-side proxy target
+            PUBLIC_AUTHRIM_ISSUER: apiBaseUrl,
+            PUBLIC_LOGIN_UI_CLIENT_ID: loginUiClientId,
           });
           console.log(chalk.gray(`  ui.env synced (proxy mode: ${apiBaseUrl})`));
         }
