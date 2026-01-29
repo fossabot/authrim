@@ -1,0 +1,64 @@
+name: Publish @authrim/setup to npm
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/setup/**'
+      - '.github/workflows/publish-setup.yml'
+
+permissions:
+  id-token: write   # Required for OIDC trusted publishing
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Update npm for OIDC support
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --filter @authrim/setup build
+
+      - name: Run tests
+        run: pnpm --filter @authrim/setup test
+
+      - name: Check if version changed
+        id: version-check
+        working-directory: packages/setup
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          NPM_VERSION=$(npm view @authrim/setup version 2>/dev/null || echo "0.0.0")
+          echo "package_version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "npm_version=$NPM_VERSION" >> $GITHUB_OUTPUT
+          if [ "$PACKAGE_VERSION" != "$NPM_VERSION" ]; then
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "📦 Version changed: $NPM_VERSION → $PACKAGE_VERSION"
+          else
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+            echo "✅ Version unchanged: $PACKAGE_VERSION"
+          fi
+
+      - name: Publish to npm
+        if: steps.version-check.outputs.should_publish == 'true'
+        working-directory: packages/setup
+        run: npm publish --access public --provenance
