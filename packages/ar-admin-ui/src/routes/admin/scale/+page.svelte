@@ -87,7 +87,7 @@
 	let showDiffDialog = $state(false);
 
 	// Current configuration from API
-	let currentConfig = $state<ShardConfigState>({
+	let _currentConfig = $state<ShardConfigState>({
 		codeShards: null,
 		refreshTokenShards: null,
 		revocationShards: null,
@@ -131,13 +131,13 @@
 	}
 
 	// Total LPS (all shards use same scale now)
-	let estimatedTotalLPS = $derived(estimateLPS(scaleState.unifiedScale));
+	let _estimatedTotalLPS = $derived(estimateLPS(scaleState.unifiedScale));
 
 	// Initial LPS (for "Current" display - doesn't change with slider)
 	let initialLPS = $derived(estimateLPS(initialScaleState.unifiedScale));
 
 	// Active region count
-	let activeRegionCount = $derived(selectedRegions.length);
+	let _activeRegionCount = $derived(selectedRegions.length);
 
 	// Minimum shard count = 4 (practical minimum for any meaningful load)
 	const minShardCount = 4;
@@ -216,7 +216,7 @@
 					adminInfrastructureAPI.getRefreshTokenSharding().catch(() => null)
 				]);
 
-			currentConfig = {
+			_currentConfig = {
 				codeShards: code,
 				revocationShards: revocation,
 				sessionShards: session,

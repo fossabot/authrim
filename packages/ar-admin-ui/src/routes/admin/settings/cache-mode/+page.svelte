@@ -165,7 +165,7 @@
 						<div class="mode-use-cases">
 							<strong>Use cases:</strong>
 							<ul>
-								{#each modeInfo.modes.maintenance.use_cases as useCase}
+								{#each modeInfo.modes.maintenance.use_cases as useCase (useCase)}
 									<li>{useCase}</li>
 								{/each}
 							</ul>
@@ -198,7 +198,7 @@
 						<div class="mode-use-cases">
 							<strong>Use cases:</strong>
 							<ul>
-								{#each modeInfo.modes.fixed.use_cases as useCase}
+								{#each modeInfo.modes.fixed.use_cases as useCase (useCase)}
 									<li>{useCase}</li>
 								{/each}
 							</ul>

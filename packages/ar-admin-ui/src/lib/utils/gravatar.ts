@@ -11,7 +11,7 @@
  * Generate MD5 hash using Web Crypto API (browser-compatible)
  * Gravatar requires MD5 hash of lowercase, trimmed email
  */
-async function md5Hash(text: string): Promise<string> {
+async function _md5Hash(text: string): Promise<string> {
 	// Use SubtleCrypto for SHA-256, but Gravatar needs MD5
 	// Since Web Crypto doesn't support MD5, we use a simple implementation
 	return md5(text);
