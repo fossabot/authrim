@@ -5,7 +5,7 @@
 An open-source, serverless **Identity Hub** that combines authentication, authorization, and identity federation on **Cloudflare's global edge network**.
 
 [![Open Source](https://img.shields.io/badge/Open%20Source-Apache%202.0-green.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange?logo=cloudflare)](https://workers.cloudflare.com/)
 
 <table>
@@ -155,7 +155,7 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | 8     | **Unified Policy Integration** | 2025-12  | ✅ Complete |
 | 9     | **Advanced Identity (VC/DID)** | 2025-12  | ✅ Complete |
 | 10    | SDK & API                      | 2025-Q4  | 🔜 Planned  |
-| 11    | Security & QA                  | 2025-Q4  | ⏳ ~30%     |
+| 11    | Security & QA                  | 2025-Q4  | ⏳ ~50%     |
 | 12    | Certification & Release        | 2026-Q1  | 🔜 Final    |
 
 [View detailed roadmap](./docs/ROADMAP.md)
@@ -166,17 +166,18 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 
 ### Backend (API)
 
-| Layer         | Technology                | Version | Purpose                            |
-| ------------- | ------------------------- | ------- | ---------------------------------- |
-| **Runtime**   | Cloudflare Workers        | -       | Global edge deployment             |
-| **Framework** | Hono                      | 4.x     | Fast, lightweight web framework    |
-| **Build**     | Turborepo + pnpm          | 9.x     | Monorepo, parallel builds, caching |
-| **Storage**   | KV / D1 / Durable Objects | -       | Flexible data persistence          |
-| **Crypto**    | JOSE                      | 6.x     | JWT/JWS/JWE/JWK (RS256, ES256)     |
-| **WebAuthn**  | SimpleWebAuthn            | 13.x    | Passkey authentication             |
-| **SAML**      | xmldom + pako             | -       | SAML 2.0 XML processing            |
-| **Email**     | Resend                    | 6.x     | Magic Link, OTP delivery           |
-| **Testing**   | Vitest                    | 2.x     | Unit & integration tests           |
+| Layer         | Technology                | Version  | Purpose                            |
+| ------------- | ------------------------- | -------- | ---------------------------------- |
+| **Runtime**   | Cloudflare Workers        | -        | Global edge deployment             |
+| **Framework** | Hono                      | 4.11.x   | Fast, lightweight web framework    |
+| **Language**  | TypeScript                | 5.9.x    | Type-safe development              |
+| **Build**     | Turbo + pnpm              | 2.x      | Monorepo, parallel builds, caching |
+| **Storage**   | KV / D1 / Durable Objects | -        | Flexible data persistence          |
+| **Crypto**    | JOSE                      | 6.x      | JWT/JWS/JWE/JWK (RS256, ES256)     |
+| **WebAuthn**  | SimpleWebAuthn            | 13.x     | Passkey authentication             |
+| **SAML**      | xmldom + pako             | -        | SAML 2.0 XML processing            |
+| **Email**     | Resend                    | 6.x      | Magic Link, OTP delivery           |
+| **Testing**   | Vitest                    | 4.x      | Unit & integration tests           |
 
 ### Frontend (UI)
 
@@ -375,7 +376,7 @@ See [LICENSE](./LICENSE) for details.
 
 > **Authrim** — _Identity & Access at the edge of everywhere_
 >
-> **Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 10 🚧 | Phase 11 ~30%
+> **Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 10 🔜 | Phase 11 ~50%
 >
 > _From zero to production-ready Identity & Access Platform in under 5 minutes._
 >

@@ -446,9 +446,10 @@ Error code implementation completed (2024-12-23). The following documentation mu
 | --------------------- | ---------------------------------- | ----------- |
 | Client Credentials    | RFC 6749 §4.4 server-to-server     | ✅ Complete |
 | Load Testing          | Performance benchmarks             | ✅ Complete |
+| Conformance Tests (OP)| All OP profiles (7) + Logout (4)   | ✅ Complete |
+| Conformance Tests (RP)| RP profiles certification          | 🔜 Planned  |
 | Security Audit        | External security review           | 🔜 Planned  |
 | Penetration Testing   | Third-party security assessment    | 🔜 Planned  |
-| Conformance Tests     | Hybrid OP, Dynamic OP, RP profiles | 🔜 Planned  |
 
 ### API Deprecation Plan
 
@@ -539,7 +540,9 @@ With the introduction of **Contract-based Presets** (FAPI 2.0, regulated-finance
 | VC/DID tests             | 100+        | ✅ 227 tests                                      | P9 ✅ |
 | SDK downloads            | 1000+       | -                                                 | P10   |
 | Load test RPS            | 10,000+     | ✅ 3,500 (Silent Auth)                            | P11   |
-| Security hardening       | 100%        | ⏳ ~30%                                           | P11   |
+| OP Conformance           | All profiles| ✅ 7 OP + 4 Logout profiles                       | P11 ✅|
+| RP Conformance           | Basic/Config| 🔜 Planned                                        | P11   |
+| Security hardening       | 100%        | ⏳ ~50%                                           | P11   |
 | OpenID Certification     | ✅ Obtained | -                                                 | P12   |
 
 ---
@@ -610,8 +613,8 @@ The following features are intentionally **not supported** due to architectural 
 
 ---
 
-> **Last Update:** 2026-01-01
+> **Last Update:** 2026-01-30
 >
-> **Current Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 11 ~30%
+> **Current Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 11 ~50%
 >
 > **Authrim** - The Identity & Access Platform for the modern web.
