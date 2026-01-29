@@ -205,8 +205,17 @@ function validateKeysDirectory(keysDir: string): void {
   if (/[;&|`$(){}[\]<>!#*?]/.test(keysDir)) {
     throw new Error('Invalid keys directory: shell metacharacters not allowed');
   }
-  // Reject absolute paths to system directories (Unix)
+
   const absolutePath = resolve(keysDir);
+  const cwd = process.cwd();
+
+  // Allow paths within the current working directory (project paths are safe)
+  // This allows CI environments like GitHub Actions (/home/runner/work/...)
+  if (absolutePath.startsWith(cwd + '/') || absolutePath === cwd) {
+    return;
+  }
+
+  // Reject absolute paths to system directories (Unix)
   const dangerousPaths = ['/etc', '/usr', '/bin', '/sbin', '/var', '/tmp', '/root', '/home'];
   for (const dangerous of dangerousPaths) {
     if (absolutePath.startsWith(dangerous + '/') || absolutePath === dangerous) {
