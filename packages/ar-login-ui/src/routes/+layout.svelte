@@ -2,8 +2,10 @@
 	import 'virtual:uno.css';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
-	import { setLocale } from '$i18n/i18n-svelte';
+	import { setLocale, getLocale } from '$i18n/i18n-svelte';
 	import { themeStore } from '$lib/stores/theme.svelte';
+	import { brandingStore } from '$lib/stores/branding.svelte';
+	import { fetchLoginMethods } from '$lib/api/login-methods';
 	import { onMount } from 'svelte';
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
@@ -11,15 +13,39 @@
 	let { children, data } = $props<{ children: Snippet; data: LayoutData }>();
 
 	// Set language from server-provided data (from cookie)
-	if (
-		data.preferredLanguage &&
-		(data.preferredLanguage === 'en' || data.preferredLanguage === 'ja')
-	) {
-		setLocale(data.preferredLanguage);
-	}
+	$effect.pre(() => {
+		if (
+			data.preferredLanguage &&
+			(data.preferredLanguage === 'en' || data.preferredLanguage === 'ja')
+		) {
+			setLocale(data.preferredLanguage);
+		}
 
-	// Initialize theme on mount (detects system preference)
-	onMount(() => {
+		// Sync html lang attribute with current locale
+		if (typeof document !== 'undefined') {
+			document.documentElement.lang = getLocale();
+		}
+	});
+
+	// Initialize theme on mount
+	// Resolution order: localStorage → tenant (API) → system → default
+	onMount(async () => {
+		// Fetch tenant theme defaults (non-blocking for theme init)
+		try {
+			const { data: loginMethods } = await fetchLoginMethods();
+			if (loginMethods?.ui) {
+				themeStore.setTenantDefaults(loginMethods.ui.theme, loginMethods.ui.variant);
+				brandingStore.set(
+					loginMethods.ui.branding.brandName || '',
+					loginMethods.ui.branding.logoUrl || null
+				);
+				document.documentElement.setAttribute('data-branding-loaded', '');
+			}
+		} catch {
+			// Theme defaults are optional, proceed with system/default
+			document.documentElement.setAttribute('data-branding-loaded', '');
+		}
+
 		themeStore.init();
 	});
 </script>

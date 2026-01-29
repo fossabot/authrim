@@ -22,6 +22,8 @@ vi.mock('@authrim/ar-lib-core', async () => {
   return {
     ...actual,
     getClient: mockGetClient,
+    // getClientCached wraps getClient, mock it to call through
+    getClientCached: vi.fn().mockImplementation((_c, env, clientId) => mockGetClient(env, clientId)),
     sendPingNotification: mockSendPingNotification,
   };
 });

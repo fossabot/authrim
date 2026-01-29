@@ -57,6 +57,7 @@
 		"vitest": "^4.0.13"
 	},
 	"dependencies": {
+		"@authrim/sveltekit": "^0.1.0",
 		"@simplewebauthn/browser": "^13.2.2",
 		"qrcode": "^1.5.4"
 	}

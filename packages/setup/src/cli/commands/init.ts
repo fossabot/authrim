@@ -27,6 +27,7 @@ import {
   generateKeyId,
   keysExistForEnvironment,
 } from '../../core/keys.js';
+import { isRunningFromSource, getCommandPrefix } from '../../core/source-context.js';
 import {
   isWranglerInstalled,
   checkAuth,
@@ -38,7 +39,12 @@ import {
 } from '../../core/cloudflare.js';
 import { createLockFile, saveLockFile, loadLockFile } from '../../core/lock.js';
 import { getEnvironmentPaths, getExternalKeysDir, getExternalKeysPathForConfig, AUTHRIM_DIR } from '../../core/paths.js';
-import { downloadSource, verifySourceStructure, checkForUpdate } from '../../core/source.js';
+import {
+  downloadSource,
+  verifySourceStructure,
+  checkForUpdate,
+  getLocalVersion,
+} from '../../core/source.js';
 import { saveUiEnv } from '../../core/ui-env.js';
 
 // =============================================================================
@@ -235,6 +241,13 @@ function isAuthrimSourceDir(dir: string = '.'): boolean {
  */
 async function ensureAuthrimSource(options: InitOptions): Promise<string> {
   const currentDir = resolve('.');
+
+  // If running from source repository (pnpm setup), skip update check entirely
+  if (isRunningFromSource(currentDir)) {
+    const localVersion = await getLocalVersion(currentDir);
+    console.log(chalk.green(`✓ Using Authrim source (v${localVersion || 'unknown'}) [from source]`));
+    return currentDir;
+  }
 
   // Check if we're already in an Authrim source directory
   if (isAuthrimSourceDir(currentDir)) {
@@ -652,7 +665,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.gray(t('startup.cancelled')));
     console.log('');
     console.log(chalk.gray(t('startup.resumeLater')));
-    console.log(chalk.cyan('  npx @authrim/setup'));
+    console.log(chalk.cyan(`  ${getCommandPrefix()}`));
     console.log('');
     return;
   }
@@ -1023,7 +1036,7 @@ async function runLoadConfig(): Promise<boolean> {
     console.log(chalk.yellow('No configuration found in current directory.'));
     console.log('');
     console.log(chalk.gray('💡 Tip: You can specify a config file with:'));
-    console.log(chalk.cyan('   npx @authrim/setup --config /path/to/.authrim/{env}/config.json'));
+    console.log(chalk.cyan(`   ${getCommandPrefix()} --config /path/to/.authrim/{env}/config.json`));
     console.log('');
 
     const action = await select({
@@ -1088,7 +1101,7 @@ async function runQuickSetup(options: InitOptions): Promise<void> {
       console.log(`    ${t('env.d1Databases', { count: String(existingEnv.d1.length) })}`);
       console.log(`    ${t('env.kvNamespaces', { count: String(existingEnv.kv.length) })}`);
       console.log('');
-      console.log(chalk.yellow('  ' + t('env.chooseAnother')));
+      console.log(chalk.yellow('  ' + t('env.chooseAnother', { command: getCommandPrefix() })));
       return;
     }
     checkSpinner.succeed(t('env.available'));
@@ -1406,7 +1419,7 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
       console.log(`    ${t('env.d1Databases', { count: String(existingEnv.d1.length) })}`);
       console.log(`    ${t('env.kvNamespaces', { count: String(existingEnv.kv.length) })}`);
       console.log('');
-      console.log(chalk.yellow('  ' + t('env.chooseAnother')));
+      console.log(chalk.yellow('  ' + t('env.chooseAnother', { command: getCommandPrefix() })));
       return;
     }
     checkSpinner.succeed(t('env.available'));
@@ -2380,7 +2393,7 @@ async function executeSetup(
   console.log(chalk.bold('📋 Next Steps:'));
   console.log('');
   console.log('  1. Upload secrets to Cloudflare:');
-  console.log(chalk.cyan(`     npx @authrim/setup secrets --env=${env}`));
+  console.log(chalk.cyan(`     ${getCommandPrefix()} secrets --env=${env}`));
   console.log('');
   console.log('  2. Deploy Workers:');
   console.log(chalk.cyan(`     pnpm deploy --env=${env}`));

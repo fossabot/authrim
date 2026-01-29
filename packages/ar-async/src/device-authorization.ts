@@ -11,7 +11,7 @@ import {
   generateUserCode,
   getVerificationUriComplete,
   DEVICE_FLOW_CONSTANTS,
-  getClient,
+  getClientCached,
   createErrorResponse,
   AR_ERROR_CODES,
   // UI Configuration
@@ -46,7 +46,7 @@ export async function deviceAuthorizationHandler(c: Context<{ Bindings: Env }>) 
     // Validate client exists and is authorized for device flow
     // Per RFC 8628 Section 3.1: Client authentication is OPTIONAL for public clients,
     // but we MUST verify the client is registered
-    const clientMetadata = await getClient(c.env, client_id);
+    const clientMetadata = await getClientCached(c, c.env, client_id);
     if (!clientMetadata) {
       return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
     }

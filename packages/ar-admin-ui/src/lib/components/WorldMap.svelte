@@ -45,9 +45,8 @@
 		onRegionClick?: (region: string) => void;
 	} = $props();
 
-	// Note: _regionDistribution is currently unused (all arcs have uniform weight)
+	// Note: _regionDistribution prop is currently unused (all arcs have uniform weight)
 	// but kept for potential future use with weighted arc visualization
-	void _regionDistribution;
 
 	// =========================================================================
 	// Constants

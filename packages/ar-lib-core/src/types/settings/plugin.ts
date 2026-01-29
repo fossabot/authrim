@@ -19,6 +19,10 @@ export interface PluginSettings {
 
   // Plugin Management
   'plugin.auto_update_check': boolean;
+
+  // Individual Plugin Enable/Disable
+  'plugin.notifier_resend_enabled': boolean;
+  'plugin.notifier_console_enabled': boolean;
 }
 
 /**
@@ -69,6 +73,26 @@ export const PLUGIN_SETTINGS_META: Record<keyof PluginSettings, SettingMeta> = {
     visibility: 'admin',
     dependsOn: [{ key: 'plugin.enabled', value: true }],
   },
+  'plugin.notifier_resend_enabled': {
+    key: 'plugin.notifier_resend_enabled',
+    type: 'boolean',
+    default: true,
+    envKey: 'PLUGIN_NOTIFIER_RESEND_ENABLED',
+    label: 'Resend Email Plugin',
+    description: 'Enable the Resend Email notifier plugin for sending OTP codes and transactional emails',
+    visibility: 'admin',
+    dependsOn: [{ key: 'plugin.enabled', value: true }],
+  },
+  'plugin.notifier_console_enabled': {
+    key: 'plugin.notifier_console_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'PLUGIN_NOTIFIER_CONSOLE_ENABLED',
+    label: 'Console Notifier Plugin',
+    description: 'Enable the Console notifier plugin (development only, logs notifications to console)',
+    visibility: 'admin',
+    dependsOn: [{ key: 'plugin.enabled', value: true }],
+  },
 };
 
 /**
@@ -89,4 +113,6 @@ export const PLUGIN_DEFAULTS: PluginSettings = {
   'plugin.execution_timeout_ms': 5000,
   'plugin.memory_limit_mb': 128,
   'plugin.auto_update_check': true,
+  'plugin.notifier_resend_enabled': true,
+  'plugin.notifier_console_enabled': false,
 };

@@ -4,6 +4,8 @@
 		adminComplianceAPI,
 		getFrameworkDisplayName,
 		type ComplianceStatus,
+		type ComplianceFramework,
+		type ComplianceCheckStatus,
 		type AccessReview,
 		type ComplianceReport,
 		type DataRetentionStatus,
@@ -15,6 +17,7 @@
 		getCategoryDescription
 	} from '$lib/api/admin-data-retention';
 	import RetentionPolicyEditDialog from '$lib/components/RetentionPolicyEditDialog.svelte';
+	import { Modal } from '$lib/components';
 	import { formatDate, isValidDownloadUrl, SMALL_PAGE_SIZE, sanitizeText } from '$lib/utils';
 
 	// State
@@ -54,6 +57,220 @@
 	let showCleanupDialog = $state(false);
 	let cleanupLoading = $state(false);
 	let cleanupResult = $state<{ deleted: number; runId: string } | null>(null);
+
+	// Framework Detail Modal
+	interface FrameworkCheckDetail {
+		id: string;
+		name: string;
+		description: string;
+		status: 'implemented' | 'planned';
+	}
+
+	interface FrameworkDetail {
+		fullName: string;
+		description: string;
+		checks: FrameworkCheckDetail[];
+		inScope: string[];
+		outOfScope: { item: string; reason: string }[];
+	}
+
+	const FRAMEWORK_DETAILS: Partial<Record<ComplianceFramework, FrameworkDetail>> = {
+		GDPR: {
+			fullName: 'General Data Protection Regulation',
+			description:
+				'EU regulation on data protection and privacy for individuals within the European Union and European Economic Area. Authrim evaluates authentication-service-level GDPR controls.',
+			checks: [
+				{
+					id: 'data_retention_policy',
+					name: 'Data Retention Policy',
+					description: 'Data retention policy enabled with automated cleanup',
+					status: 'implemented'
+				},
+				{
+					id: 'right_to_erasure',
+					name: 'Right to Erasure',
+					description: 'User deletion with PII tombstone for proof of deletion',
+					status: 'implemented'
+				},
+				{
+					id: 'data_encryption',
+					name: 'Data Encryption',
+					description: 'Full encryption at rest (D1/R2) and in transit (HTTPS/TLS)',
+					status: 'implemented'
+				},
+				{
+					id: 'consent_management',
+					name: 'Consent Management',
+					description: 'User consent acquisition, recording, and withdrawal',
+					status: 'planned'
+				},
+				{
+					id: 'dsar_support',
+					name: 'Data Subject Access Request (DSAR)',
+					description: 'User data export capability',
+					status: 'planned'
+				},
+				{
+					id: 'data_minimization',
+					name: 'Data Minimization',
+					description: 'Collection of only the minimum necessary data',
+					status: 'planned'
+				},
+				{
+					id: 'pii_access_audit',
+					name: 'Audit Trail of PII Access',
+					description: 'Access logging for personally identifiable information',
+					status: 'planned'
+				},
+				{
+					id: 'breached_password_detection',
+					name: 'Breached Password Detection',
+					description: 'Detection of compromised passwords',
+					status: 'planned'
+				}
+			],
+			inScope: [
+				'Data retention policy enforcement',
+				'User data deletion with proof of erasure (tombstone)',
+				'Encryption at rest and in transit',
+				'Authentication data protection',
+				'Consent recording for authentication flows'
+			],
+			outOfScope: [
+				{
+					item: 'Data Processing Agreements (DPA)',
+					reason: 'Legal document, tenant responsibility'
+				},
+				{ item: 'Cookie consent banners', reason: 'Application layer responsibility' },
+				{ item: 'Data portability (non-auth data)', reason: 'Application side responsibility' },
+				{
+					item: 'DPIA (Data Protection Impact Assessment)',
+					reason: 'Organizational process'
+				},
+				{
+					item: 'Breach notification to authority',
+					reason: '72-hour obligation, organizational process'
+				},
+				{ item: 'Lawful basis for processing', reason: 'Tenant business decision' },
+				{ item: 'DPO appointment', reason: 'Organizational requirement' },
+				{
+					item: 'International data transfer (SCCs)',
+					reason: 'Legal/organizational requirement'
+				}
+			]
+		},
+		SOC2: {
+			fullName: 'Service Organization Control 2',
+			description:
+				'Audit framework for service organizations, evaluating controls relevant to security, availability, processing integrity, confidentiality, and privacy.',
+			checks: [
+				{
+					id: 'audit_logging',
+					name: 'Audit Logging',
+					description: 'Audit log recording and retention',
+					status: 'implemented'
+				},
+				{
+					id: 'rbac',
+					name: 'Role-Based Access Control',
+					description: 'RBAC configuration and enforcement',
+					status: 'implemented'
+				},
+				{
+					id: 'mfa_coverage',
+					name: 'MFA Coverage',
+					description: 'Multi-factor authentication adoption rate',
+					status: 'implemented'
+				},
+				{
+					id: 'encryption',
+					name: 'Encryption',
+					description: 'Encryption at rest and in transit',
+					status: 'implemented'
+				},
+				{
+					id: 'key_rotation',
+					name: 'Key Rotation',
+					description: 'Signing key rotation status',
+					status: 'planned'
+				},
+				{
+					id: 'session_management',
+					name: 'Session Management',
+					description: 'Session timeout and concurrent session limits',
+					status: 'planned'
+				},
+				{
+					id: 'password_policy',
+					name: 'Password Policy',
+					description: 'Password complexity and expiration requirements',
+					status: 'planned'
+				},
+				{
+					id: 'rate_limiting',
+					name: 'Rate Limiting',
+					description: 'Brute-force attack protection',
+					status: 'planned'
+				},
+				{
+					id: 'account_lockout',
+					name: 'Account Lockout',
+					description: 'Failed login attempt restrictions',
+					status: 'planned'
+				},
+				{
+					id: 'access_review',
+					name: 'Access Review',
+					description: 'Periodic access review completion status',
+					status: 'planned'
+				}
+			],
+			inScope: [
+				'Audit log recording and retention',
+				'Role-based access control enforcement',
+				'Multi-factor authentication coverage',
+				'Data encryption at rest and in transit',
+				'Authentication and session security'
+			],
+			outOfScope: [
+				{ item: 'SOC2 Type II formal audit', reason: 'Requires external CPA audit' },
+				{
+					item: 'Physical security controls',
+					reason: 'Cloudflare infrastructure responsibility'
+				},
+				{ item: 'Network security monitoring', reason: 'Cloudflare responsibility' },
+				{ item: 'Employee background checks', reason: 'Organizational process' },
+				{ item: 'Vendor risk management', reason: 'Organizational process' },
+				{
+					item: 'Business continuity / DR',
+					reason: 'Infrastructure layer (Cloudflare Workers/D1)'
+				},
+				{ item: 'Change management procedures', reason: 'Development process' }
+			]
+		}
+	};
+
+	let selectedFramework = $state<ComplianceFramework | null>(null);
+
+	let selectedFrameworkDetail = $derived(
+		selectedFramework ? (FRAMEWORK_DETAILS[selectedFramework] ?? null) : null
+	);
+
+	let selectedFrameworkChecks = $derived(
+		selectedFramework ? getFrameworkChecksWithStatus(selectedFramework) : []
+	);
+
+	let selectedFrameworkStatus = $derived(
+		selectedFramework && complianceStatus
+			? (complianceStatus.frameworks.find((f) => f.framework === selectedFramework) ?? null)
+			: null
+	);
+
+	let implementedChecks = $derived(
+		selectedFrameworkChecks.filter((c) => c.status === 'implemented')
+	);
+
+	let plannedChecks = $derived(selectedFrameworkChecks.filter((c) => c.status === 'planned'));
 
 	// Helper functions for CSS classes
 	function getComplianceStatusClass(status: string): string {
@@ -269,8 +486,12 @@
 
 	// Global Escape key handler for dialogs
 	function handleGlobalKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && showStartReviewDialog) {
-			closeStartReviewDialog();
+		if (event.key === 'Escape') {
+			if (selectedFramework) {
+				closeFrameworkDetail();
+			} else if (showStartReviewDialog) {
+				closeStartReviewDialog();
+			}
 		}
 	}
 
@@ -280,6 +501,38 @@
 			...review,
 			name: sanitizeText(review.name)
 		};
+	}
+
+	// Framework Detail functions
+	function openFrameworkDetail(frameworkKey: ComplianceFramework) {
+		selectedFramework = frameworkKey;
+	}
+
+	function closeFrameworkDetail() {
+		selectedFramework = null;
+	}
+
+	function getFrameworkChecksWithStatus(frameworkKey: ComplianceFramework): Array<
+		FrameworkCheckDetail & {
+			liveStatus?: ComplianceCheckStatus;
+			liveDetails?: string;
+			checkedAt?: string;
+		}
+	> {
+		const detail = FRAMEWORK_DETAILS[frameworkKey];
+		if (!detail || !complianceStatus) return [];
+
+		const recentChecks = complianceStatus.recent_checks.filter((c) => c.framework === frameworkKey);
+
+		return detail.checks.map((check) => {
+			const liveCheck = recentChecks.find((rc) => rc.id === check.id);
+			return {
+				...check,
+				liveStatus: liveCheck?.status,
+				liveDetails: liveCheck?.details,
+				checkedAt: liveCheck?.checked_at
+			};
+		});
 	}
 
 	// Retention Edit functions
@@ -392,7 +645,16 @@
 			<!-- Frameworks Grid -->
 			<div class="framework-grid">
 				{#each complianceStatus.frameworks as framework (framework.framework)}
-					<div class="framework-card">
+					{@const hasDetail = !!FRAMEWORK_DETAILS[framework.framework]}
+					<div
+						class="framework-card"
+						class:framework-card-clickable={hasDetail}
+						onclick={() => hasDetail && openFrameworkDetail(framework.framework)}
+						onkeydown={(e) =>
+							e.key === 'Enter' && hasDetail && openFrameworkDetail(framework.framework)}
+						role={hasDetail ? 'button' : undefined}
+						tabindex={hasDetail ? 0 : undefined}
+					>
 						<div class="framework-card-header">
 							<h3 class="framework-name">{getFrameworkDisplayName(framework.framework)}</h3>
 							<span class={getComplianceStatusClass(framework.status)}>
@@ -683,78 +945,51 @@
 </div>
 
 <!-- Start Review Dialog -->
-{#if showStartReviewDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeStartReviewDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeStartReviewDialog()}
-		tabindex="-1"
-		role="presentation"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="start-review-dialog-title"
-		>
-			<div class="modal-header">
-				<h2 id="start-review-dialog-title" class="modal-title">Start Access Review</h2>
-			</div>
+<Modal
+	open={showStartReviewDialog}
+	onClose={closeStartReviewDialog}
+	title="Start Access Review"
+	size="md"
+>
+	{#if startReviewError}
+		<div class="alert alert-error">{startReviewError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if startReviewError}
-					<div class="alert alert-error">{startReviewError}</div>
-				{/if}
-
-				<div class="form-group">
-					<label for="review-name" class="form-label">Review Name</label>
-					<input
-						type="text"
-						id="review-name"
-						class="form-input"
-						bind:value={newReviewName}
-						placeholder="e.g., Q1 2026 Access Review"
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="review-scope" class="form-label">Scope</label>
-					<select id="review-scope" class="form-select" bind:value={newReviewScope}>
-						<option value="all_users">All Users</option>
-						<option value="role">By Role</option>
-						<option value="organization">By Organization</option>
-						<option value="inactive_users">Inactive Users</option>
-					</select>
-				</div>
-
-				<div class="form-group">
-					<label for="review-due-date" class="form-label">Due Date (optional)</label>
-					<input
-						type="date"
-						id="review-due-date"
-						class="form-input"
-						bind:value={newReviewDueDate}
-					/>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button
-					class="btn btn-secondary"
-					onclick={closeStartReviewDialog}
-					disabled={startingReview}
-				>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={handleStartReview} disabled={startingReview}>
-					{startingReview ? 'Starting...' : 'Start Review'}
-				</button>
-			</div>
-		</div>
+	<div class="form-group">
+		<label for="review-name" class="form-label">Review Name</label>
+		<input
+			type="text"
+			id="review-name"
+			class="form-input"
+			bind:value={newReviewName}
+			placeholder="e.g., Q1 2026 Access Review"
+		/>
 	</div>
-{/if}
+
+	<div class="form-group">
+		<label for="review-scope" class="form-label">Scope</label>
+		<select id="review-scope" class="form-select" bind:value={newReviewScope}>
+			<option value="all_users">All Users</option>
+			<option value="role">By Role</option>
+			<option value="organization">By Organization</option>
+			<option value="inactive_users">Inactive Users</option>
+		</select>
+	</div>
+
+	<div class="form-group">
+		<label for="review-due-date" class="form-label">Due Date (optional)</label>
+		<input type="date" id="review-due-date" class="form-input" bind:value={newReviewDueDate} />
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeStartReviewDialog} disabled={startingReview}>
+			Cancel
+		</button>
+		<button class="btn btn-primary" onclick={handleStartReview} disabled={startingReview}>
+			{startingReview ? 'Starting...' : 'Start Review'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Retention Policy Edit Dialog -->
 <RetentionPolicyEditDialog
@@ -766,71 +1001,324 @@
 />
 
 <!-- Cleanup Confirmation Dialog -->
-{#if showCleanupDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeCleanupDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeCleanupDialog()}
-		tabindex="-1"
-		role="presentation"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="cleanup-dialog-title"
-		>
-			{#if cleanupResult}
-				<!-- Success State -->
-				<div class="cleanup-success">
-					<div class="cleanup-success-icon">✅</div>
-					<h2 id="cleanup-dialog-title" class="modal-title">Cleanup Completed</h2>
-					<p class="text-muted">
-						Successfully deleted <strong>{cleanupResult.deleted.toLocaleString()}</strong> records.
-					</p>
-					<p class="cleanup-run-id">Run ID: {cleanupResult.runId}</p>
-					<button class="btn btn-primary" onclick={closeCleanupDialog}>Close</button>
-				</div>
-			{:else}
-				<!-- Confirmation State -->
-				<div class="modal-header">
-					<h2 id="cleanup-dialog-title" class="modal-title">Run Data Cleanup</h2>
-				</div>
-
-				<div class="modal-body">
-					{#if retentionActionError}
-						<div class="alert alert-error">{retentionActionError}</div>
-					{/if}
-
-					<div class="warning-box">
-						<span class="warning-box-icon">⚠️</span>
-						<div>
-							<div class="warning-box-title">Warning: This action cannot be undone</div>
-							<p class="warning-box-text">
-								This will permanently delete all data that exceeds the configured retention periods
-								across all categories. Records older than their category's retention period will be
-								removed.
-							</p>
-						</div>
-					</div>
-
-					<p class="text-muted cleanup-confirm-text">
-						Are you sure you want to run the data cleanup now? This process will delete expired
-						records based on each category's retention policy.
-					</p>
-				</div>
-
-				<div class="modal-footer">
-					<button class="btn btn-secondary" onclick={closeCleanupDialog} disabled={cleanupLoading}>
-						Cancel
-					</button>
-					<button class="btn btn-danger" onclick={executeCleanup} disabled={cleanupLoading}>
-						{cleanupLoading ? 'Deleting...' : 'Delete Expired Data'}
-					</button>
-				</div>
-			{/if}
+<Modal
+	open={showCleanupDialog}
+	onClose={closeCleanupDialog}
+	title={cleanupResult ? 'Cleanup Completed' : 'Run Data Cleanup'}
+	size="md"
+>
+	{#if cleanupResult}
+		<!-- Success State -->
+		<div class="cleanup-success">
+			<div class="cleanup-success-icon">✅</div>
+			<p class="text-muted">
+				Successfully deleted <strong>{cleanupResult.deleted.toLocaleString()}</strong> records.
+			</p>
+			<p class="cleanup-run-id">Run ID: {cleanupResult.runId}</p>
 		</div>
+	{:else}
+		<!-- Confirmation State -->
+		{#if retentionActionError}
+			<div class="alert alert-error">{retentionActionError}</div>
+		{/if}
+
+		<div class="warning-box">
+			<span class="warning-box-icon">⚠️</span>
+			<div>
+				<div class="warning-box-title">Warning: This action cannot be undone</div>
+				<p class="warning-box-text">
+					This will permanently delete all data that exceeds the configured retention periods across
+					all categories. Records older than their category's retention period will be removed.
+				</p>
+			</div>
+		</div>
+
+		<p class="text-muted cleanup-confirm-text">
+			Are you sure you want to run the data cleanup now? This process will delete expired records
+			based on each category's retention policy.
+		</p>
+	{/if}
+
+	{#snippet footer()}
+		{#if cleanupResult}
+			<button class="btn btn-primary" onclick={closeCleanupDialog}>Close</button>
+		{:else}
+			<button class="btn btn-secondary" onclick={closeCleanupDialog} disabled={cleanupLoading}>
+				Cancel
+			</button>
+			<button class="btn btn-danger" onclick={executeCleanup} disabled={cleanupLoading}>
+				{cleanupLoading ? 'Deleting...' : 'Delete Expired Data'}
+			</button>
+		{/if}
+	{/snippet}
+</Modal>
+
+<!-- Framework Detail Modal -->
+<Modal
+	open={!!selectedFramework && !!selectedFrameworkDetail}
+	onClose={closeFrameworkDetail}
+	title={selectedFramework ? getFrameworkDisplayName(selectedFramework) : ''}
+	size="lg"
+>
+	{#snippet header()}
+		<div>
+			<h2 class="modal-title">
+				{selectedFramework ? getFrameworkDisplayName(selectedFramework) : ''}
+			</h2>
+			<p class="fw-detail-fullname">{selectedFrameworkDetail?.fullName ?? ''}</p>
+		</div>
+		{#if selectedFrameworkStatus}
+			<span class={getComplianceStatusClass(selectedFrameworkStatus.status)}>
+				{getComplianceStatusLabel(selectedFrameworkStatus.status)}
+			</span>
+		{/if}
+	{/snippet}
+
+	<div class="fw-detail-body">
+		<p class="fw-detail-description">{selectedFrameworkDetail?.description ?? ''}</p>
+
+		<!-- Compliance Checks (Implemented) -->
+		{#if implementedChecks.length > 0}
+			<div class="fw-detail-section">
+				<h3 class="fw-detail-section-title">Compliance Checks</h3>
+				<div class="fw-check-list">
+					{#each implementedChecks as check (check.id)}
+						<div class="fw-check-item">
+							<div class="fw-check-info">
+								<span
+									class="fw-check-icon {check.liveStatus
+										? 'check-' + check.liveStatus
+										: 'check-implemented'}"
+								>
+									{#if check.liveStatus === 'partial'}⚠{:else if check.liveStatus === 'non_compliant'}✗{:else}✓{/if}
+								</span>
+								<div>
+									<div class="fw-check-name">{check.name}</div>
+									<div class="fw-check-desc">
+										{check.liveDetails || check.description}
+									</div>
+								</div>
+							</div>
+							{#if check.liveStatus}
+								<span class={getComplianceStatusClass(check.liveStatus)}>
+									{getComplianceStatusLabel(check.liveStatus)}
+								</span>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<!-- Planned Checks -->
+		{#if plannedChecks.length > 0}
+			<div class="fw-detail-section">
+				<h3 class="fw-detail-section-title">Planned Checks</h3>
+				<div class="fw-check-list">
+					{#each plannedChecks as check (check.id)}
+						<div class="fw-check-item planned">
+							<div class="fw-check-info">
+								<span class="fw-check-icon check-planned">○</span>
+								<div>
+									<div class="fw-check-name">{check.name}</div>
+									<div class="fw-check-desc">{check.description}</div>
+								</div>
+							</div>
+							<span class="planned-badge">Planned</span>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<!-- In Scope -->
+		{#if selectedFrameworkDetail && selectedFrameworkDetail.inScope.length > 0}
+			<div class="fw-detail-section">
+				<h3 class="fw-detail-section-title">In Scope</h3>
+				<ul class="scope-list in-scope">
+					{#each selectedFrameworkDetail.inScope as item (item)}
+						<li><span class="scope-icon in">✓</span> {item}</li>
+					{/each}
+				</ul>
+			</div>
+		{/if}
+
+		<!-- Out of Scope -->
+		{#if selectedFrameworkDetail && selectedFrameworkDetail.outOfScope.length > 0}
+			<div class="fw-detail-section">
+				<h3 class="fw-detail-section-title">Out of Scope</h3>
+				<ul class="scope-list out-scope">
+					{#each selectedFrameworkDetail.outOfScope as entry (entry.item)}
+						<li>
+							<span class="scope-icon out">○</span>
+							<span>{entry.item}</span>
+							<span class="scope-reason">— {entry.reason}</span>
+						</li>
+					{/each}
+				</ul>
+			</div>
+		{/if}
 	</div>
-{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeFrameworkDetail}>Close</button>
+	{/snippet}
+</Modal>
+
+<style>
+	/* Framework card clickable state */
+	.framework-card-clickable {
+		cursor: pointer;
+		transition:
+			border-color var(--transition-fast),
+			box-shadow var(--transition-fast);
+	}
+	.framework-card-clickable:hover {
+		border-color: var(--primary);
+		box-shadow: 0 0 0 1px var(--primary);
+	}
+	.framework-card-clickable:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 2px;
+	}
+
+	/* Framework Detail Modal */
+	.fw-detail-fullname {
+		color: var(--text-secondary);
+		font-size: 0.875rem;
+		margin: 4px 0 0 0;
+	}
+	.fw-detail-body {
+		margin-bottom: 0;
+	}
+	.fw-detail-description {
+		color: var(--text-secondary);
+		font-size: 0.875rem;
+		line-height: 1.5;
+		margin: 0 0 20px 0;
+	}
+	.fw-detail-section {
+		margin-bottom: 20px;
+	}
+	.fw-detail-section:last-child {
+		margin-bottom: 0;
+	}
+	.fw-detail-section-title {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: var(--text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin: 0 0 12px 0;
+		padding-bottom: 8px;
+		border-bottom: 1px solid var(--border);
+	}
+
+	/* Check items */
+	.fw-check-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.fw-check-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 10px 12px;
+		border-radius: var(--radius-md);
+		background: var(--bg-subtle);
+		gap: 12px;
+	}
+	.fw-check-item.planned {
+		opacity: 0.6;
+	}
+	.fw-check-info {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		flex: 1;
+		min-width: 0;
+	}
+	.fw-check-icon {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.75rem;
+		font-weight: 700;
+		flex-shrink: 0;
+		margin-top: 1px;
+	}
+	.check-compliant,
+	.check-implemented {
+		background: rgba(34, 197, 94, 0.15);
+		color: #22c55e;
+	}
+	.check-partial {
+		background: rgba(245, 158, 11, 0.15);
+		color: #f59e0b;
+	}
+	.check-non_compliant {
+		background: rgba(239, 68, 68, 0.15);
+		color: #ef4444;
+	}
+	.check-planned {
+		background: var(--bg-card);
+		color: var(--text-tertiary);
+		border: 1px dashed var(--border);
+	}
+	.fw-check-name {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--text-primary);
+	}
+	.fw-check-desc {
+		font-size: 0.8125rem;
+		color: var(--text-secondary);
+		margin-top: 2px;
+	}
+	.planned-badge {
+		font-size: 0.75rem;
+		color: var(--text-tertiary);
+		background: var(--bg-card);
+		padding: 2px 8px;
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--border);
+		white-space: nowrap;
+	}
+
+	/* Scope lists */
+	.scope-list {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.scope-list li {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		font-size: 0.875rem;
+		color: var(--text-primary);
+		line-height: 1.4;
+	}
+	.scope-icon {
+		flex-shrink: 0;
+		font-size: 0.8125rem;
+		font-weight: 600;
+	}
+	.scope-icon.in {
+		color: #22c55e;
+	}
+	.scope-icon.out {
+		color: var(--text-tertiary);
+	}
+	.scope-reason {
+		color: var(--text-tertiary);
+		font-size: 0.8125rem;
+	}
+</style>

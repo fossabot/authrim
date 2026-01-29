@@ -195,6 +195,14 @@ export default defineConfig({
 		'i-ph-globe',
 		'i-ph-moon',
 		'i-ph-sun',
+		// Social provider icons (Phosphor)
+		'i-ph-google-logo',
+		'i-ph-github-logo',
+		'i-ph-apple-logo',
+		'i-ph-windows-logo',
+		'i-ph-meta-logo',
+		'i-ph-x-logo',
+		'i-ph-linkedin-logo',
 		'animate-spin'
 	],
 	rules: []

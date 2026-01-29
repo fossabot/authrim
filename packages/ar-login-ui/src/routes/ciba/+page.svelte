@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { LL } from '$i18n/i18n-svelte';
+	import { brandingStore } from '$lib/stores/branding.svelte';
 	import { Card, Button } from '$lib/components';
+	import { cibaAPI } from '$lib/api/client';
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
 
 	let loading = true;
 	let error = '';
@@ -28,87 +29,79 @@
 		error = '';
 
 		try {
-			// TODO: Get user info from session
-			const userId = 'test_user';
-			const loginHint = $page.url.searchParams.get('login_hint') || `sub:${userId}`;
-
-			const response = await fetch(`/api/ciba/pending?login_hint=${encodeURIComponent(loginHint)}`);
-			const data = await response.json();
-
-			if (!response.ok) {
-				error = data.error_description || 'Failed to load pending requests';
+			const { data, error: apiError } = await cibaAPI.getPending();
+			if (apiError) {
+				error = apiError.error_description || 'Failed to load pending requests';
 			} else {
-				pendingRequests = data.requests || [];
+				pendingRequests = (data as typeof pendingRequests) || [];
 			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'An error occurred';
-			console.error('Error loading pending requests:', err);
 		} finally {
 			loading = false;
 		}
 	}
 
 	async function handleApprove(authReqId: string) {
+		if (processingId !== null) return;
+		const request = pendingRequests.find((r) => r.auth_req_id === authReqId);
+		if (!request || isExpired(request.expires_at)) {
+			error = 'This authentication request has expired';
+			return;
+		}
+		processingId = authReqId;
 		try {
-			const response = await fetch('/api/ciba/approve', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					auth_req_id: authReqId,
-					user_id: 'test_user',
-					sub: 'test@example.com'
-				})
-			});
+			const { error: apiError } = await cibaAPI.approve(authReqId);
 
-			const data = await response.json();
-
-			if (!response.ok) {
-				error = data.error_description || 'Failed to approve request';
+			if (apiError) {
+				error = apiError.error_description || 'Failed to approve request';
 			} else {
 				successMessage = 'Authentication request approved successfully';
-				// Remove approved request from list
 				pendingRequests = pendingRequests.filter((r) => r.auth_req_id !== authReqId);
 
-				// Clear success message after 3 seconds
 				setTimeout(() => {
 					successMessage = '';
 				}, 3000);
 			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'An error occurred';
-			console.error('Error approving request:', err);
+		} finally {
+			processingId = null;
 		}
 	}
 
 	async function handleDeny(authReqId: string) {
+		if (processingId !== null) return;
+		const request = pendingRequests.find((r) => r.auth_req_id === authReqId);
+		if (!request || isExpired(request.expires_at)) {
+			error = 'This authentication request has expired';
+			return;
+		}
+		processingId = authReqId;
 		try {
-			const response = await fetch('/api/ciba/deny', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					auth_req_id: authReqId,
-					reason: 'User rejected'
-				})
-			});
+			const { error: apiError } = await cibaAPI.reject(authReqId);
 
-			const data = await response.json();
-
-			if (!response.ok) {
-				error = data.error_description || 'Failed to deny request';
+			if (apiError) {
+				error = apiError.error_description || 'Failed to deny request';
 			} else {
 				successMessage = 'Authentication request denied successfully';
-				// Remove denied request from list
 				pendingRequests = pendingRequests.filter((r) => r.auth_req_id !== authReqId);
 
-				// Clear success message after 3 seconds
 				setTimeout(() => {
 					successMessage = '';
 				}, 3000);
 			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'An error occurred';
-			console.error('Error denying request:', err);
+		} finally {
+			processingId = null;
 		}
+	}
+
+	let processingId: string | null = null;
+
+	function isExpired(expiresAt: number): boolean {
+		return Math.floor(Date.now() / 1000) >= expiresAt;
 	}
 
 	function formatTimeRemaining(expiresAt: number): string {
@@ -121,7 +114,7 @@
 </script>
 
 <svelte:head>
-	<title>CIBA Authentication Requests - {$LL.app_title()}</title>
+	<title>CIBA Authentication Requests - {brandingStore.brandName || $LL.app_title()}</title>
 </svelte:head>
 
 <div class="container mx-auto max-w-4xl px-4 py-8">
@@ -262,6 +255,9 @@
 							<Button
 								variant="primary"
 								class="flex-1"
+								loading={processingId === request.auth_req_id}
+								disabled={isExpired(request.expires_at) ||
+									(processingId !== null && processingId !== request.auth_req_id)}
 								onclick={() => handleApprove(request.auth_req_id)}
 							>
 								<div class="i-heroicons-check h-5 w-5"></div>
@@ -270,6 +266,7 @@
 							<Button
 								variant="secondary"
 								class="flex-1"
+								disabled={isExpired(request.expires_at) || processingId !== null}
 								onclick={() => handleDeny(request.auth_req_id)}
 							>
 								<div class="i-heroicons-x-mark h-5 w-5"></div>

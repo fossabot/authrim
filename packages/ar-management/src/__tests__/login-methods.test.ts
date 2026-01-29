@@ -1,0 +1,540 @@
+/**
+ * Login Methods API Tests
+ *
+ * Tests for the public login methods endpoint:
+ * - GET /api/auth/login-methods
+ *
+ * Verifies:
+ * - All methods enabled/disabled combinations
+ * - Social provider fetching from EXTERNAL_IDP service binding
+ * - UI config from settings-v2 (AUTHRIM_CONFIG KV) and legacy fallback
+ * - 503 when no methods available
+ * - Cache-Control header
+ * - Error handling
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Hoist mock logger
+const { mockLogger } = vi.hoisted(() => {
+  const logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    module: vi.fn().mockReturnThis(),
+  };
+  return { mockLogger: logger };
+});
+
+// Mock getLogger from ar-lib-core
+vi.mock('@authrim/ar-lib-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@authrim/ar-lib-core')>();
+  return {
+    ...actual,
+    getLogger: () => mockLogger,
+  };
+});
+
+import { Hono } from 'hono';
+import type { Env } from '@authrim/ar-lib-core';
+import { getLoginMethodsHandler } from '../login-methods';
+
+// =============================================================================
+// Mock helpers
+// =============================================================================
+
+function createMockKV(data: Record<string, string> = {}): KVNamespace {
+  const store = new Map<string, string>(Object.entries(data));
+  return {
+    get: vi.fn(async (key: string) => store.get(key) ?? null),
+    put: vi.fn(async (key: string, value: string) => {
+      store.set(key, value);
+    }),
+    delete: vi.fn(async (key: string) => {
+      store.delete(key);
+    }),
+    list: vi.fn(async () => ({
+      keys: Array.from(store.keys()).map((name) => ({ name })),
+      list_complete: true,
+      cacheStatus: null,
+    })),
+    getWithMetadata: vi.fn(),
+  } as unknown as KVNamespace;
+}
+
+interface MockExternalIdpOptions {
+  providers?: Array<{
+    id: string;
+    name: string;
+    slug?: string;
+    enabled?: boolean;
+    iconUrl?: string;
+    buttonColor?: string;
+    buttonText?: string;
+  }>;
+  shouldFail?: boolean;
+}
+
+function createMockExternalIdp(options: MockExternalIdpOptions = {}) {
+  const { providers = [], shouldFail = false } = options;
+  return {
+    fetch: vi.fn(async () => {
+      if (shouldFail) {
+        return new Response('Internal Server Error', { status: 500 });
+      }
+      return new Response(JSON.stringify({ providers }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }),
+  };
+}
+
+interface CreateTestAppOptions {
+  settingsKV?: KVNamespace;
+  configKV?: KVNamespace;
+  externalIdp?: ReturnType<typeof createMockExternalIdp> | null;
+  adminApiSecret?: string;
+}
+
+function createTestApp(options: CreateTestAppOptions = {}) {
+  const settingsKV = options.settingsKV ?? createMockKV();
+  const configKV = options.configKV ?? createMockKV();
+  const externalIdp = options.externalIdp !== undefined ? options.externalIdp : null;
+  const adminApiSecret = options.adminApiSecret ?? 'test-secret';
+
+  const app = new Hono<{ Bindings: Env }>();
+  app.get('/api/auth/login-methods', getLoginMethodsHandler);
+
+  const mockEnv = {
+    SETTINGS: settingsKV,
+    AUTHRIM_CONFIG: configKV,
+    EXTERNAL_IDP: externalIdp,
+    ADMIN_API_SECRET: adminApiSecret,
+  } as unknown as Env;
+
+  return { app, mockEnv, settingsKV, configKV };
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+describe('Login Methods API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // ===========================================================================
+  // Default behavior
+  // ===========================================================================
+
+  describe('GET /api/auth/login-methods (defaults)', () => {
+    it('should return passkey + emailCode enabled by default', async () => {
+      const { app, mockEnv } = createTestApp();
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      // Default: passkeyEnabled !== false → true, magicLinkEnabled !== false → true
+      expect(body.methods.passkey.enabled).toBe(true);
+      expect(body.methods.passkey.capabilities).toEqual(['conditional', 'discoverable']);
+      expect(body.methods.emailCode.enabled).toBe(true);
+      expect(body.methods.emailCode.steps).toEqual(['email', 'code']);
+      // No EXTERNAL_IDP → social disabled
+      expect(body.methods.social.enabled).toBe(false);
+      expect(body.methods.social.providers).toEqual([]);
+    });
+
+    it('should return default UI config', async () => {
+      const { app, mockEnv } = createTestApp();
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.ui.theme).toBe('light');
+      expect(body.ui.variant).toBe('beige');
+      expect(body.ui.branding.brandName).toBe('Authrim');
+      expect(body.ui.branding.logoUrl).toBeNull();
+      expect(body.ui.branding.faviconUrl).toBeNull();
+      expect(body.ui.supportedLocales).toEqual(['en', 'ja']);
+    });
+
+    it('should return default appearance config', async () => {
+      const { app, mockEnv } = createTestApp();
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.ui.appearance.backgroundImageUrl).toBeNull();
+      expect(body.ui.appearance.customCss).toBeNull();
+      expect(body.ui.appearance.headerText).toBeNull();
+      expect(body.ui.appearance.footerText).toBeNull();
+      expect(body.ui.appearance.footerLinks).toEqual([]);
+      expect(body.ui.appearance.customBlocks).toEqual([]);
+    });
+
+    it('should include meta with cacheTTL and revision', async () => {
+      const { app, mockEnv } = createTestApp();
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.meta.cacheTTL).toBe(300);
+      expect(body.meta.revision).toBeDefined();
+      // revision should be a valid ISO date string
+      expect(new Date(body.meta.revision).toISOString()).toBe(body.meta.revision);
+    });
+
+    it('should set Cache-Control header', async () => {
+      const { app, mockEnv } = createTestApp();
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+
+      expect(res.headers.get('Cache-Control')).toBe('public, max-age=300');
+    });
+  });
+
+  // ===========================================================================
+  // Method enable/disable via system settings
+  // ===========================================================================
+
+  describe('method toggling via SETTINGS KV', () => {
+    it('should disable passkey when advanced.passkeyEnabled is false', async () => {
+      const settingsKV = createMockKV({
+        system_settings: JSON.stringify({
+          advanced: { passkeyEnabled: false, magicLinkEnabled: true },
+        }),
+      });
+      const { app, mockEnv } = createTestApp({ settingsKV });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.methods.passkey.enabled).toBe(false);
+      expect(body.methods.passkey.capabilities).toEqual([]);
+      expect(body.methods.emailCode.enabled).toBe(true);
+    });
+
+    it('should disable emailCode when advanced.magicLinkEnabled is false', async () => {
+      const settingsKV = createMockKV({
+        system_settings: JSON.stringify({
+          advanced: { passkeyEnabled: true, magicLinkEnabled: false },
+        }),
+      });
+      const { app, mockEnv } = createTestApp({ settingsKV });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.methods.passkey.enabled).toBe(true);
+      expect(body.methods.emailCode.enabled).toBe(false);
+      expect(body.methods.emailCode.steps).toEqual([]);
+    });
+  });
+
+  // ===========================================================================
+  // Social providers
+  // ===========================================================================
+
+  describe('social providers via EXTERNAL_IDP', () => {
+    it('should return social providers when EXTERNAL_IDP is available', async () => {
+      const externalIdp = createMockExternalIdp({
+        providers: [
+          { id: 'ggl-123', name: 'Google', slug: 'google', enabled: true },
+          { id: 'ghb-456', name: 'GitHub', slug: 'github', enabled: true },
+        ],
+      });
+      const { app, mockEnv } = createTestApp({ externalIdp });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.methods.social.enabled).toBe(true);
+      expect(body.methods.social.providers).toHaveLength(2);
+      expect(body.methods.social.providers[0].id).toBe('google');
+      expect(body.methods.social.providers[0].name).toBe('Google');
+      expect(body.methods.social.providers[1].id).toBe('github');
+    });
+
+    it('should filter out disabled providers', async () => {
+      const externalIdp = createMockExternalIdp({
+        providers: [
+          { id: 'ggl-123', name: 'Google', slug: 'google', enabled: true },
+          { id: 'msft-789', name: 'Microsoft', slug: 'microsoft', enabled: false },
+        ],
+      });
+      const { app, mockEnv } = createTestApp({ externalIdp });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.methods.social.providers).toHaveLength(1);
+      expect(body.methods.social.providers[0].name).toBe('Google');
+    });
+
+    it('should return social disabled when EXTERNAL_IDP fetch fails', async () => {
+      const externalIdp = createMockExternalIdp({ shouldFail: true });
+      const { app, mockEnv } = createTestApp({ externalIdp });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.methods.social.enabled).toBe(false);
+      expect(body.methods.social.providers).toEqual([]);
+    });
+
+    it('should call EXTERNAL_IDP with correct URL path', async () => {
+      const externalIdp = createMockExternalIdp({
+        providers: [{ id: 'ggl-123', name: 'Google', slug: 'google', enabled: true }],
+      });
+      const { app, mockEnv } = createTestApp({ externalIdp });
+
+      await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+
+      expect(externalIdp.fetch).toHaveBeenCalledWith(
+        'https://external-idp/api/external/providers',
+        expect.objectContaining({ method: 'GET' })
+      );
+    });
+
+    it('should return social disabled when ADMIN_API_SECRET is missing', async () => {
+      const externalIdp = createMockExternalIdp({
+        providers: [{ id: 'ggl-123', name: 'Google', slug: 'google', enabled: true }],
+      });
+      const { app, mockEnv } = createTestApp({
+        externalIdp,
+        adminApiSecret: '',
+      });
+      // Override ADMIN_API_SECRET to falsy
+      (mockEnv as any).ADMIN_API_SECRET = undefined;
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.methods.social.enabled).toBe(false);
+    });
+  });
+
+  // ===========================================================================
+  // All methods disabled → 503
+  // ===========================================================================
+
+  describe('no methods available', () => {
+    it('should return 503 when all methods are disabled', async () => {
+      const settingsKV = createMockKV({
+        system_settings: JSON.stringify({
+          advanced: { passkeyEnabled: false, magicLinkEnabled: false },
+        }),
+      });
+      // No EXTERNAL_IDP → no social
+      const { app, mockEnv } = createTestApp({ settingsKV, externalIdp: null });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+
+      expect(res.status).toBe(503);
+      const body = (await res.json()) as any;
+
+      expect(body.error.code).toBe('NO_LOGIN_METHOD_AVAILABLE');
+      expect(body.error.message).toBeDefined();
+    });
+
+    it('should log a warning when no methods are available', async () => {
+      const settingsKV = createMockKV({
+        system_settings: JSON.stringify({
+          advanced: { passkeyEnabled: false, magicLinkEnabled: false },
+        }),
+      });
+      const { app, mockEnv } = createTestApp({ settingsKV });
+
+      await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+
+      expect(mockLogger.warn).toHaveBeenCalledWith('No login method available', {});
+    });
+  });
+
+  // ===========================================================================
+  // UI config from settings-v2 (AUTHRIM_CONFIG KV)
+  // ===========================================================================
+
+  describe('UI config from settings-v2', () => {
+    it('should use settings-v2 KV values when available', async () => {
+      const configKV = createMockKV({
+        'settings:tenant:default:login-ui': JSON.stringify({
+          'login-ui.theme': 'dark',
+          'login-ui.variant': 'navy',
+          'login-ui.brand_name': 'My App',
+          'login-ui.logo_url': 'https://example.com/logo.png',
+          'login-ui.favicon_url': 'https://example.com/favicon.ico',
+          'login-ui.supported_locales': 'en,ja,fr',
+          'login-ui.background_image_url': 'https://example.com/bg.jpg',
+          'login-ui.custom_css': 'body { background: #fff; }',
+          'login-ui.header_text': 'Welcome',
+          'login-ui.footer_text': '© 2025 My App',
+          'login-ui.footer_links': JSON.stringify([
+            { label: 'Privacy', url: 'https://example.com/privacy' },
+          ]),
+          'login-ui.custom_blocks': JSON.stringify([
+            { position: 'above-form', type: 'text', content: 'Hello' },
+          ]),
+        }),
+      });
+      const { app, mockEnv } = createTestApp({ configKV });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.ui.theme).toBe('dark');
+      expect(body.ui.variant).toBe('navy');
+      expect(body.ui.branding.brandName).toBe('My App');
+      expect(body.ui.branding.logoUrl).toBe('https://example.com/logo.png');
+      expect(body.ui.branding.faviconUrl).toBe('https://example.com/favicon.ico');
+      expect(body.ui.supportedLocales).toEqual(['en', 'ja', 'fr']);
+      expect(body.ui.appearance.backgroundImageUrl).toBe('https://example.com/bg.jpg');
+      expect(body.ui.appearance.customCss).toBe('body { background: #fff; }');
+      expect(body.ui.appearance.headerText).toBe('Welcome');
+      expect(body.ui.appearance.footerText).toBe('© 2025 My App');
+      expect(body.ui.appearance.footerLinks).toEqual([
+        { label: 'Privacy', url: 'https://example.com/privacy' },
+      ]);
+      expect(body.ui.appearance.customBlocks).toEqual([
+        { position: 'above-form', type: 'text', content: 'Hello' },
+      ]);
+    });
+
+    it('should fall back to legacy system_settings.loginUI', async () => {
+      const settingsKV = createMockKV({
+        system_settings: JSON.stringify({
+          general: { siteName: 'Legacy App', logoUrl: 'https://legacy.com/logo.png' },
+          loginUI: { theme: 'dark', variant: 'slate', supportedLocales: ['en'] },
+        }),
+      });
+      // Empty configKV → no settings-v2
+      const { app, mockEnv } = createTestApp({ settingsKV });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.ui.theme).toBe('dark');
+      expect(body.ui.variant).toBe('slate');
+      expect(body.ui.branding.brandName).toBe('Legacy App');
+      expect(body.ui.branding.logoUrl).toBe('https://legacy.com/logo.png');
+      expect(body.ui.branding.faviconUrl).toBeNull();
+      expect(body.ui.supportedLocales).toEqual(['en']);
+      // Legacy fallback returns default appearance values
+      expect(body.ui.appearance.backgroundImageUrl).toBeNull();
+      expect(body.ui.appearance.customCss).toBeNull();
+      expect(body.ui.appearance.headerText).toBeNull();
+      expect(body.ui.appearance.footerText).toBeNull();
+      expect(body.ui.appearance.footerLinks).toEqual([]);
+      expect(body.ui.appearance.customBlocks).toEqual([]);
+    });
+
+    it('should prioritize settings-v2 over legacy settings', async () => {
+      const settingsKV = createMockKV({
+        system_settings: JSON.stringify({
+          general: { siteName: 'Legacy App' },
+          loginUI: { theme: 'light', variant: 'beige' },
+        }),
+      });
+      const configKV = createMockKV({
+        'settings:tenant:default:login-ui': JSON.stringify({
+          'login-ui.theme': 'dark',
+          'login-ui.variant': 'navy',
+          'login-ui.brand_name': 'Settings V2 App',
+        }),
+      });
+      const { app, mockEnv } = createTestApp({ settingsKV, configKV });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+      const body = (await res.json()) as any;
+
+      expect(body.ui.theme).toBe('dark');
+      expect(body.ui.variant).toBe('navy');
+      expect(body.ui.branding.brandName).toBe('Settings V2 App');
+    });
+  });
+
+  // ===========================================================================
+  // Error handling
+  // ===========================================================================
+
+  describe('error handling', () => {
+    it('should gracefully handle KV read failure and return defaults', async () => {
+      // getSystemSettings catches KV errors internally and returns {}
+      // This results in default settings (passkey + emailCode enabled)
+      const settingsKV = {
+        get: vi.fn(async () => {
+          throw new Error('KV read failed');
+        }),
+      } as unknown as KVNamespace;
+      const { app, mockEnv } = createTestApp({ settingsKV });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+
+      // Handler is resilient — KV failure falls back to defaults
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      expect(body.methods.passkey.enabled).toBe(true);
+      expect(body.methods.emailCode.enabled).toBe(true);
+    });
+
+    it('should handle invalid JSON in system_settings gracefully', async () => {
+      const settingsKV = createMockKV({
+        system_settings: '{invalid json}',
+      });
+      const { app, mockEnv } = createTestApp({ settingsKV });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+
+      // Should not crash — falls back to empty settings → defaults
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      expect(body.methods.passkey.enabled).toBe(true);
+      expect(body.methods.emailCode.enabled).toBe(true);
+    });
+
+    it('should handle invalid JSON in AUTHRIM_CONFIG gracefully', async () => {
+      const configKV = createMockKV({
+        'settings:tenant:default:login-ui': '{bad json}',
+      });
+      const { app, mockEnv } = createTestApp({ configKV });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+
+      // Should fall through to legacy → defaults
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      expect(body.ui.theme).toBe('light');
+      expect(body.ui.variant).toBe('beige');
+      expect(body.ui.appearance.footerLinks).toEqual([]);
+      expect(body.ui.appearance.customBlocks).toEqual([]);
+    });
+
+    it('should handle invalid JSON in footer_links and custom_blocks gracefully', async () => {
+      const configKV = createMockKV({
+        'settings:tenant:default:login-ui': JSON.stringify({
+          'login-ui.theme': 'dark',
+          'login-ui.footer_links': '{not an array}',
+          'login-ui.custom_blocks': 'invalid',
+        }),
+      });
+      const { app, mockEnv } = createTestApp({ configKV });
+
+      const res = await app.request('/api/auth/login-methods', { method: 'GET' }, mockEnv);
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+
+      expect(body.ui.theme).toBe('dark');
+      expect(body.ui.appearance.footerLinks).toEqual([]);
+      expect(body.ui.appearance.customBlocks).toEqual([]);
+    });
+  });
+});

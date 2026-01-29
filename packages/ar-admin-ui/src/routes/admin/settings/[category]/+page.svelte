@@ -207,7 +207,7 @@
 <div class="settings-detail-page">
 	<!-- Back link and header -->
 	<div class="settings-detail-header">
-		<a href="/admin/settings" class="back-link">← Back to Settings</a>
+		<a href="/admin/settings" class="back-link">&larr; Back to Settings</a>
 		{#if meta}
 			<div class="settings-header-row">
 				<h1 class="page-title">{meta.label}</h1>
@@ -263,6 +263,9 @@
 									{canEdit}
 									compact={true}
 								/>
+								{#if settingMeta.status === 'in_development'}
+									<span class="setting-in-development">In Development</span>
+								{/if}
 								{#if locked && !isLockedByEnv(key)}
 									<span class="setting-locked">🔒 Locked</span>
 								{/if}

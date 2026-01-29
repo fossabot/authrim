@@ -128,7 +128,7 @@ const ja: Translations = {
   'env.workers': 'Workers: {{count}}',
   'env.d1Databases': 'D1データベース: {{count}}',
   'env.kvNamespaces': 'KV名前空間: {{count}}',
-  'env.chooseAnother': '別の名前を選択するか、"npx @authrim/setup manage" で先に削除してください。',
+  'env.chooseAnother': '別の名前を選択するか、"{{command}} manage" で先に削除してください。',
   'env.available': '環境名は利用可能です',
   'env.checkFailed': '既存の環境を確認できませんでした（続行します）',
   'env.noEnvFound': 'Authrim環境が見つかりません。',

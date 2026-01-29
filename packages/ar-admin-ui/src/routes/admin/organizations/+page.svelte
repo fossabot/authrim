@@ -9,7 +9,7 @@
 		type OrganizationHierarchyResponse
 	} from '$lib/api/admin-organizations';
 	import OrganizationTree from '$lib/components/OrganizationTree.svelte';
-	import { ToggleSwitch } from '$lib/components';
+	import { Modal, ToggleSwitch } from '$lib/components';
 
 	// Tab state
 	let activeTab = $state<'hierarchy' | 'mappings'>('hierarchy');
@@ -20,9 +20,9 @@
 	let hierarchyData: OrganizationHierarchyResponse | null = $state(null);
 	let hierarchyLoading = $state(false);
 	let hierarchyError = $state('');
-	let expandedNodes: Set<string> = new SvelteSet();
+	let expandedNodes = $state<Set<string>>(new SvelteSet());
 	let searchQuery = $state('');
-	let highlightedIds: Set<string> = new SvelteSet();
+	let highlightedIds = $state<Set<string>>(new SvelteSet());
 
 	// Domain mappings state
 	let mappings: OrgDomainMapping[] = $state([]);
@@ -543,211 +543,153 @@
 </div>
 
 <!-- Create Dialog -->
-{#if showCreateDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeCreateDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeCreateDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Add Domain Mapping</h2>
-			</div>
+<Modal open={showCreateDialog} onClose={closeCreateDialog} title="Add Domain Mapping" size="md">
+	{#if createError}
+		<div class="alert alert-error">{createError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if createError}
-					<div class="alert alert-error">{createError}</div>
-				{/if}
-
-				<div class="form-group">
-					<label for="new-domain" class="form-label">Email Domain</label>
-					<input
-						id="new-domain"
-						type="text"
-						class="form-input"
-						bind:value={newDomain}
-						placeholder="example.com"
-					/>
-					<p class="form-hint">
-						Users with email addresses from this domain will be mapped to the organization.
-					</p>
-				</div>
-
-				<div class="form-group">
-					<label for="new-org-id" class="form-label">Organization ID</label>
-					<input
-						id="new-org-id"
-						type="text"
-						class="form-input"
-						bind:value={newOrgId}
-						placeholder="org_..."
-					/>
-				</div>
-
-				<div class="form-group">
-					<ToggleSwitch
-						bind:checked={newAutoJoin}
-						label="Auto Join"
-						description="Enable auto-join for new users with this domain"
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="membership-type" class="form-label">Default Membership Type</label>
-					<select id="membership-type" class="form-select" bind:value={newMembershipType}>
-						<option value="member">Member</option>
-						<option value="admin">Admin</option>
-						<option value="owner">Owner</option>
-					</select>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
-					{creating ? 'Creating...' : 'Create Mapping'}
-				</button>
-			</div>
-		</div>
+	<div class="form-group">
+		<label for="new-domain" class="form-label">Email Domain</label>
+		<input
+			id="new-domain"
+			type="text"
+			class="form-input"
+			bind:value={newDomain}
+			placeholder="example.com"
+		/>
+		<p class="form-hint">
+			Users with email addresses from this domain will be mapped to the organization.
+		</p>
 	</div>
-{/if}
+
+	<div class="form-group">
+		<label for="new-org-id" class="form-label">Organization ID</label>
+		<input
+			id="new-org-id"
+			type="text"
+			class="form-input"
+			bind:value={newOrgId}
+			placeholder="org_..."
+		/>
+	</div>
+
+	<div class="form-group">
+		<ToggleSwitch
+			bind:checked={newAutoJoin}
+			label="Auto Join"
+			description="Enable auto-join for new users with this domain"
+		/>
+	</div>
+
+	<div class="form-group">
+		<label for="membership-type" class="form-label">Default Membership Type</label>
+		<select id="membership-type" class="form-select" bind:value={newMembershipType}>
+			<option value="member">Member</option>
+			<option value="admin">Admin</option>
+			<option value="owner">Owner</option>
+		</select>
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
+			Cancel
+		</button>
+		<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
+			{creating ? 'Creating...' : 'Create Mapping'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Verify Dialog -->
-{#if showVerifyDialog && mappingToVerify}
-	<div
-		class="modal-overlay"
-		onclick={closeVerifyDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeVerifyDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content modal-lg"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Verify Domain Ownership</h2>
+<Modal
+	open={showVerifyDialog && !!mappingToVerify}
+	onClose={closeVerifyDialog}
+	title="Verify Domain Ownership"
+	size="lg"
+>
+	{#if verifyError}
+		<div class="alert alert-error">{verifyError}</div>
+	{/if}
+
+	{#if !verifyRecordName}
+		<p class="modal-description">
+			To verify domain ownership, you'll need to add a DNS TXT record. Click "Get DNS Record" to
+			generate the verification record.
+		</p>
+		<button class="btn btn-primary" onclick={startVerification} disabled={verifying}>
+			{verifying ? 'Loading...' : 'Get DNS Record'}
+		</button>
+	{:else}
+		<p class="modal-description">Add the following TXT record to your domain's DNS settings:</p>
+
+		<div class="info-box">
+			<div class="info-row">
+				<span class="info-label">Record Name (Host)</span>
+				<code class="info-value mono">{verifyRecordName}</code>
 			</div>
-
-			<div class="modal-body">
-				{#if verifyError}
-					<div class="alert alert-error">{verifyError}</div>
-				{/if}
-
-				{#if !verifyRecordName}
-					<p class="modal-description">
-						To verify domain ownership, you'll need to add a DNS TXT record. Click "Get DNS Record"
-						to generate the verification record.
-					</p>
-					<button class="btn btn-primary" onclick={startVerification} disabled={verifying}>
-						{verifying ? 'Loading...' : 'Get DNS Record'}
-					</button>
-				{:else}
-					<p class="modal-description">
-						Add the following TXT record to your domain's DNS settings:
-					</p>
-
-					<div class="info-box">
-						<div class="info-row">
-							<span class="info-label">Record Name (Host)</span>
-							<code class="info-value mono">{verifyRecordName}</code>
-						</div>
-						<div class="info-row">
-							<span class="info-label">Record Type</span>
-							<code class="info-value">TXT</code>
-						</div>
-						<div class="info-row">
-							<span class="info-label">Record Value</span>
-							<code class="info-value mono">{verifyExpectedValue}</code>
-						</div>
-					</div>
-
-					<p class="form-hint">
-						Note: DNS changes may take up to 48 hours to propagate. Once the record is set, click
-						"Verify Domain" to confirm.
-					</p>
-				{/if}
+			<div class="info-row">
+				<span class="info-label">Record Type</span>
+				<code class="info-value">TXT</code>
 			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeVerifyDialog} disabled={verifying}>
-					Cancel
-				</button>
-				{#if verifyRecordName}
-					<button class="btn btn-success" onclick={confirmVerification} disabled={verifying}>
-						{verifying ? 'Verifying...' : 'Verify Domain'}
-					</button>
-				{/if}
+			<div class="info-row">
+				<span class="info-label">Record Value</span>
+				<code class="info-value mono">{verifyExpectedValue}</code>
 			</div>
 		</div>
-	</div>
-{/if}
+
+		<p class="form-hint">
+			Note: DNS changes may take up to 48 hours to propagate. Once the record is set, click "Verify
+			Domain" to confirm.
+		</p>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeVerifyDialog} disabled={verifying}>
+			Cancel
+		</button>
+		{#if verifyRecordName}
+			<button class="btn btn-success" onclick={confirmVerification} disabled={verifying}>
+				{verifying ? 'Verifying...' : 'Verify Domain'}
+			</button>
+		{/if}
+	{/snippet}
+</Modal>
 
 <!-- Delete Confirmation Dialog -->
-{#if showDeleteDialog && mappingToDelete}
-	<div
-		class="modal-overlay"
-		onclick={closeDeleteDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeDeleteDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Delete Domain Mapping</h2>
-			</div>
+<Modal
+	open={showDeleteDialog && !!mappingToDelete}
+	onClose={closeDeleteDialog}
+	title="Delete Domain Mapping"
+	size="md"
+>
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
+	<p class="modal-description">
+		Are you sure you want to delete this domain mapping? New users from this domain will no longer
+		be automatically assigned to the organization.
+	</p>
 
-				<p class="modal-description">
-					Are you sure you want to delete this domain mapping? New users from this domain will no
-					longer be automatically assigned to the organization.
-				</p>
-
-				<div class="info-box">
-					<div class="info-row">
-						<span class="info-label">Organization:</span>
-						<span class="info-value">{mappingToDelete.org_id}</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Status:</span>
-						<span class="info-value">
-							{mappingToDelete.verified ? 'Verified' : 'Pending Verification'}
-						</span>
-					</div>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete Mapping'}
-				</button>
-			</div>
+	<div class="info-box">
+		<div class="info-row">
+			<span class="info-label">Organization:</span>
+			<span class="info-value">{mappingToDelete?.org_id ?? ''}</span>
+		</div>
+		<div class="info-row">
+			<span class="info-label">Status:</span>
+			<span class="info-value">
+				{mappingToDelete?.verified ? 'Verified' : 'Pending Verification'}
+			</span>
 		</div>
 	</div>
-{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete Mapping'}
+		</button>
+	{/snippet}
+</Modal>

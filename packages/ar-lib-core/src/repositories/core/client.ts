@@ -136,6 +136,10 @@ export interface OAuthClient {
   software_version: string | null;
   requestable_scopes: string | null; // JSON array
 
+  // PKCE (RFC 7636)
+  /** Whether PKCE is required for authorization requests */
+  require_pkce: boolean;
+
   // Timestamps
   created_at: number;
   updated_at: number;
@@ -192,6 +196,8 @@ export interface CreateClientInput {
   software_id?: string | null;
   software_version?: string | null;
   requestable_scopes?: string[] | null;
+  // PKCE (RFC 7636)
+  require_pkce?: boolean;
 }
 
 /**
@@ -243,6 +249,8 @@ export interface UpdateClientInput {
   software_id?: string | null;
   software_version?: string | null;
   requestable_scopes?: string[] | null;
+  // PKCE (RFC 7636)
+  require_pkce?: boolean;
 }
 
 /**
@@ -339,6 +347,8 @@ export class ClientRepository {
       requestable_scopes: input.requestable_scopes
         ? JSON.stringify(input.requestable_scopes)
         : null,
+      // PKCE (RFC 7636)
+      require_pkce: input.require_pkce ?? false,
       created_at: now,
       updated_at: now,
     };
@@ -361,8 +371,9 @@ export class ClientRepository {
         frontchannel_logout_uri, frontchannel_logout_session_required,
         allowed_redirect_origins,
         software_id, software_version, requestable_scopes,
+        require_pkce,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         client.client_id,
         client.client_secret_hash,
@@ -407,6 +418,7 @@ export class ClientRepository {
         client.software_id,
         client.software_version,
         client.requestable_scopes,
+        client.require_pkce ? 1 : 0,
         client.created_at,
         client.updated_at,
       ]
@@ -619,6 +631,11 @@ export class ClientRepository {
       updates.push('requestable_scopes = ?');
       params.push(input.requestable_scopes ? JSON.stringify(input.requestable_scopes) : null);
     }
+    // PKCE (RFC 7636)
+    if (input.require_pkce !== undefined) {
+      updates.push('require_pkce = ?');
+      params.push(input.require_pkce ? 1 : 0);
+    }
 
     params.push(clientId);
 
@@ -819,6 +836,8 @@ export class ClientRepository {
       // OIDC Logout
       backchannel_logout_session_required: Boolean(row.backchannel_logout_session_required),
       frontchannel_logout_session_required: Boolean(row.frontchannel_logout_session_required),
+      // PKCE (RFC 7636)
+      require_pkce: Boolean(row.require_pkce),
     };
   }
 }

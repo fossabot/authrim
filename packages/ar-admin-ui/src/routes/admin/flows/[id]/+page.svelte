@@ -10,6 +10,7 @@
 		canEditFlow,
 		canDeleteFlow
 	} from '$lib/api/admin-flows';
+	import { Modal } from '$lib/components';
 
 	let flow: Flow | null = $state(null);
 	let loading = $state(true);
@@ -330,79 +331,51 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-{#if showDeleteDialog && flow}
-	<div class="modal-overlay" onclick={closeDeleteDialog} role="presentation">
-		<div
-			class="modal-content modal-sm"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Delete Flow</h2>
-			</div>
-			<div class="modal-body">
-				<p>
-					Are you sure you want to delete the flow <strong>{flow.name}</strong>?
-				</p>
-				<p class="text-danger">This action cannot be undone.</p>
+<Modal open={showDeleteDialog && !!flow} onClose={closeDeleteDialog} title="Delete Flow" size="sm">
+	<p>
+		Are you sure you want to delete the flow <strong>{flow?.name ?? ''}</strong>?
+	</p>
+	<p class="text-danger">This action cannot be undone.</p>
 
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete'}
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Copy Dialog -->
-{#if showCopyDialog && flow}
-	<div class="modal-overlay" onclick={closeCopyDialog} role="presentation">
-		<div
-			class="modal-content modal-sm"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Copy Flow</h2>
-			</div>
-			<div class="modal-body">
-				<p>Enter a name for the new flow:</p>
+<Modal open={showCopyDialog && !!flow} onClose={closeCopyDialog} title="Copy Flow" size="sm">
+	<p>Enter a name for the new flow:</p>
 
-				<div class="form-group">
-					<input
-						type="text"
-						bind:value={copyName}
-						placeholder="Enter flow name"
-						class="form-input"
-					/>
-				</div>
-
-				{#if copyError}
-					<div class="alert alert-error">{copyError}</div>
-				{/if}
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeCopyDialog} disabled={copying}
-					>Cancel</button
-				>
-				<button
-					class="btn btn-primary"
-					onclick={confirmCopy}
-					disabled={copying || !copyName.trim()}
-				>
-					{copying ? 'Copying...' : 'Copy'}
-				</button>
-			</div>
-		</div>
+	<div class="form-group">
+		<input
+			type="text"
+			bind:value={copyName}
+			placeholder="Enter flow name"
+			class="form-input"
+		/>
 	</div>
-{/if}
+
+	{#if copyError}
+		<div class="alert alert-error">{copyError}</div>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeCopyDialog} disabled={copying}>Cancel</button>
+		<button
+			class="btn btn-primary"
+			onclick={confirmCopy}
+			disabled={copying || !copyName.trim()}
+		>
+			{copying ? 'Copying...' : 'Copy'}
+		</button>
+	{/snippet}
+</Modal>

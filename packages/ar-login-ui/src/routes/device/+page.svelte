@@ -1,284 +1,309 @@
 <script lang="ts">
-	import { Button, Card, Alert } from '$lib/components';
-	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
-	import { LL } from '$i18n/i18n-svelte';
-	import { deviceFlowAPI } from '$lib/api/client';
-	import { createPinInput, melt } from '@melt-ui/svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import * as QRCode from 'qrcode';
+	import { Button, Card, Alert } from '$lib/components';
+	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+	import { brandingStore } from '$lib/stores/branding.svelte';
+	import { LL } from '$i18n/i18n-svelte';
+	import { deviceFlowAPI } from '$lib/api/client';
+	import { isValidRedirectUrl, isValidImageUrl, isValidLinkUrl } from '$lib/utils/url-validation';
 
+	// ---------------------------------------------------------------------------
+	// State
+	// ---------------------------------------------------------------------------
+	let userCode = $state('');
+	let loading = $state(false);
+	let verifying = $state(false);
 	let error = $state('');
 	let success = $state('');
-	let loading = $state(false);
-	let userCode = $state('');
-	let qrCodeDataUrl = $state('');
-	let verificationUrl = $state('');
+	let step = $state<'input' | 'verified'>('input');
 
-	// Melt UI Pin Input - 8 cells (XXXX-XXXX)
-	const {
-		elements: { root, input, hiddenInput },
-		states: { value }
-	} = createPinInput({
-		placeholder: '0',
-		type: 'text',
-		defaultValue: []
-	});
+	// Device info (loaded after verification)
+	interface DeviceInfo {
+		client_name: string;
+		client_uri?: string;
+		logo_uri?: string;
+		scopes: string[];
+	}
+	let deviceInfo = $state<DeviceInfo | null>(null);
 
-	// Watch for PIN input value changes
-	$effect(() => {
-		// Convert array of characters to string
-		const pinValue = $value.join('').toUpperCase();
-
-		// Format as XXXX-XXXX (add hyphen after 4th character)
-		if (pinValue.length > 4) {
-			userCode = pinValue.slice(0, 4) + '-' + pinValue.slice(4, 8);
-		} else {
-			userCode = pinValue;
-		}
-	});
-
-	// Generate QR code when user code changes
-	$effect(() => {
-		if (typeof window !== 'undefined' && userCode && userCode.replace(/-/g, '').length === 8) {
-			// Build verification URL with the current user code
-			const baseUrl = window.location.origin + window.location.pathname;
-			verificationUrl = `${baseUrl}?user_code=${userCode}`;
-
-			// Generate QR code
-			QRCode.toDataURL(verificationUrl, {
-				width: 256,
-				margin: 2,
-				color: {
-					dark: '#000000',
-					light: '#FFFFFF'
-				}
-			})
-				.then((url) => {
-					qrCodeDataUrl = url;
-				})
-				.catch((err) => {
-					console.error('QR code generation failed:', err);
-				});
-		}
-	});
-
-	// Pre-fill code from URL query parameter
+	// ---------------------------------------------------------------------------
+	// Lifecycle
+	// ---------------------------------------------------------------------------
 	onMount(() => {
-		const codeParam = $page.url.searchParams.get('user_code');
-		if (codeParam) {
-			// Remove hyphen and split into characters
-			const cleanCode = codeParam.replace(/-/g, '').toUpperCase();
-			// Set initial value for pin input
-			value.set(cleanCode.split('').slice(0, 8));
+		const code = $page.url.searchParams.get('user_code');
+		if (code) {
+			userCode = code.toUpperCase();
 		}
 	});
 
-	async function handleApprove() {
-		error = '';
-		success = '';
+	// ---------------------------------------------------------------------------
+	// Handlers
+	// ---------------------------------------------------------------------------
+	function formatUserCode(value: string): string {
+		const clean = value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+		if (clean.length > 4) {
+			return clean.slice(0, 4) + '-' + clean.slice(4, 8);
+		}
+		return clean;
+	}
 
-		// Validate code is 8 characters (excluding hyphen)
+	function handleCodeInput(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const formatted = formatUserCode(target.value);
+		userCode = formatted;
+		target.value = formatted;
+	}
+
+	async function handleVerify() {
 		const cleanCode = userCode.replace(/-/g, '');
 		if (cleanCode.length !== 8) {
-			error = $LL.device_errorCodeRequired();
+			error = $LL.device_errorInvalidCode();
 			return;
 		}
 
-		loading = true;
+		error = '';
+		verifying = true;
 
 		try {
-			const { data, error: apiError } = await deviceFlowAPI.verifyDeviceCode(userCode, true);
-
+			const { data, error: apiError } = await deviceFlowAPI.verify(cleanCode);
 			if (apiError) {
-				// Handle specific error codes
-				if (apiError.error === 'invalid_code') {
-					error = $LL.device_errorInvalidCode();
-				} else if (apiError.error_description?.includes('already been')) {
-					error = $LL.device_errorAlreadyUsed();
-				} else {
-					error = apiError.error_description || $LL.device_errorGeneric();
-				}
-				return;
+				throw new Error(apiError.error_description || 'Invalid or expired code');
 			}
-
-			// Success
-			success = data?.message || $LL.device_success();
+			if (data) {
+				deviceInfo = data as DeviceInfo;
+				step = 'verified';
+			}
 		} catch (err) {
-			error = err instanceof Error ? err.message : $LL.device_errorGeneric();
+			error = err instanceof Error ? err.message : 'Failed to verify device code';
+		} finally {
+			verifying = false;
+		}
+	}
+
+	async function handleApprove() {
+		if (loading) return;
+		loading = true;
+		error = '';
+
+		try {
+			const cleanCode = userCode.replace(/-/g, '');
+			const { data, error: apiError } = await deviceFlowAPI.approve(cleanCode);
+			if (apiError) {
+				throw new Error(apiError.error_description || 'Failed to approve device');
+			}
+			if (!data?.redirect_url) {
+				success = $LL.device_success();
+			} else if (!isValidRedirectUrl(data.redirect_url)) {
+				error = 'Invalid redirect URL received from server';
+			} else {
+				success = $LL.device_success();
+				const url = data.redirect_url;
+				setTimeout(() => {
+					window.location.href = url;
+				}, 2000);
+			}
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to approve device';
 		} finally {
 			loading = false;
 		}
 	}
 
 	async function handleDeny() {
-		error = '';
-		success = '';
-
-		// Validate code
-		const cleanCode = userCode.replace(/-/g, '');
-		if (cleanCode.length !== 8) {
-			error = $LL.device_errorCodeRequired();
-			return;
-		}
-
+		if (loading) return;
 		loading = true;
+		error = '';
 
 		try {
-			const { data, error: apiError } = await deviceFlowAPI.verifyDeviceCode(userCode, false);
-
+			const cleanCode = userCode.replace(/-/g, '');
+			const { error: apiError } = await deviceFlowAPI.deny(cleanCode);
 			if (apiError) {
-				error = apiError.error_description || $LL.device_errorGeneric();
-				return;
+				throw new Error(apiError.error_description || 'Failed to deny device');
 			}
-
-			// Denied successfully
-			success = data?.message || $LL.device_denied();
+			window.location.href = '/';
 		} catch (err) {
-			error = err instanceof Error ? err.message : $LL.device_errorGeneric();
+			error = err instanceof Error ? err.message : 'Failed to deny device';
 		} finally {
 			loading = false;
 		}
 	}
+
+	function handleKeyPress(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			handleVerify();
+		}
+	}
 </script>
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-4">
-	<!-- Language Switcher -->
-	<div class="absolute top-4 right-4">
-		<LanguageSwitcher />
-	</div>
+<svelte:head>
+	<title>{$LL.device_title()} - {brandingStore.brandName || $LL.app_title()}</title>
+</svelte:head>
 
-	<!-- Main Card -->
-	<Card class="w-full max-w-md">
-		<div class="text-center mb-8">
-			<div class="text-5xl mb-4">🔐</div>
-			<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-				{$LL.device_title()}
+<div class="auth-page">
+	<LanguageSwitcher />
+
+	<div class="auth-container">
+		<!-- Header -->
+		<div class="auth-header">
+			<h1 class="auth-header__title">
+				{brandingStore.brandName || $LL.app_title()}
 			</h1>
-			<p class="text-sm text-gray-600 dark:text-gray-400">
-				{$LL.device_instructions()}
+			<p class="auth-header__subtitle">
+				{$LL.app_subtitle()}
 			</p>
 		</div>
 
-		<!-- Alerts -->
-		{#if error}
-			<Alert variant="error" class="mb-6">
-				{error}
-			</Alert>
-		{/if}
+		<Card class="mb-6">
+			<!-- Icon -->
+			<div class="auth-icon-badge">
+				<div class="auth-icon-badge__circle">
+					<div class="i-heroicons-device-phone-mobile h-9 w-9 auth-icon-badge__icon"></div>
+				</div>
+			</div>
 
-		{#if success}
-			<Alert variant="success" class="mb-6">
-				{success}
-			</Alert>
-		{/if}
+			{#if step === 'input'}
+				<!-- Step 1: Enter device code -->
+				<h2 class="auth-section-title text-center">
+					{$LL.device_title()}
+				</h2>
+				<p class="auth-section-subtitle text-center mb-6">
+					{$LL.device_subtitle()}
+				</p>
 
-		<!-- QR Code Section -->
-		{#if qrCodeDataUrl}
-			<div class="mb-6">
-				<div class="text-center">
-					<p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-						{$LL.device_qrCodeLabel()}
+				{#if error}
+					<Alert variant="error" dismissible={true} onDismiss={() => (error = '')} class="mb-4">
+						{error}
+					</Alert>
+				{/if}
+
+				<div class="mb-6">
+					<label
+						for="user-code"
+						class="block text-sm font-medium mb-2"
+						style="color: var(--text-secondary);"
+					>
+						{$LL.device_codeLabel()}
+					</label>
+					<input
+						id="user-code"
+						type="text"
+						class="auth-code-input"
+						placeholder="XXXX-XXXX"
+						maxlength="9"
+						value={userCode}
+						oninput={handleCodeInput}
+						onkeypress={handleKeyPress}
+						autocomplete="off"
+						spellcheck="false"
+						aria-describedby="device-code-hint"
+					/>
+					<p
+						id="device-code-hint"
+						class="text-xs text-center mt-2"
+						style="color: var(--text-muted);"
+					>
+						{$LL.device_codeHint()}
 					</p>
-					<div class="flex justify-center mb-3">
-						<img
-							src={qrCodeDataUrl}
-							alt="QR Code for device verification"
-							class="border-4 border-gray-200 dark:border-gray-700 rounded-xl shadow-lg"
-							width="256"
-							height="256"
-						/>
-					</div>
-					<p class="text-xs text-gray-500 dark:text-gray-400 break-all px-4">
-						{verificationUrl}
-					</p>
 				</div>
-			</div>
 
-			<!-- Divider -->
-			<div class="relative mb-6">
-				<div class="absolute inset-0 flex items-center">
-					<div class="w-full border-t border-gray-300 dark:border-gray-600"></div>
-				</div>
-				<div class="relative flex justify-center text-sm">
-					<span class="px-4 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-						{$LL.device_orManual()}
-					</span>
-				</div>
-			</div>
-		{/if}
+				<Button
+					variant="primary"
+					class="w-full"
+					loading={verifying}
+					disabled={userCode.replace(/-/g, '').length !== 8}
+					onclick={handleVerify}
+				>
+					{$LL.device_verifyButton()}
+				</Button>
+			{:else if step === 'verified'}
+				<!-- Step 2: Approve/Deny device -->
+				<h2 class="auth-section-title text-center">
+					{$LL.device_confirmTitle()}
+				</h2>
 
-		<!-- Pin Input -->
-		<div class="mb-6">
-			<div class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-				{$LL.device_codeLabel()}
-			</div>
-
-			<div
-				use:melt={$root}
-				role="group"
-				aria-label={$LL.device_codeLabel()}
-				class="flex gap-2 items-center justify-center"
-			>
-				{#each Array.from({ length: 8 }, (_, i) => i) as i (i)}
-					<!-- Add hyphen separator after 4th digit -->
-					{#if i === 4}
-						<div class="text-2xl font-bold text-gray-400 px-1">-</div>
+				{#if success}
+					<Alert variant="success" class="mt-4">
+						{success}
+					</Alert>
+				{:else}
+					{#if error}
+						<Alert
+							variant="error"
+							dismissible={true}
+							onDismiss={() => (error = '')}
+							class="mt-4 mb-4"
+						>
+							{error}
+						</Alert>
 					{/if}
 
-					<input
-						use:melt={$input()}
-						class="w-12 h-14 text-center text-xl font-bold border-2 border-gray-300 dark:border-gray-600 rounded-lg
-						       focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20
-						       bg-white dark:bg-gray-800 text-gray-900 dark:text-white
-						       transition-all uppercase"
-						maxlength="1"
-					/>
-				{/each}
-			</div>
+					{#if deviceInfo}
+						<div class="auth-info-box mt-6 mb-6">
+							<div class="flex items-center gap-3 mb-3">
+								{#if deviceInfo.logo_uri && isValidImageUrl(deviceInfo.logo_uri)}
+									<img
+										src={deviceInfo.logo_uri}
+										alt={deviceInfo.client_name}
+										class="h-10 w-10 rounded-lg"
+									/>
+								{/if}
+								<div>
+									<p class="auth-info-box__value">
+										{deviceInfo.client_name}
+									</p>
+									{#if deviceInfo.client_uri && isValidLinkUrl(deviceInfo.client_uri)}
+										<a
+											href={deviceInfo.client_uri}
+											target="_blank"
+											rel="noopener noreferrer"
+											class="text-xs"
+											style="color: var(--primary);"
+										>
+											{deviceInfo.client_uri}
+										</a>
+									{/if}
+								</div>
+							</div>
 
-			<input use:melt={$hiddenInput} />
+							{#if deviceInfo.scopes && deviceInfo.scopes.length > 0}
+								<p class="auth-info-box__label mb-2">
+									{$LL.device_requestedPermissions()}
+								</p>
+								<ul class="auth-scopes-list">
+									{#each deviceInfo.scopes as scope (scope)}
+										<li>
+											<div class="i-heroicons-check-circle h-4 w-4 auth-scopes-list__icon"></div>
+											{scope}
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</div>
+					{/if}
 
-			<p class="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-				{$LL.device_codePlaceholder()}
-			</p>
-		</div>
+					<div class="auth-actions">
+						<Button variant="secondary" class="flex-1" disabled={loading} onclick={handleDeny}>
+							{$LL.device_denyButton()}
+						</Button>
+						<Button variant="primary" class="flex-1" {loading} onclick={handleApprove}>
+							{$LL.device_approveButton()}
+						</Button>
+					</div>
+				{/if}
+			{/if}
+		</Card>
 
-		<!-- Action Buttons -->
-		<div class="flex gap-3">
-			<Button
-				variant="primary"
-				size="lg"
-				class="flex-1"
-				disabled={loading || userCode.replace(/-/g, '').length !== 8}
-				onclick={handleApprove}
-			>
-				{loading ? $LL.common_loading() : $LL.device_approveButton()}
-			</Button>
-
-			<Button
-				variant="ghost"
-				size="lg"
-				class="flex-1"
-				disabled={loading || userCode.replace(/-/g, '').length !== 8}
-				onclick={handleDeny}
-			>
-				{$LL.device_denyButton()}
-			</Button>
-		</div>
-	</Card>
+		<!-- Back to Home -->
+		<p class="auth-bottom-link">
+			<a href="/">
+				{$LL.common_backToHome()}
+			</a>
+		</p>
+	</div>
 
 	<!-- Footer -->
-	<div class="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
+	<footer class="auth-footer">
 		<p>{$LL.footer_stack()}</p>
-	</div>
+	</footer>
 </div>
-
-<style>
-	/* Additional styling for pin input cells */
-	:global(.pin-input-cell:focus) {
-		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
-		border-color: #3b82f6;
-		outline: none;
-	}
-</style>

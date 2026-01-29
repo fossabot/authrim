@@ -17,6 +17,7 @@ import { getRevocationStoreByJti } from './token-revocation-sharding';
 import { D1Adapter } from '../db/adapters/d1-adapter';
 import type { DatabaseAdapter } from '../db/adapter';
 import { createLogger } from './logger';
+import { getCacheTTL } from './cache-config';
 
 const log = createLogger().module('KV');
 
@@ -545,8 +546,12 @@ export async function deleteNonce(env: Env, nonce: string): Promise<void> {
  *
  * Architecture:
  * - Primary source: D1 database (oauth_clients table)
- * - Cache: CLIENTS_CACHE KV (1 hour TTL)
+ * - Cache: CLIENTS_CACHE KV (TTL based on cache mode)
  * - Pattern: Read-Through (cache miss → fetch from D1 → populate cache)
+ *
+ * Cache mode:
+ * - fixed: 24 hours TTL (production)
+ * - maintenance: 30 seconds TTL (development/changes)
  *
  * @param env - Cloudflare environment bindings
  * @param clientId - Client ID to retrieve
@@ -555,8 +560,11 @@ export async function deleteNonce(env: Env, nonce: string): Promise<void> {
 export async function getClient(env: Env, clientId: string): Promise<ClientMetadata | null> {
   const cacheKey = buildKVKey('client', clientId);
 
-  // Step 1: Try CLIENTS_CACHE (Read-Through Cache)
-  const cached = await env.CLIENTS_CACHE.get(cacheKey);
+  // Get cache TTL based on cache mode (client-specific > platform > default)
+  const cacheTtl = await getCacheTTL(env, 'clientMetadata', clientId);
+
+  // Step 1: Try CLIENTS_CACHE (Read-Through Cache with edge memory cache)
+  const cached = await env.CLIENTS_CACHE.get(cacheKey, { cacheTtl });
 
   if (cached) {
     try {
@@ -621,6 +629,15 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
     software_id: string | null;
     software_version: string | null;
     requestable_scopes: string | null;
+    // CIBA (Client Initiated Backchannel Authentication) settings
+    backchannel_token_delivery_mode: string | null;
+    backchannel_client_notification_endpoint: string | null;
+    backchannel_authentication_request_signing_alg: string | null;
+    backchannel_user_code_parameter: number | null;
+    // Authrim Extension: Custom Redirect URIs
+    allowed_redirect_origins: string | null;
+    // PKCE settings
+    require_pkce: number | null;
     // Multi-tenant support
     tenant_id: string;
     created_at: number;
@@ -692,16 +709,29 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
     requestable_scopes: result.requestable_scopes
       ? (JSON.parse(result.requestable_scopes) as string[])
       : undefined,
+    // CIBA (Client Initiated Backchannel Authentication) settings
+    backchannel_token_delivery_mode: result.backchannel_token_delivery_mode ?? undefined,
+    backchannel_client_notification_endpoint:
+      result.backchannel_client_notification_endpoint ?? undefined,
+    backchannel_authentication_request_signing_alg:
+      result.backchannel_authentication_request_signing_alg ?? undefined,
+    backchannel_user_code_parameter: result.backchannel_user_code_parameter === 1,
+    // Authrim Extension: Custom Redirect URIs
+    allowed_redirect_origins: result.allowed_redirect_origins
+      ? (JSON.parse(result.allowed_redirect_origins) as string[])
+      : undefined,
+    // PKCE settings
+    require_pkce: result.require_pkce === 1,
     // Multi-tenant support
     tenant_id: result.tenant_id || 'default',
     created_at: result.created_at,
     updated_at: result.updated_at,
   };
 
-  // Step 4: Populate CLIENTS_CACHE (1 hour TTL)
+  // Step 4: Populate CLIENTS_CACHE (TTL based on cache mode)
   try {
     await env.CLIENTS_CACHE.put(cacheKey, JSON.stringify(clientData), {
-      expirationTtl: 3600, // 1 hour
+      expirationTtl: cacheTtl,
     });
   } catch (error) {
     // Cache write failure should not block the response
@@ -711,6 +741,53 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
   }
 
   return clientData;
+}
+
+/**
+ * Write client metadata to KV (Write-Through)
+ *
+ * Call this after D1 write operations (create/update) to keep KV in sync.
+ * This enables efficient reads from KV cache without D1 fallback.
+ *
+ * @param env - Cloudflare environment bindings
+ * @param clientData - Full client metadata to cache
+ * @returns Promise<void>
+ */
+export async function putClient(env: Env, clientData: ClientMetadata): Promise<void> {
+  const cacheKey = buildKVKey('client', clientData.client_id);
+  const cacheTtl = await getCacheTTL(env, 'clientMetadata', clientData.client_id);
+
+  try {
+    await env.CLIENTS_CACHE.put(cacheKey, JSON.stringify(clientData), {
+      expirationTtl: cacheTtl,
+    });
+    log.debug('Client data cached to KV (Write-Through)');
+  } catch (error) {
+    // Log error but don't throw - D1 is source of truth
+    // Next read will repopulate from D1 via Read-Through
+    log.warn('Failed to cache client data (Write-Through)');
+  }
+}
+
+/**
+ * Delete client metadata from KV
+ *
+ * Call this after D1 delete operations to keep KV in sync.
+ *
+ * @param env - Cloudflare environment bindings
+ * @param clientId - Client ID to delete from cache
+ * @returns Promise<void>
+ */
+export async function deleteClientFromKV(env: Env, clientId: string): Promise<void> {
+  const cacheKey = buildKVKey('client', clientId);
+
+  try {
+    await env.CLIENTS_CACHE.delete(cacheKey);
+    log.debug('Client data deleted from KV');
+  } catch (error) {
+    // Log error but don't throw - D1 is source of truth
+    log.warn('Failed to delete client data from KV');
+  }
 }
 
 /**

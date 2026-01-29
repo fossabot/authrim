@@ -51,19 +51,42 @@ const LOGIN_UI_PATHS = [
   '/reauth',
   '/verify-email-code',
   '/error',
+  '/api/set-language',
+  '/callback',
 ];
 
 /**
  * Proxy request to Cloudflare Pages
- * Maintains all headers, query params, and body
+ * Maintains all headers, query params, and body.
+ * Rewrites Origin/Referer headers to match the Pages target so that
+ * SvelteKit CSRF protection (which compares Origin vs event.url.origin)
+ * does not reject proxied state-changing requests.
  */
 async function proxyToPages(request: Request, baseUrl: string, path: string): Promise<Response> {
   const targetUrl = new URL(path, baseUrl);
   targetUrl.search = new URL(request.url).search;
 
+  const headers = new Headers(request.headers);
+  const targetOrigin = targetUrl.origin;
+
+  // Rewrite Origin/Referer so SvelteKit CSRF check passes
+  if (headers.has('origin')) {
+    headers.set('origin', targetOrigin);
+  }
+  if (headers.has('referer')) {
+    try {
+      const referer = new URL(headers.get('referer')!);
+      referer.host = targetUrl.host;
+      referer.protocol = targetUrl.protocol;
+      headers.set('referer', referer.toString());
+    } catch {
+      // Keep original if malformed
+    }
+  }
+
   const proxyRequest = new Request(targetUrl.toString(), {
     method: request.method,
-    headers: request.headers,
+    headers,
     body: request.body,
   });
 
@@ -104,6 +127,8 @@ app.use('*', async (c, next) => {
     path.startsWith('/reauth') ||
     path.startsWith('/verify-email-code') ||
     path.startsWith('/error') ||
+    path.startsWith('/api/set-language') ||
+    path.startsWith('/callback') ||
     path.startsWith('/_app') || // SvelteKit static assets
     path === '/' // Root path for Login UI (external auth callbacks)
   ) {
@@ -326,6 +351,16 @@ app.post('/userinfo', async (c) => {
 app.all('/api/v1/auth/direct/*', async (c) => {
   const request = new Request(c.req.url, c.req.raw);
   return c.env.OP_AUTH.fetch(request);
+});
+
+/**
+ * Login methods endpoint - Route to OP_MANAGEMENT worker
+ * Must be registered BEFORE /api/auth/* to take priority.
+ * - /api/auth/login-methods - Public endpoint for available login methods + UI config
+ */
+app.get('/api/auth/login-methods', async (c) => {
+  const request = new Request(c.req.url, c.req.raw);
+  return c.env.OP_MANAGEMENT.fetch(request);
 });
 
 /**

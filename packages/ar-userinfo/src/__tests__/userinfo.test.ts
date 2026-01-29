@@ -10,21 +10,37 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
 
+// Mock all functions at module level using vi.hoisted to survive vi.restoreAllMocks()
+const mockGetClient = vi.hoisted(() => vi.fn());
+const mockGetClientCached = vi.hoisted(() =>
+  vi.fn().mockImplementation((_c: unknown, env: unknown, clientId: string) => mockGetClient(env, clientId))
+);
+const mockIntrospectTokenFromContext = vi.hoisted(() => vi.fn());
+const mockEncryptJWT = vi.hoisted(() => vi.fn());
+const mockIsUserInfoEncryptionRequired = vi.hoisted(() => vi.fn());
+const mockGetClientPublicKey = vi.hoisted(() => vi.fn());
+const mockValidateJWEOptions = vi.hoisted(() => vi.fn());
+const mockGetCachedUser = vi.hoisted(() => vi.fn());
+const mockCreateOAuthConfigManager = vi.hoisted(() =>
+  vi.fn(() => ({
+    isUserInfoRequireOpenidScope: vi.fn().mockResolvedValue(false),
+  }))
+);
+
 // Mock the shared module
 vi.mock('@authrim/ar-lib-core', async () => {
   const actual = await vi.importActual('@authrim/ar-lib-core');
   return {
     ...actual,
-    introspectTokenFromContext: vi.fn(),
-    getClient: vi.fn(),
-    encryptJWT: vi.fn(),
-    isUserInfoEncryptionRequired: vi.fn(),
-    getClientPublicKey: vi.fn(),
-    validateJWEOptions: vi.fn(),
-    getCachedUser: vi.fn(), // Mock getCachedUser for PII/Non-PII DB separation
-    createOAuthConfigManager: vi.fn(() => ({
-      isUserInfoRequireOpenidScope: vi.fn().mockResolvedValue(false), // Default: allow without openid scope for existing tests
-    })),
+    introspectTokenFromContext: mockIntrospectTokenFromContext,
+    getClient: mockGetClient,
+    getClientCached: mockGetClientCached,
+    encryptJWT: mockEncryptJWT,
+    isUserInfoEncryptionRequired: mockIsUserInfoEncryptionRequired,
+    getClientPublicKey: mockGetClientPublicKey,
+    validateJWEOptions: mockValidateJWEOptions,
+    getCachedUser: mockGetCachedUser,
+    createOAuthConfigManager: mockCreateOAuthConfigManager,
   };
 });
 
@@ -32,6 +48,7 @@ import { userinfoHandler } from '../userinfo';
 import {
   introspectTokenFromContext,
   getClient,
+  getClientCached,
   encryptJWT,
   isUserInfoEncryptionRequired,
   getClientPublicKey,
@@ -141,13 +158,14 @@ const sampleUser = {
 describe('UserInfo Endpoint', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Re-apply mock implementations after vi.clearAllMocks()
+    // This ensures mocks work consistently across all tests
+    mockGetClientCached.mockImplementation((_c: unknown, env: unknown, clientId: string) =>
+      mockGetClient(env, clientId)
+    );
     // Default mock for getCachedUser - returns sample user
     // Tests that need different behavior can override this
     vi.mocked(getCachedUser).mockResolvedValue(sampleUser);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
 
   describe('Token Validation', () => {

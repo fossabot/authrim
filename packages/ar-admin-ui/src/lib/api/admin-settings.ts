@@ -56,6 +56,7 @@ export interface SettingMetaItem {
 	restartRequired?: boolean;
 	visibility?: 'public' | 'admin' | 'internal' | 'page';
 	dependsOn?: Array<{ key: string; value: unknown }>;
+	status?: 'active' | 'in_development';
 }
 
 /**
@@ -332,6 +333,8 @@ export const CATEGORY_NAMES = [
 	'assurance',
 	// Check API Audit
 	'check-api-audit',
+	// Login UI Customization
+	'login-ui',
 	// Platform settings (read-only)
 	'infrastructure',
 	'encryption'

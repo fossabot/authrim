@@ -123,6 +123,11 @@ const ja = {
 	device_orManual: 'または手動入力',
 	device_codeLabel: '認証コード',
 	device_codePlaceholder: 'XXXX-XXXX',
+	device_codeHint: 'デバイスに表示されている8文字のコードを入力してください（形式: XXXX-XXXX）',
+	device_verifyButton: 'コードを確認',
+	device_confirmTitle: 'デバイスを承認',
+	device_successMessage: 'デバイスの認証に成功しました！このウィンドウを閉じることができます。',
+	device_requestedPermissions: 'リクエストされた権限',
 	device_approveButton: '承認',
 	device_denyButton: '拒否',
 	device_success: 'デバイスの認証に成功しました！このウィンドウを閉じることができます。',
@@ -131,6 +136,37 @@ const ja = {
 	device_errorAlreadyUsed: 'このコードは既に使用されています',
 	device_errorGeneric: '認証に失敗しました。もう一度お試しください。',
 	device_errorCodeRequired: '認証コードを入力してください',
+
+	ciba_title: '認証リクエスト',
+	ciba_subtitle: 'アプリケーションがあなたの承認を求めています',
+	ciba_noPendingRequests: '保留中の認証リクエストはありません',
+	ciba_bindingMessage: '確認メッセージ',
+	ciba_requestedPermissions: 'リクエストされた権限',
+	ciba_approveButton: '承認',
+	ciba_rejectButton: '拒否',
+	ciba_approvedSuccess: 'リクエストを承認しました',
+	ciba_rejectedSuccess: 'リクエストを拒否しました',
+	ciba_expired: '期限切れ',
+	ciba_remainingMinutes: '残り{minutes}分{seconds}秒',
+	ciba_remainingSeconds: '残り{seconds}秒',
+
+	reauth_title: '本人確認',
+	reauth_subtitle: 'セキュリティのため、再認証を行ってください',
+	reauth_verifyWithPasskey: 'Passkeyで確認',
+	reauth_verifyWithEmailCode: 'メールコードで確認',
+
+	callback_title: 'サインイン中',
+	callback_processing: '認証を処理しています...',
+	callback_pleaseWait: 'サインインが完了するまでお待ちください。',
+	callback_success: 'サインイン成功！',
+	callback_redirecting: 'リダイレクトしています...',
+	callback_errorTitle: '認証に失敗しました',
+	callback_errorMissingCode: '認可コードが受信されませんでした。再度サインインしてください。',
+	callback_errorStateMismatch: 'セキュリティ検証に失敗しました。再度サインインしてください。',
+	callback_errorExchangeFailed: '認証の完了に失敗しました。再度お試しください。',
+	callback_errorNetwork: 'ネットワークエラーが発生しました。接続を確認して再度お試しください。',
+
+	common_backToHome: 'ホームに戻る',
 
 	admin_sidebar_dashboard: 'ダッシュボード',
 	admin_sidebar_users: 'ユーザー',
@@ -244,7 +280,41 @@ const ja = {
 	admin_policy_available_claims: '使用可能なクレーム',
 	admin_policy_embedding_info: 'ポリシー埋め込み情報',
 	admin_policy_embedding_info_desc:
-		'有効にすると、認可サーバーはリクエストされたスコープをユーザーの権限に対して評価し、許可されたアクションのみをAccess Tokenに埋め込みます。'
+		'有効にすると、認可サーバーはリクエストされたスコープをユーザーの権限に対して評価し、許可されたアクションのみをAccess Tokenに埋め込みます。',
+
+	// External IdP error messages (login page)
+	login_extError_accountExists_title: 'アカウントは既に存在します',
+	login_extError_accountExists_message:
+		'このメールアドレスで既にアカウントが存在します。まず既存の認証情報でログインしてください。',
+	login_extError_accountExists_action: 'ログイン後、設定ページから外部アカウントを連携できます。',
+	login_extError_emailNotVerified_title: 'メール未確認',
+	login_extError_emailNotVerified_message:
+		'外部アカウントのメールアドレスが確認されていません。まずプロバイダーでメールを確認してください。',
+	login_extError_localEmailNotVerified_title: 'メールアドレスの確認が必要です',
+	login_extError_localEmailNotVerified_message:
+		'既存アカウントのメールアドレスが確認されていません。外部アカウントを連携する前にメールを確認してください。',
+	login_extError_jitDisabled_title: '登録は利用できません',
+	login_extError_jitDisabled_message:
+		'外部プロバイダーによる新規アカウント登録は利用できません。まずメールで登録するか、管理者にお問い合わせください。',
+	login_extError_noAccount_title: 'アカウントが見つかりません',
+	login_extError_noAccount_message: 'アカウントが見つかりませんでした。まず登録してください。',
+	login_extError_providerError_title: 'プロバイダーエラー',
+	login_extError_providerError_message:
+		'外部プロバイダーからエラーが返されました。しばらくしてから再度お試しください。',
+	login_extError_callbackFailed_title: '認証に失敗しました',
+	login_extError_callbackFailed_message: '認証中にエラーが発生しました。再度お試しください。',
+	login_extError_default_title: '認証エラー',
+	login_extError_default_message: '外部認証中にエラーが発生しました。',
+
+	// Login page client info
+	login_signingInTo: 'サインイン先',
+
+	// Common (shared)
+	common_contactSupport: 'サポートに問い合わせ',
+	common_dismissAlert: 'アラートを閉じる',
+
+	// Accessibility
+	emailCode_digitLabel: '6桁中{position}桁目'
 } satisfies Translation;
 
 export default ja;

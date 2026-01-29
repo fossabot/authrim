@@ -117,6 +117,8 @@ function getApiBaseUrl(): string {
 
 export const API_BASE_URL = getApiBaseUrl();
 
+const DEFAULT_API_TIMEOUT = 30000; // 30 seconds
+
 /**
  * Generic fetch wrapper with error handling
  */
@@ -124,24 +126,52 @@ async function apiFetch<T>(
 	endpoint: string,
 	options: RequestInit = {}
 ): Promise<{ data?: T; error?: APIError }> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), DEFAULT_API_TIMEOUT);
+
 	try {
 		const url = `${API_BASE_URL}${endpoint}`;
 		const response = await fetch(url, {
 			...options,
+			signal: controller.signal,
 			headers: {
 				'Content-Type': 'application/json',
 				...options.headers
 			}
 		});
 
-		const data = await response.json();
-
-		if (!response.ok) {
-			return { error: data };
+		// Handle empty response body (e.g., 204 No Content)
+		let data: unknown;
+		const contentType = response.headers.get('content-type');
+		if (contentType?.includes('application/json')) {
+			data = await response.json();
+		} else {
+			const text = await response.text();
+			if (text) {
+				try {
+					data = JSON.parse(text);
+				} catch {
+					data = {};
+				}
+			} else {
+				data = {};
+			}
 		}
 
-		return { data };
+		if (!response.ok) {
+			return { error: data as APIError };
+		}
+
+		return { data: data as T };
 	} catch (error) {
+		if (error instanceof DOMException && error.name === 'AbortError') {
+			return {
+				error: {
+					error: 'timeout',
+					error_description: 'Request timed out'
+				}
+			};
+		}
 		console.error('API fetch error:', error);
 		// SECURITY: Do not expose internal error details to prevent information leakage
 		return {
@@ -150,6 +180,8 @@ async function apiFetch<T>(
 				error_description: 'Network error occurred'
 			}
 		};
+	} finally {
+		clearTimeout(timeoutId);
 	}
 }
 
@@ -832,6 +864,139 @@ export const deviceFlowAPI = {
 				user_code: userCode,
 				approve
 			})
+		});
+	},
+
+	/**
+	 * Verify a device code and get device info
+	 */
+	async verify(userCode: string) {
+		return apiFetch<{
+			client_name: string;
+			client_uri?: string;
+			logo_uri?: string;
+			scopes: string[];
+		}>('/api/devices/verify-code', {
+			method: 'POST',
+			body: JSON.stringify({ user_code: userCode }),
+			credentials: 'include'
+		});
+	},
+
+	/**
+	 * Approve a device code
+	 */
+	async approve(userCode: string) {
+		return apiFetch<{
+			success: boolean;
+			redirect_url?: string;
+		}>('/api/devices/approve', {
+			method: 'POST',
+			body: JSON.stringify({ user_code: userCode, approve: true }),
+			credentials: 'include'
+		});
+	},
+
+	/**
+	 * Deny a device code
+	 */
+	async deny(userCode: string) {
+		return apiFetch<{
+			success: boolean;
+		}>('/api/devices/approve', {
+			method: 'POST',
+			body: JSON.stringify({ user_code: userCode, approve: false }),
+			credentials: 'include'
+		});
+	}
+};
+
+/**
+ * CIBA API
+ * Client Initiated Backchannel Authentication
+ */
+export const cibaAPI = {
+	/**
+	 * Get a specific CIBA request by ID
+	 */
+	async getData(requestId: string) {
+		const apiBaseUrl = import.meta.env.VITE_OP_API_URL || API_BASE_URL;
+		try {
+			const response = await fetch(`${apiBaseUrl}/api/ciba/requests/${requestId}`, {
+				method: 'GET',
+				headers: { Accept: 'application/json' },
+				credentials: 'include'
+			});
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				return {
+					error: {
+						error: errorData.error || 'ciba_error',
+						error_description: errorData.error_description || 'Failed to load CIBA request'
+					}
+				};
+			}
+			const data = await response.json();
+			return { data };
+		} catch {
+			return {
+				error: {
+					error: 'network_error',
+					error_description: 'Network error occurred'
+				}
+			};
+		}
+	},
+
+	/**
+	 * Get pending CIBA requests for current user
+	 */
+	async getPending() {
+		const apiBaseUrl = import.meta.env.VITE_OP_API_URL || API_BASE_URL;
+		try {
+			const response = await fetch(`${apiBaseUrl}/api/ciba/requests/pending`, {
+				method: 'GET',
+				headers: { Accept: 'application/json' },
+				credentials: 'include'
+			});
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				return {
+					error: {
+						error: errorData.error || 'ciba_error',
+						error_description: errorData.error_description || 'Failed to load pending requests'
+					}
+				};
+			}
+			const data = await response.json();
+			return { data: data.requests || data };
+		} catch {
+			return {
+				error: {
+					error: 'network_error',
+					error_description: 'Network error occurred'
+				}
+			};
+		}
+	},
+
+	/**
+	 * Approve a CIBA request
+	 */
+	async approve(requestId: string) {
+		return apiFetch<{ success: boolean }>(`/api/ciba/requests/${requestId}/approve`, {
+			method: 'POST',
+			credentials: 'include'
+		});
+	},
+
+	/**
+	 * Reject a CIBA request
+	 */
+	async reject(requestId: string) {
+		return apiFetch<{ success: boolean }>(`/api/ciba/requests/${requestId}/reject`, {
+			method: 'POST',
+			credentials: 'include'
 		});
 	}
 };

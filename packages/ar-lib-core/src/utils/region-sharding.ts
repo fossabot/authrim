@@ -220,13 +220,13 @@ export interface ShardResolution {
 export { DEFAULT_TENANT_ID } from './tenant-context';
 
 /** Default total shard count */
-export const DEFAULT_TOTAL_SHARDS = 20;
+export const DEFAULT_TOTAL_SHARDS = 4;
 
-/** Default region distribution (APAC 20%, US 40%, EU 40%) */
+/** Default region distribution (US East 50%, West Europe 25%, APAC 25%) */
 export const DEFAULT_REGION_DISTRIBUTION: Record<string, number> = {
-  apac: 20,
-  enam: 40,
-  weur: 40,
+  enam: 50,
+  weur: 25,
+  apac: 25,
 };
 
 /** Cache TTL for shard configuration (10 seconds) */
@@ -496,11 +496,11 @@ export function createNewRegionGeneration(
  * @returns Region ranges
  *
  * @example
- * calculateRegionRanges(20, { apac: 20, enam: 40, weur: 40 })
+ * calculateRegionRanges(4, { enam: 50, weur: 25, apac: 25 })
  * // => {
- * //   apac: { startShard: 0, endShard: 3, shardCount: 4 },
- * //   enam: { startShard: 4, endShard: 11, shardCount: 8 },
- * //   weur: { startShard: 12, endShard: 19, shardCount: 8 }
+ * //   enam: { startShard: 0, endShard: 1, shardCount: 2 },
+ * //   weur: { startShard: 2, endShard: 2, shardCount: 1 },
+ * //   apac: { startShard: 3, endShard: 3, shardCount: 1 }
  * // }
  */
 export function calculateRegionRanges(
@@ -1014,27 +1014,27 @@ export function calculateRegionDistribution(
  */
 export const DEFAULT_COLOCATION_GROUPS: Record<string, Omit<ColocationGroup, 'name'>> = {
   'user-client': {
-    totalShards: 64,
+    totalShards: 4,
     members: ['authcode', 'refresh'],
     description: 'Colocated by userId:clientId - MUST have same shard count',
   },
   'random-high-rps': {
-    totalShards: 64,
+    totalShards: 4,
     members: ['revocation'],
     description: 'High RPS endpoints with random UUID keys',
   },
   'random-medium-rps': {
-    totalShards: 32,
+    totalShards: 4,
     members: ['session', 'challenge'],
     description: 'Medium RPS endpoints',
   },
   'client-based': {
-    totalShards: 32,
+    totalShards: 4,
     members: ['par', 'device', 'ciba', 'dpop'],
     description: 'client_id based sharding (PAR, DeviceCode, CIBA, DPoP)',
   },
   vc: {
-    totalShards: 16,
+    totalShards: 4,
     members: ['credoffer', 'vprequest'],
     description: 'Verifiable Credentials',
   },

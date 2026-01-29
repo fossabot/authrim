@@ -11,7 +11,7 @@
 		type ScopeType
 	} from '$lib/api/admin-roles';
 	import OrganizationSelectDialog from '$lib/components/OrganizationSelectDialog.svelte';
-	import { ToggleSwitch } from '$lib/components';
+	import { Modal, ToggleSwitch } from '$lib/components';
 	import type { OrganizationNode } from '$lib/api/admin-organizations';
 	import { sanitizeText, isValidUUID } from '$lib/utils';
 
@@ -708,213 +708,148 @@
 <!-- Confirmation Dialog -->
 {#if showConfirmDialog}
 	{@const dialogContent = getConfirmDialogContent()}
-	<div
-		class="modal-overlay"
-		onclick={closeConfirmDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeConfirmDialog()}
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-	>
-		<div
-			class="modal-content modal-sm"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h3 class="modal-title">
-					{revokedSessionsCount !== null ? 'Sessions Revoked' : dialogContent.title}
-				</h3>
-			</div>
-			<div class="modal-body">
-				{#if revokedSessionsCount !== null}
-					<!-- Success message for revoke-sessions -->
-					<div class="alert alert-success">
-						Successfully revoked {revokedSessionsCount} session{revokedSessionsCount === 1
-							? ''
-							: 's'}.
-						{#if revokedSessionsCount > 0}
-							Active sessions in memory will expire naturally.
-						{/if}
-					</div>
-				{:else}
-					<p class="modal-description">{dialogContent.description}</p>
+	<Modal open={showConfirmDialog} onClose={closeConfirmDialog} title={revokedSessionsCount !== null ? 'Sessions Revoked' : dialogContent.title} size="sm">
+		{#if revokedSessionsCount !== null}
+			<!-- Success message for revoke-sessions -->
+			<div class="alert alert-success">
+				Successfully revoked {revokedSessionsCount} session{revokedSessionsCount === 1
+					? ''
+					: 's'}.
+				{#if revokedSessionsCount > 0}
+					Active sessions in memory will expire naturally.
 				{/if}
 			</div>
-			<div class="modal-footer">
-				{#if revokedSessionsCount !== null}
-					<button class="btn btn-primary" onclick={closeConfirmDialog}>Close</button>
-				{:else}
-					<button class="btn btn-secondary" onclick={closeConfirmDialog} disabled={confirmLoading}>
-						Cancel
-					</button>
-					<button
-						class="btn {confirmAction === 'activate'
-							? 'btn-success'
-							: confirmAction === 'suspend'
-								? 'btn-warning'
-								: 'btn-danger'}"
-						onclick={executeAction}
-						disabled={confirmLoading}
-					>
-						{confirmLoading ? 'Processing...' : dialogContent.buttonText}
-					</button>
-				{/if}
-			</div>
-		</div>
-	</div>
+		{:else}
+			<p class="modal-description">{dialogContent.description}</p>
+		{/if}
+		{#snippet footer()}
+			{#if revokedSessionsCount !== null}
+				<button class="btn btn-primary" onclick={closeConfirmDialog}>Close</button>
+			{:else}
+				<button class="btn btn-secondary" onclick={closeConfirmDialog} disabled={confirmLoading}>
+					Cancel
+				</button>
+				<button
+					class="btn {confirmAction === 'activate'
+						? 'btn-success'
+						: confirmAction === 'suspend'
+							? 'btn-warning'
+							: 'btn-danger'}"
+					onclick={executeAction}
+					disabled={confirmLoading}
+				>
+					{confirmLoading ? 'Processing...' : dialogContent.buttonText}
+				</button>
+			{/if}
+		{/snippet}
+	</Modal>
 {/if}
 
 <!-- Assign Role Dialog -->
-{#if showAssignRoleDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeAssignRoleDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeAssignRoleDialog()}
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-	>
-		<div
-			class="modal-content modal-md"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h3 class="modal-title">Assign Role</h3>
-			</div>
+<Modal open={showAssignRoleDialog} onClose={closeAssignRoleDialog} title="Assign Role" size="md">
+	{#if rolesError}
+		<div class="alert alert-error">{rolesError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if rolesError}
-					<div class="alert alert-error">{rolesError}</div>
-				{/if}
-
-				{#if assignStep === 'select-role'}
-					<!-- Step 1: Select Role -->
-					<p class="step-indicator">Step 1 of 2: Select Role</p>
-					<div class="form-group">
-						<label for="role-select" class="form-label">Select a role to assign</label>
-						<select id="role-select" class="form-select" bind:value={selectedRoleId}>
-							<option value="">-- Select a role --</option>
-							{#each availableRoles as role (role.id)}
-								<option value={role.id}>
-									{role.display_name || role.name}
-									{role.is_system ? '(System)' : ''}
-								</option>
-							{/each}
-						</select>
+	{#if assignStep === 'select-role'}
+		<!-- Step 1: Select Role -->
+		<p class="step-indicator">Step 1 of 2: Select Role</p>
+		<div class="form-group">
+			<label for="role-select" class="form-label">Select a role to assign</label>
+			<select id="role-select" class="form-select" bind:value={selectedRoleId}>
+				<option value="">-- Select a role --</option>
+				{#each availableRoles as role (role.id)}
+					<option value={role.id}>
+						{role.display_name || role.name}
+						{role.is_system ? '(System)' : ''}
+					</option>
+				{/each}
+			</select>
+		</div>
+	{:else}
+		<!-- Step 2: Select Scope -->
+		<p class="step-indicator">Step 2 of 2: Select Scope</p>
+		<div class="form-group">
+			<label class="form-label">Select scope for this role</label>
+			<div class="scope-options">
+				<label class="scope-option" class:selected={selectedScope === 'global'}>
+					<input type="radio" value="global" bind:group={selectedScope} />
+					<div class="scope-option-content">
+						<span>Global</span>
+						<p>Role applies across all organizations</p>
 					</div>
-				{:else}
-					<!-- Step 2: Select Scope -->
-					<p class="step-indicator">Step 2 of 2: Select Scope</p>
-					<div class="form-group">
-						<label class="form-label">Select scope for this role</label>
-						<div class="scope-options">
-							<label class="scope-option" class:selected={selectedScope === 'global'}>
-								<input type="radio" value="global" bind:group={selectedScope} />
-								<div class="scope-option-content">
-									<span>Global</span>
-									<p>Role applies across all organizations</p>
-								</div>
-							</label>
-							<label class="scope-option" class:selected={selectedScope === 'org'}>
-								<input type="radio" value="org" bind:group={selectedScope} />
-								<div class="scope-option-content">
-									<span>Organization</span>
-									<p>Role applies only within a specific organization</p>
-								</div>
-							</label>
-						</div>
+				</label>
+				<label class="scope-option" class:selected={selectedScope === 'org'}>
+					<input type="radio" value="org" bind:group={selectedScope} />
+					<div class="scope-option-content">
+						<span>Organization</span>
+						<p>Role applies only within a specific organization</p>
 					</div>
-
-					{#if selectedScope === 'org'}
-						<div class="form-group">
-							<label class="form-label">Select Organization</label>
-							<div class="org-selector">
-								{#if selectedOrgName}
-									<span class="org-selector-name">{selectedOrgName}</span>
-								{:else}
-									<span class="org-selector-placeholder">No organization selected</span>
-								{/if}
-								<button class="btn btn-primary btn-sm" onclick={openOrgSelectDialog}>
-									{selectedOrgId ? 'Change' : 'Select'}
-								</button>
-							</div>
-						</div>
-					{/if}
-				{/if}
-			</div>
-
-			<div class="modal-footer">
-				{#if assignStep === 'select-role'}
-					<button class="btn btn-secondary" onclick={closeAssignRoleDialog}>Cancel</button>
-					<button class="btn btn-primary" onclick={goToScopeStep} disabled={!selectedRoleId}>
-						Next
-					</button>
-				{:else}
-					<button class="btn btn-secondary" onclick={goBackToRoleStep} disabled={assignLoading}>
-						Back
-					</button>
-					<button
-						class="btn btn-success"
-						onclick={assignRole}
-						disabled={assignLoading || (selectedScope === 'org' && !selectedOrgId)}
-					>
-						{assignLoading ? 'Assigning...' : 'Assign Role'}
-					</button>
-				{/if}
+				</label>
 			</div>
 		</div>
-	</div>
-{/if}
+
+		{#if selectedScope === 'org'}
+			<div class="form-group">
+				<label class="form-label">Select Organization</label>
+				<div class="org-selector">
+					{#if selectedOrgName}
+						<span class="org-selector-name">{selectedOrgName}</span>
+					{:else}
+						<span class="org-selector-placeholder">No organization selected</span>
+					{/if}
+					<button class="btn btn-primary btn-sm" onclick={openOrgSelectDialog}>
+						{selectedOrgId ? 'Change' : 'Select'}
+					</button>
+				</div>
+			</div>
+		{/if}
+	{/if}
+	{#snippet footer()}
+		{#if assignStep === 'select-role'}
+			<button class="btn btn-secondary" onclick={closeAssignRoleDialog}>Cancel</button>
+			<button class="btn btn-primary" onclick={goToScopeStep} disabled={!selectedRoleId}>
+				Next
+			</button>
+		{:else}
+			<button class="btn btn-secondary" onclick={goBackToRoleStep} disabled={assignLoading}>
+				Back
+			</button>
+			<button
+				class="btn btn-success"
+				onclick={assignRole}
+				disabled={assignLoading || (selectedScope === 'org' && !selectedOrgId)}
+			>
+				{assignLoading ? 'Assigning...' : 'Assign Role'}
+			</button>
+		{/if}
+	{/snippet}
+</Modal>
 
 <!-- Remove Role Confirmation Dialog -->
-{#if showRemoveRoleDialog && roleToRemove}
-	<div
-		class="modal-overlay"
-		onclick={closeRemoveRoleDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeRemoveRoleDialog()}
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-	>
-		<div
-			class="modal-content modal-sm"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
+<Modal open={showRemoveRoleDialog && !!roleToRemove} onClose={closeRemoveRoleDialog} title="Remove Role" size="sm">
+	<p class="modal-description">
+		Are you sure you want to remove the role <strong
+			>{sanitizeText(roleToRemove?.role_display_name || roleToRemove?.role_name || '')}</strong
 		>
-			<div class="modal-header">
-				<h3 class="modal-title">Remove Role</h3>
-			</div>
-			<div class="modal-body">
-				<p class="modal-description">
-					Are you sure you want to remove the role <strong
-						>{sanitizeText(roleToRemove.role_display_name || roleToRemove.role_name || '')}</strong
-					>
-					{#if roleToRemove.scope !== 'global'}
-						(scope: {sanitizeText(roleToRemove.scope_target || '')})
-					{/if}
-					from this user?
-				</p>
-			</div>
-			<div class="modal-footer">
-				<button
-					class="btn btn-secondary"
-					onclick={closeRemoveRoleDialog}
-					disabled={removeRoleLoading}
-				>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={removeRole} disabled={removeRoleLoading}>
-					{removeRoleLoading ? 'Removing...' : 'Remove Role'}
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
+		{#if roleToRemove?.scope !== 'global'}
+			(scope: {sanitizeText(roleToRemove?.scope_target || '')})
+		{/if}
+		from this user?
+	</p>
+	{#snippet footer()}
+		<button
+			class="btn btn-secondary"
+			onclick={closeRemoveRoleDialog}
+			disabled={removeRoleLoading}
+		>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={removeRole} disabled={removeRoleLoading}>
+			{removeRoleLoading ? 'Removing...' : 'Remove Role'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Organization Select Dialog -->
 <OrganizationSelectDialog

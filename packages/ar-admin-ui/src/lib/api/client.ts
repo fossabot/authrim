@@ -734,6 +734,11 @@ export const adminSettingsAPI = {
 					accessTokenClaims: string;
 					idTokenClaims: string;
 				};
+				loginUI?: {
+					theme: string;
+					variant: string;
+					supportedLocales: string[];
+				};
 			};
 		}>('/api/admin/settings');
 	},
@@ -801,6 +806,11 @@ export const adminSettingsAPI = {
 			enablePolicyEmbedding?: boolean;
 			accessTokenClaims?: string;
 			idTokenClaims?: string;
+		};
+		loginUI?: {
+			theme?: string;
+			variant?: string;
+			supportedLocales?: string[];
 		};
 	}) {
 		return apiFetch<{

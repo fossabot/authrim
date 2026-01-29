@@ -1,11 +1,18 @@
 /**
- * Theme Store - Manages Admin UI theme state
+ * Theme Store - Manages Login UI theme state
  *
  * Features:
  * - Light/Dark mode toggle
  * - 6 variant options (3 light, 3 dark)
  * - localStorage persistence
  * - SSR-safe initialization
+ * - Tenant theme defaults (from login-methods API)
+ *
+ * Theme Resolution Order:
+ * 1. User local preference (localStorage)
+ * 2. Tenant theme (login-methods API → ui.theme/ui.variant)
+ * 3. System preference (prefers-color-scheme)
+ * 4. Default: light / beige
  */
 
 import { browser } from '$app/environment';
@@ -56,7 +63,32 @@ function createThemeStore() {
 	// Get the current variant based on mode
 	const currentVariant = $derived(mode === 'light' ? lightVariant : darkVariant);
 
+	// Tenant defaults (set from login-methods API)
+	let tenantMode: ThemeMode | null = null;
+	let tenantLightVariant: LightVariant | null = null;
+	let tenantDarkVariant: DarkVariant | null = null;
+
+	/**
+	 * Set tenant theme defaults from the login-methods API response.
+	 * These are used as fallback when the user has no localStorage preference.
+	 * Call this before init() for correct resolution order.
+	 */
+	function setTenantDefaults(themeMode?: string | null, variant?: string | null) {
+		if (themeMode === 'light' || themeMode === 'dark') {
+			tenantMode = themeMode;
+		}
+		if (variant) {
+			if (LIGHT_VARIANTS.some((v) => v.id === variant)) {
+				tenantLightVariant = variant as LightVariant;
+			}
+			if (DARK_VARIANTS.some((v) => v.id === variant)) {
+				tenantDarkVariant = variant as DarkVariant;
+			}
+		}
+	}
+
 	// Initialize from localStorage (browser only)
+	// Resolution order: localStorage → tenant → system → default
 	function init() {
 		if (!browser) return;
 
@@ -66,20 +98,27 @@ function createThemeStore() {
 		) as LightVariant | null;
 		const savedDarkVariant = localStorage.getItem(STORAGE_KEY_DARK_VARIANT) as DarkVariant | null;
 
-		// Validate and apply saved values, fallback to system preference
+		// Mode: localStorage → tenant → system
 		if (savedTheme === 'light' || savedTheme === 'dark') {
 			mode = savedTheme;
+		} else if (tenantMode) {
+			mode = tenantMode;
 		} else {
-			// No saved theme - use system preference
 			mode = getSystemTheme();
 		}
 
+		// Light variant: localStorage → tenant → default
 		if (savedLightVariant && LIGHT_VARIANTS.some((v) => v.id === savedLightVariant)) {
 			lightVariant = savedLightVariant;
+		} else if (tenantLightVariant) {
+			lightVariant = tenantLightVariant;
 		}
 
+		// Dark variant: localStorage → tenant → default
 		if (savedDarkVariant && DARK_VARIANTS.some((v) => v.id === savedDarkVariant)) {
 			darkVariant = savedDarkVariant;
+		} else if (tenantDarkVariant) {
+			darkVariant = tenantDarkVariant;
 		}
 
 		// Apply theme to document
@@ -179,6 +218,7 @@ function createThemeStore() {
 
 		// Methods
 		init,
+		setTenantDefaults,
 		toggleMode,
 		setMode,
 		setLightVariant,

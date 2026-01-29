@@ -85,19 +85,20 @@
 
 	.input-icon {
 		position: absolute;
-		left: 16px;
+		left: 12px;
 		top: 50%;
 		transform: translateY(-50%);
-		width: 20px;
-		height: 20px;
+		width: 18px;
+		height: 18px;
 		color: var(--text-muted);
 		pointer-events: none;
 	}
 
 	.input-icon :global(i),
-	.input-icon :global(svg) {
-		width: 20px;
-		height: 20px;
+	.input-icon :global(svg),
+	.input-icon :global([class*="i-"]) {
+		width: 18px;
+		height: 18px;
 	}
 
 	.form-input {
@@ -115,7 +116,7 @@
 	}
 
 	.form-input.has-icon {
-		padding-left: 48px;
+		padding-left: 36px;
 	}
 
 	.form-input::placeholder {

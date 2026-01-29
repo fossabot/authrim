@@ -34,6 +34,7 @@
 	let alwaysFetchUserinfo = $state(false);
 	let iconUrl = $state('');
 	let buttonColor = $state('');
+	let buttonColorDark = $state('');
 	let buttonText = $state('');
 	let copySuccess = $state(false);
 	let slugManuallyEdited = $state(false);
@@ -152,37 +153,43 @@
 			name = template.name;
 			slug = template.id;
 			providerType = template.providerType;
-			buttonText = `Sign in with ${template.name}`;
-
+	
 			// Set template-specific defaults
 			switch (selectedTemplate) {
 				case 'google':
 					scopes = 'openid email profile';
 					buttonColor = '#4285F4';
+					buttonColorDark = '#8AB4F8';
 					break;
 				case 'github':
 					scopes = 'read:user user:email';
 					buttonColor = '#24292E';
+					buttonColorDark = '#C9D1D9';
 					break;
 				case 'microsoft':
 					scopes = 'openid email profile';
 					buttonColor = '#00A4EF';
+					buttonColorDark = '#4CC2FF';
 					break;
 				case 'linkedin':
 					scopes = 'openid email profile';
 					buttonColor = '#0A66C2';
+					buttonColorDark = '#70B5F9';
 					break;
 				case 'facebook':
 					scopes = 'email public_profile';
 					buttonColor = '#1877F2';
+					buttonColorDark = '#4599FF';
 					break;
 				case 'twitter':
 					scopes = 'users.read tweet.read offline.access';
 					buttonColor = '#1DA1F2';
+					buttonColorDark = '#71C9F8';
 					break;
 				case 'apple':
 					scopes = 'name email';
 					buttonColor = '#000000';
+					buttonColorDark = '#FFFFFF';
 					break;
 			}
 		} else {
@@ -191,6 +198,7 @@
 			slug = '';
 			scopes = 'openid email profile';
 			buttonColor = '';
+			buttonColorDark = '';
 			buttonText = '';
 		}
 	}
@@ -227,6 +235,7 @@
 				always_fetch_userinfo: alwaysFetchUserinfo,
 				icon_url: iconUrl || undefined,
 				button_color: buttonColor || undefined,
+				button_color_dark: buttonColorDark || undefined,
 				button_text: buttonText || undefined
 			};
 
@@ -286,6 +295,7 @@
 						handleTemplateChange();
 					}}
 				>
+					<div class="i-ph-gear h-5 w-5 template-icon"></div>
 					<div class="template-name">Custom</div>
 					<div class="template-desc">Manual config</div>
 				</button>
@@ -300,6 +310,7 @@
 							handleTemplateChange();
 						}}
 					>
+						<div class="{template.icon} h-5 w-5 template-icon"></div>
 						<div class="template-name">{template.name}</div>
 						<div class="template-desc">{template.providerType.toUpperCase()}</div>
 					</button>
@@ -400,19 +411,12 @@
 		</div>
 
 		<!-- Enable/Disable Toggle -->
-		<div class="panel feature-toggle-panel">
-			<div class="feature-toggle-row">
-				<div class="feature-toggle-info">
-					<h3 class="feature-toggle-title">Provider Status</h3>
-					<p class="feature-toggle-description">
-						Enable or disable this identity provider. When disabled, users cannot sign in using this
-						provider.
-					</p>
-				</div>
-				<div class="feature-toggle-control">
-					<ToggleSwitch bind:checked={enabled} />
-				</div>
-			</div>
+		<div class="panel">
+			<ToggleSwitch
+				bind:checked={enabled}
+				label="Provider Status"
+				description="Enable or disable this identity provider. When disabled, users cannot sign in using this provider."
+			/>
 		</div>
 
 		<!-- OAuth/OIDC Configuration -->
@@ -613,38 +617,64 @@
 		<div class="panel">
 			<h2 class="panel-title">UI Customization</h2>
 
-			<div class="form-grid form-grid-3">
-				<div class="form-group">
+			<div class="form-grid">
+				<div class="form-group form-group-full">
 					<label for="iconUrl" class="form-label">Icon URL</label>
 					<input
 						id="iconUrl"
 						type="url"
 						bind:value={iconUrl}
-						placeholder="https://..."
+						placeholder="ex. https://example.com/icon.png"
 						class="form-input"
 					/>
 				</div>
 
 				<div class="form-group">
-					<label for="buttonColor" class="form-label">Button Color</label>
-					<input
-						id="buttonColor"
-						type="text"
-						bind:value={buttonColor}
-						placeholder="#4285F4"
-						class="form-input"
-					/>
+					<label for="buttonColor" class="form-label">Button Color (Light Theme)</label>
+					<div class="color-picker-row">
+						<input
+							type="color"
+							bind:value={buttonColor}
+							class="color-picker-input"
+						/>
+						<input
+							id="buttonColor"
+							type="text"
+							bind:value={buttonColor}
+							placeholder="ex. #4285F4"
+							class="form-input"
+						/>
+					</div>
 				</div>
 
 				<div class="form-group">
+					<label for="buttonColorDark" class="form-label">Button Color (Dark Theme)</label>
+					<div class="color-picker-row">
+						<input
+							type="color"
+							bind:value={buttonColorDark}
+							class="color-picker-input"
+						/>
+						<input
+							id="buttonColorDark"
+							type="text"
+							bind:value={buttonColorDark}
+							placeholder="ex. #8AB4F8"
+							class="form-input"
+						/>
+					</div>
+				</div>
+
+				<div class="form-group form-group-full">
 					<label for="buttonText" class="form-label">Button Text</label>
 					<input
 						id="buttonText"
 						type="text"
 						bind:value={buttonText}
-						placeholder="Sign in with Google"
+						placeholder={name ? `ex. Sign in with ${name}` : 'ex. Sign in with Provider'}
 						class="form-input"
 					/>
+					<p class="form-hint">Leave empty to use the default text based on the provider name.</p>
 				</div>
 			</div>
 		</div>
@@ -756,35 +786,33 @@
 		}
 	}
 
-	.feature-toggle-panel {
-		margin-bottom: 20px;
-	}
-
-	.feature-toggle-row {
+	.color-picker-row {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: 24px;
+		gap: 8px;
 	}
 
-	.feature-toggle-info {
-		flex: 1;
-	}
-
-	.feature-toggle-title {
-		font-size: 16px;
-		font-weight: 600;
-		color: var(--text-primary);
-		margin: 0 0 4px 0;
-	}
-
-	.feature-toggle-description {
-		font-size: 13px;
-		color: var(--text-secondary);
-		margin: 0;
-	}
-
-	.feature-toggle-control {
+	.color-picker-input {
+		width: 40px;
+		height: 38px;
+		padding: 2px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--bg-input);
+		cursor: pointer;
 		flex-shrink: 0;
+	}
+
+	.color-picker-input::-webkit-color-swatch-wrapper {
+		padding: 2px;
+	}
+
+	.color-picker-input::-webkit-color-swatch {
+		border: none;
+		border-radius: 3px;
+	}
+
+	.color-picker-row .form-input {
+		flex: 1;
 	}
 </style>

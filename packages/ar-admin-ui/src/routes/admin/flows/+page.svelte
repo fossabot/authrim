@@ -10,7 +10,7 @@
 		canDeleteFlow
 	} from '$lib/api/admin-flows';
 	import { adminSettingsAPI } from '$lib/api/admin-settings';
-	import { ToggleSwitch } from '$lib/components';
+	import { Modal, ToggleSwitch } from '$lib/components';
 
 	let flows: Flow[] = $state([]);
 	let loading = $state(true);
@@ -404,48 +404,25 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-{#if showDeleteDialog && flowToDelete}
-	<div
-		class="modal-overlay"
-		onclick={closeDeleteDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeDeleteDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="delete-dialog-title"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 id="delete-dialog-title" class="modal-title">Delete Flow</h2>
-			</div>
+<Modal open={showDeleteDialog && !!flowToDelete} onClose={closeDeleteDialog} title="Delete Flow" size="md">
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
+	<p class="modal-description">
+		Are you sure you want to delete the flow <strong>{flowToDelete?.name}</strong>?
+	</p>
+	<p class="danger-text">This action cannot be undone.</p>
 
-				<p class="modal-description">
-					Are you sure you want to delete the flow <strong>{flowToDelete.name}</strong>?
-				</p>
-				<p class="danger-text">This action cannot be undone.</p>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete'}
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete'}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
 	/* Flow Engine Toggle Panel Styles */

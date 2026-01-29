@@ -36,6 +36,7 @@
 	let alwaysFetchUserinfo = $state(false);
 	let iconUrl = $state('');
 	let buttonColor = $state('');
+	let buttonColorDark = $state('');
 	let buttonText = $state('');
 	let copySuccess = $state(false);
 	let slugError = $state('');
@@ -147,6 +148,7 @@
 			alwaysFetchUserinfo = data.alwaysFetchUserinfo || false;
 			iconUrl = data.iconUrl || '';
 			buttonColor = data.buttonColor || '';
+			buttonColorDark = data.buttonColorDark || '';
 			buttonText = data.buttonText || '';
 		} catch (err) {
 			console.error('Failed to load provider:', err);
@@ -194,6 +196,7 @@
 				always_fetch_userinfo: alwaysFetchUserinfo,
 				icon_url: iconUrl || undefined,
 				button_color: buttonColor || undefined,
+				button_color_dark: buttonColorDark || undefined,
 				button_text: buttonText || undefined
 			};
 
@@ -255,19 +258,12 @@
 			{/if}
 
 			<!-- Enable/Disable Toggle -->
-			<div class="panel feature-toggle-panel">
-				<div class="feature-toggle-row">
-					<div class="feature-toggle-info">
-						<h3 class="feature-toggle-title">Provider Status</h3>
-						<p class="feature-toggle-description">
-							Enable or disable this identity provider. When disabled, users cannot sign in using
-							this provider.
-						</p>
-					</div>
-					<div class="feature-toggle-control">
-						<ToggleSwitch bind:checked={enabled} />
-					</div>
-				</div>
+			<div class="panel">
+				<ToggleSwitch
+					bind:checked={enabled}
+					label="Provider Status"
+					description="Enable or disable this identity provider. When disabled, users cannot sign in using this provider."
+				/>
 			</div>
 
 			<!-- Basic Information -->
@@ -527,38 +523,64 @@
 			<div class="panel">
 				<h2 class="panel-title">UI Customization</h2>
 
-				<div class="form-grid form-grid-3">
-					<div class="form-group">
+				<div class="form-grid">
+					<div class="form-group form-group-full">
 						<label for="iconUrl" class="form-label">Icon URL</label>
 						<input
 							id="iconUrl"
 							type="url"
 							bind:value={iconUrl}
-							placeholder="https://..."
+							placeholder="ex. https://example.com/icon.png"
 							class="form-input"
 						/>
 					</div>
 
 					<div class="form-group">
-						<label for="buttonColor" class="form-label">Button Color</label>
-						<input
-							id="buttonColor"
-							type="text"
-							bind:value={buttonColor}
-							placeholder="#4285F4"
-							class="form-input"
-						/>
+						<label for="buttonColor" class="form-label">Button Color (Light Theme)</label>
+						<div class="color-picker-row">
+							<input
+								type="color"
+								bind:value={buttonColor}
+								class="color-picker-input"
+							/>
+							<input
+								id="buttonColor"
+								type="text"
+								bind:value={buttonColor}
+								placeholder="ex. #4285F4"
+								class="form-input"
+							/>
+						</div>
 					</div>
 
 					<div class="form-group">
+						<label for="buttonColorDark" class="form-label">Button Color (Dark Theme)</label>
+						<div class="color-picker-row">
+							<input
+								type="color"
+								bind:value={buttonColorDark}
+								class="color-picker-input"
+							/>
+							<input
+								id="buttonColorDark"
+								type="text"
+								bind:value={buttonColorDark}
+								placeholder="ex. #8AB4F8"
+								class="form-input"
+							/>
+						</div>
+					</div>
+
+					<div class="form-group form-group-full">
 						<label for="buttonText" class="form-label">Button Text</label>
 						<input
 							id="buttonText"
 							type="text"
 							bind:value={buttonText}
-							placeholder="Sign in with Google"
+							placeholder={name ? `ex. Sign in with ${name}` : 'ex. Sign in with Provider'}
 							class="form-input"
 						/>
+						<p class="form-hint">Leave empty to use the default text based on the provider name.</p>
 					</div>
 				</div>
 			</div>
@@ -638,38 +660,6 @@
 		margin-top: 4px;
 	}
 
-	.feature-toggle-panel {
-		margin-bottom: 20px;
-	}
-
-	.feature-toggle-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 24px;
-	}
-
-	.feature-toggle-info {
-		flex: 1;
-	}
-
-	.feature-toggle-title {
-		font-size: 16px;
-		font-weight: 600;
-		color: var(--text-primary);
-		margin: 0 0 4px 0;
-	}
-
-	.feature-toggle-description {
-		font-size: 13px;
-		color: var(--text-secondary);
-		margin: 0;
-	}
-
-	.feature-toggle-control {
-		flex-shrink: 0;
-	}
-
 	.discovery-section {
 		margin-bottom: 20px;
 		padding-bottom: 20px;
@@ -706,5 +696,35 @@
 		to {
 			transform: rotate(360deg);
 		}
+	}
+
+	.color-picker-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.color-picker-input {
+		width: 40px;
+		height: 38px;
+		padding: 2px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--bg-input);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.color-picker-input::-webkit-color-swatch-wrapper {
+		padding: 2px;
+	}
+
+	.color-picker-input::-webkit-color-swatch {
+		border: none;
+		border-radius: 3px;
+	}
+
+	.color-picker-row .form-input {
+		flex: 1;
 	}
 </style>

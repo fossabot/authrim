@@ -130,7 +130,7 @@ const id: Translations = {
   'env.d1Databases': 'Database D1: {{count}}',
   'env.kvNamespaces': 'KV Namespace: {{count}}',
   'env.chooseAnother':
-    'Silakan pilih nama lain atau gunakan "npx @authrim/setup manage" untuk menghapusnya terlebih dahulu.',
+    'Silakan pilih nama lain atau gunakan "{{command}} manage" untuk menghapusnya terlebih dahulu.',
   'env.available': 'Nama environment tersedia',
   'env.checkFailed': 'Tidak dapat memeriksa environment yang ada (melanjutkan)',
   'env.noEnvFound': 'Tidak ada environment Authrim yang ditemukan.',

@@ -218,7 +218,15 @@ export default defineConfig({
 		'i-ph-identification-card',
 		'i-ph-queue',
 		'i-ph-certificate',
-		'i-ph-trash'
+		'i-ph-trash',
+		// Social provider icons (Phosphor)
+		'i-ph-google-logo',
+		'i-ph-github-logo',
+		'i-ph-apple-logo',
+		'i-ph-windows-logo',
+		'i-ph-meta-logo',
+		'i-ph-x-logo',
+		'i-ph-linkedin-logo'
 	],
 	rules: []
 });

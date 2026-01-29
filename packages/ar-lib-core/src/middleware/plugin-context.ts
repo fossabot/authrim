@@ -362,33 +362,67 @@ async function getGlobalPluginConfig<T>(
 }
 
 /**
- * Check if a plugin is enabled in KV
+ * Convert plugin ID to settings-v2 key format
+ * e.g. "notifier-resend" → "plugin.notifier_resend_enabled"
+ */
+function pluginIdToSettingsKey(pluginId: string): string {
+  return `plugin.${pluginId.replace(/-/g, '_')}_enabled`;
+}
+
+/**
+ * Check if a plugin is enabled
+ *
+ * Resolution order:
+ * 1. settings-v2 (AUTHRIM_CONFIG KV): `plugin.{plugin_id_underscore}_enabled`
+ * 2. Legacy (SETTINGS KV): `plugins:enabled:{pluginId}` (tenant-specific → global)
+ * 3. Default: true
  */
 async function isPluginEnabledInKV(env: Env, pluginId: string, tenantId: string): Promise<boolean> {
-  const kv = env.SETTINGS;
-  if (!kv) {
-    return true; // Default: enabled
-  }
-
+  // 1. Check settings-v2 (AUTHRIM_CONFIG KV)
   try {
-    // Check tenant-specific first
-    const tenantKey = `plugins:enabled:${pluginId}:tenant:${tenantId}`;
-    const tenantValue = await kv.get(tenantKey);
-    if (tenantValue !== null) {
-      return tenantValue === 'true';
-    }
-
-    // Fall back to global
-    const globalKey = `plugins:enabled:${pluginId}`;
-    const globalValue = await kv.get(globalKey);
-    if (globalValue !== null) {
-      return globalValue === 'true';
+    const configKV = env.AUTHRIM_CONFIG;
+    if (configKV) {
+      const settingsKey = pluginIdToSettingsKey(pluginId);
+      const kvJson = await configKV.get(`settings:tenant:${tenantId}:plugin`);
+      if (kvJson) {
+        const settings = JSON.parse(kvJson) as Record<string, unknown>;
+        if (typeof settings[settingsKey] === 'boolean') {
+          return settings[settingsKey] as boolean;
+        }
+        // Also check string form (KV stores may serialize as string)
+        if (typeof settings[settingsKey] === 'string') {
+          return settings[settingsKey] === 'true';
+        }
+      }
     }
   } catch {
-    // Ignore errors
+    // Ignore errors, fall through
   }
 
-  return true; // Default: enabled
+  // 2. Check legacy SETTINGS KV
+  const kv = env.SETTINGS;
+  if (kv) {
+    try {
+      // Check tenant-specific first
+      const tenantKey = `plugins:enabled:${pluginId}:tenant:${tenantId}`;
+      const tenantValue = await kv.get(tenantKey);
+      if (tenantValue !== null) {
+        return tenantValue === 'true';
+      }
+
+      // Fall back to global
+      const globalKey = `plugins:enabled:${pluginId}`;
+      const globalValue = await kv.get(globalKey);
+      if (globalValue !== null) {
+        return globalValue === 'true';
+      }
+    } catch {
+      // Ignore errors
+    }
+  }
+
+  // 3. Default: enabled
+  return true;
 }
 
 /**
@@ -429,13 +463,14 @@ export interface PluginLoaderConfig {
   /**
    * The plugin to load
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugin: {
     id: string;
     version: string;
     capabilities: string[];
     configSchema: { parse: (input: unknown) => unknown };
-    register: (registry: unknown, config: unknown) => void;
-    initialize?: (ctx: unknown, config: unknown) => Promise<void>;
+    register: (registry: any, config: any) => void;
+    initialize?: (ctx: any, config: any) => Promise<void>;
   };
 
   /**

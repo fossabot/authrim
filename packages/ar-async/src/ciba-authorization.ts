@@ -16,7 +16,7 @@ import {
   determineDeliveryMode,
   calculatePollingInterval,
   parseLoginHint,
-  getClient,
+  getClientCached,
   createErrorResponse,
   AR_ERROR_CODES,
   getLogger,
@@ -71,7 +71,7 @@ export async function cibaAuthorizationHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // Validate client exists and is authorized for CIBA
-    const clientMetadata = await getClient(c.env, client_id);
+    const clientMetadata = await getClientCached(c, c.env, client_id);
     if (!clientMetadata) {
       return createErrorResponse(c, AR_ERROR_CODES.CLIENT_AUTH_FAILED);
     }

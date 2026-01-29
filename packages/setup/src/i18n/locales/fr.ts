@@ -131,7 +131,7 @@ const fr: Translations = {
   'env.d1Databases': 'Bases de données D1 : {{count}}',
   'env.kvNamespaces': 'Namespaces KV : {{count}}',
   'env.chooseAnother':
-    'Veuillez choisir un autre nom ou utilisez "npx @authrim/setup manage" pour le supprimer d\'abord.',
+    'Veuillez choisir un autre nom ou utilisez "{{command}} manage" pour le supprimer d\'abord.',
   'env.available': "Le nom de l'environnement est disponible",
   'env.checkFailed':
     'Impossible de vérifier les environnements existants (continuation quand même)',

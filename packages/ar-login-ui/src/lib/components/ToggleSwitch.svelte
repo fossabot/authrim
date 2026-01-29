@@ -23,10 +23,15 @@
 
 	const {
 		elements: { root, input },
-		states: { checked: switchChecked }
+		states: { checked: switchChecked },
+		options: { disabled: switchDisabled }
 	} = createSwitch({
-		defaultChecked: checked,
-		disabled
+		defaultChecked: checked
+	});
+
+	// Sync disabled prop with internal state (handles initial + reactive updates)
+	$effect.pre(() => {
+		switchDisabled.set(disabled);
 	});
 
 	// Sync external checked prop with internal state

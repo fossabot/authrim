@@ -70,6 +70,7 @@
 		],
 		// Configuration
 		configuration: [
+			{ path: '/admin/login-ui', label: 'Login UI', icon: 'i-ph-paint-brush' },
 			{ path: '/admin/settings', label: 'Settings', icon: 'i-ph-gear' },
 			{ path: '/admin/plugins', label: 'Plugins', icon: 'i-ph-puzzle-piece' }
 		]

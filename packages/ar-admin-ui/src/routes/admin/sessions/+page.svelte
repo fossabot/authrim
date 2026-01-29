@@ -6,6 +6,7 @@
 		type Pagination,
 		type SessionListParams
 	} from '$lib/api/admin-sessions';
+	import { Modal } from '$lib/components';
 
 	let sessions: Session[] = $state([]);
 	let pagination: Pagination | null = $state(null);
@@ -307,60 +308,40 @@
 </div>
 
 <!-- Revoke Confirmation Dialog -->
-{#if showRevokeDialog && sessionToRevoke}
-	<div
-		class="modal-overlay"
-		onclick={closeRevokeDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeRevokeDialog()}
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Revoke Session</h2>
+<Modal open={showRevokeDialog && !!sessionToRevoke} onClose={closeRevokeDialog} title="Revoke Session" size="md">
+	{#if sessionToRevoke}
+		<p class="modal-description">
+			This will immediately log out the user from this session. Are you sure?
+		</p>
+
+		<div class="info-box">
+			<div class="info-row">
+				<span class="info-label">User:</span>
+				<span class="info-value">
+					{sessionToRevoke.user_email || sessionToRevoke.user_id}
+				</span>
 			</div>
-
-			<div class="modal-body">
-				<p class="modal-description">
-					This will immediately log out the user from this session. Are you sure?
-				</p>
-
-				<div class="info-box">
-					<div class="info-row">
-						<span class="info-label">User:</span>
-						<span class="info-value">
-							{sessionToRevoke.user_email || sessionToRevoke.user_id}
-						</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">IP:</span>
-						<span class="info-value">{sessionToRevoke.ip_address || '-'}</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Last Access:</span>
-						<span class="info-value">{getRelativeTime(sessionToRevoke.last_accessed_at)}</span>
-					</div>
-				</div>
-
-				{#if revokeError}
-					<div class="alert alert-error">{revokeError}</div>
-				{/if}
+			<div class="info-row">
+				<span class="info-label">IP:</span>
+				<span class="info-value">{sessionToRevoke.ip_address || '-'}</span>
 			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeRevokeDialog} disabled={revoking}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={confirmRevoke} disabled={revoking}>
-					{revoking ? 'Revoking...' : 'Revoke'}
-				</button>
+			<div class="info-row">
+				<span class="info-label">Last Access:</span>
+				<span class="info-value">{getRelativeTime(sessionToRevoke.last_accessed_at)}</span>
 			</div>
 		</div>
-	</div>
-{/if}
+
+		{#if revokeError}
+			<div class="alert alert-error">{revokeError}</div>
+		{/if}
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeRevokeDialog} disabled={revoking}>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={confirmRevoke} disabled={revoking}>
+			{revoking ? 'Revoking...' : 'Revoke'}
+		</button>
+	{/snippet}
+</Modal>

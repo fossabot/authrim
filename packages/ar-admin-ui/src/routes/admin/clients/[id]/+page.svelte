@@ -9,7 +9,7 @@
 		type UpdateClientInput
 	} from '$lib/api/admin-clients';
 	import { adminSettingsAPI, type CategorySettings } from '$lib/api/admin-settings';
-	import { ToggleSwitch } from '$lib/components';
+	import { Modal, ToggleSwitch } from '$lib/components';
 
 	const clientId = $derived($page.params.id ?? '');
 
@@ -179,7 +179,7 @@
 			response_types: [...client.response_types],
 			token_endpoint_auth_method: client.token_endpoint_auth_method,
 			scope: client.scope,
-			require_pkce: client.require_pkce
+			require_pkce: client.require_pkce ?? false
 		};
 		isEditing = true;
 	}
@@ -570,158 +570,110 @@
 </div>
 
 <!-- Delete Confirmation Modal -->
-{#if showDeleteModal && client}
-	<div
-		class="modal-overlay"
-		onclick={() => {
-			showDeleteModal = false;
-			deleteConfirmName = '';
-		}}
-		onkeydown={(e) => e.key === 'Escape' && (showDeleteModal = false)}
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h3 class="modal-title" style="color: var(--danger);">⚠️ Delete Client</h3>
-			</div>
-
-			<div class="modal-body">
-				<div class="danger-box">
-					<p class="danger-box-title">This action CANNOT be undone.</p>
-					<ul>
-						<li>All tokens issued to this client will be invalidated immediately</li>
-						<li>Historical audit data for this client will become orphaned</li>
-					</ul>
-				</div>
-
-				<p class="modal-description">
-					Type <strong>{client.client_name}</strong> to confirm:
-				</p>
-				<input
-					type="text"
-					class="confirm-input"
-					bind:value={deleteConfirmName}
-					placeholder="Enter client name"
-				/>
-			</div>
-
-			<div class="modal-footer">
-				<button
-					class="btn btn-secondary"
-					onclick={() => {
-						showDeleteModal = false;
-						deleteConfirmName = '';
-					}}
-				>
-					Cancel
-				</button>
-				<button
-					class="btn btn-danger"
-					onclick={handleDelete}
-					disabled={deleting || deleteConfirmName !== client.client_name}
-				>
-					{deleting ? 'Deleting...' : 'Delete Client'}
-				</button>
-			</div>
-		</div>
+<Modal open={showDeleteModal && !!client} onClose={() => { showDeleteModal = false; deleteConfirmName = ''; }} title="Delete Client" size="md">
+	{#snippet header()}
+		<h3 class="modal-title" style="color: var(--danger);">Delete Client</h3>
+	{/snippet}
+	<div class="danger-box">
+		<p class="danger-box-title">This action CANNOT be undone.</p>
+		<ul>
+			<li>All tokens issued to this client will be invalidated immediately</li>
+			<li>Historical audit data for this client will become orphaned</li>
+		</ul>
 	</div>
-{/if}
+
+	<p class="modal-description">
+		Type <strong>{client?.client_name ?? ''}</strong> to confirm:
+	</p>
+	<input
+		type="text"
+		class="confirm-input"
+		bind:value={deleteConfirmName}
+		placeholder="Enter client name"
+	/>
+	{#snippet footer()}
+		<button
+			class="btn btn-secondary"
+			onclick={() => {
+				showDeleteModal = false;
+				deleteConfirmName = '';
+			}}
+		>
+			Cancel
+		</button>
+		<button
+			class="btn btn-danger"
+			onclick={handleDelete}
+			disabled={deleting || deleteConfirmName !== client?.client_name}
+		>
+			{deleting ? 'Deleting...' : 'Delete Client'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Regenerate Secret Modal -->
-{#if showRegenerateModal}
-	<div
-		class="modal-overlay"
-		onclick={() => {
-			showRegenerateModal = false;
-			newSecret = null;
-		}}
-		onkeydown={(e) => e.key === 'Escape' && (showRegenerateModal = false)}
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			{#if newSecret}
-				<!-- Success: Show new secret -->
-				<div class="modal-header">
-					<h3 class="modal-title" style="color: var(--success);">✅ Secret Regenerated</h3>
-				</div>
-
-				<div class="modal-body">
-					<div class="warning-box">
-						<p>⚠️ <strong>Save this secret now!</strong> It will not be shown again.</p>
-					</div>
-
-					<div class="form-group">
-						<label class="form-label">New Client Secret</label>
-						<div class="input-copy-group">
-							<input type="text" value={newSecret} readonly class="input-readonly" />
-							<button
-								class="btn-copy"
-								class:copied={copiedField === 'new_secret'}
-								onclick={() => copyToClipboard(newSecret!, 'new_secret')}
-							>
-								{copiedField === 'new_secret' ? '✓ Copied' : 'Copy'}
-							</button>
-						</div>
-					</div>
-				</div>
-
-				<div class="modal-footer">
-					<button
-						class="btn btn-primary"
-						onclick={() => {
-							showRegenerateModal = false;
-							newSecret = null;
-						}}
-					>
-						Done
-					</button>
-				</div>
-			{:else}
-				<!-- Confirmation -->
-				<div class="modal-header">
-					<h3 class="modal-title" style="color: var(--warning);">🔄 Regenerate Client Secret</h3>
-				</div>
-
-				<div class="modal-body">
-					<div class="warning-box">
-						<p>
-							This will <strong>invalidate</strong> the current client secret. All applications using
-							the old secret will stop working immediately.
-						</p>
-					</div>
-
-					<p class="modal-description">
-						The new secret will only be shown once. Make sure to update your applications after
-						regenerating.
-					</p>
-				</div>
-
-				<div class="modal-footer">
-					<button class="btn btn-secondary" onclick={() => (showRegenerateModal = false)}>
-						Cancel
-					</button>
-					<button class="btn btn-warning" onclick={handleRegenerateSecret} disabled={regenerating}>
-						{regenerating ? 'Regenerating...' : 'Regenerate Secret'}
-					</button>
-				</div>
-			{/if}
+<Modal open={showRegenerateModal} onClose={() => { showRegenerateModal = false; newSecret = null; }} title={newSecret ? 'Secret Regenerated' : 'Regenerate Client Secret'} size="md">
+	{#snippet header()}
+		{#if newSecret}
+			<h3 class="modal-title" style="color: var(--success);">Secret Regenerated</h3>
+		{:else}
+			<h3 class="modal-title" style="color: var(--warning);">Regenerate Client Secret</h3>
+		{/if}
+	{/snippet}
+	{#if newSecret}
+		<!-- Success: Show new secret -->
+		<div class="warning-box">
+			<p><strong>Save this secret now!</strong> It will not be shown again.</p>
 		</div>
-	</div>
-{/if}
+
+		<div class="form-group">
+			<label class="form-label">New Client Secret</label>
+			<div class="input-copy-group">
+				<input type="text" value={newSecret} readonly class="input-readonly" />
+				<button
+					class="btn-copy"
+					class:copied={copiedField === 'new_secret'}
+					onclick={() => copyToClipboard(newSecret!, 'new_secret')}
+				>
+					{copiedField === 'new_secret' ? '✓ Copied' : 'Copy'}
+				</button>
+			</div>
+		</div>
+	{:else}
+		<!-- Confirmation -->
+		<div class="warning-box">
+			<p>
+				This will <strong>invalidate</strong> the current client secret. All applications using
+				the old secret will stop working immediately.
+			</p>
+		</div>
+
+		<p class="modal-description">
+			The new secret will only be shown once. Make sure to update your applications after
+			regenerating.
+		</p>
+	{/if}
+	{#snippet footer()}
+		{#if newSecret}
+			<button
+				class="btn btn-primary"
+				onclick={() => {
+					showRegenerateModal = false;
+					newSecret = null;
+				}}
+			>
+				Done
+			</button>
+		{:else}
+			<button class="btn btn-secondary" onclick={() => (showRegenerateModal = false)}>
+				Cancel
+			</button>
+			<button class="btn btn-warning" onclick={handleRegenerateSecret} disabled={regenerating}>
+				{regenerating ? 'Regenerating...' : 'Regenerate Secret'}
+			</button>
+		{/if}
+	{/snippet}
+</Modal>
 
 <style>
 	.uri-item-with-cors {

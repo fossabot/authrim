@@ -9,7 +9,7 @@
 		createEqualsCondition,
 		createAssignRoleAction
 	} from '$lib/api/admin-role-rules';
-	import { ToggleSwitch } from '$lib/components';
+	import { Modal, ToggleSwitch } from '$lib/components';
 
 	let rules: RoleAssignmentRule[] = $state([]);
 	let loading = $state(true);
@@ -309,242 +309,178 @@
 </div>
 
 <!-- Create Dialog -->
-{#if showCreateDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeCreateDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeCreateDialog()}
-		tabindex="-1"
-		role="presentation"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Add Role Assignment Rule</h2>
+<Modal open={showCreateDialog} onClose={closeCreateDialog} title="Add Role Assignment Rule" size="md">
+	{#if createError}
+		<div class="alert alert-error">{createError}</div>
+	{/if}
+
+	<div class="form-group">
+		<label for="rule-name" class="form-label">Rule Name</label>
+		<input
+			type="text"
+			id="rule-name"
+			class="form-input"
+			bind:value={newName}
+			placeholder="e.g., Assign Admin for IT Staff"
+		/>
+	</div>
+
+	<div class="form-group">
+		<label for="rule-desc" class="form-label">Description (optional)</label>
+		<input
+			type="text"
+			id="rule-desc"
+			class="form-input"
+			bind:value={newDescription}
+			placeholder="Brief description of the rule"
+		/>
+	</div>
+
+	<div class="form-group">
+		<label for="role-id" class="form-label">Role ID to Assign</label>
+		<input
+			type="text"
+			id="role-id"
+			class="form-input"
+			bind:value={newRoleId}
+			placeholder="e.g., admin, viewer, editor"
+		/>
+	</div>
+
+	<div class="panel" style="margin: 16px 0;">
+		<h3 class="form-label">Condition (Simple Match)</h3>
+
+		<div class="form-row">
+			<div class="form-group">
+				<label for="claim-name" class="form-label">Claim Name</label>
+				<input
+					type="text"
+					id="claim-name"
+					class="form-input"
+					bind:value={newClaimName}
+					placeholder="e.g., email, groups, department"
+				/>
 			</div>
-
-			<div class="modal-body">
-				{#if createError}
-					<div class="alert alert-error">{createError}</div>
-				{/if}
-
-				<div class="form-group">
-					<label for="rule-name" class="form-label">Rule Name</label>
-					<input
-						type="text"
-						id="rule-name"
-						class="form-input"
-						bind:value={newName}
-						placeholder="e.g., Assign Admin for IT Staff"
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="rule-desc" class="form-label">Description (optional)</label>
-					<input
-						type="text"
-						id="rule-desc"
-						class="form-input"
-						bind:value={newDescription}
-						placeholder="Brief description of the rule"
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="role-id" class="form-label">Role ID to Assign</label>
-					<input
-						type="text"
-						id="role-id"
-						class="form-input"
-						bind:value={newRoleId}
-						placeholder="e.g., admin, viewer, editor"
-					/>
-				</div>
-
-				<div class="panel" style="margin: 16px 0;">
-					<h3 class="form-label">Condition (Simple Match)</h3>
-
-					<div class="form-row">
-						<div class="form-group">
-							<label for="claim-name" class="form-label">Claim Name</label>
-							<input
-								type="text"
-								id="claim-name"
-								class="form-input"
-								bind:value={newClaimName}
-								placeholder="e.g., email, groups, department"
-							/>
-						</div>
-						<div class="form-group">
-							<label for="claim-value" class="form-label">Claim Value</label>
-							<input
-								type="text"
-								id="claim-value"
-								class="form-input"
-								bind:value={newClaimValue}
-								placeholder="e.g., *@company.com, IT"
-							/>
-						</div>
-					</div>
-					<p class="cell-secondary">
-						This creates a simple "equals" condition. For complex conditions, use the API directly.
-					</p>
-				</div>
-
-				<div class="form-row">
-					<div class="form-group">
-						<label for="priority" class="form-label">Priority</label>
-						<input
-							type="number"
-							id="priority"
-							class="form-input"
-							bind:value={newPriority}
-							min="0"
-							max="1000"
-						/>
-						<span class="cell-secondary">Higher priority rules are evaluated first</span>
-					</div>
-				</div>
-
-				<div class="form-group">
-					<ToggleSwitch
-						bind:checked={newStopProcessing}
-						label="Stop Processing"
-						description="Stop processing subsequent rules if this rule matches"
-					/>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
-					{creating ? 'Creating...' : 'Create Rule'}
-				</button>
+			<div class="form-group">
+				<label for="claim-value" class="form-label">Claim Value</label>
+				<input
+					type="text"
+					id="claim-value"
+					class="form-input"
+					bind:value={newClaimValue}
+					placeholder="e.g., *@company.com, IT"
+				/>
 			</div>
 		</div>
+		<p class="cell-secondary">
+			This creates a simple "equals" condition. For complex conditions, use the API directly.
+		</p>
 	</div>
-{/if}
+
+	<div class="form-row">
+		<div class="form-group">
+			<label for="priority" class="form-label">Priority</label>
+			<input
+				type="number"
+				id="priority"
+				class="form-input"
+				bind:value={newPriority}
+				min="0"
+				max="1000"
+			/>
+			<span class="cell-secondary">Higher priority rules are evaluated first</span>
+		</div>
+	</div>
+
+	<div class="form-group">
+		<ToggleSwitch
+			bind:checked={newStopProcessing}
+			label="Stop Processing"
+			description="Stop processing subsequent rules if this rule matches"
+		/>
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
+			Cancel
+		</button>
+		<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
+			{creating ? 'Creating...' : 'Create Rule'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Test Dialog -->
-{#if showTestDialog && ruleToTest}
-	<div
-		class="modal-overlay"
-		onclick={closeTestDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeTestDialog()}
-		tabindex="-1"
-		role="presentation"
-	>
-		<div
-			class="modal-content modal-lg"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
+<Modal open={showTestDialog && !!ruleToTest} onClose={closeTestDialog} title={`Test Rule: ${ruleToTest?.name ?? ''}`} size="lg">
+	{#if testError}
+		<div class="alert alert-error">{testError}</div>
+	{/if}
+
+	<div class="form-group">
+		<label for="test-claims" class="form-label">Test Claims (JSON)</label>
+		<textarea id="test-claims" class="form-input" bind:value={testClaims} rows="6"></textarea>
+		<span class="cell-secondary"
+			>Enter the claims object that would be received from the IdP</span
 		>
-			<div class="modal-header">
-				<h2 class="modal-title">Test Rule: {ruleToTest.name}</h2>
-			</div>
-
-			<div class="modal-body">
-				{#if testError}
-					<div class="alert alert-error">{testError}</div>
-				{/if}
-
-				<div class="form-group">
-					<label for="test-claims" class="form-label">Test Claims (JSON)</label>
-					<textarea id="test-claims" class="form-input" bind:value={testClaims} rows="6"></textarea>
-					<span class="cell-secondary"
-						>Enter the claims object that would be received from the IdP</span
-					>
-				</div>
-
-				{#if testResult}
-					<div class="panel {testResult.matched ? 'panel-success' : 'panel-neutral'}">
-						<div class="cell-primary">
-							{testResult.matched ? '✓ Rule Matched' : '✗ Rule Did Not Match'}
-						</div>
-						{#if testResult.matched && testResult.actions_applied.length > 0}
-							<div style="margin-top: 8px;">
-								<strong>Actions to apply:</strong>
-								<ul style="margin: 8px 0 0 20px;">
-									{#each testResult.actions_applied as action, i (i)}
-										<li>{action.type}: {action.target}</li>
-									{/each}
-								</ul>
-							</div>
-						{/if}
-					</div>
-				{/if}
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeTestDialog}>Close</button>
-				<button class="btn btn-primary" onclick={runTest} disabled={testing}>
-					{testing ? 'Testing...' : 'Run Test'}
-				</button>
-			</div>
-		</div>
 	</div>
-{/if}
+
+	{#if testResult}
+		<div class="panel {testResult.matched ? 'panel-success' : 'panel-neutral'}">
+			<div class="cell-primary">
+				{testResult.matched ? '✓ Rule Matched' : '✗ Rule Did Not Match'}
+			</div>
+			{#if testResult.matched && testResult.actions_applied.length > 0}
+				<div style="margin-top: 8px;">
+					<strong>Actions to apply:</strong>
+					<ul style="margin: 8px 0 0 20px;">
+						{#each testResult.actions_applied as action, i (i)}
+							<li>{action.type}: {action.target}</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeTestDialog}>Close</button>
+		<button class="btn btn-primary" onclick={runTest} disabled={testing}>
+			{testing ? 'Testing...' : 'Run Test'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Delete Confirmation Dialog -->
-{#if showDeleteDialog && ruleToDelete}
-	<div
-		class="modal-overlay"
-		onclick={closeDeleteDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeDeleteDialog()}
-		tabindex="-1"
-		role="presentation"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Delete Role Assignment Rule</h2>
-			</div>
+<Modal open={showDeleteDialog && !!ruleToDelete} onClose={closeDeleteDialog} title="Delete Role Assignment Rule" size="md">
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
+	<p class="modal-description">
+		Are you sure you want to delete this role assignment rule? Users will no longer be
+		automatically assigned the specified role based on this rule.
+	</p>
 
-				<p class="modal-description">
-					Are you sure you want to delete this role assignment rule? Users will no longer be
-					automatically assigned the specified role based on this rule.
-				</p>
-
-				<div class="panel" style="margin-top: 16px;">
-					<p><strong>Rule:</strong> {ruleToDelete.name}</p>
-					<p><strong>Role:</strong> {ruleToDelete.role_id}</p>
-					<p>
-						<strong>Condition:</strong>
-						<code class="condition-code">{formatCondition(ruleToDelete.condition)}</code>
-					</p>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete Rule'}
-				</button>
-			</div>
+	{#if ruleToDelete}
+		<div class="panel" style="margin-top: 16px;">
+			<p><strong>Rule:</strong> {ruleToDelete.name}</p>
+			<p><strong>Role:</strong> {ruleToDelete.role_id}</p>
+			<p>
+				<strong>Condition:</strong>
+				<code class="condition-code">{formatCondition(ruleToDelete.condition)}</code>
+			</p>
 		</div>
-	</div>
-{/if}
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete Rule'}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
 	.rules-container {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { LL, getLocale, setLocale } from '$i18n/i18n-svelte';
 	import type { Locales } from '$i18n/i18n-types';
+	import { themeStore } from '$lib/stores/theme.svelte';
 
 	const availableLocales: Locales[] = ['en', 'ja'];
 	let currentLang = $state<Locales>(getLocale());
@@ -20,6 +21,9 @@
 			setLocale(lang as Locales);
 			currentLang = lang as Locales;
 
+			// Update html lang attribute
+			document.documentElement.lang = lang;
+
 			// Reload page to apply language change across all components
 			if (typeof window !== 'undefined') {
 				window.location.reload();
@@ -30,18 +34,35 @@
 	}
 </script>
 
-<div class="flex items-center gap-2">
-	<div class="i-heroicons-globe-alt h-4 w-4 text-gray-500"></div>
-	<select
-		value={currentLang}
-		onchange={(e) => switchLanguage(e.currentTarget.value)}
-		aria-label="Language"
-		class="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+<div class="auth-topbar">
+	<!-- Theme Toggle -->
+	<button
+		type="button"
+		class="theme-toggle"
+		onclick={() => themeStore.toggleMode()}
+		aria-label={themeStore.isDark ? 'Switch to light mode' : 'Switch to dark mode'}
 	>
-		{#each availableLocales as lang (lang)}
-			<option value={lang}>
-				{lang === 'en' ? $LL.language_english() : $LL.language_japanese()}
-			</option>
-		{/each}
-	</select>
+		{#if themeStore.isDark}
+			<div class="i-heroicons-sun h-4.5 w-4.5"></div>
+		{:else}
+			<div class="i-heroicons-moon h-4.5 w-4.5"></div>
+		{/if}
+	</button>
+
+	<!-- Language Selector -->
+	<div class="flex items-center gap-1.5">
+		<div class="i-heroicons-globe-alt h-4 w-4" style="color: var(--text-muted);"></div>
+		<select
+			value={currentLang}
+			onchange={(e) => switchLanguage(e.currentTarget.value)}
+			aria-label="Language"
+			class="auth-lang-select"
+		>
+			{#each availableLocales as lang (lang)}
+				<option value={lang}>
+					{lang === 'en' ? $LL.language_english() : $LL.language_japanese()}
+				</option>
+			{/each}
+		</select>
+	</div>
 </div>

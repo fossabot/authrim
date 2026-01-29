@@ -3,13 +3,15 @@ import { Hono } from 'hono';
 import { authorizeHandler } from '../authorize';
 import type { Env } from '@authrim/ar-lib-core/types/env';
 
-// Mock getClient at module level
+// Mock getClient and getClientCached at module level
 const mockGetClient = vi.hoisted(() => vi.fn());
 vi.mock('@authrim/ar-lib-core', async () => {
   const actual = await vi.importActual('@authrim/ar-lib-core');
   return {
     ...actual,
     getClient: mockGetClient,
+    // getClientCached wraps getClient, so we need to mock it too
+    getClientCached: vi.fn().mockImplementation((_c, env, clientId) => mockGetClient(env, clientId)),
   };
 });
 

@@ -21,6 +21,12 @@
 
 set -e
 
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/lib/authrim-paths.sh" ]; then
+  source "${SCRIPT_DIR}/lib/authrim-paths.sh"
+fi
+
 # Trap Ctrl+C and other signals to ensure clean exit
 trap 'echo ""; echo "⚠️  Deployment cancelled by user"; exit 130' INT TERM
 
@@ -625,16 +631,20 @@ PACKAGES=(
 )
 
 # Get ISSUER_URL early for health checks during gradual rollout
-# Extract from [env.xxx.vars] section in wrangler.toml
+# Priority: 1. .authrim/{env}/config.json, 2. wrangler.toml [env.xxx.vars]
 ISSUER_URL=""
-if [ -f "packages/ar-discovery/wrangler.toml" ]; then
-    # Extract ISSUER_URL from the environment-specific vars section
-    ISSUER_URL=$(grep -A 100 "\\[env\\.${DEPLOY_ENV}\\.vars\\]" "packages/ar-discovery/wrangler.toml" 2>/dev/null | grep 'ISSUER_URL = ' | head -1 | sed 's/.*ISSUER_URL = "\(.*\)"/\1/')
-    # Validate URL before use (security: prevent command injection)
-    if [ -n "$ISSUER_URL" ] && ! validate_url "$ISSUER_URL"; then
-        echo "⚠️  ISSUER_URL validation failed. Health checks will be skipped."
-        ISSUER_URL=""
+if type get_issuer_url &>/dev/null; then
+    ISSUER_URL=$(get_issuer_url "$DEPLOY_ENV" 2>/dev/null)
+else
+    # Fallback: Extract from wrangler.toml
+    if [ -f "packages/ar-discovery/wrangler.toml" ]; then
+        ISSUER_URL=$(grep -A 100 "\\[env\\.${DEPLOY_ENV}\\.vars\\]" "packages/ar-discovery/wrangler.toml" 2>/dev/null | grep 'ISSUER_URL = ' | head -1 | sed 's/.*ISSUER_URL = "\(.*\)"/\1/')
     fi
+fi
+# Validate URL before use (security: prevent command injection)
+if [ -n "$ISSUER_URL" ] && ! validate_url "$ISSUER_URL"; then
+    echo "⚠️  ISSUER_URL validation failed. Health checks will be skipped."
+    ISSUER_URL=""
 fi
 
 # Display gradual rollout warning
@@ -703,18 +713,34 @@ if [ ${#FAILED_PACKAGES[@]} -eq 0 ]; then
     echo "✅ All packages deployed successfully!"
     echo ""
 
-    # Extract ISSUER_URL and ADMIN_API_SECRET from wrangler.toml [env.xxx.vars] section
+    # Get ISSUER_URL and ADMIN_API_SECRET
+    # Priority: 1. .authrim/{env}/config.json, 2. wrangler.toml [env.xxx.vars]
     ISSUER_URL=""
     ADMIN_API_SECRET=""
-    if [ -f "packages/ar-discovery/wrangler.toml" ]; then
-        ISSUER_URL=$(grep -A 100 "\\[env\\.${DEPLOY_ENV}\\.vars\\]" "packages/ar-discovery/wrangler.toml" 2>/dev/null | grep 'ISSUER_URL = ' | head -1 | sed 's/.*ISSUER_URL = "\(.*\)"/\1/')
-        # Validate URL before use (security: prevent command injection)
-        if [ -n "$ISSUER_URL" ] && ! validate_url "$ISSUER_URL"; then
-            echo "⚠️  ISSUER_URL validation failed. Skipping version registration and endpoint display."
-            ISSUER_URL=""
+
+    # Get ISSUER_URL
+    if type get_issuer_url &>/dev/null; then
+        ISSUER_URL=$(get_issuer_url "$DEPLOY_ENV" 2>/dev/null)
+    else
+        if [ -f "packages/ar-discovery/wrangler.toml" ]; then
+            ISSUER_URL=$(grep -A 100 "\\[env\\.${DEPLOY_ENV}\\.vars\\]" "packages/ar-discovery/wrangler.toml" 2>/dev/null | grep 'ISSUER_URL = ' | head -1 | sed 's/.*ISSUER_URL = "\(.*\)"/\1/')
         fi
     fi
-    if [ -f "packages/ar-management/wrangler.toml" ]; then
+    # Validate URL before use (security: prevent command injection)
+    if [ -n "$ISSUER_URL" ] && ! validate_url "$ISSUER_URL"; then
+        echo "⚠️  ISSUER_URL validation failed. Skipping version registration and endpoint display."
+        ISSUER_URL=""
+    fi
+
+    # Get ADMIN_API_SECRET (from keys directory or wrangler.toml)
+    if type find_keys_dir &>/dev/null; then
+        KEYS_DIR=$(find_keys_dir "$DEPLOY_ENV" 2>/dev/null)
+        if [ -n "$KEYS_DIR" ] && [ -f "${KEYS_DIR}/admin_api_secret.txt" ]; then
+            ADMIN_API_SECRET=$(cat "${KEYS_DIR}/admin_api_secret.txt" 2>/dev/null)
+        fi
+    fi
+    # Fallback to wrangler.toml
+    if [ -z "$ADMIN_API_SECRET" ] && [ -f "packages/ar-management/wrangler.toml" ]; then
         ADMIN_API_SECRET=$(grep -A 100 "\\[env\\.${DEPLOY_ENV}\\.vars\\]" "packages/ar-management/wrangler.toml" 2>/dev/null | grep 'ADMIN_API_SECRET = ' | head -1 | sed 's/.*ADMIN_API_SECRET = "\(.*\)"/\1/')
         # Fallback to KEY_MANAGER_SECRET if ADMIN_API_SECRET not found
         if [ -z "$ADMIN_API_SECRET" ]; then

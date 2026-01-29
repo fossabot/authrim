@@ -28,6 +28,17 @@ export interface UiEnvConfig {
    * If not set, defaults to PUBLIC_API_BASE_URL
    */
   API_BACKEND_URL?: string;
+  /**
+   * Authrim issuer URL for SDK initialization
+   * Used by Login UI to configure the SDK client
+   * Typically the same as the API base URL
+   */
+  PUBLIC_AUTHRIM_ISSUER?: string;
+  /**
+   * Login UI OAuth client ID
+   * Auto-created during deployment via ensureLoginUiClient()
+   */
+  PUBLIC_LOGIN_UI_CLIENT_ID?: string;
 }
 
 // =============================================================================

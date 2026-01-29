@@ -81,6 +81,12 @@ export interface SettingMeta {
    * - 'page': managed on a dedicated page, hidden from settings list
    */
   visibility?: 'public' | 'admin' | 'internal' | 'page';
+  /**
+   * Implementation status
+   * - 'active': fully implemented (default)
+   * - 'in_development': setting is defined but not yet consumed by frontend
+   */
+  status?: 'active' | 'in_development';
 }
 
 /**

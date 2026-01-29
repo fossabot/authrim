@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Modal } from '$lib/components';
 	import {
 		adminAccessTraceAPI,
 		type AccessTraceEntry,
@@ -365,95 +366,72 @@
 </div>
 
 <!-- Detail Dialog -->
-{#if showDetailDialog && selectedEntry}
-	<div
-		class="modal-overlay"
-		onclick={closeDetail}
-		onkeydown={(e) => e.key === 'Escape' && closeDetail()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content modal-lg"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Access Decision Detail</h2>
-				<button class="modal-close" onclick={closeDetail} aria-label="Close">
-					<i class="i-ph-x"></i>
-				</button>
+<Modal open={showDetailDialog && !!selectedEntry} onClose={closeDetail} title="Access Decision Detail" size="lg">
+	{#if selectedEntry}
+		<div class="detail-grid">
+			<div class="detail-row">
+				<span class="detail-label">ID</span>
+				<span class="detail-value mono">{selectedEntry.id}</span>
 			</div>
-
-			<div class="modal-body">
-				<div class="detail-grid">
-					<div class="detail-row">
-						<span class="detail-label">ID</span>
-						<span class="detail-value mono">{selectedEntry.id}</span>
-					</div>
-					<div class="detail-row">
-						<span class="detail-label">Time</span>
-						<span class="detail-value">{formatTimestamp(selectedEntry.checked_at)}</span>
-					</div>
-					<div class="detail-row">
-						<span class="detail-label">Subject ID</span>
-						<span class="detail-value mono">{selectedEntry.subject_id}</span>
-					</div>
-					<div class="detail-row">
-						<span class="detail-label">Permission</span>
-						<span class="detail-value mono"
-							>{formatPermission(selectedEntry.permission, selectedEntry.permission_parsed)}</span
-						>
-					</div>
-					<div class="detail-row">
-						<span class="detail-label">Decision</span>
-						<span class="detail-value">
-							<span class={selectedEntry.allowed ? 'badge badge-success' : 'badge badge-danger'}>
-								{getDecisionLabel(selectedEntry.allowed)}
-							</span>
-						</span>
-					</div>
-					<div class="detail-row">
-						<span class="detail-label">Final Decision</span>
-						<span class="detail-value">{selectedEntry.final_decision}</span>
-					</div>
-					<div class="detail-row">
-						<span class="detail-label">Resolved Via</span>
-						<span class="detail-value">{formatResolvedVia(selectedEntry.resolved_via)}</span>
-					</div>
-					{#if selectedEntry.reason}
-						<div class="detail-row">
-							<span class="detail-label">Reason</span>
-							<span class="detail-value danger-text">{selectedEntry.reason}</span>
-						</div>
-					{/if}
-					{#if selectedEntry.api_key_id}
-						<div class="detail-row">
-							<span class="detail-label">API Key ID</span>
-							<span class="detail-value mono">{selectedEntry.api_key_id}</span>
-						</div>
-					{/if}
-					{#if selectedEntry.client_id}
-						<div class="detail-row">
-							<span class="detail-label">Client ID</span>
-							<span class="detail-value mono">{selectedEntry.client_id}</span>
-						</div>
-					{/if}
+			<div class="detail-row">
+				<span class="detail-label">Time</span>
+				<span class="detail-value">{formatTimestamp(selectedEntry.checked_at)}</span>
+			</div>
+			<div class="detail-row">
+				<span class="detail-label">Subject ID</span>
+				<span class="detail-value mono">{selectedEntry.subject_id}</span>
+			</div>
+			<div class="detail-row">
+				<span class="detail-label">Permission</span>
+				<span class="detail-value mono"
+					>{formatPermission(selectedEntry.permission, selectedEntry.permission_parsed)}</span
+				>
+			</div>
+			<div class="detail-row">
+				<span class="detail-label">Decision</span>
+				<span class="detail-value">
+					<span class={selectedEntry.allowed ? 'badge badge-success' : 'badge badge-danger'}>
+						{getDecisionLabel(selectedEntry.allowed)}
+					</span>
+				</span>
+			</div>
+			<div class="detail-row">
+				<span class="detail-label">Final Decision</span>
+				<span class="detail-value">{selectedEntry.final_decision}</span>
+			</div>
+			<div class="detail-row">
+				<span class="detail-label">Resolved Via</span>
+				<span class="detail-value">{formatResolvedVia(selectedEntry.resolved_via)}</span>
+			</div>
+			{#if selectedEntry.reason}
+				<div class="detail-row">
+					<span class="detail-label">Reason</span>
+					<span class="detail-value danger-text">{selectedEntry.reason}</span>
 				</div>
-
-				{#if selectedEntry.permission_parsed}
-					<div class="detail-section">
-						<h4 class="detail-section-title">Parsed Permission</h4>
-						<pre class="code-block">{JSON.stringify(selectedEntry.permission_parsed, null, 2)}</pre>
-					</div>
-				{/if}
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDetail}>Close</button>
-			</div>
+			{/if}
+			{#if selectedEntry.api_key_id}
+				<div class="detail-row">
+					<span class="detail-label">API Key ID</span>
+					<span class="detail-value mono">{selectedEntry.api_key_id}</span>
+				</div>
+			{/if}
+			{#if selectedEntry.client_id}
+				<div class="detail-row">
+					<span class="detail-label">Client ID</span>
+					<span class="detail-value mono">{selectedEntry.client_id}</span>
+				</div>
+			{/if}
 		</div>
-	</div>
-{/if}
+
+		{#if selectedEntry.permission_parsed}
+			<div class="detail-section">
+				<h4 class="detail-section-title">Parsed Permission</h4>
+				<pre class="code-block">{JSON.stringify(selectedEntry.permission_parsed, null, 2)}</pre>
+			</div>
+		{/if}
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDetail}>Close</button>
+	{/snippet}
+</Modal>

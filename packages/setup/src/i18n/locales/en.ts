@@ -129,7 +129,7 @@ const en: Translations = {
   'env.d1Databases': 'D1 Databases: {{count}}',
   'env.kvNamespaces': 'KV Namespaces: {{count}}',
   'env.chooseAnother':
-    'Please choose a different name or use "npx @authrim/setup manage" to delete it first.',
+    'Please choose a different name or use "{{command}} manage" to delete it first.',
   'env.available': 'Environment name is available',
   'env.checkFailed': 'Could not check existing environments (continuing anyway)',
   'env.noEnvFound': 'No Authrim environments found.',

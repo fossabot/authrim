@@ -2,10 +2,17 @@
 /**
  * @authrim/setup - CLI tool for setting up Authrim OIDC Provider
  *
- * Usage:
+ * Usage (via npx):
  *   npx @authrim/setup           # Start Web UI (default)
  *   npx @authrim/setup --cli     # Start CLI mode
  *   npx @authrim/setup --config ./authrim-config.json  # Load existing config
+ *
+ * Usage (from source repository):
+ *   pnpm setup                   # Start Web UI (default)
+ *   pnpm setup:manage            # Manage existing environments
+ *   pnpm setup:deploy            # Deploy to Cloudflare
+ *   pnpm setup:status            # Show deployment status
+ *   pnpm setup:info              # Display resource information
  */
 
 import { Command } from 'commander';

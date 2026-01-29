@@ -119,6 +119,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       always_fetch_userinfo?: boolean;
       icon_url?: string;
       button_color?: string;
+      button_color_dark?: string;
       button_text?: string;
       authorization_endpoint?: string;
       token_endpoint?: string;
@@ -294,6 +295,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       (defaults.providerQuirks as Record<string, unknown> | undefined) || {};
     const defaultIconUrl = (defaults.iconUrl as string | undefined) || undefined;
     const defaultButtonColor = (defaults.buttonColor as string | undefined) || undefined;
+    const defaultButtonColorDark = (defaults.buttonColorDark as string | undefined) || undefined;
     const defaultButtonText = (defaults.buttonText as string | undefined) || undefined;
 
     const provider = await createProvider(c.env, {
@@ -320,6 +322,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       providerQuirks: body.provider_quirks || defaultProviderQuirks,
       iconUrl: body.icon_url || defaultIconUrl,
       buttonColor: body.button_color || defaultButtonColor,
+      buttonColorDark: body.button_color_dark || defaultButtonColorDark,
       buttonText: body.button_text || defaultButtonText,
       // Request Object (JAR - RFC 9101) settings
       useRequestObject: body.use_request_object,
@@ -403,6 +406,7 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
       always_fetch_userinfo?: boolean;
       icon_url?: string;
       button_color?: string;
+      button_color_dark?: string;
       button_text?: string;
       authorization_endpoint?: string;
       token_endpoint?: string;
@@ -442,6 +446,7 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
       updates.alwaysFetchUserinfo = body.always_fetch_userinfo;
     if (body.icon_url !== undefined) updates.iconUrl = body.icon_url;
     if (body.button_color !== undefined) updates.buttonColor = body.button_color;
+    if (body.button_color_dark !== undefined) updates.buttonColorDark = body.button_color_dark;
     if (body.button_text !== undefined) updates.buttonText = body.button_text;
     if (body.authorization_endpoint !== undefined)
       updates.authorizationEndpoint = body.authorization_endpoint;

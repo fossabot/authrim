@@ -3,9 +3,14 @@
 	import { page } from '$app/stores';
 	import { Button, Card, Spinner } from '$lib/components';
 	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+	import { brandingStore } from '$lib/stores/branding.svelte';
 	import { LL } from '$i18n/i18n-svelte';
+	import { consentAPI } from '$lib/api/client';
+	import { isValidRedirectUrl, isValidImageUrl, isValidLinkUrl } from '$lib/utils/url-validation';
 
-	// Type definitions matching backend ConsentScreenData
+	// ---------------------------------------------------------------------------
+	// Types
+	// ---------------------------------------------------------------------------
 	interface ConsentScopeInfo {
 		name: string;
 		title: string;
@@ -65,6 +70,9 @@
 		features: ConsentFeatureFlags;
 	}
 
+	// ---------------------------------------------------------------------------
+	// State
+	// ---------------------------------------------------------------------------
 	let loading = $state(true);
 	let allowLoading = $state(false);
 	let denyLoading = $state(false);
@@ -72,9 +80,15 @@
 	let error = $state('');
 	let selectedOrgId = $state<string | null>(null);
 
-	// Get challenge_id from URL query params
 	const challengeId = $derived($page.url.searchParams.get('challenge_id'));
 
+	const selectedOrg = $derived(
+		consentData?.organizations.find((o) => o.id === selectedOrgId) || consentData?.primary_org
+	);
+
+	// ---------------------------------------------------------------------------
+	// Lifecycle
+	// ---------------------------------------------------------------------------
 	onMount(async () => {
 		if (!challengeId) {
 			error = 'Missing challenge_id parameter';
@@ -84,32 +98,22 @@
 		await loadConsentData();
 	});
 
+	// ---------------------------------------------------------------------------
+	// Data
+	// ---------------------------------------------------------------------------
 	async function loadConsentData() {
 		if (!challengeId) return;
 
 		try {
-			// Determine API base URL (use OP API if configured, otherwise same origin)
-			const apiBaseUrl = import.meta.env.VITE_OP_API_URL || '';
-			const response = await fetch(`${apiBaseUrl}/auth/consent?challenge_id=${challengeId}`, {
-				method: 'GET',
-				headers: {
-					Accept: 'application/json'
-				},
-				credentials: 'include'
-			});
-
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(errorData.error_description || 'Failed to load consent data');
+			const { data, error: apiError } = await consentAPI.getData(challengeId);
+			if (apiError) {
+				throw new Error(apiError.error_description || 'Failed to load consent data');
 			}
 
-			consentData = await response.json();
-
-			// Initialize selected org from response
+			consentData = data as ConsentScreenData;
 			if (consentData) {
 				selectedOrgId = consentData.target_org_id || consentData.primary_org?.id || null;
 			}
-
 			loading = false;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load consent data';
@@ -117,6 +121,9 @@
 		}
 	}
 
+	// ---------------------------------------------------------------------------
+	// Handlers
+	// ---------------------------------------------------------------------------
 	function getScopeLabel(scope: string): string {
 		const scopeLabels: Record<string, string> = {
 			openid: $LL.consent_scope_openid(),
@@ -126,41 +133,30 @@
 			address: $LL.consent_scope_address(),
 			offline_access: $LL.consent_scope_offline_access()
 		};
-
 		return scopeLabels[scope] || scope;
 	}
 
 	async function handleAllow() {
-		if (!consentData) return;
-
+		if (!consentData || allowLoading || denyLoading) return;
 		allowLoading = true;
 
 		try {
-			const apiBaseUrl = import.meta.env.VITE_OP_API_URL || '';
-			const response = await fetch(`${apiBaseUrl}/auth/consent`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				credentials: 'include',
-				body: JSON.stringify({
-					challenge_id: consentData.challenge_id,
-					approved: true,
-					selected_org_id: selectedOrgId,
-					acting_as_user_id: consentData.acting_as?.id
-				})
+			const { data, error: apiError } = await consentAPI.submit({
+				challenge_id: consentData.challenge_id,
+				approved: true,
+				selected_org_id: selectedOrgId || undefined,
+				acting_as_user_id: consentData.acting_as?.id
 			});
 
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(errorData.error_description || 'Failed to approve consent');
+			if (apiError) {
+				throw new Error(apiError.error_description || 'Failed to approve consent');
 			}
-
-			const result = await response.json();
-
-			// Redirect to the URL provided by the backend
-			if (result.redirect_url) {
-				window.location.href = result.redirect_url;
+			if (data?.redirect_url) {
+				if (isValidRedirectUrl(data.redirect_url)) {
+					window.location.href = data.redirect_url;
+				} else {
+					error = 'Invalid redirect URL received from server';
+				}
 			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to approve consent';
@@ -170,34 +166,24 @@
 	}
 
 	async function handleDeny() {
-		if (!consentData) return;
-
+		if (!consentData || allowLoading || denyLoading) return;
 		denyLoading = true;
 
 		try {
-			const apiBaseUrl = import.meta.env.VITE_OP_API_URL || '';
-			const response = await fetch(`${apiBaseUrl}/auth/consent`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				credentials: 'include',
-				body: JSON.stringify({
-					challenge_id: consentData.challenge_id,
-					approved: false
-				})
+			const { data, error: apiError } = await consentAPI.submit({
+				challenge_id: consentData.challenge_id,
+				approved: false
 			});
 
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}));
-				throw new Error(errorData.error_description || 'Failed to deny consent');
+			if (apiError) {
+				throw new Error(apiError.error_description || 'Failed to deny consent');
 			}
-
-			const result = await response.json();
-
-			// Redirect to the URL provided by the backend
-			if (result.redirect_url) {
-				window.location.href = result.redirect_url;
+			if (data?.redirect_url) {
+				if (isValidRedirectUrl(data.redirect_url)) {
+					window.location.href = data.redirect_url;
+				} else {
+					error = 'Invalid redirect URL received from server';
+				}
 			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to deny consent';
@@ -207,8 +193,12 @@
 	}
 
 	function handleSwitchAccount() {
-		// Redirect to logout and then login
-		window.location.href = '/logout?redirect_uri=' + encodeURIComponent(window.location.href);
+		// Only preserve challenge_id to prevent parameter injection
+		const cid = new URLSearchParams(window.location.search).get('challenge_id');
+		const returnPath = cid
+			? `/consent?challenge_id=${encodeURIComponent(cid)}`
+			: '/consent';
+		window.location.href = '/logout?redirect_uri=' + encodeURIComponent(returnPath);
 	}
 
 	function handleOrgChange(event: Event) {
@@ -216,109 +206,95 @@
 		selectedOrgId = target.value || null;
 	}
 
-	// Helper to get the display name for acting-as user
 	function getActingAsDisplayName(actingAs: ConsentActingAsInfo): string {
 		return actingAs.name || actingAs.email;
 	}
-
-	// Get the currently selected org info
-	const selectedOrg = $derived(
-		consentData?.organizations.find((o) => o.id === selectedOrgId) || consentData?.primary_org
-	);
 </script>
 
 <svelte:head>
 	<title
-		>{$LL.consent_title({ clientName: consentData?.client.client_name || '' })} - {$LL.app_title()}</title
+		>{$LL.consent_title({ clientName: consentData?.client.client_name || '' })} - {brandingStore.brandName || $LL.app_title()}</title
 	>
 </svelte:head>
 
-<div
-	class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4 py-12"
->
-	<!-- Language Switcher (Top Right) -->
-	<div class="absolute top-4 right-4">
-		<LanguageSwitcher />
-	</div>
+<div class="auth-page">
+	<LanguageSwitcher />
 
-	<!-- Main Card -->
-	<div class="w-full max-w-2xl">
+	<div class="auth-container auth-container--wide">
 		{#if loading}
 			<!-- Loading State -->
 			<Card class="text-center py-12">
 				<Spinner size="xl" color="primary" class="mb-4" />
-				<p class="text-gray-600 dark:text-gray-400">{$LL.common_loading()}</p>
+				<p style="color: var(--text-secondary);">{$LL.common_loading()}</p>
 			</Card>
 		{:else if consentData}
 			<!-- Consent Screen -->
 			<Card>
 				<!-- Client Logo and Name -->
 				<div class="text-center mb-6">
-					{#if consentData.client.logo_uri}
+					{#if consentData.client.logo_uri && isValidImageUrl(consentData.client.logo_uri)}
 						<img
 							src={consentData.client.logo_uri}
 							alt={consentData.client.client_name}
 							class="h-16 w-16 mx-auto mb-4 rounded-lg"
 						/>
 					{:else}
-						<div
-							class="h-16 w-16 mx-auto mb-4 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center"
-						>
-							<div
-								class="i-heroicons-building-office h-8 w-8 text-primary-600 dark:text-primary-400"
-							></div>
+						<div class="auth-icon-badge" style="margin-bottom: 16px;">
+							<div class="auth-icon-badge__circle" style="width: 64px; height: 64px;">
+								<div class="i-heroicons-building-office h-8 w-8 auth-icon-badge__icon"></div>
+							</div>
 						</div>
 					{/if}
 
-					<h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+					<h2 class="auth-section-title" style="text-align: center;">
 						{$LL.consent_title({ clientName: consentData.client.client_name })}
 					</h2>
 
-					<p class="text-gray-600 dark:text-gray-400 text-sm">
+					<p class="auth-section-subtitle" style="text-align: center;">
 						{$LL.consent_subtitle()}
 					</p>
 
 					{#if consentData.client.is_trusted}
-						<div
-							class="inline-flex items-center gap-1 mt-2 px-2 py-1 bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300 rounded-full text-xs"
-						>
-							<div class="i-heroicons-shield-check h-3 w-3"></div>
-							{$LL.consent_trustedClient()}
+						<div class="mt-2">
+							<span class="auth-badge--trusted">
+								<span class="i-heroicons-shield-check h-3 w-3"></span>
+								{$LL.consent_trustedClient()}
+							</span>
 						</div>
 					{/if}
 
-					{#if consentData.client.client_uri}
+					{#if consentData.client.client_uri && isValidLinkUrl(consentData.client.client_uri)}
 						<a
 							href={consentData.client.client_uri}
 							target="_blank"
 							rel="noopener noreferrer"
-							class="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 mt-2"
+							class="inline-flex items-center gap-1 text-sm mt-2"
+							style="color: var(--primary);"
 						>
 							{consentData.client.client_uri}
-							<div class="i-heroicons-arrow-top-right-on-square h-3 w-3"></div>
+							<span class="i-heroicons-arrow-top-right-on-square h-3 w-3"></span>
 						</a>
 					{/if}
 				</div>
 
 				<!-- Acting-As Warning Banner -->
 				{#if consentData.acting_as && consentData.features.acting_as_enabled}
-					<div
-						class="mb-6 p-4 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg"
-					>
+					<div class="auth-warning-banner mb-6">
 						<div class="flex items-start gap-3">
 							<div
-								class="i-heroicons-exclamation-triangle h-5 w-5 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5"
+								class="i-heroicons-exclamation-triangle h-5 w-5 flex-shrink-0 mt-0.5"
+								style="color: var(--warning);"
 							></div>
 							<div>
-								<h3 class="text-sm font-medium text-warning-800 dark:text-warning-200">
+								<h3 class="auth-warning-banner__title">
 									{$LL.consent_delegatedAccess()}
 								</h3>
-								<p class="text-sm text-warning-700 dark:text-warning-300 mt-1">
+								<p class="auth-warning-banner__text">
 									{$LL.consent_actingOnBehalfOf({
 										name: getActingAsDisplayName(consentData.acting_as)
 									})}
 								</p>
-								<p class="text-xs text-warning-600 dark:text-warning-400 mt-2">
+								<p class="auth-warning-banner__text" style="margin-top: 8px; font-size: 0.75rem;">
 									{$LL.consent_delegatedAccessWarning({
 										name: getActingAsDisplayName(consentData.acting_as)
 									})}
@@ -328,19 +304,21 @@
 					</div>
 				{/if}
 
-				<div class="border-t border-gray-200 dark:border-gray-700 pt-6 mb-6">
-					<!-- Organization Selector (if multiple orgs and feature enabled) -->
+				<div style="border-top: 1px solid var(--border); padding-top: 24px; margin-bottom: 24px;">
+					<!-- Organization Selector -->
 					{#if consentData.features.org_selector_enabled && consentData.organizations.length > 1}
 						<div class="mb-6">
 							<label
 								for="org-select"
-								class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+								class="block text-sm font-medium mb-2"
+								style="color: var(--text-secondary);"
 							>
 								{$LL.consent_organizationSelect()}
 							</label>
 							<select
 								id="org-select"
-								class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+								class="auth-lang-select"
+								style="width: 100%; padding: 10px 12px; font-size: 0.875rem;"
 								value={selectedOrgId || ''}
 								onchange={handleOrgChange}
 							>
@@ -356,16 +334,16 @@
 						</div>
 					{/if}
 
-					<!-- Current Organization Display (when selector is not shown but has org) -->
+					<!-- Current Organization Display -->
 					{#if !consentData.features.org_selector_enabled && selectedOrg}
-						<div class="mb-6 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-							<p class="text-xs text-gray-500 dark:text-gray-400 mb-1">
+						<div class="auth-info-box mb-6">
+							<p class="auth-info-box__label">
 								{$LL.consent_currentOrganization()}
 							</p>
-							<p class="text-sm font-medium text-gray-900 dark:text-white">
+							<p class="auth-info-box__value">
 								{selectedOrg.name}
 								{#if selectedOrg.is_primary}
-									<span class="ml-2 text-xs text-primary-600 dark:text-primary-400">
+									<span style="margin-left: 8px; font-size: 0.75rem; color: var(--primary);">
 										({$LL.consent_primaryOrg()})
 									</span>
 								{/if}
@@ -373,16 +351,17 @@
 						</div>
 					{/if}
 
-					<!-- Roles Display (if enabled and has roles) -->
+					<!-- Roles Display -->
 					{#if consentData.features.show_roles && consentData.roles.length > 0}
 						<div class="mb-6">
-							<p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+							<p class="text-xs mb-2" style="color: var(--text-muted);">
 								{$LL.consent_yourRoles()}
 							</p>
 							<div class="flex flex-wrap gap-2">
 								{#each consentData.roles as role (role)}
 									<span
-										class="px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-xs"
+										class="px-2 py-1 rounded-full text-xs"
+										style="background: var(--primary-light); color: var(--primary);"
 									>
 										{role}
 									</span>
@@ -392,62 +371,51 @@
 					{/if}
 
 					<!-- Scopes -->
-					<h3 class="text-sm font-medium text-gray-900 dark:text-white mb-4">
+					<h3 class="text-sm font-medium mb-4" style="color: var(--text-primary);">
 						{$LL.consent_scopesTitle()}
 					</h3>
 
-					<ul class="space-y-3 mb-6">
+					<ul class="auth-scopes-list mb-6">
 						{#each consentData.scopes as scope (scope.name)}
-							<li class="flex items-start gap-3">
-								<div
-									class="i-heroicons-check-circle h-5 w-5 text-success-600 dark:text-success-400 flex-shrink-0 mt-0.5"
-								></div>
-								<span class="text-gray-700 dark:text-gray-300 text-sm">
-									{getScopeLabel(scope.name)}
-								</span>
+							<li>
+								<div class="i-heroicons-check-circle h-5 w-5 auth-scopes-list__icon"></div>
+								<span>{getScopeLabel(scope.name)}</span>
 							</li>
 						{/each}
 					</ul>
 
 					<!-- User Info -->
-					<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-						<p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+					<div class="auth-info-box">
+						<p class="auth-info-box__label mb-2">
 							{$LL.consent_userInfo()}
 						</p>
 
-						<div class="flex items-center gap-3">
-							{#if consentData.user.picture}
+						<div class="auth-user-info">
+							{#if consentData.user.picture && isValidImageUrl(consentData.user.picture)}
 								<img
 									src={consentData.user.picture}
 									alt={consentData.user.name || consentData.user.email}
-									class="h-10 w-10 rounded-full"
+									class="auth-user-info__avatar"
 								/>
 							{:else}
-								<div
-									class="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center"
-								>
-									<div
-										class="i-heroicons-user h-5 w-5 text-primary-600 dark:text-primary-400"
-									></div>
+								<div class="auth-user-info__avatar-placeholder">
+									<div class="i-heroicons-user h-5 w-5" style="color: var(--primary);"></div>
 								</div>
 							{/if}
 
 							<div>
 								{#if consentData.user.name}
-									<p class="text-sm font-medium text-gray-900 dark:text-white">
-										{consentData.user.name}
-									</p>
+									<p class="auth-user-info__name">{consentData.user.name}</p>
 								{/if}
-								<p class="text-sm text-gray-600 dark:text-gray-400">
-									{consentData.user.email}
-								</p>
+								<p class="auth-user-info__email">{consentData.user.email}</p>
 							</div>
 						</div>
 
 						<button
 							type="button"
 							onclick={handleSwitchAccount}
-							class="text-xs text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 mt-2"
+							class="text-xs mt-2"
+							style="color: var(--primary); background: none; border: none; cursor: pointer; padding: 0;"
 						>
 							{$LL.consent_notYou()}
 						</button>
@@ -455,7 +423,7 @@
 				</div>
 
 				<!-- Action Buttons -->
-				<div class="flex gap-3">
+				<div class="auth-actions">
 					<Button
 						variant="secondary"
 						class="flex-1"
@@ -480,28 +448,31 @@
 				<!-- Privacy Policy and ToS Links -->
 				{#if consentData.client.policy_uri || consentData.client.tos_uri}
 					<div
-						class="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500 dark:text-gray-400"
+						class="flex items-center justify-center gap-4 mt-4 text-xs"
+						style="color: var(--text-muted);"
 					>
-						{#if consentData.client.policy_uri}
+						{#if consentData.client.policy_uri && isValidLinkUrl(consentData.client.policy_uri)}
 							<a
 								href={consentData.client.policy_uri}
 								target="_blank"
 								rel="noopener noreferrer"
-								class="hover:text-primary-600 dark:hover:text-primary-400 inline-flex items-center gap-1"
+								class="inline-flex items-center gap-1"
+								style="color: var(--text-muted);"
 							>
 								{$LL.consent_privacyPolicy()}
-								<div class="i-heroicons-arrow-top-right-on-square h-3 w-3"></div>
+								<span class="i-heroicons-arrow-top-right-on-square h-3 w-3"></span>
 							</a>
 						{/if}
-						{#if consentData.client.tos_uri}
+						{#if consentData.client.tos_uri && isValidLinkUrl(consentData.client.tos_uri)}
 							<a
 								href={consentData.client.tos_uri}
 								target="_blank"
 								rel="noopener noreferrer"
-								class="hover:text-primary-600 dark:hover:text-primary-400 inline-flex items-center gap-1"
+								class="inline-flex items-center gap-1"
+								style="color: var(--text-muted);"
 							>
 								{$LL.consent_termsOfService()}
-								<div class="i-heroicons-arrow-top-right-on-square h-3 w-3"></div>
+								<span class="i-heroicons-arrow-top-right-on-square h-3 w-3"></span>
 							</a>
 						{/if}
 					</div>
@@ -510,14 +481,17 @@
 		{:else}
 			<!-- Error State -->
 			<Card class="text-center py-12">
-				<div class="i-heroicons-exclamation-circle h-12 w-12 mx-auto mb-4 text-error-500"></div>
-				<p class="text-error-600 dark:text-error-400">{error || 'Failed to load consent data'}</p>
+				<div
+					class="i-heroicons-exclamation-circle h-12 w-12 mx-auto mb-4"
+					style="color: var(--danger);"
+				></div>
+				<p style="color: var(--danger);">{error || 'Failed to load consent data'}</p>
 			</Card>
 		{/if}
 	</div>
 
 	<!-- Footer -->
-	<footer class="mt-12 text-center text-xs text-gray-500 dark:text-gray-500">
+	<footer class="auth-footer">
 		<p>{$LL.footer_stack()}</p>
 	</footer>
 </div>

@@ -5,6 +5,7 @@
 		type ScimToken,
 		type CreateScimTokenResponse
 	} from '$lib/api/admin-scim-tokens';
+	import { Modal } from '$lib/components';
 
 	let tokens: ScimToken[] = $state([]);
 	let loading = $state(true);
@@ -212,168 +213,109 @@
 </div>
 
 <!-- Create Token Dialog -->
-{#if showCreateDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeCreateDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeCreateDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Create SCIM Token</h2>
-			</div>
+<Modal open={showCreateDialog} onClose={closeCreateDialog} title="Create SCIM Token" size="md">
+	{#if createError}
+		<div class="alert alert-error">{createError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if createError}
-					<div class="alert alert-error">{createError}</div>
-				{/if}
-
-				<div class="form-group">
-					<label for="description" class="form-label">Description (optional)</label>
-					<input
-						id="description"
-						type="text"
-						class="form-input"
-						bind:value={newTokenDescription}
-						placeholder="e.g., Okta SCIM Integration"
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="expiresInDays" class="form-label">Expires In (Days)</label>
-					<input
-						id="expiresInDays"
-						type="number"
-						min="1"
-						max="3650"
-						class="form-input"
-						bind:value={newTokenExpiresInDays}
-					/>
-					<p class="form-hint">Valid range: 1-3650 days (up to 10 years)</p>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
-					{creating ? 'Creating...' : 'Create Token'}
-				</button>
-			</div>
-		</div>
+	<div class="form-group">
+		<label for="description" class="form-label">Description (optional)</label>
+		<input
+			id="description"
+			type="text"
+			class="form-input"
+			bind:value={newTokenDescription}
+			placeholder="e.g., Okta SCIM Integration"
+		/>
 	</div>
-{/if}
+
+	<div class="form-group">
+		<label for="expiresInDays" class="form-label">Expires In (Days)</label>
+		<input
+			id="expiresInDays"
+			type="number"
+			min="1"
+			max="3650"
+			class="form-input"
+			bind:value={newTokenExpiresInDays}
+		/>
+		<p class="form-hint">Valid range: 1-3650 days (up to 10 years)</p>
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
+			Cancel
+		</button>
+		<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
+			{creating ? 'Creating...' : 'Create Token'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Token Created Success Dialog -->
-{#if showTokenCreatedDialog && createdToken}
-	<div class="modal-overlay" role="dialog" aria-modal="true">
-		<div
-			class="modal-content modal-lg"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title success">Token Created Successfully</h2>
-			</div>
+<Modal open={showTokenCreatedDialog && !!createdToken} onClose={closeTokenCreatedDialog} title="Token Created Successfully" size="lg" closeOnOutsideClick={false}>
+	<div class="alert alert-warning">
+		<i class="i-ph-warning"></i>
+		<span>Save this token now - it will not be shown again!</span>
+	</div>
 
-			<div class="modal-body">
-				<div class="alert alert-warning">
-					<i class="i-ph-warning"></i>
-					<span>Save this token now - it will not be shown again!</span>
-				</div>
-
-				<div class="form-group">
-					<label class="form-label">SCIM Token</label>
-					<div class="token-display">
-						<code class="token-value">{createdToken.token}</code>
-						<button
-							class={tokenCopied ? 'btn btn-success btn-sm' : 'btn btn-primary btn-sm'}
-							onclick={copyTokenToClipboard}
-						>
-							{tokenCopied ? 'Copied!' : 'Copy'}
-						</button>
-					</div>
-				</div>
-
-				<div class="info-box">
-					<div class="info-row">
-						<span class="info-label">Description:</span>
-						<span class="info-value">{createdToken.description || 'None'}</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Expires In:</span>
-						<span class="info-value">{createdToken.expiresInDays} days</span>
-					</div>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-primary" onclick={closeTokenCreatedDialog}>Done</button>
-			</div>
+	<div class="form-group">
+		<label class="form-label">SCIM Token</label>
+		<div class="token-display">
+			<code class="token-value">{createdToken?.token}</code>
+			<button
+				class={tokenCopied ? 'btn btn-success btn-sm' : 'btn btn-primary btn-sm'}
+				onclick={copyTokenToClipboard}
+			>
+				{tokenCopied ? 'Copied!' : 'Copy'}
+			</button>
 		</div>
 	</div>
-{/if}
+
+	<div class="info-box">
+		<div class="info-row">
+			<span class="info-label">Description:</span>
+			<span class="info-value">{createdToken?.description || 'None'}</span>
+		</div>
+		<div class="info-row">
+			<span class="info-label">Expires In:</span>
+			<span class="info-value">{createdToken?.expiresInDays} days</span>
+		</div>
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-primary" onclick={closeTokenCreatedDialog}>Done</button>
+	{/snippet}
+</Modal>
 
 <!-- Revoke Confirmation Dialog -->
-{#if showRevokeDialog && tokenToRevoke}
-	<div
-		class="modal-overlay"
-		onclick={closeRevokeDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeRevokeDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Revoke SCIM Token</h2>
-			</div>
+<Modal open={showRevokeDialog && !!tokenToRevoke} onClose={closeRevokeDialog} title="Revoke SCIM Token" size="md">
+	{#if revokeError}
+		<div class="alert alert-error">{revokeError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if revokeError}
-					<div class="alert alert-error">{revokeError}</div>
-				{/if}
+	<p class="modal-description">
+		Are you sure you want to revoke this SCIM token? This action cannot be undone and will
+		immediately disable any SCIM integrations using this token.
+	</p>
 
-				<p class="modal-description">
-					Are you sure you want to revoke this SCIM token? This action cannot be undone and will
-					immediately disable any SCIM integrations using this token.
-				</p>
-
-				<div class="info-box">
-					<div class="info-row">
-						<span class="info-label">Token Hash:</span>
-						<code class="info-value">{formatTokenHash(tokenToRevoke.tokenHash)}</code>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Description:</span>
-						<span class="info-value">{tokenToRevoke.description || 'None'}</span>
-					</div>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeRevokeDialog} disabled={revoking}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={confirmRevoke} disabled={revoking}>
-					{revoking ? 'Revoking...' : 'Revoke Token'}
-				</button>
-			</div>
+	<div class="info-box">
+		<div class="info-row">
+			<span class="info-label">Token Hash:</span>
+			<code class="info-value">{formatTokenHash(tokenToRevoke?.tokenHash ?? '')}</code>
+		</div>
+		<div class="info-row">
+			<span class="info-label">Description:</span>
+			<span class="info-value">{tokenToRevoke?.description || 'None'}</span>
 		</div>
 	</div>
-{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeRevokeDialog} disabled={revoking}>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={confirmRevoke} disabled={revoking}>
+			{revoking ? 'Revoking...' : 'Revoke Token'}
+		</button>
+	{/snippet}
+</Modal>

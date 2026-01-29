@@ -499,6 +499,15 @@ export interface ClientMetadata extends ClientRegistrationResponse {
    * Set during DCR registration when dcr.scope_restriction_enabled is true.
    */
   requestable_scopes?: string[];
+
+  // ==========================================================================
+  // PKCE Settings
+  // ==========================================================================
+  /**
+   * Require PKCE for this client.
+   * When true, authorization requests must include code_challenge.
+   */
+  require_pkce?: boolean;
 }
 
 /**

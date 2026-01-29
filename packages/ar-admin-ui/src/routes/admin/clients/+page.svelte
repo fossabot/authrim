@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { adminClientsAPI, type Client, type ClientListParams } from '$lib/api/admin-clients';
+	import { Modal } from '$lib/components';
 
 	interface Pagination {
 		page: number;
@@ -352,93 +353,67 @@
 </div>
 
 <!-- Bulk Delete Confirmation Dialog -->
-{#if showBulkDeleteDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeBulkDeleteDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeBulkDeleteDialog()}
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="bulk-delete-dialog-title"
-	>
-		<div
-			class="modal-content"
-			style="max-width: 700px;"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 id="bulk-delete-dialog-title" class="modal-title">
-					Delete {selectedIds.size} Client(s)
-				</h2>
+<Modal open={showBulkDeleteDialog} onClose={closeBulkDeleteDialog} title="Delete {selectedIds.size} Client(s)" size="lg">
+	{#if bulkDeleting}
+		<!-- Progress View -->
+		<div>
+			<p style="color: var(--text-secondary); margin-bottom: 16px;">Deleting clients...</p>
+			<div class="progress-bar" style="margin-bottom: 8px;">
+				<div
+					class="progress-bar-fill"
+					class:warning={bulkDeleteProgress.failed > 0}
+					style="width: {(bulkDeleteProgress.current / bulkDeleteProgress.total) * 100}%;"
+				></div>
 			</div>
-
-			<div class="modal-body">
-				{#if bulkDeleting}
-					<!-- Progress View -->
-					<div>
-						<p style="color: var(--text-secondary); margin-bottom: 16px;">Deleting clients...</p>
-						<div class="progress-bar" style="margin-bottom: 8px;">
-							<div
-								class="progress-bar-fill"
-								class:warning={bulkDeleteProgress.failed > 0}
-								style="width: {(bulkDeleteProgress.current / bulkDeleteProgress.total) * 100}%;"
-							></div>
-						</div>
-						<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">
-							{bulkDeleteProgress.current} / {bulkDeleteProgress.total}
-							{#if bulkDeleteProgress.failed > 0}
-								<span style="color: var(--danger);">({bulkDeleteProgress.failed} failed)</span>
-							{/if}
-						</p>
-					</div>
-				{:else}
-					<!-- Confirmation View -->
-					<p style="color: var(--text-secondary); margin-bottom: 16px;">
-						Are you sure you want to delete the following OAuth clients? This action cannot be
-						undone.
-						<strong style="color: var(--danger);">
-							All tokens issued by these clients will become invalid.
-						</strong>
-					</p>
-
-					<div
-						class="panel"
-						style="max-height: 200px; overflow-y: auto; padding: 0; margin-bottom: 16px;"
-					>
-						<ul style="margin: 0; padding: 12px 20px; list-style: disc;">
-							{#each getSelectedClients() as client (client.client_id)}
-								<li style="margin-bottom: 4px; color: var(--text-primary);">
-									<strong class="mono" style="font-size: 0.875rem;">
-										{client.client_id.length > 30
-											? client.client_id.substring(0, 30) + '...'
-											: client.client_id}
-									</strong>
-									{#if client.client_name}
-										<span style="color: var(--text-secondary);">({client.client_name})</span>
-									{/if}
-								</li>
-							{/each}
-						</ul>
-					</div>
-
-					{#if bulkDeleteError}
-						<div class="alert alert-error">{bulkDeleteError}</div>
-					{/if}
+			<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">
+				{bulkDeleteProgress.current} / {bulkDeleteProgress.total}
+				{#if bulkDeleteProgress.failed > 0}
+					<span style="color: var(--danger);">({bulkDeleteProgress.failed} failed)</span>
 				{/if}
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeBulkDeleteDialog} disabled={bulkDeleting}>
-					Cancel
-				</button>
-				{#if !bulkDeleting}
-					<button class="btn btn-danger" onclick={executeBulkDelete}>
-						Delete {selectedIds.size} Client(s)
-					</button>
-				{/if}
-			</div>
+			</p>
 		</div>
-	</div>
-{/if}
+	{:else}
+		<!-- Confirmation View -->
+		<p style="color: var(--text-secondary); margin-bottom: 16px;">
+			Are you sure you want to delete the following OAuth clients? This action cannot be
+			undone.
+			<strong style="color: var(--danger);">
+				All tokens issued by these clients will become invalid.
+			</strong>
+		</p>
+
+		<div
+			class="panel"
+			style="max-height: 200px; overflow-y: auto; padding: 0; margin-bottom: 16px;"
+		>
+			<ul style="margin: 0; padding: 12px 20px; list-style: disc;">
+				{#each getSelectedClients() as client (client.client_id)}
+					<li style="margin-bottom: 4px; color: var(--text-primary);">
+						<strong class="mono" style="font-size: 0.875rem;">
+							{client.client_id.length > 30
+								? client.client_id.substring(0, 30) + '...'
+								: client.client_id}
+						</strong>
+						{#if client.client_name}
+							<span style="color: var(--text-secondary);">({client.client_name})</span>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		</div>
+
+		{#if bulkDeleteError}
+			<div class="alert alert-error">{bulkDeleteError}</div>
+		{/if}
+	{/if}
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeBulkDeleteDialog} disabled={bulkDeleting}>
+			Cancel
+		</button>
+		{#if !bulkDeleting}
+			<button class="btn btn-danger" onclick={executeBulkDelete}>
+				Delete {selectedIds.size} Client(s)
+			</button>
+		{/if}
+	{/snippet}
+</Modal>

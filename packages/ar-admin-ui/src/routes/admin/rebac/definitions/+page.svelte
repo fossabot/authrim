@@ -7,6 +7,7 @@
 		formatRelationExpression,
 		getExpressionTypeLabel
 	} from '$lib/api/admin-rebac';
+	import { Modal } from '$lib/components';
 
 	// State
 	let definitions: RelationDefinition[] = $state([]);
@@ -340,124 +341,103 @@
 </div>
 
 <!-- Create Dialog -->
-{#if showCreateDialog}
-	<div class="modal-overlay" onclick={() => (showCreateDialog = false)} role="presentation">
-		<div class="modal-content" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-			<div class="modal-header">
-				<h2 class="modal-title">Create Relation Definition</h2>
-			</div>
-			<div class="modal-body">
-				{#if createError}
-					<div class="alert alert-error">{createError}</div>
-				{/if}
+<Modal open={showCreateDialog} onClose={() => (showCreateDialog = false)} title="Create Relation Definition" size="md">
+	{#if createError}
+		<div class="alert alert-error">{createError}</div>
+	{/if}
 
-				<div class="form-group">
-					<label for="object-type" class="form-label">Object Type</label>
-					<input
-						id="object-type"
-						type="text"
-						class="form-input"
-						bind:value={createForm.object_type}
-						placeholder="document, folder, project..."
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="relation-name" class="form-label">Relation Name</label>
-					<input
-						id="relation-name"
-						type="text"
-						class="form-input"
-						bind:value={createForm.relation_name}
-						placeholder="viewer, editor, owner..."
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="def-type" class="form-label">Definition Type</label>
-					<select id="def-type" class="form-select" bind:value={createForm.definition_type}>
-						<option value="direct">Direct Relation</option>
-						<option value="union">Union (OR)</option>
-					</select>
-				</div>
-
-				{#if createForm.definition_type === 'direct'}
-					<div class="form-group">
-						<label for="direct-rel" class="form-label">Direct Relation</label>
-						<input
-							id="direct-rel"
-							type="text"
-							class="form-input"
-							bind:value={createForm.direct_relation}
-							placeholder="Leave empty to use relation name"
-						/>
-						<span class="form-hint">The actual relation to check in the database</span>
-					</div>
-				{/if}
-
-				<div class="form-group">
-					<label for="description" class="form-label">Description</label>
-					<textarea
-						id="description"
-						class="form-input"
-						bind:value={createForm.description}
-						placeholder="Optional description..."
-						rows="2"
-					></textarea>
-				</div>
-
-				<div class="form-group">
-					<label for="priority" class="form-label">Priority</label>
-					<input
-						id="priority"
-						type="number"
-						class="form-input"
-						bind:value={createForm.priority}
-						min="0"
-						max="1000"
-					/>
-					<span class="form-hint">Higher priority definitions are evaluated first</span>
-				</div>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showCreateDialog = false)}>Cancel</button>
-				<button class="btn btn-primary" onclick={submitCreate} disabled={creating}>
-					{creating ? 'Creating...' : 'Create'}
-				</button>
-			</div>
-		</div>
+	<div class="form-group">
+		<label for="object-type" class="form-label">Object Type</label>
+		<input
+			id="object-type"
+			type="text"
+			class="form-input"
+			bind:value={createForm.object_type}
+			placeholder="document, folder, project..."
+		/>
 	</div>
-{/if}
+
+	<div class="form-group">
+		<label for="relation-name" class="form-label">Relation Name</label>
+		<input
+			id="relation-name"
+			type="text"
+			class="form-input"
+			bind:value={createForm.relation_name}
+			placeholder="viewer, editor, owner..."
+		/>
+	</div>
+
+	<div class="form-group">
+		<label for="def-type" class="form-label">Definition Type</label>
+		<select id="def-type" class="form-select" bind:value={createForm.definition_type}>
+			<option value="direct">Direct Relation</option>
+			<option value="union">Union (OR)</option>
+		</select>
+	</div>
+
+	{#if createForm.definition_type === 'direct'}
+		<div class="form-group">
+			<label for="direct-rel" class="form-label">Direct Relation</label>
+			<input
+				id="direct-rel"
+				type="text"
+				class="form-input"
+				bind:value={createForm.direct_relation}
+				placeholder="Leave empty to use relation name"
+			/>
+			<span class="form-hint">The actual relation to check in the database</span>
+		</div>
+	{/if}
+
+	<div class="form-group">
+		<label for="description" class="form-label">Description</label>
+		<textarea
+			id="description"
+			class="form-input"
+			bind:value={createForm.description}
+			placeholder="Optional description..."
+			rows="2"
+		></textarea>
+	</div>
+
+	<div class="form-group">
+		<label for="priority" class="form-label">Priority</label>
+		<input
+			id="priority"
+			type="number"
+			class="form-input"
+			bind:value={createForm.priority}
+			min="0"
+			max="1000"
+		/>
+		<span class="form-hint">Higher priority definitions are evaluated first</span>
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showCreateDialog = false)}>Cancel</button>
+		<button class="btn btn-primary" onclick={submitCreate} disabled={creating}>
+			{creating ? 'Creating...' : 'Create'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Delete Dialog -->
-{#if showDeleteDialog && definitionToDelete}
-	<div class="modal-overlay" onclick={() => (showDeleteDialog = false)} role="presentation">
-		<div
-			class="modal-content modal-sm"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Delete Relation Definition</h2>
-			</div>
-			<div class="modal-body">
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
+<Modal open={showDeleteDialog && !!definitionToDelete} onClose={() => (showDeleteDialog = false)} title="Delete Relation Definition" size="sm">
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
 
-				<p>
-					Are you sure you want to delete the relation definition
-					<strong>{definitionToDelete.object_type}#{definitionToDelete.relation_name}</strong>?
-				</p>
-				<p class="text-danger">This action cannot be undone.</p>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showDeleteDialog = false)}>Cancel</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete'}
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
+	<p>
+		Are you sure you want to delete the relation definition
+		<strong>{definitionToDelete?.object_type}#{definitionToDelete?.relation_name}</strong>?
+	</p>
+	<p class="text-danger">This action cannot be undone.</p>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showDeleteDialog = false)}>Cancel</button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete'}
+		</button>
+	{/snippet}
+</Modal>

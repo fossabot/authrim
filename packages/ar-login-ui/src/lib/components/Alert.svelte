@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
+	import { LL } from '$i18n/i18n-svelte';
 
 	interface Props extends HTMLAttributes<HTMLDivElement> {
 		variant?: 'success' | 'error' | 'warning' | 'info';
@@ -54,7 +55,7 @@
 					type="button"
 					class="alert-dismiss"
 					onclick={handleDismiss}
-					aria-label="Dismiss alert"
+					aria-label={$LL.common_dismissAlert()}
 				>
 					<i class="i-ph-x"></i>
 				</button>

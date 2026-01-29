@@ -9,11 +9,10 @@ import type { Context } from 'hono';
 import type { Env, CIBARequestMetadata } from '@authrim/ar-lib-core';
 import {
   parseLoginHint,
-  D1Adapter,
-  type DatabaseAdapter,
   createErrorResponse,
   AR_ERROR_CODES,
   getLogger,
+  getClient,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -101,15 +100,8 @@ export async function cibaPendingHandler(c: Context<{ Bindings: Env }>) {
       });
     }
 
-    // Enrich with client metadata from database
-    const coreAdapter: DatabaseAdapter = new D1Adapter({ db: c.env.DB });
-    const client = await coreAdapter.queryOne<{
-      client_id: string;
-      client_name: string | null;
-      logo_uri: string | null;
-    }>('SELECT client_id, client_name, logo_uri FROM oauth_clients WHERE client_id = ?', [
-      metadata.client_id,
-    ]);
+    // Enrich with client metadata from KV cache (with D1 fallback)
+    const client = await getClient(c.env, metadata.client_id);
 
     const request = {
       auth_req_id: metadata.auth_req_id,

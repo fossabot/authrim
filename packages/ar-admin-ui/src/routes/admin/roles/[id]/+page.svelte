@@ -12,6 +12,7 @@
 		PERMISSION_DEFINITIONS,
 		type RoleType
 	} from '$lib/api/admin-roles';
+	import { Modal } from '$lib/components';
 
 	let role: RoleDetail | null = $state(null);
 	let loading = $state(true);
@@ -400,36 +401,22 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-{#if showDeleteDialog && role}
-	<div class="modal-overlay" onclick={closeDeleteDialog} role="presentation">
-		<div
-			class="modal-content modal-sm"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="delete-dialog-title"
-		>
-			<div class="modal-header">
-				<h2 id="delete-dialog-title" class="modal-title">Delete Role</h2>
-			</div>
-			<div class="modal-body">
-				<p>
-					Are you sure you want to delete the role <strong>{role.name}</strong>?
-				</p>
-				<p class="text-danger">This action cannot be undone.</p>
+<Modal open={showDeleteDialog && !!role} onClose={closeDeleteDialog} title="Delete Role" size="sm">
+	<p>
+		Are you sure you want to delete the role <strong>{role?.name ?? ''}</strong>?
+	</p>
+	<p class="text-danger">This action cannot be undone.</p>
 
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete'}
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete'}
+		</button>
+	{/snippet}
+</Modal>

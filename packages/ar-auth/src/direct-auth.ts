@@ -48,6 +48,8 @@ import {
   timingSafeEqual,
   // Cookie Configuration
   getSessionCookieSameSite,
+  // KV Client Cache
+  getClient,
 } from '@authrim/ar-lib-core';
 
 import {
@@ -194,17 +196,10 @@ async function _validateClientId(
   const tenantId = getTenantIdFromContext(c);
   const authCtx = createAuthContextFromHono(c, tenantId);
 
-  // Find client by client_id using D1 query
-  const clientResult = await authCtx.coreAdapter.queryOne<{
-    id: string;
-    client_id: string;
-    allowed_redirect_origins: string | null;
-  }>(
-    'SELECT id, client_id, allowed_redirect_origins FROM oauth_clients WHERE client_id = ? LIMIT 1',
-    [clientId]
-  );
+  // Find client by client_id using KV cache (with D1 fallback)
+  const client = await getClient(c.env, clientId);
 
-  if (!clientResult) {
+  if (!client) {
     return {
       valid: false,
       errorResponse: await createErrorResponse(c, AR_ERROR_CODES.CLIENT_INVALID),
@@ -212,8 +207,8 @@ async function _validateClientId(
   }
 
   // Validate origin if provided and client has allowed_redirect_origins
-  if (origin && clientResult.allowed_redirect_origins) {
-    const allowedOrigins = JSON.parse(clientResult.allowed_redirect_origins) as string[];
+  if (origin && client.allowed_redirect_origins) {
+    const allowedOrigins = client.allowed_redirect_origins;
     if (allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
       return {
         valid: false,

@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@authrim/ar-lib-core": "workspace:*",
+    "@authrim/ar-lib-plugin": "workspace:*",
     "@simplewebauthn/server": "^13.2.2",
     "hono": "^4.11.4",
     "jose": "^6.1.2",

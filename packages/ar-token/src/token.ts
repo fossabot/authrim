@@ -28,15 +28,16 @@ import {
   // Database Adapter
   D1Adapter,
   type DatabaseAdapter,
-  // Contract Loader (Human Auth / AI Ephemeral Auth two-layer model)
-  loadTenantProfile,
+  // Request-level caching (P0 KV Cache Optimization)
+  getClientCached,
+  loadTenantProfileCached,
+  getSystemSettingsCached,
 } from '@authrim/ar-lib-core';
 import {
   revokeToken,
   storeRefreshToken,
   getRefreshToken,
   deleteRefreshToken,
-  getClient,
   getCachedUser,
   getCachedUserCore,
   SessionClientRepository,
@@ -611,23 +612,22 @@ async function handleAuthorizationCodeGrant(
     return oauthError(c, 'invalid_request', redirectUriValidation.error as string, 400);
   }
 
-  // Fetch client metadata early (needed for FAPI/DPoP checks)
-  const clientMetadata = await getClient(c.env, client_id);
+  // Fetch client metadata early (needed for FAPI/DPoP checks) - request-level cached
+  const clientMetadata = await getClientCached(c, c.env, client_id);
   if (!clientMetadata) {
     // Security: Generic message to prevent client_id enumeration
     return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
   }
 
-  // Load TenantProfile for TTL limits (Human Auth / AI Ephemeral Auth two-layer model)
+  // Load TenantProfile for TTL limits (Human Auth / AI Ephemeral Auth two-layer model) - request-level cached
   const tenantId = (clientMetadata.tenant_id as string) || 'default';
-  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  const tenantProfile = await loadTenantProfileCached(c, c.env.AUTHRIM_CONFIG, c.env, tenantId);
 
-  // DPoP requirement (FAPI 2.0 / sender-constrained tokens)
+  // DPoP requirement (FAPI 2.0 / sender-constrained tokens) - request-level cached
   let requireDpop = false;
   try {
-    const settingsJson = await c.env.SETTINGS?.get('system_settings');
-    if (settingsJson) {
-      const settings = JSON.parse(settingsJson);
+    const settings = await getSystemSettingsCached(c, c.env);
+    if (settings) {
       const fapi = settings.fapi || {};
       // If FAPI is enabled, default to requiring DPoP unless explicitly disabled
       requireDpop = Boolean(fapi.requireDpop || (fapi.enabled && fapi.requireDpop !== false));
@@ -1648,8 +1648,8 @@ async function handleRefreshTokenGrant(
     return oauthError(c, 'invalid_client', clientIdValidation.error as string, 401);
   }
 
-  // Fetch client metadata to verify client authentication
-  const clientMetadata = await getClient(c.env, client_id);
+  // Fetch client metadata to verify client authentication - request-level cached
+  const clientMetadata = await getClientCached(c, c.env, client_id);
   if (!clientMetadata) {
     // Security: Generic message to prevent client_id enumeration
     // RFC 6749: invalid_client should return 401
@@ -1662,7 +1662,7 @@ async function handleRefreshTokenGrant(
   // Profile-based grant_type validation (Human Auth / AI Ephemeral Auth two-layer model)
   // RFC 6749 §5.2: unauthorized_client - client not allowed to use this grant type
   const tenantId = (clientMetadata.tenant_id as string) || 'default';
-  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  const tenantProfile = await loadTenantProfileCached(c, c.env.AUTHRIM_CONFIG, c.env, tenantId);
   if (!tenantProfile.allows_refresh_token) {
     return oauthError(
       c,
@@ -3009,8 +3009,8 @@ async function handleCIBAGrant(c: Context<{ Bindings: Env }>, formData: Record<s
     );
   }
 
-  // Get client metadata for encryption settings
-  const clientMetadata = await getClient(c.env, metadata.client_id);
+  // Get client metadata for encryption settings - request-level cached
+  const clientMetadata = await getClientCached(c, c.env, metadata.client_id);
 
   if (!clientMetadata) {
     // Security: Generic message to prevent client_id enumeration
@@ -3359,16 +3359,15 @@ async function handleTokenExchangeGrant(
     }
   }
 
-  // KV takes priority over env
+  // KV takes priority over env - request-level cached
   try {
-    const settingsJson = await c.env.SETTINGS?.get('system_settings');
-    if (settingsJson) {
-      const settings = JSON.parse(settingsJson);
+    const settings = await getSystemSettingsCached(c, c.env);
+    if (settings) {
       if (settings.oidc?.tokenExchange?.enabled !== undefined) {
         tokenExchangeEnabled = settings.oidc.tokenExchange.enabled === true;
       }
       if (Array.isArray(settings.oidc?.tokenExchange?.allowedSubjectTokenTypes)) {
-        allowedSubjectTokenTypes = settings.oidc.tokenExchange.allowedSubjectTokenTypes;
+        allowedSubjectTokenTypes = settings.oidc.tokenExchange.allowedSubjectTokenTypes as string[];
       }
       if (typeof settings.oidc?.tokenExchange?.maxResourceParams === 'number') {
         const value = settings.oidc.tokenExchange.maxResourceParams;
@@ -3384,8 +3383,8 @@ async function handleTokenExchangeGrant(
       }
       // ID-JAG (Identity Assertion Authorization Grant) configuration
       // draft-ietf-oauth-identity-assertion-authz-grant
-      if (settings.oidc?.tokenExchange?.idJag) {
-        const idJagSettings = settings.oidc.tokenExchange.idJag;
+      const idJagSettings = settings.oidc?.tokenExchange?.idJag;
+      if (idJagSettings) {
         if (idJagSettings.enabled === true) {
           idJagConfig.enabled = true;
         }
@@ -3564,8 +3563,8 @@ async function handleTokenExchangeGrant(
     return oauthError(c, 'invalid_client', clientIdValidation.error as string, 401);
   }
 
-  // Fetch client metadata
-  const clientMetadata = await getClient(c.env, client_id!);
+  // Fetch client metadata - request-level cached
+  const clientMetadata = await getClientCached(c, c.env, client_id!);
   if (!clientMetadata) {
     // Security: Generic message to prevent client_id enumeration
     return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
@@ -3577,7 +3576,7 @@ async function handleTokenExchangeGrant(
   // Profile-based grant_type validation (Human Auth / AI Ephemeral Auth two-layer model)
   // RFC 6749 §5.2: unauthorized_client - client not allowed to use this grant type
   const tenantId = (clientMetadata.tenant_id as string) || 'default';
-  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  const tenantProfile = await loadTenantProfileCached(c, c.env.AUTHRIM_CONFIG, c.env, tenantId);
   if (!tenantProfile.allows_token_exchange) {
     return oauthError(
       c,
@@ -4595,11 +4594,11 @@ async function handleNativeSSOTokenExchange(
       clientMetadata.allow_cross_client_native_sso
     );
 
-    // Verify original client also allows cross-client SSO
+    // Verify original client also allows cross-client SSO - request-level cached
     let originalClientCrossClientAllowed = false;
     if (originalClientId) {
       try {
-        const originalClientMetadata = await getClient(c.env, originalClientId);
+        const originalClientMetadata = await getClientCached(c, c.env, originalClientId);
         originalClientCrossClientAllowed = Boolean(
           originalClientMetadata?.allow_cross_client_native_sso
         );
@@ -4874,18 +4873,17 @@ async function handleClientCredentialsGrant(
   formData: Record<string, string>
 ): Promise<Response> {
   const log = getLogger(c).module('TOKEN');
-  // Check Feature Flag (hybrid: KV > env)
+  // Check Feature Flag (hybrid: KV > env) - request-level cached
   let clientCredentialsEnabled = c.env.ENABLE_CLIENT_CREDENTIALS === 'true';
   try {
-    const settingsJson = await c.env.SETTINGS?.get('system_settings');
-    if (settingsJson) {
-      const settings = JSON.parse(settingsJson);
+    const settings = await getSystemSettingsCached(c, c.env);
+    if (settings) {
       if (settings.oidc?.clientCredentials?.enabled !== undefined) {
         clientCredentialsEnabled = settings.oidc.clientCredentials.enabled === true;
       }
     }
   } catch {
-    // Ignore KV errors, fall back to env
+    // Ignore cache errors, fall back to env
   }
 
   if (!clientCredentialsEnabled) {
@@ -4947,8 +4945,8 @@ async function handleClientCredentialsGrant(
     return oauthError(c, 'invalid_client', clientIdValidation.error as string, 401);
   }
 
-  // Fetch client metadata
-  const clientMetadata = await getClient(c.env, client_id!);
+  // Fetch client metadata - request-level cached
+  const clientMetadata = await getClientCached(c, c.env, client_id!);
   if (!clientMetadata) {
     // Security: Generic message to prevent client_id enumeration
     return oauthError(c, 'invalid_client', 'Client authentication failed', 401);
@@ -4960,7 +4958,7 @@ async function handleClientCredentialsGrant(
   // Profile-based grant_type validation (Human Auth / AI Ephemeral Auth two-layer model)
   // RFC 6749 §5.2: unauthorized_client - client not allowed to use this grant type
   const tenantId = (clientMetadata.tenant_id as string) || 'default';
-  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  const tenantProfile = await loadTenantProfileCached(c, c.env.AUTHRIM_CONFIG, c.env, tenantId);
   if (!tenantProfile.allows_client_credentials) {
     return oauthError(
       c,

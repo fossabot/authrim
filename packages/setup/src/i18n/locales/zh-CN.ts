@@ -127,7 +127,7 @@ const zhCN: Translations = {
   'env.workers': 'Workers：{{count}}',
   'env.d1Databases': 'D1 数据库：{{count}}',
   'env.kvNamespaces': 'KV 命名空间：{{count}}',
-  'env.chooseAnother': '请选择其他名称或先使用 "npx @authrim/setup manage" 删除它。',
+  'env.chooseAnother': '请选择其他名称或先使用 "{{command}} manage" 删除它。',
   'env.available': '环境名称可用',
   'env.checkFailed': '无法检查现有环境（继续进行）',
   'env.noEnvFound': '未找到 Authrim 环境。',

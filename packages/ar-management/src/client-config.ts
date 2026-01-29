@@ -16,7 +16,7 @@ import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
 import type { ClientRegistrationResponse, ClientMetadata, JWKS } from '@authrim/ar-lib-core';
 import {
-  getClient,
+  getClientCached,
   timingSafeEqual,
   arrayBufferToBase64Url,
   D1Adapter,
@@ -206,7 +206,7 @@ async function validateRegistrationAccessToken(
   }
 
   // Fetch client from D1/cache
-  const client = await getClient(c.env, clientId);
+  const client = await getClientCached(c, c.env, clientId);
   if (!client) {
     return null;
   }
@@ -332,7 +332,7 @@ export async function clientConfigGetHandler(c: Context<{ Bindings: Env }>): Pro
     }
 
     // Fetch client data
-    const client = await getClient(c.env, clientId);
+    const client = await getClientCached(c, c.env, clientId);
     if (!client) {
       // Should not happen if validateRegistrationAccessToken passed
       return c.json(
@@ -423,7 +423,7 @@ export async function clientConfigUpdateHandler(c: Context<{ Bindings: Env }>): 
     }
 
     // Fetch existing client
-    const existingClient = await getClient(c.env, clientId);
+    const existingClient = await getClientCached(c, c.env, clientId);
     if (!existingClient) {
       return c.json(
         {
@@ -547,7 +547,7 @@ export async function clientConfigUpdateHandler(c: Context<{ Bindings: Env }>): 
     });
 
     // Fetch updated client and return response
-    const updatedClient = await getClient(c.env, clientId);
+    const updatedClient = await getClientCached(c, c.env, clientId);
     if (!updatedClient) {
       return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }

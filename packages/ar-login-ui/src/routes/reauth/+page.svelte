@@ -1,90 +1,276 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Button, Card } from '$lib/components';
+	import { page } from '$app/stores';
+	import { Button, Card, Alert } from '$lib/components';
 	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+	import { brandingStore } from '$lib/stores/branding.svelte';
 	import { LL } from '$i18n/i18n-svelte';
+	import { passkeyAPI, emailCodeAPI, loginChallengeAPI } from '$lib/api/client';
+	import { isValidRedirectUrl, isValidImageUrl } from '$lib/utils/url-validation';
+	import { fetchLoginMethods } from '$lib/api/login-methods';
+	import { startAuthentication } from '@simplewebauthn/browser';
 
-	let challengeId = $state('');
-	let loading = $state(false);
+	// ---------------------------------------------------------------------------
+	// State
+	// ---------------------------------------------------------------------------
+	let loading = $state(true);
 	let error = $state('');
+	let challengeId = $state('');
 
-	onMount(() => {
-		// Get challenge_id from URL params
-		const urlParams = new URLSearchParams(window.location.search);
-		challengeId = urlParams.get('challenge_id') || '';
+	// Challenge data
+	interface ChallengeData {
+		client: {
+			client_id: string;
+			client_name: string;
+			logo_uri?: string;
+		};
+		user: {
+			id: string;
+			email: string;
+			name?: string;
+		};
+		max_age?: number;
+		login_hint?: string;
+	}
+	let challengeData = $state<ChallengeData | null>(null);
 
+	// Auth method states
+	let passkeyEnabled = $state(false);
+	let emailCodeEnabled = $state(false);
+	let passkeyLoading = $state(false);
+	let emailCodeLoading = $state(false);
+	let email = $state('');
+
+	// Derived
+	const isPasskeySupported = $derived(
+		typeof window !== 'undefined' &&
+			window.PublicKeyCredential !== undefined &&
+			typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function'
+	);
+
+	const showPasskey = $derived(passkeyEnabled && isPasskeySupported);
+
+	// ---------------------------------------------------------------------------
+	// Lifecycle
+	// ---------------------------------------------------------------------------
+	onMount(async () => {
+		challengeId = $page.url.searchParams.get('challenge_id') || '';
 		if (!challengeId) {
-			error = 'Missing challenge ID';
+			error = 'Missing challenge_id parameter';
+			loading = false;
+			return;
 		}
+
+		await Promise.all([loadChallengeData(), loadLoginMethods()]);
+		loading = false;
 	});
+
+	// ---------------------------------------------------------------------------
+	// Data
+	// ---------------------------------------------------------------------------
+	async function loadChallengeData() {
+		try {
+			const { data, error: apiError } = await loginChallengeAPI.getData(challengeId);
+			if (apiError) {
+				throw new Error(apiError.error_description || 'Failed to load challenge data');
+			}
+			challengeData = data as unknown as ChallengeData;
+			if (challengeData?.user?.email) {
+				email = challengeData.user.email;
+			}
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to load challenge data';
+		}
+	}
+
+	async function loadLoginMethods() {
+		try {
+			const { data } = await fetchLoginMethods();
+			if (data) {
+				passkeyEnabled = data.methods.passkey.enabled;
+				emailCodeEnabled = data.methods.emailCode.enabled;
+			}
+		} catch {
+			passkeyEnabled = true;
+			emailCodeEnabled = true;
+		}
+	}
+
+	// ---------------------------------------------------------------------------
+	// Handlers
+	// ---------------------------------------------------------------------------
+	async function handlePasskeyReauth() {
+		if (passkeyLoading) return;
+		error = '';
+		passkeyLoading = true;
+
+		try {
+			const { data: optionsData, error: optionsError } = await passkeyAPI.getLoginOptions({});
+			if (optionsError) {
+				throw new Error(optionsError.error_description || 'Failed to get authentication options');
+			}
+
+			/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+			const credential = await startAuthentication({ optionsJSON: optionsData!.options as any });
+
+			const { data: verifyData, error: verifyError } = await passkeyAPI.verifyLogin({
+				challengeId: optionsData!.challengeId,
+				credential
+			});
+
+			if (verifyError) {
+				throw new Error(verifyError.error_description || 'Authentication failed');
+			}
+
+			/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+			const redirectUrl = (verifyData as any)?.redirect_url;
+			if (redirectUrl && isValidRedirectUrl(redirectUrl)) {
+				window.location.href = redirectUrl;
+			} else {
+				window.location.href = '/';
+			}
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Re-authentication failed';
+		} finally {
+			passkeyLoading = false;
+		}
+	}
+
+	async function handleEmailCodeReauth() {
+		if (emailCodeLoading) return;
+		error = '';
+		if (!email) {
+			error = $LL.login_errorEmailRequired();
+			return;
+		}
+
+		emailCodeLoading = true;
+
+		try {
+			const { error: apiError } = await emailCodeAPI.send({ email });
+			if (apiError) {
+				throw new Error(apiError.error_description || 'Failed to send verification code');
+			}
+			window.location.href = `/verify-email-code?email=${encodeURIComponent(email)}&challenge_id=${encodeURIComponent(challengeId)}`;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to send verification code';
+		} finally {
+			emailCodeLoading = false;
+		}
+	}
 </script>
 
 <svelte:head>
-	<title>Re-authentication Required - {$LL.app_title()}</title>
+	<title>{$LL.reauth_title()} - {brandingStore.brandName || $LL.app_title()}</title>
 </svelte:head>
 
-<div
-	class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4 py-12"
->
-	<!-- Language Switcher (Top Right) -->
-	<div class="absolute top-4 right-4">
-		<LanguageSwitcher />
-	</div>
+<div class="auth-page">
+	<LanguageSwitcher />
 
-	<!-- Main Card -->
-	<div class="w-full max-w-md">
-		<Card>
-			<!-- Icon -->
-			<div class="text-center mb-6">
+	<div class="auth-container">
+		<!-- Header -->
+		<div class="auth-header">
+			<h1 class="auth-header__title">
+				{brandingStore.brandName || $LL.app_title()}
+			</h1>
+		</div>
+
+		{#if loading}
+			<Card class="text-center py-8">
 				<div
-					class="h-16 w-16 mx-auto mb-4 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center"
-				>
-					<div
-						class="i-heroicons-shield-check h-8 w-8 text-primary-600 dark:text-primary-400"
-					></div>
+					class="h-8 w-8 border-3 rounded-full animate-spin mx-auto mb-3"
+					style="border-color: var(--border); border-top-color: var(--primary);"
+				></div>
+				<p style="color: var(--text-muted); font-size: 0.875rem;">{$LL.common_loading()}</p>
+			</Card>
+		{:else}
+			<Card class="mb-6">
+				<!-- Icon -->
+				<div class="auth-icon-badge">
+					<div class="auth-icon-badge__circle auth-icon-badge__circle--warning">
+						<div class="i-heroicons-shield-exclamation h-9 w-9 auth-icon-badge__icon"></div>
+					</div>
 				</div>
 
-				<h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-					Re-authentication Required
+				<h2 class="auth-section-title text-center">
+					{$LL.reauth_title()}
 				</h2>
-
-				<p class="text-gray-600 dark:text-gray-400 text-sm">
-					For security reasons, you need to confirm your authentication.
+				<p class="auth-section-subtitle text-center mb-6">
+					{$LL.reauth_subtitle()}
 				</p>
-			</div>
 
-			<!-- Error Message -->
-			{#if error}
-				<div
-					class="mb-4 p-4 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-lg"
-				>
-					<p class="text-error-600 dark:text-error-400 text-sm">{error}</p>
-				</div>
-			{/if}
+				<!-- Challenge Info -->
+				{#if challengeData}
+					<div class="auth-info-box mb-6">
+						<div class="flex items-center gap-3">
+							{#if challengeData.client.logo_uri && isValidImageUrl(challengeData.client.logo_uri)}
+								<img
+									src={challengeData.client.logo_uri}
+									alt={challengeData.client.client_name}
+									class="h-10 w-10 rounded-lg"
+								/>
+							{/if}
+							<div>
+								<p class="auth-info-box__value">
+									{challengeData.client.client_name}
+								</p>
+								{#if challengeData.user}
+									<p class="auth-info-box__label" style="margin: 0;">
+										{challengeData.user.email}
+									</p>
+								{/if}
+							</div>
+						</div>
+					</div>
+				{/if}
 
-			<!-- Confirmation Form -->
-			<form method="POST" action="/authorize/confirm" onsubmit={() => (loading = true)}>
-				<input type="hidden" name="challenge_id" value={challengeId} />
-				<Button
-					type="submit"
-					variant="primary"
-					class="w-full"
-					{loading}
-					disabled={!challengeId || !!error}
-				>
-					Continue
-				</Button>
-			</form>
+				{#if error}
+					<Alert variant="error" dismissible={true} onDismiss={() => (error = '')} class="mb-4">
+						{error}
+					</Alert>
+				{/if}
 
-			<!-- Info Text -->
-			<p class="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
-				This confirmation is required to ensure the security of your account.
-			</p>
-		</Card>
+				<!-- Passkey Button -->
+				{#if showPasskey}
+					<Button
+						variant="primary"
+						class="w-full mb-3"
+						loading={passkeyLoading}
+						disabled={emailCodeLoading}
+						onclick={handlePasskeyReauth}
+					>
+						<div class="i-heroicons-key h-5 w-5"></div>
+						{$LL.reauth_verifyWithPasskey()}
+					</Button>
+
+					{#if emailCodeEnabled}
+						<div class="auth-divider">
+							<div class="auth-divider__line"></div>
+							<span class="auth-divider__text">{$LL.common_or()}</span>
+							<div class="auth-divider__line"></div>
+						</div>
+					{/if}
+				{/if}
+
+				<!-- Email Code Button -->
+				{#if emailCodeEnabled}
+					<Button
+						variant="secondary"
+						class="w-full"
+						loading={emailCodeLoading}
+						disabled={passkeyLoading}
+						onclick={handleEmailCodeReauth}
+					>
+						<div class="i-heroicons-envelope h-5 w-5"></div>
+						{$LL.reauth_verifyWithEmailCode()}
+					</Button>
+				{/if}
+			</Card>
+		{/if}
 	</div>
 
 	<!-- Footer -->
-	<footer class="mt-12 text-center text-xs text-gray-500 dark:text-gray-500">
+	<footer class="auth-footer">
 		<p>{$LL.footer_stack()}</p>
 	</footer>
 </div>

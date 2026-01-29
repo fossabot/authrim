@@ -123,6 +123,11 @@ const en = {
 	device_orManual: 'or enter code manually',
 	device_codeLabel: 'Verification Code',
 	device_codePlaceholder: 'XXXX-XXXX',
+	device_codeHint: 'Enter the 8-character code from your device (format: XXXX-XXXX)',
+	device_verifyButton: 'Verify Code',
+	device_confirmTitle: 'Authorize Device',
+	device_successMessage: 'Device authorized successfully! You can close this window.',
+	device_requestedPermissions: 'Requested permissions',
 	device_approveButton: 'Approve',
 	device_denyButton: 'Deny',
 	device_success: 'Device authorized successfully! You can now close this window.',
@@ -131,6 +136,37 @@ const en = {
 	device_errorAlreadyUsed: 'This code has already been used',
 	device_errorGeneric: 'Verification failed. Please try again.',
 	device_errorCodeRequired: 'Please enter the verification code',
+
+	ciba_title: 'Authentication Request',
+	ciba_subtitle: 'An application is requesting your approval',
+	ciba_noPendingRequests: 'No pending authentication requests',
+	ciba_bindingMessage: 'Verification message',
+	ciba_requestedPermissions: 'Requested permissions',
+	ciba_approveButton: 'Approve',
+	ciba_rejectButton: 'Reject',
+	ciba_approvedSuccess: 'Request approved successfully',
+	ciba_rejectedSuccess: 'Request rejected',
+	ciba_expired: 'Expired',
+	ciba_remainingMinutes: '{minutes:number}m {seconds:number}s remaining',
+	ciba_remainingSeconds: '{seconds:number}s remaining',
+
+	reauth_title: 'Verify Your Identity',
+	reauth_subtitle: 'For security, please re-authenticate to continue',
+	reauth_verifyWithPasskey: 'Verify with Passkey',
+	reauth_verifyWithEmailCode: 'Verify with Email Code',
+
+	callback_title: 'Signing In',
+	callback_processing: 'Processing authentication...',
+	callback_pleaseWait: 'Please wait while we complete your sign-in.',
+	callback_success: 'Sign-in successful!',
+	callback_redirecting: 'Redirecting you now...',
+	callback_errorTitle: 'Authentication Failed',
+	callback_errorMissingCode: 'No authorization code received. Please try signing in again.',
+	callback_errorStateMismatch: 'Security validation failed. Please try signing in again.',
+	callback_errorExchangeFailed: 'Failed to complete authentication. Please try again.',
+	callback_errorNetwork: 'A network error occurred. Please check your connection and try again.',
+
+	common_backToHome: 'Back to home',
 
 	admin_sidebar_dashboard: 'Dashboard',
 	admin_sidebar_users: 'Users',
@@ -246,7 +282,43 @@ const en = {
 	admin_policy_available_claims: 'Available Claims',
 	admin_policy_embedding_info: 'Policy Embedding Information',
 	admin_policy_embedding_info_desc:
-		"When enabled, the authorization server evaluates requested scopes against the user's permissions and embeds only permitted actions in the Access Token."
+		"When enabled, the authorization server evaluates requested scopes against the user's permissions and embeds only permitted actions in the Access Token.",
+
+	// External IdP error messages (login page)
+	login_extError_accountExists_title: 'Account Already Exists',
+	login_extError_accountExists_message:
+		'An account with this email already exists. Please log in with your existing credentials first.',
+	login_extError_accountExists_action:
+		'After logging in, you can link your external account from the settings page.',
+	login_extError_emailNotVerified_title: 'Email Not Verified',
+	login_extError_emailNotVerified_message:
+		'The email from your external account is not verified. Please verify your email with the provider first.',
+	login_extError_localEmailNotVerified_title: 'Verify Your Email',
+	login_extError_localEmailNotVerified_message:
+		'Your existing account email is not verified. Please verify your email first before linking external accounts.',
+	login_extError_jitDisabled_title: 'Registration Not Available',
+	login_extError_jitDisabled_message:
+		'New account registration via external providers is not available. Please register with email first or contact your administrator.',
+	login_extError_noAccount_title: 'No Account Found',
+	login_extError_noAccount_message: 'No account was found. Please register first.',
+	login_extError_providerError_title: 'Provider Error',
+	login_extError_providerError_message:
+		'The external provider returned an error. Please try again later.',
+	login_extError_callbackFailed_title: 'Authentication Failed',
+	login_extError_callbackFailed_message:
+		'An error occurred during authentication. Please try again.',
+	login_extError_default_title: 'Authentication Error',
+	login_extError_default_message: 'An error occurred during external authentication.',
+
+	// Login page client info
+	login_signingInTo: 'Signing in to',
+
+	// Common (shared)
+	common_contactSupport: 'Contact Support',
+	common_dismissAlert: 'Dismiss alert',
+
+	// Accessibility
+	emailCode_digitLabel: 'Digit {position:number} of 6'
 } satisfies BaseTranslation;
 
 export default en;

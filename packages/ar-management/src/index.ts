@@ -222,6 +222,7 @@ import {
   adminTenantCloneHandler,
 } from './admin-settings-meta';
 import { userConsentsListHandler, userConsentRevokeHandler } from './user-consents';
+import { getLoginMethodsHandler } from './login-methods';
 import {
   dataExportRequestHandler,
   dataExportStatusHandler,
@@ -287,6 +288,13 @@ import {
   setProfileOverride,
   clearProfileOverride,
 } from './routes/settings/rate-limit';
+import {
+  getPlatformCacheModeHandler,
+  setPlatformCacheModeHandler,
+  getClientCacheModeHandler,
+  setClientCacheModeHandler,
+  getCacheModeInfoHandler,
+} from './routes/settings/cache-mode';
 import {
   getErrorConfig,
   getErrorLocale,
@@ -695,6 +703,17 @@ const healthHandlers = createHealthCheckHandlers({
 app.get('/health/live', healthHandlers.liveness);
 app.get('/health/ready', healthHandlers.readiness);
 
+// Login Methods API - public endpoint for Login UI
+// Returns enabled login methods (passkey, emailCode, social) and UI config
+app.use('/api/auth/login-methods', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'lenient');
+  return rateLimitMiddleware({
+    ...profile,
+    endpoints: ['/api/auth/login-methods'],
+  })(c, next);
+});
+app.get('/api/auth/login-methods', getLoginMethodsHandler);
+
 // Dynamic Client Registration endpoint - RFC 7591
 app.post('/register', registerHandler);
 
@@ -1057,6 +1076,15 @@ app.delete('/api/admin/settings/rate-limits/profile-override', clearProfileOverr
 app.get('/api/admin/settings/rate-limits/:profile', getRateLimitProfile);
 app.put('/api/admin/settings/rate-limits/:profile', updateRateLimitProfile);
 app.delete('/api/admin/settings/rate-limits/:profile', resetRateLimitProfile);
+
+// Admin Cache Mode Configuration (P0 KV Cache Optimization)
+// Platform-level cache mode (maintenance/fixed)
+app.get('/api/admin/settings/cache-mode', getPlatformCacheModeHandler);
+app.post('/api/admin/settings/cache-mode', setPlatformCacheModeHandler);
+app.get('/api/admin/settings/cache-mode/info', getCacheModeInfoHandler);
+// Client-specific cache mode overrides
+app.get('/api/admin/clients/:clientId/cache-mode', getClientCacheModeHandler);
+app.post('/api/admin/clients/:clientId/cache-mode', setClientCacheModeHandler);
 
 // [DEPRECATED] Admin Error Configuration
 // → Migrate to: /api/admin/tenants/:tenantId/settings/oauth (error settings)

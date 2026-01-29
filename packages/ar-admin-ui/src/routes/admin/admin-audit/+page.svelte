@@ -9,6 +9,7 @@
 		getResultBadgeClass,
 		formatAction
 	} from '$lib/api/admin-admin-audit';
+	import { Modal } from '$lib/components';
 
 	let entries: AdminAuditLogEntry[] = $state([]);
 	let total = $state(0);
@@ -468,123 +469,106 @@
 </div>
 
 <!-- Detail Modal -->
-{#if showDetailModal && selectedEntry}
-	<div
-		class="modal-overlay"
-		onclick={closeDetailModal}
-		onkeydown={(e) => e.key === 'Escape' && closeDetailModal()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div class="modal modal-lg" onclick={(e) => e.stopPropagation()} role="document">
-			<div class="modal-header">
-				<h2 class="modal-title">Audit Log Entry Details</h2>
-				<button class="modal-close" onclick={closeDetailModal}>
-					<i class="i-ph-x"></i>
-				</button>
+<Modal open={showDetailModal && !!selectedEntry} onClose={closeDetailModal} title="Audit Log Entry Details" size="lg">
+	{#if selectedEntry}
+		<div class="detail-grid">
+			<div class="detail-item">
+				<span class="detail-label">ID</span>
+				<span class="detail-value mono">{selectedEntry.id}</span>
 			</div>
-			<div class="modal-body">
-				<div class="detail-grid">
-					<div class="detail-item">
-						<span class="detail-label">ID</span>
-						<span class="detail-value mono">{selectedEntry.id}</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Date/Time</span>
-						<span class="detail-value">{formatDateTime(selectedEntry.created_at)}</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Action</span>
-						<span class="detail-value">
-							<span class="badge badge-info">{formatAction(selectedEntry.action)}</span>
-						</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Result</span>
-						<span class="detail-value">
-							<span class={getResultBadgeClass(selectedEntry.result)}>{selectedEntry.result}</span>
-						</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Severity</span>
-						<span class="detail-value">
-							<span class={getSeverityBadgeClass(selectedEntry.severity)}
-								>{selectedEntry.severity}</span
-							>
-						</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Admin User</span>
-						<span class="detail-value">
-							{#if selectedEntry.admin_email}
-								{selectedEntry.admin_email}
-							{:else if selectedEntry.admin_user_id}
-								<span class="mono">{selectedEntry.admin_user_id}</span>
-							{:else}
-								<span class="muted">System</span>
-							{/if}
-						</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Admin User ID</span>
-						<span class="detail-value mono">{selectedEntry.admin_user_id || '-'}</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Resource Type</span>
-						<span class="detail-value">{selectedEntry.resource_type || '-'}</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Resource ID</span>
-						<span class="detail-value mono">{selectedEntry.resource_id || '-'}</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">IP Address</span>
-						<span class="detail-value">{selectedEntry.ip_address || '-'}</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">User Agent</span>
-						<span class="detail-value text-small">{selectedEntry.user_agent || '-'}</span>
-					</div>
-					<div class="detail-item">
-						<span class="detail-label">Request ID</span>
-						<span class="detail-value mono">{selectedEntry.request_id || '-'}</span>
-					</div>
-				</div>
-
-				{#if selectedEntry.before || selectedEntry.after}
-					<div class="detail-section">
-						<h3 class="detail-section-title">Change Details</h3>
-						<div class="change-details">
-							{#if selectedEntry.before}
-								<div class="change-block">
-									<h4 class="change-block-title">Before</h4>
-									<pre class="code-block">{formatJsonForDisplay(selectedEntry.before)}</pre>
-								</div>
-							{/if}
-							{#if selectedEntry.after}
-								<div class="change-block">
-									<h4 class="change-block-title">After</h4>
-									<pre class="code-block">{formatJsonForDisplay(selectedEntry.after)}</pre>
-								</div>
-							{/if}
-						</div>
-					</div>
-				{/if}
-
-				{#if selectedEntry.metadata}
-					<div class="detail-section">
-						<h3 class="detail-section-title">Additional Metadata</h3>
-						<pre class="code-block">{formatJsonForDisplay(selectedEntry.metadata)}</pre>
-					</div>
-				{/if}
+			<div class="detail-item">
+				<span class="detail-label">Date/Time</span>
+				<span class="detail-value">{formatDateTime(selectedEntry.created_at)}</span>
 			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDetailModal}>Close</button>
+			<div class="detail-item">
+				<span class="detail-label">Action</span>
+				<span class="detail-value">
+					<span class="badge badge-info">{formatAction(selectedEntry.action)}</span>
+				</span>
+			</div>
+			<div class="detail-item">
+				<span class="detail-label">Result</span>
+				<span class="detail-value">
+					<span class={getResultBadgeClass(selectedEntry.result)}>{selectedEntry.result}</span>
+				</span>
+			</div>
+			<div class="detail-item">
+				<span class="detail-label">Severity</span>
+				<span class="detail-value">
+					<span class={getSeverityBadgeClass(selectedEntry.severity)}
+						>{selectedEntry.severity}</span
+					>
+				</span>
+			</div>
+			<div class="detail-item">
+				<span class="detail-label">Admin User</span>
+				<span class="detail-value">
+					{#if selectedEntry.admin_email}
+						{selectedEntry.admin_email}
+					{:else if selectedEntry.admin_user_id}
+						<span class="mono">{selectedEntry.admin_user_id}</span>
+					{:else}
+						<span class="muted">System</span>
+					{/if}
+				</span>
+			</div>
+			<div class="detail-item">
+				<span class="detail-label">Admin User ID</span>
+				<span class="detail-value mono">{selectedEntry.admin_user_id || '-'}</span>
+			</div>
+			<div class="detail-item">
+				<span class="detail-label">Resource Type</span>
+				<span class="detail-value">{selectedEntry.resource_type || '-'}</span>
+			</div>
+			<div class="detail-item">
+				<span class="detail-label">Resource ID</span>
+				<span class="detail-value mono">{selectedEntry.resource_id || '-'}</span>
+			</div>
+			<div class="detail-item">
+				<span class="detail-label">IP Address</span>
+				<span class="detail-value">{selectedEntry.ip_address || '-'}</span>
+			</div>
+			<div class="detail-item">
+				<span class="detail-label">User Agent</span>
+				<span class="detail-value text-small">{selectedEntry.user_agent || '-'}</span>
+			</div>
+			<div class="detail-item">
+				<span class="detail-label">Request ID</span>
+				<span class="detail-value mono">{selectedEntry.request_id || '-'}</span>
 			</div>
 		</div>
-	</div>
-{/if}
+
+		{#if selectedEntry.before || selectedEntry.after}
+			<div class="detail-section">
+				<h3 class="detail-section-title">Change Details</h3>
+				<div class="change-details">
+					{#if selectedEntry.before}
+						<div class="change-block">
+							<h4 class="change-block-title">Before</h4>
+							<pre class="code-block">{formatJsonForDisplay(selectedEntry.before)}</pre>
+						</div>
+					{/if}
+					{#if selectedEntry.after}
+						<div class="change-block">
+							<h4 class="change-block-title">After</h4>
+							<pre class="code-block">{formatJsonForDisplay(selectedEntry.after)}</pre>
+						</div>
+					{/if}
+				</div>
+			</div>
+		{/if}
+
+		{#if selectedEntry.metadata}
+			<div class="detail-section">
+				<h3 class="detail-section-title">Additional Metadata</h3>
+				<pre class="code-block">{formatJsonForDisplay(selectedEntry.metadata)}</pre>
+			</div>
+		{/if}
+	{/if}
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDetailModal}>Close</button>
+	{/snippet}
+</Modal>
 
 <style>
 	/* Page-specific styles for Admin Audit */

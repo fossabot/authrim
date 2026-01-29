@@ -10,6 +10,7 @@
 #
 # Usage:
 #   ./delete-all.sh                 - Interactive mode (prompts for environment and confirmation)
+#   ./delete-all.sh --env=<name>    - Delete resources for specific environment using lock.json
 #   ./delete-all.sh local           - Delete all local resources with confirmation
 #   ./delete-all.sh remote          - Delete all remote resources with confirmation
 #   ./delete-all.sh --dry-run       - Dry run mode (shows what would be deleted)
@@ -17,6 +18,12 @@
 #
 
 set -e
+
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/lib/authrim-paths.sh" ]; then
+  source "${SCRIPT_DIR}/lib/authrim-paths.sh"
+fi
 
 # Color codes for output
 RED='\033[0;31m'
@@ -33,9 +40,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=false
 FORCE=false
 ENV=""
+DEPLOY_ENV=""
 
 for arg in "$@"; do
     case $arg in
+        --env=*)
+            DEPLOY_ENV="${arg#*=}"
+            shift
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -51,12 +63,22 @@ for arg in "$@"; do
         *)
             if [ -n "$arg" ]; then
                 echo -e "${RED}❌ Unknown option: $arg${NC}"
-                echo "Usage: $0 [local|remote] [--dry-run] [--force]"
+                echo "Usage: $0 [--env=<name>] [local|remote] [--dry-run] [--force]"
                 exit 1
             fi
             ;;
     esac
 done
+
+# Validate environment name if specified (security: prevent path traversal)
+if [ -n "$DEPLOY_ENV" ]; then
+    if type validate_env_name &>/dev/null; then
+        validate_env_name "$DEPLOY_ENV" || exit 1
+    elif [[ "$DEPLOY_ENV" =~ \.\. ]] || [[ "$DEPLOY_ENV" =~ / ]] || [[ "$DEPLOY_ENV" =~ \\ ]]; then
+        echo -e "${RED}❌ Error: Invalid environment name '${DEPLOY_ENV}': path traversal characters not allowed${NC}"
+        exit 1
+    fi
+fi
 
 echo ""
 echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -108,31 +130,64 @@ echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━�
 echo -e "${YELLOW}⚠️  DELETION PLAN${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "Environment: $ENV"
+if [ -n "$DEPLOY_ENV" ]; then
+    echo "Environment: $DEPLOY_ENV (from --env)"
+else
+    echo "Environment: $ENV"
+fi
 echo ""
-echo "The following resources will be deleted in this order:"
-echo ""
-echo "  1. 🔧 Cloudflare Workers (and Durable Objects)"
-echo "     • ar-lib-core"
-echo "     • authrim-ar-auth"
-echo "     • authrim-ar-discovery"
-echo "     • authrim-ar-management"
-echo "     • authrim-ar-token"
-echo "     • authrim-ar-userinfo"
-echo "     • ar-router"
-echo ""
-echo "  2. 📦 KV Namespaces (production and preview)"
-echo "     • AUTH_CODES"
-echo "     • STATE_STORE"
-echo "     • NONCE_STORE"
-echo "     • CLIENTS"
-echo "     • RATE_LIMIT"
-echo "     • REFRESH_TOKENS"
-echo "     • REVOKED_TOKENS"
-echo "     • INITIAL_ACCESS_TOKENS"
-echo ""
-echo "  3. 🗄️  D1 Database"
-echo "     • authrim-users-db (or custom database name)"
+
+# If DEPLOY_ENV is set, try to read from lock.json
+if [ -n "$DEPLOY_ENV" ] && type lock_file_exists &>/dev/null && lock_file_exists "$DEPLOY_ENV"; then
+    echo "📋 Resources from lock.json:"
+    echo ""
+    echo "  1. 🔧 Cloudflare Workers (and Durable Objects)"
+    echo "     • ${DEPLOY_ENV}-ar-lib-core"
+    echo "     • ${DEPLOY_ENV}-ar-auth"
+    echo "     • ${DEPLOY_ENV}-ar-discovery"
+    echo "     • ${DEPLOY_ENV}-ar-management"
+    echo "     • ${DEPLOY_ENV}-ar-token"
+    echo "     • ${DEPLOY_ENV}-ar-userinfo"
+    echo "     • ${DEPLOY_ENV}-ar-router"
+    echo ""
+    echo "  2. 📦 KV Namespaces (from lock.json):"
+    for binding in $(list_kv_bindings "$DEPLOY_ENV" 2>/dev/null); do
+        local_name=$(get_kv_name "$DEPLOY_ENV" "$binding" 2>/dev/null)
+        local_id=$(get_kv_id "$DEPLOY_ENV" "$binding" 2>/dev/null)
+        echo "     • $binding: $local_name ($local_id)"
+    done
+    echo ""
+    echo "  3. 🗄️  D1 Databases (from lock.json):"
+    for binding in $(list_d1_bindings "$DEPLOY_ENV" 2>/dev/null); do
+        local_name=$(get_d1_name "$DEPLOY_ENV" "$binding" 2>/dev/null)
+        local_id=$(get_d1_id "$DEPLOY_ENV" "$binding" 2>/dev/null)
+        echo "     • $binding: $local_name ($local_id)"
+    done
+else
+    echo "The following resources will be deleted in this order:"
+    echo ""
+    echo "  1. 🔧 Cloudflare Workers (and Durable Objects)"
+    echo "     • ar-lib-core"
+    echo "     • authrim-ar-auth"
+    echo "     • authrim-ar-discovery"
+    echo "     • authrim-ar-management"
+    echo "     • authrim-ar-token"
+    echo "     • authrim-ar-userinfo"
+    echo "     • ar-router"
+    echo ""
+    echo "  2. 📦 KV Namespaces (production and preview)"
+    echo "     • AUTH_CODES"
+    echo "     • STATE_STORE"
+    echo "     • NONCE_STORE"
+    echo "     • CLIENTS"
+    echo "     • RATE_LIMIT"
+    echo "     • REFRESH_TOKENS"
+    echo "     • REVOKED_TOKENS"
+    echo "     • INITIAL_ACCESS_TOKENS"
+    echo ""
+    echo "  3. 🗄️  D1 Database"
+    echo "     • authrim-users-db (or custom database name)"
+fi
 echo ""
 echo -e "${RED}⚠️  WARNING: This action CANNOT be undone!${NC}"
 echo -e "${RED}⚠️  ALL data will be permanently deleted!${NC}"
@@ -219,6 +274,12 @@ echo ""
 
 OVERALL_SUCCESS=true
 
+# Build common options for child scripts
+ENV_OPT=""
+if [ -n "$DEPLOY_ENV" ]; then
+    ENV_OPT="--env=$DEPLOY_ENV"
+fi
+
 # Step 1: Delete Workers (this also deletes Durable Objects)
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -227,7 +288,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 if [ -f "$SCRIPT_DIR/delete-workers.sh" ]; then
-    if bash "$SCRIPT_DIR/delete-workers.sh" --all --force; then
+    if bash "$SCRIPT_DIR/delete-workers.sh" --all --force $ENV_OPT; then
         echo -e "${GREEN}✅ Workers deleted successfully${NC}"
     else
         echo -e "${RED}❌ Failed to delete some or all workers${NC}"
@@ -251,7 +312,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 if [ -f "$SCRIPT_DIR/delete-kv.sh" ]; then
-    if bash "$SCRIPT_DIR/delete-kv.sh" --force; then
+    if bash "$SCRIPT_DIR/delete-kv.sh" --force $ENV_OPT; then
         echo -e "${GREEN}✅ KV namespaces deleted successfully${NC}"
     else
         echo -e "${RED}❌ Failed to delete some or all KV namespaces${NC}"
@@ -270,7 +331,13 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 if [ -f "$SCRIPT_DIR/delete-d1.sh" ]; then
-    if bash "$SCRIPT_DIR/delete-d1.sh" "$ENV" --force; then
+    local d1_args="--force"
+    if [ -n "$DEPLOY_ENV" ]; then
+        d1_args="$d1_args --env=$DEPLOY_ENV"
+    elif [ -n "$ENV" ]; then
+        d1_args="$d1_args $ENV"
+    fi
+    if bash "$SCRIPT_DIR/delete-d1.sh" $d1_args; then
         echo -e "${GREEN}✅ D1 database deleted successfully${NC}"
     else
         echo -e "${RED}❌ Failed to delete D1 database${NC}"

@@ -18,6 +18,7 @@
 		JOB_POLLING_INTERVAL,
 		sanitizeText
 	} from '$lib/utils';
+	import { Modal } from '$lib/components';
 
 	// State
 	let loading = $state(true);
@@ -448,205 +449,167 @@
 </div>
 
 <!-- Create Report Dialog -->
-{#if showCreateReportDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeCreateReportDialog}
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="create-report-dialog-title"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 id="create-report-dialog-title" class="modal-title">Generate Report</h2>
-			</div>
+<Modal open={showCreateReportDialog} onClose={closeCreateReportDialog} title="Generate Report" size="md">
+	{#if createReportError}
+		<div class="alert alert-error">{createReportError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if createReportError}
-					<div class="alert alert-error">{createReportError}</div>
-				{/if}
+	<div class="form-group">
+		<label for="report-type" class="form-label">Report Type</label>
+		<select id="report-type" class="form-select" bind:value={reportType}>
+			<option value="user_activity">{getReportTypeDisplayName('user_activity')}</option>
+			<option value="access_summary">{getReportTypeDisplayName('access_summary')}</option>
+			<option value="compliance_audit">{getReportTypeDisplayName('compliance_audit')}</option>
+			<option value="security_events">{getReportTypeDisplayName('security_events')}</option>
+		</select>
+	</div>
 
-				<div class="form-group">
-					<label for="report-type" class="form-label">Report Type</label>
-					<select id="report-type" class="form-select" bind:value={reportType}>
-						<option value="user_activity">{getReportTypeDisplayName('user_activity')}</option>
-						<option value="access_summary">{getReportTypeDisplayName('access_summary')}</option>
-						<option value="compliance_audit">{getReportTypeDisplayName('compliance_audit')}</option>
-						<option value="security_events">{getReportTypeDisplayName('security_events')}</option>
-					</select>
-				</div>
-
-				<div class="filter-row">
-					<div class="form-group">
-						<label for="report-from" class="form-label">From Date (optional)</label>
-						<input id="report-from" type="date" class="form-input" bind:value={reportFromDate} />
-					</div>
-					<div class="form-group">
-						<label for="report-to" class="form-label">To Date (optional)</label>
-						<input id="report-to" type="date" class="form-input" bind:value={reportToDate} />
-					</div>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button
-					class="btn btn-secondary"
-					onclick={closeCreateReportDialog}
-					disabled={creatingReport}>Cancel</button
-				>
-				<button class="btn btn-primary" onclick={handleCreateReport} disabled={creatingReport}>
-					{creatingReport ? 'Creating...' : 'Generate Report'}
-				</button>
-			</div>
+	<div class="filter-row">
+		<div class="form-group">
+			<label for="report-from" class="form-label">From Date (optional)</label>
+			<input id="report-from" type="date" class="form-input" bind:value={reportFromDate} />
+		</div>
+		<div class="form-group">
+			<label for="report-to" class="form-label">To Date (optional)</label>
+			<input id="report-to" type="date" class="form-input" bind:value={reportToDate} />
 		</div>
 	</div>
-{/if}
+
+	{#snippet footer()}
+		<button
+			class="btn btn-secondary"
+			onclick={closeCreateReportDialog}
+			disabled={creatingReport}>Cancel</button
+		>
+		<button class="btn btn-primary" onclick={handleCreateReport} disabled={creatingReport}>
+			{creatingReport ? 'Creating...' : 'Generate Report'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Job Detail Dialog -->
-{#if showJobDetailDialog && selectedJob}
-	<div
-		class="modal-overlay"
-		onclick={closeJobDetailDialog}
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="job-detail-dialog-title"
-	>
-		<div
-			class="modal-content modal-lg"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<div>
-					<h2 id="job-detail-dialog-title" class="modal-title">
-						{getJobTypeDisplayName(selectedJob.type)}
-					</h2>
-					<div class="cell-secondary mono">{selectedJob.id}</div>
-				</div>
-				<button class="modal-close" onclick={closeJobDetailDialog} aria-label="Close dialog">
-					<i class="i-ph-x"></i>
-				</button>
+<Modal open={showJobDetailDialog && !!selectedJob} onClose={closeJobDetailDialog} title={getJobTypeDisplayName(selectedJob?.type ?? 'report_generation')} size="lg">
+	{#snippet header()}
+		<div>
+			<h2 class="modal-title">
+				{getJobTypeDisplayName(selectedJob?.type ?? 'report_generation')}
+			</h2>
+			<div class="cell-secondary mono">{selectedJob?.id}</div>
+		</div>
+		<button class="modal-close" onclick={closeJobDetailDialog} aria-label="Close dialog">
+			<i class="i-ph-x"></i>
+		</button>
+	{/snippet}
+
+	{#if loadingJobDetail}
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading...</p>
+		</div>
+	{:else if selectedJob}
+		<div class="info-grid">
+			<div class="info-card">
+				<span class="info-label">Status</span>
+				<span class={getStatusBadgeClass(selectedJob.status)}>{selectedJob.status}</span>
 			</div>
-
-			<div class="modal-body">
-				{#if loadingJobDetail}
-					<div class="loading-state">
-						<i class="i-ph-circle-notch loading-spinner"></i>
-						<p>Loading...</p>
-					</div>
-				{:else}
-					<div class="info-grid">
-						<div class="info-card">
-							<span class="info-label">Status</span>
-							<span class={getStatusBadgeClass(selectedJob.status)}>{selectedJob.status}</span>
-						</div>
-						<div class="info-card">
-							<span class="info-label">Duration</span>
-							<span class="info-value"
-								>{formatJobDuration(selectedJob.started_at, selectedJob.completed_at)}</span
-							>
-						</div>
-						<div class="info-card">
-							<span class="info-label">Created</span>
-							<span class="info-value">{formatDate(selectedJob.created_at)}</span>
-						</div>
-						<div class="info-card">
-							<span class="info-label">Created By</span>
-							<span class="info-value">{selectedJob.created_by}</span>
-						</div>
-					</div>
-
-					{#if selectedJob.progress}
-						<div class="detail-section">
-							<h3 class="detail-section-title">Progress</h3>
-							<div class="progress-detail">
-								<div class="progress-bar-lg">
-									<div
-										class="progress-fill"
-										style="width: {getProgressPercent(
-											selectedJob
-										)}%; background-color: {getJobStatusColor(selectedJob.status)};"
-									></div>
-								</div>
-								<span class="progress-text">
-									{selectedJob.progress.processed}/{selectedJob.progress.total}
-								</span>
-							</div>
-							{#if selectedJob.progress.current_item}
-								<p class="muted">Processing: {selectedJob.progress.current_item}</p>
-							{/if}
-						</div>
-					{/if}
-
-					{#if selectedJob.result}
-						<div class="detail-section">
-							<h3 class="detail-section-title">Result Summary</h3>
-							<div class="result-grid">
-								<div class="result-card success">
-									<span class="result-value">{selectedJob.result.summary.success_count}</span>
-									<span class="result-label">Succeeded</span>
-								</div>
-								<div class="result-card danger">
-									<span class="result-value">{selectedJob.result.summary.failure_count}</span>
-									<span class="result-label">Failed</span>
-								</div>
-								<div class="result-card neutral">
-									<span class="result-value">{selectedJob.result.summary.skipped_count}</span>
-									<span class="result-label">Skipped</span>
-								</div>
-							</div>
-
-							{#if selectedJob.result.failures.length > 0}
-								<div class="failures-section">
-									<h4 class="failures-title">Failures ({selectedJob.result.failures.length})</h4>
-									<div class="failures-list">
-										{#each selectedJob.result.failures.slice(0, 10) as failure, i (i)}
-											<div class="failure-item">
-												{#if failure.line}Line {failure.line}:
-												{/if}{failure.error || 'Unknown error'}
-											</div>
-										{/each}
-										{#if selectedJob.result.failures.length > 10}
-											<div class="muted">
-												... and {selectedJob.result.failures.length - 10} more
-											</div>
-										{/if}
-									</div>
-								</div>
-							{/if}
-
-							{#if selectedJob.result.download_url && isValidDownloadUrl(selectedJob.result.download_url)}
-								<a
-									href={selectedJob.result.download_url}
-									target="_blank"
-									rel="noopener noreferrer"
-									class="btn btn-primary"
-								>
-									<i class="i-ph-download"></i>
-									Download Result
-								</a>
-							{/if}
-						</div>
-					{/if}
-
-					{#if selectedJob.parameters && Object.keys(selectedJob.parameters).length > 0}
-						<div class="detail-section">
-							<h3 class="detail-section-title">Parameters</h3>
-							<pre class="code-block">{JSON.stringify(selectedJob.parameters, null, 2)}</pre>
-						</div>
-					{/if}
-				{/if}
+			<div class="info-card">
+				<span class="info-label">Duration</span>
+				<span class="info-value"
+					>{formatJobDuration(selectedJob.started_at, selectedJob.completed_at)}</span
+				>
 			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeJobDetailDialog}>Close</button>
+			<div class="info-card">
+				<span class="info-label">Created</span>
+				<span class="info-value">{formatDate(selectedJob.created_at)}</span>
+			</div>
+			<div class="info-card">
+				<span class="info-label">Created By</span>
+				<span class="info-value">{selectedJob.created_by}</span>
 			</div>
 		</div>
-	</div>
-{/if}
+
+		{#if selectedJob.progress}
+			<div class="detail-section">
+				<h3 class="detail-section-title">Progress</h3>
+				<div class="progress-detail">
+					<div class="progress-bar-lg">
+						<div
+							class="progress-fill"
+							style="width: {getProgressPercent(
+								selectedJob
+							)}%; background-color: {getJobStatusColor(selectedJob.status)};"
+						></div>
+					</div>
+					<span class="progress-text">
+						{selectedJob.progress.processed}/{selectedJob.progress.total}
+					</span>
+				</div>
+				{#if selectedJob.progress.current_item}
+					<p class="muted">Processing: {selectedJob.progress.current_item}</p>
+				{/if}
+			</div>
+		{/if}
+
+		{#if selectedJob.result}
+			<div class="detail-section">
+				<h3 class="detail-section-title">Result Summary</h3>
+				<div class="result-grid">
+					<div class="result-card success">
+						<span class="result-value">{selectedJob.result.summary.success_count}</span>
+						<span class="result-label">Succeeded</span>
+					</div>
+					<div class="result-card danger">
+						<span class="result-value">{selectedJob.result.summary.failure_count}</span>
+						<span class="result-label">Failed</span>
+					</div>
+					<div class="result-card neutral">
+						<span class="result-value">{selectedJob.result.summary.skipped_count}</span>
+						<span class="result-label">Skipped</span>
+					</div>
+				</div>
+
+				{#if selectedJob.result.failures.length > 0}
+					<div class="failures-section">
+						<h4 class="failures-title">Failures ({selectedJob.result.failures.length})</h4>
+						<div class="failures-list">
+							{#each selectedJob.result.failures.slice(0, 10) as failure, i (i)}
+								<div class="failure-item">
+									{#if failure.line}Line {failure.line}:
+									{/if}{failure.error || 'Unknown error'}
+								</div>
+							{/each}
+							{#if selectedJob.result.failures.length > 10}
+								<div class="muted">
+									... and {selectedJob.result.failures.length - 10} more
+								</div>
+							{/if}
+						</div>
+					</div>
+				{/if}
+
+				{#if selectedJob.result.download_url && isValidDownloadUrl(selectedJob.result.download_url)}
+					<a
+						href={selectedJob.result.download_url}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="btn btn-primary"
+					>
+						<i class="i-ph-download"></i>
+						Download Result
+					</a>
+				{/if}
+			</div>
+		{/if}
+
+		{#if selectedJob.parameters && Object.keys(selectedJob.parameters).length > 0}
+			<div class="detail-section">
+				<h3 class="detail-section-title">Parameters</h3>
+				<pre class="code-block">{JSON.stringify(selectedJob.parameters, null, 2)}</pre>
+			</div>
+		{/if}
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeJobDetailDialog}>Close</button>
+	{/snippet}
+</Modal>

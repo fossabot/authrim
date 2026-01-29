@@ -27,6 +27,7 @@ export async function handleListProviders(c: Context<{ Bindings: Env }>): Promis
         providerType: p.providerType,
         iconUrl: p.iconUrl,
         buttonColor: p.buttonColor,
+        buttonColorDark: p.buttonColorDark,
         buttonText: p.buttonText,
         enabled: true, // All providers from listEnabledProviders are enabled
       })),

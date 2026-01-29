@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { adminReBACAPI, type RelationshipTuple, formatTupleString } from '$lib/api/admin-rebac';
-	import { ToggleSwitch } from '$lib/components';
+	import { Modal, ToggleSwitch } from '$lib/components';
 
 	// State
 	let tuples: RelationshipTuple[] = $state([]);
@@ -333,161 +333,137 @@
 </div>
 
 <!-- Create Dialog -->
-{#if showCreateDialog}
-	<div class="modal-overlay" onclick={() => (showCreateDialog = false)} role="presentation">
-		<div
-			class="modal-content modal-lg"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Create Relationship Tuple</h2>
+<Modal open={showCreateDialog} onClose={() => (showCreateDialog = false)} title="Create Relationship Tuple" size="lg">
+	{#if createError}
+		<div class="alert alert-error">{createError}</div>
+	{/if}
+
+	<div class="form-section">
+		<h3>Subject (From)</h3>
+		<div class="form-row">
+			<div class="form-group">
+				<label for="from-type" class="form-label">Type</label>
+				<select id="from-type" class="form-select" bind:value={createForm.from_type}>
+					<option value="subject">subject</option>
+					<option value="group">group</option>
+					<option value="org">org</option>
+				</select>
 			</div>
-			<div class="modal-body">
-				{#if createError}
-					<div class="alert alert-error">{createError}</div>
-				{/if}
-
-				<div class="form-section">
-					<h3>Subject (From)</h3>
-					<div class="form-row">
-						<div class="form-group">
-							<label for="from-type" class="form-label">Type</label>
-							<select id="from-type" class="form-select" bind:value={createForm.from_type}>
-								<option value="subject">subject</option>
-								<option value="group">group</option>
-								<option value="org">org</option>
-							</select>
-						</div>
-						<div class="form-group flex-1">
-							<label for="from-id" class="form-label">ID</label>
-							<input
-								id="from-id"
-								type="text"
-								class="form-input"
-								bind:value={createForm.from_id}
-								placeholder="user_123"
-							/>
-						</div>
-					</div>
-				</div>
-
-				<div class="form-section">
-					<h3>Relation</h3>
-					<div class="form-group">
-						<label for="relation-type" class="form-label">Relationship Type</label>
-						<input
-							id="relation-type"
-							type="text"
-							class="form-input"
-							bind:value={createForm.relationship_type}
-							placeholder="viewer, editor, owner..."
-						/>
-					</div>
-				</div>
-
-				<div class="form-section">
-					<h3>Object (To)</h3>
-					<div class="form-row">
-						<div class="form-group">
-							<label for="to-type" class="form-label">Type</label>
-							<input
-								id="to-type"
-								type="text"
-								class="form-input"
-								bind:value={createForm.to_type}
-								placeholder="document"
-							/>
-						</div>
-						<div class="form-group flex-1">
-							<label for="to-id" class="form-label">ID</label>
-							<input
-								id="to-id"
-								type="text"
-								class="form-input"
-								bind:value={createForm.to_id}
-								placeholder="doc_456"
-							/>
-						</div>
-					</div>
-				</div>
-
-				<div class="form-section">
-					<h3>Options</h3>
-					<div class="form-group">
-						<label for="permission-level" class="form-label">Permission Level</label>
-						<select
-							id="permission-level"
-							class="form-select"
-							bind:value={createForm.permission_level}
-						>
-							<option value="full">Full</option>
-							<option value="limited">Limited</option>
-							<option value="read_only">Read Only</option>
-						</select>
-					</div>
-
-					<div class="form-group">
-						<ToggleSwitch
-							bind:checked={createForm.has_expiry}
-							label="Set expiration"
-							description="Set an expiration date for this relationship"
-						/>
-					</div>
-
-					{#if createForm.has_expiry}
-						<div class="form-group">
-							<label for="expires-at" class="form-label">Expires At</label>
-							<input
-								id="expires-at"
-								type="datetime-local"
-								class="form-input"
-								bind:value={createForm.expires_at}
-							/>
-						</div>
-					{/if}
-				</div>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showCreateDialog = false)}>Cancel</button>
-				<button class="btn btn-primary" onclick={submitCreate} disabled={creating}>
-					{creating ? 'Creating...' : 'Create'}
-				</button>
+			<div class="form-group flex-1">
+				<label for="from-id" class="form-label">ID</label>
+				<input
+					id="from-id"
+					type="text"
+					class="form-input"
+					bind:value={createForm.from_id}
+					placeholder="user_123"
+				/>
 			</div>
 		</div>
 	</div>
-{/if}
+
+	<div class="form-section">
+		<h3>Relation</h3>
+		<div class="form-group">
+			<label for="relation-type" class="form-label">Relationship Type</label>
+			<input
+				id="relation-type"
+				type="text"
+				class="form-input"
+				bind:value={createForm.relationship_type}
+				placeholder="viewer, editor, owner..."
+			/>
+		</div>
+	</div>
+
+	<div class="form-section">
+		<h3>Object (To)</h3>
+		<div class="form-row">
+			<div class="form-group">
+				<label for="to-type" class="form-label">Type</label>
+				<input
+					id="to-type"
+					type="text"
+					class="form-input"
+					bind:value={createForm.to_type}
+					placeholder="document"
+				/>
+			</div>
+			<div class="form-group flex-1">
+				<label for="to-id" class="form-label">ID</label>
+				<input
+					id="to-id"
+					type="text"
+					class="form-input"
+					bind:value={createForm.to_id}
+					placeholder="doc_456"
+				/>
+			</div>
+		</div>
+	</div>
+
+	<div class="form-section">
+		<h3>Options</h3>
+		<div class="form-group">
+			<label for="permission-level" class="form-label">Permission Level</label>
+			<select
+				id="permission-level"
+				class="form-select"
+				bind:value={createForm.permission_level}
+			>
+				<option value="full">Full</option>
+				<option value="limited">Limited</option>
+				<option value="read_only">Read Only</option>
+			</select>
+		</div>
+
+		<div class="form-group">
+			<ToggleSwitch
+				bind:checked={createForm.has_expiry}
+				label="Set expiration"
+				description="Set an expiration date for this relationship"
+			/>
+		</div>
+
+		{#if createForm.has_expiry}
+			<div class="form-group">
+				<label for="expires-at" class="form-label">Expires At</label>
+				<input
+					id="expires-at"
+					type="datetime-local"
+					class="form-input"
+					bind:value={createForm.expires_at}
+				/>
+			</div>
+		{/if}
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showCreateDialog = false)}>Cancel</button>
+		<button class="btn btn-primary" onclick={submitCreate} disabled={creating}>
+			{creating ? 'Creating...' : 'Create'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Delete Dialog -->
-{#if showDeleteDialog && tupleToDelete}
-	<div class="modal-overlay" onclick={() => (showDeleteDialog = false)} role="presentation">
-		<div
-			class="modal-content modal-sm"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Delete Relationship Tuple</h2>
-			</div>
-			<div class="modal-body">
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
+<Modal open={showDeleteDialog && !!tupleToDelete} onClose={() => (showDeleteDialog = false)} title="Delete Relationship Tuple" size="sm">
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
 
-				<p>Are you sure you want to delete this relationship tuple?</p>
-				<div class="tuple-preview">
-					{formatTupleString(tupleToDelete)}
-				</div>
-				<p class="text-danger">This action cannot be undone.</p>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showDeleteDialog = false)}>Cancel</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete'}
-				</button>
-			</div>
+	<p>Are you sure you want to delete this relationship tuple?</p>
+	{#if tupleToDelete}
+		<div class="tuple-preview">
+			{formatTupleString(tupleToDelete)}
 		</div>
-	</div>
-{/if}
+	{/if}
+	<p class="text-danger">This action cannot be undone.</p>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showDeleteDialog = false)}>Cancel</button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete'}
+		</button>
+	{/snippet}
+</Modal>

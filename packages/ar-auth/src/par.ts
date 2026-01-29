@@ -37,7 +37,7 @@ import {
   // Logging
   getLogger,
 } from '@authrim/ar-lib-core';
-import { getClient, getPARRequestStoreForNewRequest } from '@authrim/ar-lib-core';
+import { getClientCached, getPARRequestStoreForNewRequest } from '@authrim/ar-lib-core';
 import { jwtVerify, compactDecrypt, importJWK, createRemoteJWKSet } from 'jose';
 
 /**
@@ -158,8 +158,8 @@ export async function parHandler(c: Context<{ Bindings: Env }>): Promise<Respons
       throw new RFCError('invalid_client', 401, clientValidation.error || 'Invalid client_id');
     }
 
-    // Verify client exists (uses Read-Through Cache: CLIENTS_CACHE → D1)
-    const clientData = await getClient(c.env, params.client_id);
+    // Verify client exists (request-level cached)
+    const clientData = await getClientCached(c, c.env, params.client_id);
     if (!clientData) {
       throw new RFCError('invalid_client', 401, 'Client authentication failed');
     }

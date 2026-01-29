@@ -4,12 +4,19 @@
 # This script safely deletes KV namespaces for the Authrim project
 #
 # Usage:
-#   ./delete-kv.sh                 - Interactive mode (prompts for confirmation)
-#   ./delete-kv.sh --dry-run       - Dry run mode (shows what would be deleted)
-#   ./delete-kv.sh --force         - Force deletion without confirmation (USE WITH CAUTION)
+#   ./delete-kv.sh                    - Interactive mode (prompts for confirmation)
+#   ./delete-kv.sh --env=<name>       - Delete KV namespaces for specific environment using lock.json
+#   ./delete-kv.sh --dry-run          - Dry run mode (shows what would be deleted)
+#   ./delete-kv.sh --force            - Force deletion without confirmation (USE WITH CAUTION)
 #
 
 set -e
+
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/lib/authrim-paths.sh" ]; then
+  source "${SCRIPT_DIR}/lib/authrim-paths.sh"
+fi
 
 # Color codes for output
 RED='\033[0;31m'
@@ -21,8 +28,14 @@ NC='\033[0m' # No Color
 # Parse command line arguments
 DRY_RUN=false
 FORCE=false
+DEPLOY_ENV=""
+
 for arg in "$@"; do
     case $arg in
+        --env=*)
+            DEPLOY_ENV="${arg#*=}"
+            shift
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -33,11 +46,21 @@ for arg in "$@"; do
             ;;
         *)
             echo -e "${RED}❌ Unknown option: $arg${NC}"
-            echo "Usage: $0 [--dry-run] [--force]"
+            echo "Usage: $0 [--env=<name>] [--dry-run] [--force]"
             exit 1
             ;;
     esac
 done
+
+# Validate environment name if specified (security: prevent path traversal)
+if [ -n "$DEPLOY_ENV" ]; then
+    if type validate_env_name &>/dev/null; then
+        validate_env_name "$DEPLOY_ENV" || exit 1
+    elif [[ "$DEPLOY_ENV" =~ \.\. ]] || [[ "$DEPLOY_ENV" =~ / ]] || [[ "$DEPLOY_ENV" =~ \\ ]]; then
+        echo -e "${RED}❌ Error: Invalid environment name '${DEPLOY_ENV}': path traversal characters not allowed${NC}"
+        exit 1
+    fi
+fi
 
 echo -e "${BLUE}⚡️ Authrim KV Namespace Deletion${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -48,17 +71,17 @@ if [ "$DRY_RUN" = true ]; then
     echo ""
 fi
 
-# Check if npx is available
-if ! command -v npx &> /dev/null; then
-    echo -e "${RED}❌ Error: npx is not installed${NC}"
-    echo "Please install Node.js and npm"
+# Check if wrangler is available
+if ! command -v wrangler &> /dev/null; then
+    echo -e "${RED}❌ Error: wrangler is not installed${NC}"
+    echo "Please install it with: npm install -g wrangler"
     exit 1
 fi
 
 # Check if user is logged in to Cloudflare
-if ! npx wrangler whoami &> /dev/null; then
+if ! wrangler whoami &> /dev/null; then
     echo -e "${RED}❌ Error: Not logged in to Cloudflare${NC}"
-    echo "Please run: npx wrangler login"
+    echo "Please run: wrangler login"
     exit 1
 fi
 
@@ -66,7 +89,7 @@ echo -e "${BLUE}📊 Fetching list of KV namespaces...${NC}"
 echo ""
 
 # Get list of all KV namespaces in JSON format
-KV_LIST_JSON=$(npx wrangler kv namespace list 2>&1)
+KV_LIST_JSON=$(wrangler kv namespace list 2>&1)
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ Error: Failed to fetch KV namespace list${NC}"
@@ -120,40 +143,65 @@ get_namespace_id_by_title() {
     fi
 }
 
-# Search for both production and preview namespaces
-for kv_name in "${AUTHRIM_KV_NAMES[@]}"; do
-    # Check for production namespace
-    prod_id=$(get_namespace_id_by_title "$kv_name" "$KV_LIST_JSON")
-    if [ -n "$prod_id" ]; then
-        NAMESPACES_TO_DELETE_IDS+=("$prod_id")
-        NAMESPACES_TO_DELETE_TITLES+=("$kv_name (production)")
-        echo -e "${GREEN}  ✓ Found: $kv_name (production) - ID: $prod_id${NC}"
-    fi
+# If DEPLOY_ENV is specified and lock.json exists, use it as the primary source
+if [ -n "$DEPLOY_ENV" ] && type lock_file_exists &>/dev/null && lock_file_exists "$DEPLOY_ENV"; then
+    echo -e "${BLUE}📋 Reading KV namespace IDs from lock.json for environment: $DEPLOY_ENV${NC}"
+    echo ""
 
-    # Check for preview namespace (can have various suffixes)
-    if command -v jq &> /dev/null; then
-        preview_id=$(echo "$KV_LIST_JSON" | jq -r ".[] | select(.title | test(\"^${kv_name}_preview\"; \"i\")) | .id" 2>/dev/null | head -1)
-    else
-        preview_id=$(echo "$KV_LIST_JSON" | awk -v ns="$kv_name" '
-            /"id"/ {
-                match($0, /"id"[[:space:]]*:[[:space:]]*"([a-f0-9]{32})"/, arr)
-                if (arr[1]) current_id = arr[1]
-            }
-            /"title"/ {
-                if (tolower($0) ~ tolower(ns "_preview")) {
-                    print current_id
-                    exit
+    for binding in $(list_kv_bindings "$DEPLOY_ENV" 2>/dev/null); do
+        kv_id=$(get_kv_id "$DEPLOY_ENV" "$binding" 2>/dev/null)
+        kv_name=$(get_kv_name "$DEPLOY_ENV" "$binding" 2>/dev/null)
+        preview_id=$(get_kv_preview_id "$DEPLOY_ENV" "$binding" 2>/dev/null)
+
+        if [ -n "$kv_id" ]; then
+            NAMESPACES_TO_DELETE_IDS+=("$kv_id")
+            NAMESPACES_TO_DELETE_TITLES+=("$binding ($kv_name)")
+            echo -e "${GREEN}  ✓ Found: $binding - ID: $kv_id${NC}"
+        fi
+
+        if [ -n "$preview_id" ] && [ "$preview_id" != "null" ]; then
+            NAMESPACES_TO_DELETE_IDS+=("$preview_id")
+            NAMESPACES_TO_DELETE_TITLES+=("$binding (preview)")
+            echo -e "${GREEN}  ✓ Found: $binding (preview) - ID: $preview_id${NC}"
+        fi
+    done
+else
+    # Fallback: Search for namespaces by name
+    # Search for both production and preview namespaces
+    for kv_name in "${AUTHRIM_KV_NAMES[@]}"; do
+        # Check for production namespace
+        prod_id=$(get_namespace_id_by_title "$kv_name" "$KV_LIST_JSON")
+        if [ -n "$prod_id" ]; then
+            NAMESPACES_TO_DELETE_IDS+=("$prod_id")
+            NAMESPACES_TO_DELETE_TITLES+=("$kv_name (production)")
+            echo -e "${GREEN}  ✓ Found: $kv_name (production) - ID: $prod_id${NC}"
+        fi
+
+        # Check for preview namespace (can have various suffixes)
+        if command -v jq &> /dev/null; then
+            preview_id=$(echo "$KV_LIST_JSON" | jq -r ".[] | select(.title | test(\"^${kv_name}_preview\"; \"i\")) | .id" 2>/dev/null | head -1)
+        else
+            preview_id=$(echo "$KV_LIST_JSON" | awk -v ns="$kv_name" '
+                /"id"/ {
+                    match($0, /"id"[[:space:]]*:[[:space:]]*"([a-f0-9]{32})"/, arr)
+                    if (arr[1]) current_id = arr[1]
                 }
-            }
-        ')
-    fi
+                /"title"/ {
+                    if (tolower($0) ~ tolower(ns "_preview")) {
+                        print current_id
+                        exit
+                    }
+                }
+            ')
+        fi
 
-    if [ -n "$preview_id" ]; then
-        NAMESPACES_TO_DELETE_IDS+=("$preview_id")
-        NAMESPACES_TO_DELETE_TITLES+=("$kv_name (preview)")
-        echo -e "${GREEN}  ✓ Found: $kv_name (preview) - ID: $preview_id${NC}"
-    fi
-done
+        if [ -n "$preview_id" ]; then
+            NAMESPACES_TO_DELETE_IDS+=("$preview_id")
+            NAMESPACES_TO_DELETE_TITLES+=("$kv_name (preview)")
+            echo -e "${GREEN}  ✓ Found: $kv_name (preview) - ID: $preview_id${NC}"
+        fi
+    done
+fi
 
 echo ""
 
@@ -218,7 +266,7 @@ for i in "${!NAMESPACES_TO_DELETE_IDS[@]}"; do
     echo -e "${BLUE}🗑️  Deleting: $namespace_title${NC}"
 
     # Delete the namespace using wrangler
-    if npx wrangler kv namespace delete --namespace-id="$namespace_id" --skip-confirmation 2>&1; then
+    if wrangler kv namespace delete --namespace-id="$namespace_id" --skip-confirmation 2>&1; then
         echo -e "${GREEN}  ✅ Successfully deleted: $namespace_title${NC}"
         ((DELETED_COUNT++))
     else

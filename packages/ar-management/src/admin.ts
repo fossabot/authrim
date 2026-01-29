@@ -45,6 +45,14 @@ import {
   // Admin Audit Log
   AdminAuditLogRepository,
   type AdminAuthContext,
+  // Cache Invalidation (P0 KV Cache Optimization)
+  invalidateClientCache,
+  invalidateClientCacheOnDelete,
+  invalidateTenantProfileCache,
+  // Write-Through KV Cache (Phase 3)
+  putClient,
+  buildKVKey,
+  getClient,
 } from '@authrim/ar-lib-core';
 import type { UserCore, UserPII } from '@authrim/ar-lib-core';
 
@@ -1664,6 +1672,8 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       allow_claims_without_scope?: boolean;
       // Custom Redirect URIs (Authrim Extension)
       allowed_redirect_origins?: string[];
+      // PKCE (RFC 7636)
+      require_pkce?: boolean;
     }>();
 
     // Validate required fields
@@ -1767,6 +1777,82 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       allow_claims_without_scope: body.allow_claims_without_scope || false,
       // Custom Redirect URIs (Authrim Extension)
       allowed_redirect_origins: validatedAllowedOrigins,
+      // PKCE (RFC 7636)
+      require_pkce: body.require_pkce || false,
+    });
+
+    // Write-Through: Populate KV cache immediately after D1 write
+    // OAuthClient stores JSON arrays as strings, ClientMetadata uses actual arrays
+    await putClient(c.env, {
+      client_id: client.client_id,
+      client_secret_hash: client.client_secret_hash ?? undefined,
+      client_name: client.client_name,
+      redirect_uris: JSON.parse(client.redirect_uris) as string[],
+      grant_types: JSON.parse(client.grant_types) as string[],
+      response_types: JSON.parse(client.response_types) as string[],
+      scope: client.scope ?? undefined,
+      logo_uri: client.logo_uri ?? undefined,
+      client_uri: client.client_uri ?? undefined,
+      policy_uri: client.policy_uri ?? undefined,
+      tos_uri: client.tos_uri ?? undefined,
+      contacts: client.contacts ? (JSON.parse(client.contacts) as string[]) : undefined,
+      post_logout_redirect_uris: client.post_logout_redirect_uris
+        ? (JSON.parse(client.post_logout_redirect_uris) as string[])
+        : undefined,
+      token_endpoint_auth_method: client.token_endpoint_auth_method,
+      subject_type: client.subject_type ?? undefined,
+      sector_identifier_uri: client.sector_identifier_uri ?? undefined,
+      jwks: client.jwks ? JSON.parse(client.jwks) : undefined,
+      jwks_uri: client.jwks_uri ?? undefined,
+      is_trusted: client.is_trusted,
+      skip_consent: client.skip_consent,
+      allow_claims_without_scope: client.allow_claims_without_scope,
+      // Token Exchange (RFC 8693)
+      token_exchange_allowed: client.token_exchange_allowed,
+      allowed_subject_token_clients: client.allowed_subject_token_clients
+        ? (JSON.parse(client.allowed_subject_token_clients) as string[])
+        : undefined,
+      allowed_token_exchange_resources: client.allowed_token_exchange_resources
+        ? (JSON.parse(client.allowed_token_exchange_resources) as string[])
+        : undefined,
+      delegation_mode: client.delegation_mode,
+      // Client Credentials (RFC 6749 Section 4.4)
+      client_credentials_allowed: client.client_credentials_allowed,
+      allowed_scopes: client.allowed_scopes
+        ? (JSON.parse(client.allowed_scopes) as string[])
+        : undefined,
+      default_scope: client.default_scope ?? undefined,
+      default_audience: client.default_audience ?? undefined,
+      // CIBA settings
+      backchannel_token_delivery_mode: client.backchannel_token_delivery_mode ?? undefined,
+      backchannel_client_notification_endpoint:
+        client.backchannel_client_notification_endpoint ?? undefined,
+      backchannel_authentication_request_signing_alg:
+        client.backchannel_authentication_request_signing_alg ?? undefined,
+      backchannel_user_code_parameter: client.backchannel_user_code_parameter,
+      // UserInfo response signing
+      userinfo_signed_response_alg: client.userinfo_signed_response_alg ?? undefined,
+      // OIDC Logout
+      backchannel_logout_uri: client.backchannel_logout_uri ?? undefined,
+      backchannel_logout_session_required: client.backchannel_logout_session_required,
+      frontchannel_logout_uri: client.frontchannel_logout_uri ?? undefined,
+      frontchannel_logout_session_required: client.frontchannel_logout_session_required,
+      // Authrim Extension
+      allowed_redirect_origins: client.allowed_redirect_origins
+        ? (JSON.parse(client.allowed_redirect_origins) as string[])
+        : undefined,
+      // DCR
+      software_id: client.software_id ?? undefined,
+      software_version: client.software_version ?? undefined,
+      requestable_scopes: client.requestable_scopes
+        ? (JSON.parse(client.requestable_scopes) as string[])
+        : undefined,
+      // PKCE
+      require_pkce: client.require_pkce,
+      // Tenant & Timestamps
+      tenant_id: client.tenant_id,
+      created_at: client.created_at,
+      updated_at: client.updated_at,
     });
 
     // Publish client created event (non-blocking)
@@ -1818,6 +1904,7 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
           is_trusted: client.is_trusted,
           skip_consent: client.skip_consent,
           allow_claims_without_scope: client.allow_claims_without_scope,
+          require_pkce: client.require_pkce,
           created_at: client.created_at,
           updated_at: client.updated_at,
         },
@@ -1982,6 +2069,8 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       client_name,
       redirect_uris,
       grant_types,
+      response_types,
+      token_endpoint_auth_method,
       scope,
       logo_uri,
       client_uri,
@@ -1991,6 +2080,7 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       skip_consent,
       allow_claims_without_scope,
       allowed_redirect_origins,
+      require_pkce,
     } = body;
 
     // Validate allowed_redirect_origins if provided (Custom Redirect URIs - Authrim Extension)
@@ -2027,6 +2117,8 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       client_name,
       redirect_uris,
       grant_types,
+      response_types,
+      token_endpoint_auth_method,
       scope,
       logo_uri,
       client_uri,
@@ -2036,6 +2128,7 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       skip_consent,
       allow_claims_without_scope,
       allowed_redirect_origins,
+      require_pkce,
     ].some((v) => v !== undefined);
 
     if (!hasUpdates) {
@@ -2050,6 +2143,8 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       client_name,
       redirect_uris,
       grant_types,
+      response_types,
+      token_endpoint_auth_method,
       scope,
       logo_uri,
       client_uri,
@@ -2059,17 +2154,19 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       skip_consent,
       allow_claims_without_scope,
       allowed_redirect_origins: validatedAllowedOrigins,
+      require_pkce,
     });
 
     // Invalidate CLIENTS_CACHE (explicit invalidation after D1 update)
+    // Uses versioned KV key (v1:client:{id}) for cache invalidation
     // D1 is source of truth - cache will be repopulated on next getClient() call
     const log = getLogger(c).module('ADMIN-CLIENT');
     try {
-      await c.env.CLIENTS_CACHE.delete(clientId);
+      await invalidateClientCache(c.env, clientId);
     } catch (error) {
       log.warn('Failed to invalidate client cache', { action: 'cache_invalidate', clientId });
       // Cache invalidation failure should not block the response
-      // Worst case: stale cache for up to 5 minutes (TTL)
+      // Worst case: stale cache until TTL expires
     }
 
     // Publish client updated event (non-blocking)
@@ -2148,12 +2245,13 @@ export async function adminClientDeleteHandler(c: Context<{ Bindings: Env }>) {
     // Delete from D1 database via Repository
     await authCtx.repositories.client.delete(clientId);
 
-    // Invalidate CLIENTS_CACHE (explicit invalidation after D1 delete)
+    // Invalidate CLIENTS_CACHE and cache-mode settings (security: deleted clients must be immediately uncacheable)
+    // Uses versioned KV keys (v1:client:{id}, v1:cache-mode:client:{id})
     const log = getLogger(c).module('ADMIN-CLIENT');
     try {
-      await c.env.CLIENTS_CACHE.delete(clientId);
+      await invalidateClientCacheOnDelete(c.env, clientId);
     } catch (error) {
-      log.warn('Failed to invalidate client cache', { action: 'cache_invalidate', clientId });
+      log.warn('Failed to invalidate client cache on delete', { action: 'cache_invalidate', clientId });
       // Cache invalidation failure should not block the response
     }
 
@@ -2236,7 +2334,7 @@ export async function adminClientsBulkDeleteHandler(c: Context<{ Bindings: Env }
     const successfullyDeletedIds = client_ids.filter((id) => !result.failed.includes(id));
     for (const clientId of successfullyDeletedIds) {
       try {
-        await c.env.CLIENTS_CACHE.delete(clientId);
+        await c.env.CLIENTS_CACHE.delete(buildKVKey('client', clientId));
       } catch (error) {
         log.warn('Failed to invalidate client cache', { action: 'cache_invalidate', clientId });
         // Cache invalidation failure should not block the bulk delete
@@ -2322,17 +2420,10 @@ export async function adminClientRegenerateSecretHandler(c: Context<{ Bindings: 
 
     const adapter = new D1Adapter({ db: c.env.DB });
 
-    // Get current client state (verify tenant ownership)
-    const client = await adapter.queryOne<{
-      client_id: string;
-      tenant_id: string;
-      client_secret_hash: string | null;
-    }>(
-      'SELECT client_id, tenant_id, client_secret_hash FROM oauth_clients WHERE client_id = ? AND tenant_id = ?',
-      [clientId, tenantId]
-    );
+    // Get current client state from KV cache (with D1 fallback) and verify tenant ownership
+    const client = await getClient(c.env, clientId);
 
-    if (!client) {
+    if (!client || client.tenant_id !== tenantId) {
       return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
@@ -2379,7 +2470,7 @@ export async function adminClientRegenerateSecretHandler(c: Context<{ Bindings: 
 
     // Invalidate client cache
     try {
-      await c.env.CLIENTS_CACHE.delete(clientId);
+      await c.env.CLIENTS_CACHE.delete(buildKVKey('client', clientId));
     } catch {
       log.warn('Failed to invalidate client cache after secret regeneration', {
         action: 'cache_invalidate',
@@ -4121,6 +4212,11 @@ export async function adminSettingsGetHandler(c: Context<{ Bindings: Env }>) {
         accessTokenClaims: 'roles,org_id,org_type', // Default claims for Access Token
         idTokenClaims: 'roles,user_type,org_id,plan,org_type', // Default claims for ID Token
       },
+      loginUI: {
+        theme: 'light',
+        variant: 'beige',
+        supportedLocales: ['en', 'ja'],
+      },
     };
 
     // Read policy feature flags from KV (dynamic overrides)
@@ -4191,6 +4287,7 @@ export async function adminSettingsUpdateHandler(c: Context<{ Bindings: Env }>) 
       'oidc',
       'fapi',
       'policy',
+      'loginUI',
     ];
     const settings = body.settings;
 
@@ -5165,17 +5262,10 @@ export async function adminClientUsageHandler(c: Context<{ Bindings: Env }>) {
   try {
     const adapter = new D1Adapter({ db: c.env.DB });
 
-    // Verify client exists and belongs to tenant
-    const client = await adapter.queryOne<{
-      client_id: string;
-      client_name: string | null;
-      created_at: number;
-    }>(
-      'SELECT client_id, client_name, created_at FROM oauth_clients WHERE client_id = ? AND tenant_id = ?',
-      [clientId, tenantId]
-    );
+    // Verify client exists and belongs to tenant using KV cache (with D1 fallback)
+    const client = await getClient(c.env, clientId);
 
-    if (!client) {
+    if (!client || client.tenant_id !== tenantId) {
       return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND, {
         variables: { resource: 'client', id: clientId },
       });

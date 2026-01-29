@@ -1,21 +1,46 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { adminStatsAPI, type DashboardStats } from '$lib/api/admin-stats';
+	import {
+		adminCacheModeAPI,
+		type PlatformCacheModeResponse
+	} from '$lib/api/admin-cache-mode';
 	import Card from '$lib/components/Card.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Alert from '$lib/components/Alert.svelte';
 
-	let stats: DashboardStats | null = $state(null);
+	let stats = $state<DashboardStats | null>(null);
+	let cacheMode = $state<PlatformCacheModeResponse | null>(null);
 	let loading = $state(true);
 	let error = $state('');
 
+	// Check if cache is in maintenance mode (short TTL)
+	const isMaintenanceMode = $derived(
+		cacheMode !== null && cacheMode.effective === 'maintenance'
+	);
+
 	onMount(async () => {
 		try {
-			stats = await adminStatsAPI.getDashboardStats();
-		} catch (err) {
-			console.error('Failed to load dashboard stats:', err);
-			error = 'Failed to load statistics';
+			// Load stats and cache mode in parallel
+			const [statsResult, cacheModeResult] = await Promise.allSettled([
+				adminStatsAPI.getDashboardStats(),
+				adminCacheModeAPI.getPlatformCacheMode()
+			]);
+
+			if (statsResult.status === 'fulfilled') {
+				stats = statsResult.value;
+			} else {
+				console.error('Failed to load dashboard stats:', statsResult.reason);
+				error = 'Failed to load statistics';
+			}
+
+			if (cacheModeResult.status === 'fulfilled') {
+				cacheMode = cacheModeResult.value;
+			} else {
+				// Cache mode failure is non-critical, just log it
+				console.warn('Failed to load cache mode:', cacheModeResult.reason);
+			}
 		} finally {
 			loading = false;
 		}
@@ -82,6 +107,28 @@
 			{error}
 		</Alert>
 	{:else if stats}
+		<!-- Cache Mode Warning Banner -->
+		{#if isMaintenanceMode}
+			<div class="cache-warning-banner">
+				<div class="cache-warning-content">
+					<div class="cache-warning-icon">
+						<i class="i-ph-warning-circle"></i>
+					</div>
+					<div class="cache-warning-text">
+						<strong>Cache Maintenance Mode Active</strong>
+						<p>
+							Cache TTL is set to 30 seconds. This may impact performance in production.
+							<a href="/admin/settings/cache-mode">Configure cache settings</a>
+						</p>
+					</div>
+					<a href="/admin/settings/cache-mode" class="cache-warning-action">
+						<i class="i-ph-gear"></i>
+						Settings
+					</a>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Stats Grid -->
 		<div class="stats-grid">
 			<StatCard
@@ -184,6 +231,93 @@
 <style>
 	.dashboard {
 		max-width: 1400px;
+	}
+
+	/* Cache Warning Banner */
+	.cache-warning-banner {
+		background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.05));
+		border: 1px solid rgba(245, 158, 11, 0.3);
+		border-radius: var(--radius-xl);
+		padding: 16px 20px;
+		margin-bottom: 24px;
+	}
+
+	.cache-warning-content {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+	}
+
+	.cache-warning-icon {
+		width: 44px;
+		height: 44px;
+		background: rgba(245, 158, 11, 0.2);
+		border-radius: var(--radius-lg);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+	}
+
+	.cache-warning-icon :global(i) {
+		width: 24px;
+		height: 24px;
+		color: #f59e0b;
+	}
+
+	.cache-warning-text {
+		flex: 1;
+	}
+
+	.cache-warning-text strong {
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		display: block;
+		margin-bottom: 4px;
+	}
+
+	.cache-warning-text p {
+		font-size: 0.875rem;
+		color: var(--text-secondary);
+		margin: 0;
+		line-height: 1.5;
+	}
+
+	.cache-warning-text a {
+		color: var(--primary);
+		text-decoration: none;
+		font-weight: 500;
+	}
+
+	.cache-warning-text a:hover {
+		text-decoration: underline;
+	}
+
+	.cache-warning-action {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 16px;
+		background: rgba(245, 158, 11, 0.15);
+		border: 1px solid rgba(245, 158, 11, 0.3);
+		border-radius: var(--radius-lg);
+		color: #f59e0b;
+		font-size: 0.875rem;
+		font-weight: 600;
+		text-decoration: none;
+		transition: all var(--transition-fast);
+		flex-shrink: 0;
+	}
+
+	.cache-warning-action:hover {
+		background: rgba(245, 158, 11, 0.25);
+		transform: translateY(-1px);
+	}
+
+	.cache-warning-action :global(i) {
+		width: 18px;
+		height: 18px;
 	}
 
 	/* Page Header */

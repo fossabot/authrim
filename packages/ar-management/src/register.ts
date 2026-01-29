@@ -40,6 +40,8 @@ import {
   hashClientSecret,
   // DCR Configuration
   getDCRSetting,
+  // Write-Through cache for client metadata
+  putClient,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -788,7 +790,6 @@ function generateClientSecret(): string {
  */
 async function storeClient(env: Env, clientId: string, metadata: ClientMetadata): Promise<void> {
   // Store in D1 (source of truth)
-  // CLIENTS_CACHE will be populated via Read-Through pattern on first getClient() call
   const now = Date.now(); // Store in milliseconds
   const coreAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB });
   await coreAdapter.execute(
@@ -863,6 +864,15 @@ async function storeClient(env: Env, clientId: string, metadata: ClientMetadata)
       metadata.updated_at || now,
     ]
   );
+
+  // Write-Through: Populate KV cache immediately after D1 write
+  // This eliminates the need for D1 fallback on first read
+  await putClient(env, {
+    ...metadata,
+    client_id: clientId,
+    created_at: metadata.created_at || now,
+    updated_at: metadata.updated_at || now,
+  });
 }
 
 /**

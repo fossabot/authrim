@@ -37,6 +37,7 @@
 		plugin: ['tenant'],
 		assurance: ['tenant'],
 		dcr: ['tenant'], // Dynamic Client Registration (RFC 7591)
+		'login-ui': ['tenant'], // Login UI Customization
 		// Client-only
 		client: ['client']
 	};
@@ -76,7 +77,9 @@
 		assurance: { icon: '🔰', color: '#7c3aed' },
 		'check-api-audit': { icon: '📋', color: '#6366f1' },
 		// Dynamic Client Registration (RFC 7591)
-		dcr: { icon: '📝', color: '#059669' }
+		dcr: { icon: '📝', color: '#059669' },
+		// Login UI Customization
+		'login-ui': { icon: '🎨', color: '#8b5cf6' }
 	};
 
 	// Check if category is platform-level (read-only)
@@ -91,14 +94,22 @@
 		return allowedScopes.includes(scope);
 	}
 
-	// Filter categories based on current scope
+	// Categories that have dedicated pages (excluded from settings list)
+	const DEDICATED_PAGE_CATEGORIES = ['login-ui'];
+
+	// Filter categories based on current scope and exclude dedicated page categories
 	let filteredCategories = $derived(
-		categories.filter((cat) => isCategoryAvailableAtScope(cat.category, currentScope))
+		categories.filter(
+			(cat) =>
+				isCategoryAvailableAtScope(cat.category, currentScope) &&
+				!DEDICATED_PAGE_CATEGORIES.includes(cat.category)
+		)
 	);
 
 	// Check if special cards should be shown
 	let showSigningKeys = $derived(currentScope === 'tenant');
 	let showSharding = $derived(currentScope === 'platform');
+	let showCacheMode = $derived(currentScope === 'platform');
 
 	// Get style for category
 	function getStyle(category: string) {
@@ -189,6 +200,25 @@
 						</div>
 					</div>
 					<p class="icon-card-description">Configure shard counts for load distribution</p>
+				</a>
+			{/if}
+
+			<!-- Cache Mode Configuration (special card) - Platform scope only -->
+			{#if showCacheMode}
+				<a href="/admin/settings/cache-mode" class="icon-card">
+					<div class="icon-card-header">
+						<span class="icon-card-icon">💾</span>
+						<div>
+							<h2 class="icon-card-title">Cache Mode</h2>
+							<span
+								class="icon-card-badge"
+								style="background: var(--warning-light); color: var(--warning);"
+							>
+								Special
+							</span>
+						</div>
+					</div>
+					<p class="icon-card-description">Configure cache TTL for client metadata and related data</p>
 				</a>
 			{/if}
 

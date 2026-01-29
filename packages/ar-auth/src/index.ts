@@ -18,9 +18,11 @@ import {
   createConfigurationError,
   // Plugin Context (Phase 9 - Plugin Architecture)
   pluginContextMiddleware,
+  createPluginLoader,
   // Logger
   getLogger,
 } from '@authrim/ar-lib-core';
+import { resendEmailPlugin } from '@authrim/ar-lib-plugin';
 
 // Import handlers
 import { authorizeHandler, authorizeConfirmHandler, authorizeLoginHandler } from './authorize';
@@ -79,8 +81,11 @@ app.use('*', requestContextMiddleware());
 
 // Plugin Context - provides access to notifiers, idp handlers, authenticators
 // Plugins are loaded lazily on first request and cached per Worker lifecycle
-// Configuration can be passed via loadPlugins option for custom plugin loading
-app.use('*', pluginContextMiddleware());
+// Configuration resolved: KV → env → configSchema defaults
+const loadPlugins = createPluginLoader([
+  { plugin: resendEmailPlugin },
+]);
+app.use('*', pluginContextMiddleware({ loadPlugins }));
 
 // Enhanced security headers
 // Skip for /session/check endpoint (OIDC Session Management iframe needs custom headers)

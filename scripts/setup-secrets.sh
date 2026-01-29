@@ -7,8 +7,20 @@
 #   ./setup-secrets.sh --env=dev    - Upload secrets to dev environment workers
 #   ./setup-secrets.sh --env=prod   - Upload secrets to prod environment workers
 #
+# Keys are searched in (priority order):
+#   1. .authrim-keys/{env}/ (external - recommended)
+#   2. .authrim/{env}/keys/ (internal)
+#   3. .keys/ (legacy)
+#
 
 set -e
+
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
 # Parse command line arguments
 DEPLOY_ENV=""
@@ -49,6 +61,16 @@ if [ -z "$DEPLOY_ENV" ]; then
     exit 1
 fi
 
+# Validate environment name (prevent path traversal)
+if [[ "$DEPLOY_ENV" =~ \.\. ]] || [[ "$DEPLOY_ENV" =~ / ]] || [[ "$DEPLOY_ENV" =~ \\ ]]; then
+    echo -e "${RED}❌ Error: Invalid environment name '${DEPLOY_ENV}': path traversal characters not allowed${NC}"
+    exit 1
+fi
+if ! [[ "$DEPLOY_ENV" =~ ^[a-z][a-z0-9-]*$ ]]; then
+    echo -e "${RED}❌ Error: Invalid environment name '${DEPLOY_ENV}': must be lowercase alphanumeric with hyphens, starting with a letter${NC}"
+    exit 1
+fi
+
 echo "🔐 Authrim Cloudflare Secrets Setup - Environment: $DEPLOY_ENV"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
@@ -67,24 +89,50 @@ if ! wrangler whoami &> /dev/null; then
     exit 1
 fi
 
-# Check if keys exist
-if [ ! -f ".keys/private.pem" ]; then
-    echo "❌ Error: Private key not found at .keys/private.pem"
-    echo "Please run: ./scripts/setup-dev.sh"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 3-tier Key Search
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KEYS_DIR=""
+
+# 1. External: .authrim-keys/{env}/
+if [ -f ".authrim-keys/$DEPLOY_ENV/private.pem" ]; then
+    KEYS_DIR=".authrim-keys/$DEPLOY_ENV"
+    echo -e "${GREEN}✅ Keys found in .authrim-keys/$DEPLOY_ENV/ (external)${NC}"
+# 2. Internal: .authrim/{env}/keys/
+elif [ -f ".authrim/$DEPLOY_ENV/keys/private.pem" ]; then
+    KEYS_DIR=".authrim/$DEPLOY_ENV/keys"
+    echo -e "${GREEN}✅ Keys found in .authrim/$DEPLOY_ENV/keys/ (internal)${NC}"
+# 3. Legacy: .keys/
+elif [ -f ".keys/private.pem" ]; then
+    KEYS_DIR=".keys"
+    echo -e "${YELLOW}⚠️  Keys found in .keys/ (legacy)${NC}"
+    echo "   Consider migrating to .authrim-keys/$DEPLOY_ENV/ with:"
+    echo "   ./scripts/setup-keys.sh --env=$DEPLOY_ENV"
+else
+    echo -e "${RED}❌ Error: Keys not found${NC}"
+    echo ""
+    echo "Searched locations:"
+    echo "  1. .authrim-keys/$DEPLOY_ENV/private.pem (external)"
+    echo "  2. .authrim/$DEPLOY_ENV/keys/private.pem (internal)"
+    echo "  3. .keys/private.pem (legacy)"
+    echo ""
+    echo "Please run setup-keys.sh first:"
+    echo "  ./scripts/setup-keys.sh --env=$DEPLOY_ENV"
     exit 1
 fi
 
-if [ ! -f ".keys/public.jwk.json" ]; then
-    echo "❌ Error: Public key not found at .keys/public.jwk.json"
-    echo "Please run: ./scripts/setup-dev.sh"
+# Verify public key also exists
+if [ ! -f "$KEYS_DIR/public.jwk.json" ]; then
+    echo -e "${RED}❌ Error: Public key not found at $KEYS_DIR/public.jwk.json${NC}"
+    echo "Please run: ./scripts/setup-keys.sh --env=$DEPLOY_ENV"
     exit 1
 fi
 
-echo "✅ Keys found"
 echo ""
-echo "📋 Found cryptographic keys:"
-echo "  • Private key (.keys/private.pem)"
-echo "  • Public key (.keys/public.jwk.json)"
+echo "📋 Found cryptographic keys in $KEYS_DIR/:"
+echo "  • Private key ($KEYS_DIR/private.pem)"
+echo "  • Public key ($KEYS_DIR/public.jwk.json)"
 echo ""
 echo "These keys will be uploaded as secrets to Cloudflare Workers:"
 echo "  • PRIVATE_KEY_PEM - Used by ar-token and ar-discovery to sign JWTs"
@@ -92,7 +140,7 @@ echo "  • PUBLIC_JWK_JSON - Used by ar-auth and ar-userinfo to verify JWTs"
 echo ""
 
 # Prepare the public JWK as compact JSON
-PUBLIC_JWK=$(cat .keys/public.jwk.json | jq -c .)
+PUBLIC_JWK=$(cat "$KEYS_DIR/public.jwk.json" | jq -c .)
 
 # Function to upload secrets to a worker
 upload_secrets() {
@@ -105,7 +153,7 @@ upload_secrets() {
 
     if [ "$needs_private" = "true" ]; then
         echo "  • Uploading PRIVATE_KEY_PEM..."
-        cat .keys/private.pem | wrangler secret put PRIVATE_KEY_PEM --name="${worker_name}"
+        cat "$KEYS_DIR/private.pem" | wrangler secret put PRIVATE_KEY_PEM --name="${worker_name}"
     fi
 
     if [ "$needs_public" = "true" ]; then
@@ -135,6 +183,23 @@ upload_secrets "ar-userinfo" "false" "true"
 
 # ar-management: Needs both keys (for registration token signing and verification)
 upload_secrets "ar-management" "true" "true"
+
+# Upload RP Token Encryption Key if available
+if [ -f "$KEYS_DIR/rp_token_encryption_key.txt" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🔐 RP Token Encryption Key"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    RP_WORKERS=("ar-auth" "ar-token")
+    for pkg in "${RP_WORKERS[@]}"; do
+        local_worker="${DEPLOY_ENV}-authrim-${pkg}"
+        echo "📦 Uploading RP_TOKEN_ENCRYPTION_KEY to ${local_worker}..."
+        cat "$KEYS_DIR/rp_token_encryption_key.txt" | wrangler secret put RP_TOKEN_ENCRYPTION_KEY --name="${local_worker}"
+        echo "✅ ${local_worker} RP key uploaded"
+    done
+    echo ""
+fi
 
 # Email configuration for ar-auth (Magic Link support)
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -178,6 +243,6 @@ echo "  2. Run 'pnpm run deploy -- --env=$DEPLOY_ENV' to deploy all workers"
 echo ""
 echo "⚠️  Security Note:"
 echo "  Secrets are now stored securely in Cloudflare for $DEPLOY_ENV environment."
-echo "  Never commit .keys/ directory to version control!"
+echo "  Never commit key directories to version control!"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

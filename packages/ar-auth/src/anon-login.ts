@@ -33,7 +33,7 @@ import {
   generateBrowserState,
   BROWSER_STATE_COOKIE_NAME,
   isAnonymousAuthEnabled,
-  loadClientContract,
+  loadClientContractCached,
   // Device Fingerprint
   hashDeviceIdentifiers,
   verifyDeviceSignature,
@@ -137,7 +137,8 @@ export async function anonLoginChallengeHandler(c: Context<{ Bindings: Env }>) {
       }
 
       // Load client contract to check anonymous auth settings
-      const clientContract = await loadClientContract(
+      const clientContract = await loadClientContractCached(
+        c,
         c.env.AUTHRIM_CONFIG,
         c.env,
         tenantId,
@@ -424,7 +425,8 @@ export async function anonLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
         const newUserId = generateId();
 
         // Load client contract for expiration settings
-        const clientContract = await loadClientContract(
+        const clientContract = await loadClientContractCached(
+          c,
           c.env.AUTHRIM_CONFIG,
           c.env,
           tenantId,

@@ -12,6 +12,7 @@
 	import { adminAuth } from '$lib/stores/admin-auth.svelte';
 	import { adminAuthAPI } from '$lib/api/admin-auth';
 	import { myPasskeysAPI, getPasskeyErrorMessage, type AdminPasskey } from '$lib/api/my-passkeys';
+	import { Modal } from '$lib/components';
 
 	// Available languages (for future expansion)
 	const LANGUAGES = [
@@ -496,59 +497,44 @@
 </div>
 
 <!-- Add PassKey Modal -->
-{#if showAddModal}
-	<div class="modal-overlay" onclick={closeAddModal}>
-		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
-			<div class="modal-header">
-				<h3 class="modal-title">
-					<i class="i-ph-key"></i>
-					Add New PassKey
-				</h3>
-				<button class="modal-close" onclick={closeAddModal}>
-					<i class="i-ph-x"></i>
-				</button>
-			</div>
-			<div class="modal-body">
-				<p class="modal-description">
-					Enter a name for this passkey to help you identify it later (e.g., "MacBook Pro",
-					"YubiKey").
-				</p>
-				<div class="form-group">
-					<label for="device-name">Device Name</label>
-					<input
-						id="device-name"
-						type="text"
-						class="form-input"
-						bind:value={newDeviceName}
-						placeholder="e.g., MacBook Pro Touch ID"
-						maxlength="100"
-						disabled={addingPasskey}
-					/>
-				</div>
-				{#if passkeysError}
-					<div class="modal-error">
-						<i class="i-ph-warning-circle"></i>
-						{passkeysError}
-					</div>
-				{/if}
-			</div>
-			<div class="modal-footer">
-				<button class="modal-btn secondary" onclick={closeAddModal} disabled={addingPasskey}>
-					Cancel
-				</button>
-				<button class="modal-btn primary" onclick={handleAddPasskey} disabled={addingPasskey}>
-					{#if addingPasskey}
-						<i class="i-ph-spinner spinner"></i>
-						Registering...
-					{:else}
-						<i class="i-ph-fingerprint"></i>
-						Register PassKey
-					{/if}
-				</button>
-			</div>
-		</div>
+<Modal open={showAddModal} onClose={closeAddModal} title="Add New PassKey" size="md">
+	<p class="modal-description">
+		Enter a name for this passkey to help you identify it later (e.g., "MacBook Pro",
+		"YubiKey").
+	</p>
+	<div class="form-group">
+		<label for="device-name">Device Name</label>
+		<input
+			id="device-name"
+			type="text"
+			class="form-input"
+			bind:value={newDeviceName}
+			placeholder="e.g., MacBook Pro Touch ID"
+			maxlength="100"
+			disabled={addingPasskey}
+		/>
 	</div>
-{/if}
+	{#if passkeysError}
+		<div class="modal-error">
+			<i class="i-ph-warning-circle"></i>
+			{passkeysError}
+		</div>
+	{/if}
+	{#snippet footer()}
+		<button class="modal-btn secondary" onclick={closeAddModal} disabled={addingPasskey}>
+			Cancel
+		</button>
+		<button class="modal-btn primary" onclick={handleAddPasskey} disabled={addingPasskey}>
+			{#if addingPasskey}
+				<i class="i-ph-spinner spinner"></i>
+				Registering...
+			{:else}
+				<i class="i-ph-fingerprint"></i>
+				Register PassKey
+			{/if}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
 	.settings-container {

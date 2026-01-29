@@ -10,7 +10,7 @@
 		formatExpirationStatus
 	} from '$lib/api/admin-attributes';
 	import { adminSettingsAPI } from '$lib/api/admin-settings';
-	import { ToggleSwitch } from '$lib/components';
+	import { Modal, ToggleSwitch } from '$lib/components';
 
 	// State
 	let attributes: UserAttribute[] = $state([]);
@@ -540,192 +540,135 @@
 </div>
 
 <!-- Create Dialog -->
-{#if showCreateDialog}
-	<div
-		class="modal-overlay"
-		onclick={() => (showCreateDialog = false)}
-		onkeydown={(e) => e.key === 'Escape' && (showCreateDialog = false)}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Add User Attribute</h2>
-			</div>
+<Modal
+	open={showCreateDialog}
+	onClose={() => (showCreateDialog = false)}
+	title="Add User Attribute"
+	size="md"
+>
+	{#if createError}
+		<div class="alert alert-error">{createError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if createError}
-					<div class="alert alert-error">{createError}</div>
-				{/if}
-
-				<div class="form-group">
-					<label for="user-id" class="form-label">User ID</label>
-					<input
-						id="user-id"
-						type="text"
-						class="form-input"
-						bind:value={createForm.user_id}
-						placeholder="user_123"
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="attr-name" class="form-label">Attribute Name</label>
-					<input
-						id="attr-name"
-						type="text"
-						class="form-input"
-						bind:value={createForm.attribute_name}
-						placeholder="subscription_tier, verified_email, country..."
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="attr-value" class="form-label">Attribute Value</label>
-					<input
-						id="attr-value"
-						type="text"
-						class="form-input"
-						bind:value={createForm.attribute_value}
-						placeholder="premium, true, US..."
-					/>
-				</div>
-
-				<div class="form-group">
-					<ToggleSwitch
-						bind:checked={createForm.has_expiry}
-						label="Set expiration"
-						description="Set an expiration date for this attribute"
-					/>
-				</div>
-
-				{#if createForm.has_expiry}
-					<div class="form-group">
-						<label for="expires-at" class="form-label">Expires At</label>
-						<input
-							id="expires-at"
-							type="datetime-local"
-							class="form-input"
-							bind:value={createForm.expires_at}
-						/>
-					</div>
-				{/if}
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showCreateDialog = false)}>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={submitCreate} disabled={creating}>
-					{creating ? 'Creating...' : 'Create'}
-				</button>
-			</div>
-		</div>
+	<div class="form-group">
+		<label for="user-id" class="form-label">User ID</label>
+		<input
+			id="user-id"
+			type="text"
+			class="form-input"
+			bind:value={createForm.user_id}
+			placeholder="user_123"
+		/>
 	</div>
-{/if}
+
+	<div class="form-group">
+		<label for="attr-name" class="form-label">Attribute Name</label>
+		<input
+			id="attr-name"
+			type="text"
+			class="form-input"
+			bind:value={createForm.attribute_name}
+			placeholder="subscription_tier, verified_email, country..."
+		/>
+	</div>
+
+	<div class="form-group">
+		<label for="attr-value" class="form-label">Attribute Value</label>
+		<input
+			id="attr-value"
+			type="text"
+			class="form-input"
+			bind:value={createForm.attribute_value}
+			placeholder="premium, true, US..."
+		/>
+	</div>
+
+	<div class="form-group">
+		<ToggleSwitch
+			bind:checked={createForm.has_expiry}
+			label="Set expiration"
+			description="Set an expiration date for this attribute"
+		/>
+	</div>
+
+	{#if createForm.has_expiry}
+		<div class="form-group">
+			<label for="expires-at" class="form-label">Expires At</label>
+			<input
+				id="expires-at"
+				type="datetime-local"
+				class="form-input"
+				bind:value={createForm.expires_at}
+			/>
+		</div>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showCreateDialog = false)}> Cancel </button>
+		<button class="btn btn-primary" onclick={submitCreate} disabled={creating}>
+			{creating ? 'Creating...' : 'Create'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Delete Dialog -->
-{#if showDeleteDialog && attributeToDelete}
-	<div
-		class="modal-overlay"
-		onclick={() => (showDeleteDialog = false)}
-		onkeydown={(e) => e.key === 'Escape' && (showDeleteDialog = false)}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Delete Attribute</h2>
-			</div>
+<Modal
+	open={showDeleteDialog && !!attributeToDelete}
+	onClose={() => (showDeleteDialog = false)}
+	title="Delete Attribute"
+	size="md"
+>
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
+	<p class="modal-description">
+		Are you sure you want to delete the attribute
+		<strong>{attributeToDelete?.attribute_name ?? ''}</strong> for user
+		<strong>{(attributeToDelete?.user_email || attributeToDelete?.user_id) ?? ''}</strong>?
+	</p>
+	<p class="danger-text">This action cannot be undone.</p>
 
-				<p class="modal-description">
-					Are you sure you want to delete the attribute
-					<strong>{attributeToDelete.attribute_name}</strong> for user
-					<strong>{attributeToDelete.user_email || attributeToDelete.user_id}</strong>?
-				</p>
-				<p class="danger-text">This action cannot be undone.</p>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showDeleteDialog = false)}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete'}
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showDeleteDialog = false)}> Cancel </button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Cleanup Dialog -->
-{#if showCleanupDialog}
-	<div
-		class="modal-overlay"
-		onclick={() => (showCleanupDialog = false)}
-		onkeydown={(e) => e.key === 'Escape' && (showCleanupDialog = false)}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Cleanup Expired Attributes</h2>
-			</div>
-
-			<div class="modal-body">
-				{#if cleanupResult}
-					<div class="alert alert-success">
-						<p>
-							Successfully deleted <strong>{cleanupResult.deleted_count}</strong> expired attributes.
-						</p>
-					</div>
-				{:else}
-					<p class="modal-description">
-						This will permanently delete all expired attributes from the system.
-						{#if stats}
-							Currently there are <strong>{stats.expired}</strong> expired attributes.
-						{/if}
-					</p>
-					<p class="danger-text">This action cannot be undone.</p>
-				{/if}
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showCleanupDialog = false)}>
-					Close
-				</button>
-				{#if !cleanupResult}
-					<button class="btn btn-danger" onclick={cleanupExpired} disabled={cleaningUp}>
-						{cleaningUp ? 'Cleaning up...' : 'Delete Expired'}
-					</button>
-				{/if}
-			</div>
+<Modal
+	open={showCleanupDialog}
+	onClose={() => (showCleanupDialog = false)}
+	title="Cleanup Expired Attributes"
+	size="md"
+>
+	{#if cleanupResult}
+		<div class="alert alert-success">
+			<p>
+				Successfully deleted <strong>{cleanupResult.deleted_count}</strong> expired attributes.
+			</p>
 		</div>
-	</div>
-{/if}
+	{:else}
+		<p class="modal-description">
+			This will permanently delete all expired attributes from the system.
+			{#if stats}
+				Currently there are <strong>{stats.expired}</strong> expired attributes.
+			{/if}
+		</p>
+		<p class="danger-text">This action cannot be undone.</p>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showCleanupDialog = false)}> Close </button>
+		{#if !cleanupResult}
+			<button class="btn btn-danger" onclick={cleanupExpired} disabled={cleaningUp}>
+				{cleaningUp ? 'Cleaning up...' : 'Delete Expired'}
+			</button>
+		{/if}
+	{/snippet}
+</Modal>
 
 <style>
 	/* Feature Toggle Panel Styles */

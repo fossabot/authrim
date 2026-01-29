@@ -14,7 +14,7 @@
 		createEmptyContext
 	} from '$lib/api/admin-policies';
 	import { adminSettingsAPI } from '$lib/api/admin-settings';
-	import { ToggleSwitch } from '$lib/components';
+	import { Modal, ToggleSwitch } from '$lib/components';
 
 	// State
 	let rules: PolicyRule[] = $state([]);
@@ -614,462 +614,401 @@
 </div>
 
 <!-- Create/Edit Rule Dialog -->
-{#if showRuleDialog}
-	<div
-		class="modal-overlay"
-		onclick={() => (showRuleDialog = false)}
-		onkeydown={(e) => e.key === 'Escape' && (showRuleDialog = false)}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div class="modal-content modal-lg" onclick={(e) => e.stopPropagation()} role="document">
-			<div class="modal-header">
-				<h2 class="modal-title">{editingRule ? 'Edit Policy Rule' : 'Create Policy Rule'}</h2>
-				<button class="modal-close" onclick={() => (showRuleDialog = false)} aria-label="Close">
-					<i class="i-ph-x"></i>
-				</button>
-			</div>
+<Modal
+	open={showRuleDialog}
+	onClose={() => (showRuleDialog = false)}
+	title={editingRule ? 'Edit Policy Rule' : 'Create Policy Rule'}
+	size="lg"
+>
+	{#if saveError}
+		<div class="alert alert-error">{saveError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if saveError}
-					<div class="alert alert-error">{saveError}</div>
-				{/if}
-
-				<div class="form-row-inline">
-					<div class="form-group" style="flex: 2;">
-						<label for="rule-name" class="form-label">Name *</label>
-						<input
-							id="rule-name"
-							type="text"
-							class="form-input"
-							bind:value={ruleForm.name}
-							placeholder="e.g., Allow org admins to manage users"
-						/>
-					</div>
-					<div class="form-group">
-						<label for="rule-priority" class="form-label">Priority</label>
-						<input
-							id="rule-priority"
-							type="number"
-							class="form-input"
-							bind:value={ruleForm.priority}
-							min="1"
-							max="1000"
-						/>
-					</div>
-				</div>
-
-				<div class="form-group">
-					<label for="rule-description" class="form-label">Description</label>
-					<textarea
-						id="rule-description"
-						class="form-input"
-						bind:value={ruleForm.description}
-						placeholder="Describe what this policy does..."
-						rows="2"
-					></textarea>
-				</div>
-
-				<div class="form-row-inline">
-					<div class="form-group">
-						<label for="rule-effect" class="form-label">Effect *</label>
-						<select id="rule-effect" class="form-select" bind:value={ruleForm.effect}>
-							<option value="allow">Allow</option>
-							<option value="deny">Deny</option>
-						</select>
-					</div>
-					<div class="form-group">
-						<ToggleSwitch
-							bind:checked={ruleForm.enabled}
-							label="Enabled"
-							description="Activate this policy rule"
-						/>
-					</div>
-				</div>
-
-				<!-- Resource Types -->
-				<div class="form-group">
-					<label class="form-label">Resource Types</label>
-					<div class="input-with-button">
-						<input
-							type="text"
-							class="form-input"
-							bind:value={resourceTypeInput}
-							placeholder="e.g., user, document, organization"
-							onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addResourceType())}
-						/>
-						<button type="button" class="btn btn-secondary" onclick={addResourceType}>Add</button>
-					</div>
-					{#if ruleForm.resource_types.length > 0}
-						<div class="tag-list tag-list-removable">
-							{#each ruleForm.resource_types as type (type)}
-								<span class="tag tag-removable">
-									{type}
-									<button class="tag-remove" onclick={() => removeResourceType(type)}>×</button>
-								</span>
-							{/each}
-						</div>
-					{/if}
-				</div>
-
-				<!-- Actions -->
-				<div class="form-group">
-					<label class="form-label">Actions</label>
-					<div class="input-with-button">
-						<input
-							type="text"
-							class="form-input"
-							bind:value={actionInput}
-							placeholder="e.g., read, write, delete, manage"
-							onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAction())}
-						/>
-						<button type="button" class="btn btn-secondary" onclick={addAction}>Add</button>
-					</div>
-					{#if ruleForm.actions.length > 0}
-						<div class="tag-list tag-list-removable">
-							{#each ruleForm.actions as action (action)}
-								<span class="tag tag-removable">
-									{action}
-									<button class="tag-remove" onclick={() => removeAction(action)}>×</button>
-								</span>
-							{/each}
-						</div>
-					{/if}
-				</div>
-
-				<!-- Conditions -->
-				<div class="form-group">
-					<label class="form-label">Conditions</label>
-					<button type="button" class="btn btn-secondary btn-sm" onclick={openConditionBuilder}>
-						<i class="i-ph-plus"></i>
-						Add Condition
-					</button>
-					{#if ruleForm.conditions.length > 0}
-						<div class="condition-builder-list">
-							{#each ruleForm.conditions as condition, i (i)}
-								<div class="condition-item">
-									<span class="condition-text">{formatCondition(condition)}</span>
-									<button class="btn-icon" onclick={() => removeCondition(i)} aria-label="Remove">
-										<i class="i-ph-x"></i>
-									</button>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showRuleDialog = false)}>Cancel</button>
-				<button class="btn btn-primary" onclick={saveRule} disabled={saving}>
-					{saving ? 'Saving...' : editingRule ? 'Update' : 'Create'}
-				</button>
-			</div>
+	<div class="form-row-inline">
+		<div class="form-group" style="flex: 2;">
+			<label for="rule-name" class="form-label">Name *</label>
+			<input
+				id="rule-name"
+				type="text"
+				class="form-input"
+				bind:value={ruleForm.name}
+				placeholder="e.g., Allow org admins to manage users"
+			/>
+		</div>
+		<div class="form-group">
+			<label for="rule-priority" class="form-label">Priority</label>
+			<input
+				id="rule-priority"
+				type="number"
+				class="form-input"
+				bind:value={ruleForm.priority}
+				min="1"
+				max="1000"
+			/>
 		</div>
 	</div>
-{/if}
+
+	<div class="form-group">
+		<label for="rule-description" class="form-label">Description</label>
+		<textarea
+			id="rule-description"
+			class="form-input"
+			bind:value={ruleForm.description}
+			placeholder="Describe what this policy does..."
+			rows="2"
+		></textarea>
+	</div>
+
+	<div class="form-row-inline">
+		<div class="form-group">
+			<label for="rule-effect" class="form-label">Effect *</label>
+			<select id="rule-effect" class="form-select" bind:value={ruleForm.effect}>
+				<option value="allow">Allow</option>
+				<option value="deny">Deny</option>
+			</select>
+		</div>
+		<div class="form-group">
+			<ToggleSwitch
+				bind:checked={ruleForm.enabled}
+				label="Enabled"
+				description="Activate this policy rule"
+			/>
+		</div>
+	</div>
+
+	<!-- Resource Types -->
+	<div class="form-group">
+		<label class="form-label">Resource Types</label>
+		<div class="input-with-button">
+			<input
+				type="text"
+				class="form-input"
+				bind:value={resourceTypeInput}
+				placeholder="e.g., user, document, organization"
+				onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addResourceType())}
+			/>
+			<button type="button" class="btn btn-secondary" onclick={addResourceType}>Add</button>
+		</div>
+		{#if ruleForm.resource_types.length > 0}
+			<div class="tag-list tag-list-removable">
+				{#each ruleForm.resource_types as type (type)}
+					<span class="tag tag-removable">
+						{type}
+						<button class="tag-remove" onclick={() => removeResourceType(type)}>×</button>
+					</span>
+				{/each}
+			</div>
+		{/if}
+	</div>
+
+	<!-- Actions -->
+	<div class="form-group">
+		<label class="form-label">Actions</label>
+		<div class="input-with-button">
+			<input
+				type="text"
+				class="form-input"
+				bind:value={actionInput}
+				placeholder="e.g., read, write, delete, manage"
+				onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAction())}
+			/>
+			<button type="button" class="btn btn-secondary" onclick={addAction}>Add</button>
+		</div>
+		{#if ruleForm.actions.length > 0}
+			<div class="tag-list tag-list-removable">
+				{#each ruleForm.actions as action (action)}
+					<span class="tag tag-removable">
+						{action}
+						<button class="tag-remove" onclick={() => removeAction(action)}>×</button>
+					</span>
+				{/each}
+			</div>
+		{/if}
+	</div>
+
+	<!-- Conditions -->
+	<div class="form-group">
+		<label class="form-label">Conditions</label>
+		<button type="button" class="btn btn-secondary btn-sm" onclick={openConditionBuilder}>
+			<i class="i-ph-plus"></i>
+			Add Condition
+		</button>
+		{#if ruleForm.conditions.length > 0}
+			<div class="condition-builder-list">
+				{#each ruleForm.conditions as condition, i (i)}
+					<div class="condition-item">
+						<span class="condition-text">{formatCondition(condition)}</span>
+						<button class="btn-icon" onclick={() => removeCondition(i)} aria-label="Remove">
+							<i class="i-ph-x"></i>
+						</button>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showRuleDialog = false)}>Cancel</button>
+		<button class="btn btn-primary" onclick={saveRule} disabled={saving}>
+			{saving ? 'Saving...' : editingRule ? 'Update' : 'Create'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Condition Builder Dialog -->
-{#if showConditionDialog}
-	<div
-		class="modal-overlay"
-		onclick={() => (showConditionDialog = false)}
-		onkeydown={(e) => e.key === 'Escape' && (showConditionDialog = false)}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
-			<div class="modal-header">
-				<h2 class="modal-title">Add Condition</h2>
-				<button
-					class="modal-close"
-					onclick={() => (showConditionDialog = false)}
-					aria-label="Close"
-				>
-					<i class="i-ph-x"></i>
+<Modal
+	open={showConditionDialog}
+	onClose={() => (showConditionDialog = false)}
+	title="Add Condition"
+	size="md"
+>
+	{#if !selectedCategory}
+		<!-- Category Selection -->
+		<div class="category-grid">
+			{#each categories as category (category.id)}
+				<button class="category-card" onclick={() => selectCategory(category.id)}>
+					<span class="category-icon">{getCategoryIcon(category.id)}</span>
+					<span class="category-label">{category.label}</span>
 				</button>
-			</div>
-
-			<div class="modal-body">
-				{#if !selectedCategory}
-					<!-- Category Selection -->
-					<div class="category-grid">
-						{#each categories as category (category.id)}
-							<button class="category-card" onclick={() => selectCategory(category.id)}>
-								<span class="category-icon">{getCategoryIcon(category.id)}</span>
-								<span class="category-label">{category.label}</span>
-							</button>
-						{/each}
-					</div>
-				{:else if !selectedConditionType}
-					<!-- Condition Type Selection -->
-					<button class="btn-back" onclick={() => selectCategory('')}>
-						<i class="i-ph-arrow-left"></i>
-						Back to categories
-					</button>
-					<div class="type-list">
-						{#each conditionTypes.filter((t) => t.category === selectedCategory) as type (type.type)}
-							<button class="type-card" onclick={() => selectConditionType(type.type)}>
-								<span class="type-label">{type.label}</span>
-								<span class="type-description">{type.description}</span>
-							</button>
-						{/each}
-					</div>
-				{:else}
-					<!-- Parameter Input -->
-					{@const typeInfo = conditionTypes.find((t) => t.type === selectedConditionType)}
-					<button class="btn-back" onclick={() => selectConditionType('')}>
-						<i class="i-ph-arrow-left"></i>
-						Back to types
-					</button>
-
-					{#if typeInfo}
-						<h3 class="section-subtitle">{typeInfo.label}</h3>
-						<p class="muted">{typeInfo.description}</p>
-
-						{#each typeInfo.params as param (param.name)}
-							<div class="form-group">
-								<label for="param-{param.name}" class="form-label">
-									{param.label}{param.required ? ' *' : ''}
-								</label>
-								{#if param.type === 'string'}
-									<input
-										id="param-{param.name}"
-										type="text"
-										class="form-input"
-										bind:value={conditionParams[param.name]}
-									/>
-								{:else if param.type === 'number'}
-									<input
-										id="param-{param.name}"
-										type="number"
-										class="form-input"
-										bind:value={conditionParams[param.name]}
-									/>
-								{:else if param.type === 'string[]'}
-									<input
-										id="param-{param.name}"
-										type="text"
-										class="form-input"
-										placeholder="Comma-separated values"
-										oninput={(e) => {
-											conditionParams[param.name] = e.currentTarget.value
-												.split(',')
-												.map((s) => s.trim())
-												.filter(Boolean);
-										}}
-									/>
-								{:else if param.type === 'number[]'}
-									<input
-										id="param-{param.name}"
-										type="text"
-										class="form-input"
-										placeholder="Comma-separated numbers"
-										oninput={(e) => {
-											conditionParams[param.name] = e.currentTarget.value
-												.split(',')
-												.map((s) => parseInt(s.trim()))
-												.filter((n) => !isNaN(n));
-										}}
-									/>
-								{/if}
-							</div>
-						{/each}
-
-						<div class="modal-footer">
-							<button class="btn btn-secondary" onclick={() => (showConditionDialog = false)}>
-								Cancel
-							</button>
-							<button class="btn btn-primary" onclick={addCondition}>Add Condition</button>
-						</div>
-					{/if}
-				{/if}
-			</div>
+			{/each}
 		</div>
-	</div>
-{/if}
-
-<!-- Delete Dialog -->
-{#if showDeleteDialog && ruleToDelete}
-	<div
-		class="modal-overlay"
-		onclick={() => (showDeleteDialog = false)}
-		onkeydown={(e) => e.key === 'Escape' && (showDeleteDialog = false)}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="delete-dialog-title"
-	>
-		<div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
-			<div class="modal-header">
-				<h2 id="delete-dialog-title" class="modal-title">Delete Policy Rule</h2>
-			</div>
-
-			<div class="modal-body">
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
-
-				<p class="modal-description">
-					Are you sure you want to delete the policy rule <strong>{ruleToDelete.name}</strong>?
-				</p>
-				<p class="danger-text">This action cannot be undone.</p>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showDeleteDialog = false)}>Cancel</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete'}
+	{:else if !selectedConditionType}
+		<!-- Condition Type Selection -->
+		<button class="btn-back" onclick={() => selectCategory('')}>
+			<i class="i-ph-arrow-left"></i>
+			Back to categories
+		</button>
+		<div class="type-list">
+			{#each conditionTypes.filter((t) => t.category === selectedCategory) as type (type.type)}
+				<button class="type-card" onclick={() => selectConditionType(type.type)}>
+					<span class="type-label">{type.label}</span>
+					<span class="type-description">{type.description}</span>
 				</button>
-			</div>
+			{/each}
 		</div>
-	</div>
-{/if}
+	{:else}
+		<!-- Parameter Input -->
+		{@const typeInfo = conditionTypes.find((t) => t.type === selectedConditionType)}
+		<button class="btn-back" onclick={() => selectConditionType('')}>
+			<i class="i-ph-arrow-left"></i>
+			Back to types
+		</button>
 
-<!-- Simulate Dialog -->
-{#if showSimulateDialog}
-	<div
-		class="modal-overlay"
-		onclick={() => (showSimulateDialog = false)}
-		onkeydown={(e) => e.key === 'Escape' && (showSimulateDialog = false)}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div class="modal-content modal-lg" onclick={(e) => e.stopPropagation()} role="document">
-			<div class="modal-header">
-				<h2 class="modal-title">Policy Simulator</h2>
-				<button class="modal-close" onclick={() => (showSimulateDialog = false)} aria-label="Close">
-					<i class="i-ph-x"></i>
-				</button>
-			</div>
+		{#if typeInfo}
+			<h3 class="section-subtitle">{typeInfo.label}</h3>
+			<p class="muted">{typeInfo.description}</p>
 
-			<div class="modal-body">
-				<p class="muted">Test how policies evaluate against a given context.</p>
-
-				{#if simulationError}
-					<div class="alert alert-error">{simulationError}</div>
-				{/if}
-
-				<div class="simulation-form">
-					<h3 class="section-subtitle">Subject</h3>
-					<div class="form-row-inline">
-						<div class="form-group">
-							<label for="sim-subject-id" class="form-label">Subject ID *</label>
-							<input
-								id="sim-subject-id"
-								type="text"
-								class="form-input"
-								bind:value={simulationContext.subject.id}
-								placeholder="user_123"
-							/>
-						</div>
-						<div class="form-group">
-							<label for="sim-subject-org" class="form-label">Organization ID</label>
-							<input
-								id="sim-subject-org"
-								type="text"
-								class="form-input"
-								bind:value={simulationContext.subject.orgId}
-								placeholder="org_456"
-							/>
-						</div>
-					</div>
-
-					<h3 class="section-subtitle">Resource</h3>
-					<div class="form-row-inline">
-						<div class="form-group">
-							<label for="sim-resource-type" class="form-label">Resource Type *</label>
-							<input
-								id="sim-resource-type"
-								type="text"
-								class="form-input"
-								bind:value={simulationContext.resource.type}
-								placeholder="document"
-							/>
-						</div>
-						<div class="form-group">
-							<label for="sim-resource-id" class="form-label">Resource ID *</label>
-							<input
-								id="sim-resource-id"
-								type="text"
-								class="form-input"
-								bind:value={simulationContext.resource.id}
-								placeholder="doc_789"
-							/>
-						</div>
-					</div>
-
-					<h3 class="section-subtitle">Action</h3>
-					<div class="form-group">
-						<label for="sim-action" class="form-label">Action Name *</label>
+			{#each typeInfo.params as param (param.name)}
+				<div class="form-group">
+					<label for="param-{param.name}" class="form-label">
+						{param.label}{param.required ? ' *' : ''}
+					</label>
+					{#if param.type === 'string'}
 						<input
-							id="sim-action"
+							id="param-{param.name}"
 							type="text"
 							class="form-input"
-							bind:value={simulationContext.action.name}
-							placeholder="read, write, delete..."
+							bind:value={conditionParams[param.name]}
 						/>
-					</div>
-
-					<h3 class="section-subtitle">Environment (Optional)</h3>
-					<div class="form-row-inline">
-						<div class="form-group">
-							<label for="sim-env-ip" class="form-label">Client IP</label>
-							<input
-								id="sim-env-ip"
-								type="text"
-								class="form-input"
-								bind:value={simulationContext.environment!.clientIp}
-								placeholder="192.168.1.1"
-							/>
-						</div>
-						<div class="form-group">
-							<label for="sim-env-country" class="form-label">Country Code</label>
-							<input
-								id="sim-env-country"
-								type="text"
-								class="form-input"
-								bind:value={simulationContext.environment!.countryCode}
-								placeholder="US, JP, DE..."
-							/>
-						</div>
-					</div>
+					{:else if param.type === 'number'}
+						<input
+							id="param-{param.name}"
+							type="number"
+							class="form-input"
+							bind:value={conditionParams[param.name]}
+						/>
+					{:else if param.type === 'string[]'}
+						<input
+							id="param-{param.name}"
+							type="text"
+							class="form-input"
+							placeholder="Comma-separated values"
+							oninput={(e) => {
+								conditionParams[param.name] = e.currentTarget.value
+									.split(',')
+									.map((s) => s.trim())
+									.filter(Boolean);
+							}}
+						/>
+					{:else if param.type === 'number[]'}
+						<input
+							id="param-{param.name}"
+							type="text"
+							class="form-input"
+							placeholder="Comma-separated numbers"
+							oninput={(e) => {
+								conditionParams[param.name] = e.currentTarget.value
+									.split(',')
+									.map((s) => parseInt(s.trim()))
+									.filter((n) => !isNaN(n));
+							}}
+						/>
+					{/if}
 				</div>
+			{/each}
+		{/if}
+	{/if}
 
-				{#if simulationResult}
-					<div
-						class="simulation-result"
-						class:simulation-result-allowed={simulationResult.allowed}
-						class:simulation-result-denied={!simulationResult.allowed}
-					>
-						<div class="result-header">
-							<i class={simulationResult.allowed ? 'i-ph-check-circle' : 'i-ph-x-circle'}></i>
-							<span class="result-text">{simulationResult.allowed ? 'ALLOWED' : 'DENIED'}</span>
-						</div>
-						<div class="result-details">
-							<p><strong>Reason:</strong> {simulationResult.reason}</p>
-							{#if simulationResult.decided_by}
-								<p><strong>Decided by:</strong> {simulationResult.decided_by}</p>
-							{/if}
-							<p><strong>Rules evaluated:</strong> {simulationResult.evaluated_rules}</p>
-						</div>
-					</div>
-				{/if}
+	{#snippet footer()}
+		{#if selectedConditionType}
+			<button class="btn btn-secondary" onclick={() => (showConditionDialog = false)}>
+				Cancel
+			</button>
+			<button class="btn btn-primary" onclick={addCondition}>Add Condition</button>
+		{/if}
+	{/snippet}
+</Modal>
+
+<!-- Delete Dialog -->
+<Modal
+	open={showDeleteDialog && !!ruleToDelete}
+	onClose={() => (showDeleteDialog = false)}
+	title="Delete Policy Rule"
+	size="md"
+>
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
+
+	<p class="modal-description">
+		Are you sure you want to delete the policy rule <strong>{ruleToDelete?.name ?? ''}</strong>?
+	</p>
+	<p class="danger-text">This action cannot be undone.</p>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showDeleteDialog = false)}>Cancel</button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete'}
+		</button>
+	{/snippet}
+</Modal>
+
+<!-- Simulate Dialog -->
+<Modal
+	open={showSimulateDialog}
+	onClose={() => (showSimulateDialog = false)}
+	title="Policy Simulator"
+	size="lg"
+>
+	<p class="muted">Test how policies evaluate against a given context.</p>
+
+	{#if simulationError}
+		<div class="alert alert-error">{simulationError}</div>
+	{/if}
+
+	<div class="simulation-form">
+		<h3 class="section-subtitle">Subject</h3>
+		<div class="form-row-inline">
+			<div class="form-group">
+				<label for="sim-subject-id" class="form-label">Subject ID *</label>
+				<input
+					id="sim-subject-id"
+					type="text"
+					class="form-input"
+					bind:value={simulationContext.subject.id}
+					placeholder="user_123"
+				/>
 			</div>
+			<div class="form-group">
+				<label for="sim-subject-org" class="form-label">Organization ID</label>
+				<input
+					id="sim-subject-org"
+					type="text"
+					class="form-input"
+					bind:value={simulationContext.subject.orgId}
+					placeholder="org_456"
+				/>
+			</div>
+		</div>
 
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={() => (showSimulateDialog = false)}>Close</button
-				>
-				<button class="btn btn-primary" onclick={runSimulation} disabled={simulating}>
-					{simulating ? 'Simulating...' : 'Run Simulation'}
-				</button>
+		<h3 class="section-subtitle">Resource</h3>
+		<div class="form-row-inline">
+			<div class="form-group">
+				<label for="sim-resource-type" class="form-label">Resource Type *</label>
+				<input
+					id="sim-resource-type"
+					type="text"
+					class="form-input"
+					bind:value={simulationContext.resource.type}
+					placeholder="document"
+				/>
+			</div>
+			<div class="form-group">
+				<label for="sim-resource-id" class="form-label">Resource ID *</label>
+				<input
+					id="sim-resource-id"
+					type="text"
+					class="form-input"
+					bind:value={simulationContext.resource.id}
+					placeholder="doc_789"
+				/>
+			</div>
+		</div>
+
+		<h3 class="section-subtitle">Action</h3>
+		<div class="form-group">
+			<label for="sim-action" class="form-label">Action Name *</label>
+			<input
+				id="sim-action"
+				type="text"
+				class="form-input"
+				bind:value={simulationContext.action.name}
+				placeholder="read, write, delete..."
+			/>
+		</div>
+
+		<h3 class="section-subtitle">Environment (Optional)</h3>
+		<div class="form-row-inline">
+			<div class="form-group">
+				<label for="sim-env-ip" class="form-label">Client IP</label>
+				<input
+					id="sim-env-ip"
+					type="text"
+					class="form-input"
+					bind:value={simulationContext.environment!.clientIp}
+					placeholder="192.168.1.1"
+				/>
+			</div>
+			<div class="form-group">
+				<label for="sim-env-country" class="form-label">Country Code</label>
+				<input
+					id="sim-env-country"
+					type="text"
+					class="form-input"
+					bind:value={simulationContext.environment!.countryCode}
+					placeholder="US, JP, DE..."
+				/>
 			</div>
 		</div>
 	</div>
-{/if}
+
+	{#if simulationResult}
+		<div
+			class="simulation-result"
+			class:simulation-result-allowed={simulationResult.allowed}
+			class:simulation-result-denied={!simulationResult.allowed}
+		>
+			<div class="result-header">
+				<i class={simulationResult.allowed ? 'i-ph-check-circle' : 'i-ph-x-circle'}></i>
+				<span class="result-text">{simulationResult.allowed ? 'ALLOWED' : 'DENIED'}</span>
+			</div>
+			<div class="result-details">
+				<p><strong>Reason:</strong> {simulationResult.reason}</p>
+				{#if simulationResult.decided_by}
+					<p><strong>Decided by:</strong> {simulationResult.decided_by}</p>
+				{/if}
+				<p><strong>Rules evaluated:</strong> {simulationResult.evaluated_rules}</p>
+			</div>
+		</div>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={() => (showSimulateDialog = false)}>Close</button>
+		<button class="btn btn-primary" onclick={runSimulation} disabled={simulating}>
+			{simulating ? 'Simulating...' : 'Run Simulation'}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
 	/* Feature Toggle Panel Styles */

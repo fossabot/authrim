@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import type { Env, OIDCProviderMetadata } from '@authrim/ar-lib-core';
+import type { Env, OIDCProviderMetadata, LogoutConfig, TenantProfile } from '@authrim/ar-lib-core';
 import {
   SUPPORTED_JWE_ALG,
   SUPPORTED_JWE_ENC,
@@ -8,12 +8,16 @@ import {
   LOGOUT_SETTINGS_KEY,
   getTenantIdFromContext,
   isNativeSSOEnabled,
-  loadTenantProfile,
+  loadTenantProfileCached,
   filterGrantTypesByProfile,
   getLogger,
-  getFeatureFlag,
+  // Request-level caching for feature flags (Phase 2)
+  getTenantFeatureFlagsCached,
+  getFeatureFlagCached,
+  // KV caching utilities (Phase 2)
+  buildVersionedKey,
+  getCacheTTL,
 } from '@authrim/ar-lib-core';
-import type { LogoutConfig, TenantProfile } from '@authrim/ar-lib-core';
 
 /**
  * OIDC Configuration interface for discovery metadata
@@ -71,6 +75,33 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
 
   // Get tenant ID from request context (set by requestContextMiddleware)
   const tenantId = getTenantIdFromContext(c);
+
+  // =========================================================================
+  // Phase 2: KV Cache Check (reduces 5-6 KV reads to 1)
+  // =========================================================================
+  const kvCacheKey = buildVersionedKey('discovery', tenantId);
+  const discoveryTTL = await getCacheTTL(c.env, 'discovery');
+
+  // Try to get from KV cache first
+  if (c.env.AUTHRIM_CONFIG) {
+    try {
+      const cached = await c.env.AUTHRIM_CONFIG.get(kvCacheKey, {
+        type: 'json',
+        cacheTtl: discoveryTTL, // Edge memory cache
+      });
+      if (cached) {
+        // Cache hit - return cached metadata
+        c.header('Cache-Control', `public, max-age=${discoveryTTL}`);
+        c.header('Vary', 'Accept-Encoding, Host');
+        c.header('X-Discovery-Cache', 'HIT');
+        return c.json(cached as OIDCProviderMetadata);
+      }
+    } catch (error) {
+      // KV error - fall through to generate fresh metadata
+      log.warn('Failed to read discovery cache from KV', { tenantId }, error as Error);
+    }
+  }
+  // =========================================================================
 
   // Build issuer URL for this tenant
   const issuer = buildIssuerUrl(c.env, tenantId);
@@ -144,33 +175,24 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
     (tokenExchangeEnabled && oidcConfig.tokenExchange?.idJag?.enabled) ??
     c.env.ENABLE_ID_JAG === 'true';
 
-  // Flow Engine (UI Contract) feature flag
+  // Flow Engine (UI Contract) feature flag (request-level cached)
   // When enabled, server-driven UI flows are available
   // Check Settings Manager KV format first (settings:tenant:<tenantId>:feature-flags)
   // then fall back to legacy flag format (flag:ENABLE_FLOW_ENGINE)
   let flowEngineEnabled = false;
-  if (c.env.AUTHRIM_CONFIG) {
-    try {
-      const settingsKey = `settings:tenant:${tenantId}:feature-flags`;
-      const settingsJson = await c.env.AUTHRIM_CONFIG.get(settingsKey);
-      if (settingsJson) {
-        const settings = JSON.parse(settingsJson);
-        if (typeof settings === 'object' && settings !== null) {
-          flowEngineEnabled = settings['feature.enable_flow_engine'] === true;
-        }
-      }
-    } catch {
-      // Fall through to legacy check
-    }
+  const tenantFlags = await getTenantFeatureFlagsCached(c, c.env, tenantId);
+  if (tenantFlags && tenantFlags['feature.enable_flow_engine'] === true) {
+    flowEngineEnabled = true;
   }
-  // Legacy fallback: check flag:ENABLE_FLOW_ENGINE or env variable
+  // Legacy fallback: check flag:ENABLE_FLOW_ENGINE or env variable (request-level cached)
   if (!flowEngineEnabled) {
-    flowEngineEnabled = await getFeatureFlag('ENABLE_FLOW_ENGINE', c.env, false);
+    flowEngineEnabled = await getFeatureFlagCached(c, 'ENABLE_FLOW_ENGINE', c.env, false);
   }
 
-  // Load TenantProfile for profile-based grant_types filtering
+  // Load TenantProfile for profile-based grant_types filtering (request-level cached)
   // §16: Human Auth / AI Ephemeral Auth two-layer model
-  const tenantProfile: TenantProfile = await loadTenantProfile(
+  const tenantProfile: TenantProfile = await loadTenantProfileCached(
+    c,
     c.env.AUTHRIM_CONFIG,
     c.env,
     tenantId
@@ -398,7 +420,7 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
       : {}),
   };
 
-  // Update cache (with size limit to prevent memory issues)
+  // Update in-memory cache (with size limit to prevent memory issues)
   if (metadataCache.size > 100) {
     // Simple LRU: clear oldest entries when cache gets too large
     const keysToDelete = Array.from(metadataCache.keys()).slice(0, 50);
@@ -406,10 +428,23 @@ export async function discoveryHandler(c: Context<{ Bindings: Env }>) {
   }
   metadataCache.set(cacheKey, metadata);
 
+  // =========================================================================
+  // Phase 2: Store in KV cache (best-effort, don't block response)
+  // =========================================================================
+  if (c.env.AUTHRIM_CONFIG) {
+    c.env.AUTHRIM_CONFIG.put(kvCacheKey, JSON.stringify(metadata), {
+      expirationTtl: discoveryTTL,
+    }).catch((error) => {
+      // Log but don't fail the request
+      log.warn('Failed to write discovery cache to KV', { tenantId }, error as Error);
+    });
+  }
+  // =========================================================================
+
   // Add cache headers for better performance
-  // Reduced from 3600 to 300 seconds (5 minutes) for dynamic configuration
-  c.header('Cache-Control', 'public, max-age=300');
+  c.header('Cache-Control', `public, max-age=${discoveryTTL}`);
   c.header('Vary', 'Accept-Encoding, Host');
+  c.header('X-Discovery-Cache', 'MISS');
 
   return c.json(metadata);
 }

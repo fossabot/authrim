@@ -7,6 +7,7 @@
 		type WebhookTestResult,
 		COMMON_EVENT_PATTERNS
 	} from '$lib/api/admin-webhooks';
+	import { Modal } from '$lib/components';
 
 	let webhooks: Webhook[] = $state([]);
 	let loading = $state(true);
@@ -323,251 +324,185 @@
 </div>
 
 <!-- Create Dialog -->
-{#if showCreateDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeCreateDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeCreateDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content modal-lg"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Add Webhook</h2>
-			</div>
+<Modal open={showCreateDialog} onClose={closeCreateDialog} title="Add Webhook" size="lg">
+	{#if createError}
+		<div class="alert alert-error">{createError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if createError}
-					<div class="alert alert-error">{createError}</div>
-				{/if}
-
-				<div class="form-group">
-					<label for="webhook-name" class="form-label">Webhook Name</label>
-					<input
-						id="webhook-name"
-						type="text"
-						class="form-input"
-						bind:value={newName}
-						placeholder="e.g., Slack Notifications"
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="webhook-url" class="form-label">Endpoint URL</label>
-					<input
-						id="webhook-url"
-						type="url"
-						class="form-input"
-						bind:value={newUrl}
-						placeholder="https://example.com/webhooks/authrim"
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="webhook-secret" class="form-label"
-						>Secret (optional, for HMAC signature)</label
-					>
-					<input
-						id="webhook-secret"
-						type="password"
-						class="form-input"
-						bind:value={newSecret}
-						placeholder="Enter a secret for webhook signing"
-					/>
-					<p class="form-hint">
-						If set, webhooks will include an HMAC-SHA256 signature in the X-Webhook-Signature
-						header.
-					</p>
-				</div>
-
-				<div class="form-group">
-					<label class="form-label">Events to Subscribe</label>
-					<div class="event-selector">
-						{#each COMMON_EVENT_PATTERNS as eventPattern (eventPattern.pattern)}
-							<button
-								type="button"
-								class="event-btn"
-								class:selected={selectedEvents.includes(eventPattern.pattern)}
-								onclick={() => toggleEvent(eventPattern.pattern)}
-								title={eventPattern.description}
-							>
-								{eventPattern.pattern}
-							</button>
-						{/each}
-					</div>
-
-					<div class="custom-event-row">
-						<input
-							type="text"
-							class="form-input"
-							bind:value={customEvent}
-							placeholder="Custom event pattern"
-							onkeydown={(e) => e.key === 'Enter' && addCustomEvent()}
-						/>
-						<button type="button" class="btn btn-secondary" onclick={addCustomEvent}>Add</button>
-					</div>
-
-					{#if selectedEvents.length > 0}
-						<div class="selected-events">
-							<div class="selected-events-label">Selected Events ({selectedEvents.length}):</div>
-							<div class="tag-list">
-								{#each selectedEvents as event (event)}
-									<span class="tag removable">
-										{event}
-										<button type="button" class="tag-remove" onclick={() => toggleEvent(event)}
-											>×</button
-										>
-									</span>
-								{/each}
-							</div>
-						</div>
-					{/if}
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}
-					>Cancel</button
-				>
-				<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
-					{creating ? 'Creating...' : 'Create Webhook'}
-				</button>
-			</div>
-		</div>
+	<div class="form-group">
+		<label for="webhook-name" class="form-label">Webhook Name</label>
+		<input
+			id="webhook-name"
+			type="text"
+			class="form-input"
+			bind:value={newName}
+			placeholder="e.g., Slack Notifications"
+		/>
 	</div>
-{/if}
+
+	<div class="form-group">
+		<label for="webhook-url" class="form-label">Endpoint URL</label>
+		<input
+			id="webhook-url"
+			type="url"
+			class="form-input"
+			bind:value={newUrl}
+			placeholder="https://example.com/webhooks/authrim"
+		/>
+	</div>
+
+	<div class="form-group">
+		<label for="webhook-secret" class="form-label"
+			>Secret (optional, for HMAC signature)</label
+		>
+		<input
+			id="webhook-secret"
+			type="password"
+			class="form-input"
+			bind:value={newSecret}
+			placeholder="Enter a secret for webhook signing"
+		/>
+		<p class="form-hint">
+			If set, webhooks will include an HMAC-SHA256 signature in the X-Webhook-Signature
+			header.
+		</p>
+	</div>
+
+	<div class="form-group">
+		<label class="form-label">Events to Subscribe</label>
+		<div class="event-selector">
+			{#each COMMON_EVENT_PATTERNS as eventPattern (eventPattern.pattern)}
+				<button
+					type="button"
+					class="event-btn"
+					class:selected={selectedEvents.includes(eventPattern.pattern)}
+					onclick={() => toggleEvent(eventPattern.pattern)}
+					title={eventPattern.description}
+				>
+					{eventPattern.pattern}
+				</button>
+			{/each}
+		</div>
+
+		<div class="custom-event-row">
+			<input
+				type="text"
+				class="form-input"
+				bind:value={customEvent}
+				placeholder="Custom event pattern"
+				onkeydown={(e) => e.key === 'Enter' && addCustomEvent()}
+			/>
+			<button type="button" class="btn btn-secondary" onclick={addCustomEvent}>Add</button>
+		</div>
+
+		{#if selectedEvents.length > 0}
+			<div class="selected-events">
+				<div class="selected-events-label">Selected Events ({selectedEvents.length}):</div>
+				<div class="tag-list">
+					{#each selectedEvents as event (event)}
+						<span class="tag removable">
+							{event}
+							<button type="button" class="tag-remove" onclick={() => toggleEvent(event)}
+								>×</button
+							>
+						</span>
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}
+			>Cancel</button
+		>
+		<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
+			{creating ? 'Creating...' : 'Create Webhook'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Test Dialog -->
-{#if showTestDialog && webhookToTest}
-	<div
-		class="modal-overlay"
-		onclick={closeTestDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeTestDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Test Webhook: {webhookToTest.name}</h2>
-			</div>
+<Modal open={showTestDialog && !!webhookToTest} onClose={closeTestDialog} title="Test Webhook: {webhookToTest?.name ?? ''}" size="md">
+	{#if testError}
+		<div class="alert alert-error">{testError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if testError}
-					<div class="alert alert-error">{testError}</div>
-				{/if}
+	<p class="modal-description">
+		Send a test webhook event to verify the endpoint is reachable and responding correctly.
+	</p>
 
-				<p class="modal-description">
-					Send a test webhook event to verify the endpoint is reachable and responding correctly.
-				</p>
-
-				<div class="info-box">
-					<div class="info-row">
-						<span class="info-label">URL:</span>
-						<code class="info-value">{webhookToTest.url}</code>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Event:</span>
-						<span class="info-value">webhook.test</span>
-					</div>
-				</div>
-
-				{#if testResult}
-					<div class={testResult.success ? 'alert alert-success' : 'alert alert-error'}>
-						<div class="alert-title">
-							{testResult.success ? '✓ Test Successful' : '✗ Test Failed'}
-						</div>
-						{#if testResult.status_code}
-							<p class="alert-detail"><strong>Status:</strong> {testResult.status_code}</p>
-						{/if}
-						{#if testResult.response_time_ms}
-							<p class="alert-detail">
-								<strong>Response Time:</strong>
-								{testResult.response_time_ms}ms
-							</p>
-						{/if}
-						{#if testResult.error}
-							<p class="alert-detail"><strong>Error:</strong> {testResult.error}</p>
-						{/if}
-					</div>
-				{/if}
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeTestDialog}>Close</button>
-				<button class="btn btn-primary" onclick={runTest} disabled={testing}>
-					{testing ? 'Sending...' : 'Send Test'}
-				</button>
-			</div>
+	<div class="info-box">
+		<div class="info-row">
+			<span class="info-label">URL:</span>
+			<code class="info-value">{webhookToTest?.url}</code>
+		</div>
+		<div class="info-row">
+			<span class="info-label">Event:</span>
+			<span class="info-value">webhook.test</span>
 		</div>
 	</div>
-{/if}
+
+	{#if testResult}
+		<div class={testResult.success ? 'alert alert-success' : 'alert alert-error'}>
+			<div class="alert-title">
+				{testResult.success ? '✓ Test Successful' : '✗ Test Failed'}
+			</div>
+			{#if testResult.status_code}
+				<p class="alert-detail"><strong>Status:</strong> {testResult.status_code}</p>
+			{/if}
+			{#if testResult.response_time_ms}
+				<p class="alert-detail">
+					<strong>Response Time:</strong>
+					{testResult.response_time_ms}ms
+				</p>
+			{/if}
+			{#if testResult.error}
+				<p class="alert-detail"><strong>Error:</strong> {testResult.error}</p>
+			{/if}
+		</div>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeTestDialog}>Close</button>
+		<button class="btn btn-primary" onclick={runTest} disabled={testing}>
+			{testing ? 'Sending...' : 'Send Test'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Delete Confirmation Dialog -->
-{#if showDeleteDialog && webhookToDelete}
-	<div
-		class="modal-overlay"
-		onclick={closeDeleteDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeDeleteDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Delete Webhook</h2>
-			</div>
+<Modal open={showDeleteDialog && !!webhookToDelete} onClose={closeDeleteDialog} title="Delete Webhook" size="md">
+	{#if deleteError}
+		<div class="alert alert-error">{deleteError}</div>
+	{/if}
 
-			<div class="modal-body">
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
+	<p class="modal-description">
+		Are you sure you want to delete this webhook? Event notifications will no longer be sent
+		to this endpoint.
+	</p>
 
-				<p class="modal-description">
-					Are you sure you want to delete this webhook? Event notifications will no longer be sent
-					to this endpoint.
-				</p>
-
-				<div class="info-box">
-					<div class="info-row">
-						<span class="info-label">Name:</span>
-						<span class="info-value">{webhookToDelete.name}</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">URL:</span>
-						<code class="info-value">{formatUrl(webhookToDelete.url)}</code>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Events:</span>
-						<span class="info-value">{webhookToDelete.events.length} subscribed</span>
-					</div>
-				</div>
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}
-					>Cancel</button
-				>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete Webhook'}
-				</button>
-			</div>
+	<div class="info-box">
+		<div class="info-row">
+			<span class="info-label">Name:</span>
+			<span class="info-value">{webhookToDelete?.name}</span>
+		</div>
+		<div class="info-row">
+			<span class="info-label">URL:</span>
+			<code class="info-value">{formatUrl(webhookToDelete?.url ?? '')}</code>
+		</div>
+		<div class="info-row">
+			<span class="info-label">Events:</span>
+			<span class="info-value">{webhookToDelete?.events.length} subscribed</span>
 		</div>
 	</div>
-{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}
+			>Cancel</button
+		>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete Webhook'}
+		</button>
+	{/snippet}
+</Modal>

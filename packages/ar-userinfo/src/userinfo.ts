@@ -2,7 +2,7 @@ import type { Context } from 'hono';
 import type { Env } from '@authrim/ar-lib-core';
 import {
   introspectTokenFromContext,
-  getClient,
+  getClientCached,
   getCachedUser,
   encryptJWT,
   isUserInfoEncryptionRequired,
@@ -208,10 +208,10 @@ export async function userinfoHandler(c: Context<{ Bindings: Env }>) {
     address: address || undefined,
   };
 
-  // Get client metadata to check claims parameter settings
+  // Get client metadata to check claims parameter settings (request-level cached)
   // Extract client_id from token claims
   const client_id = tokenClaims.client_id as string;
-  const clientMetadata = client_id ? await getClient(c.env, client_id) : null;
+  const clientMetadata = client_id ? await getClientCached(c, c.env, client_id) : null;
 
   // Check if client allows claims parameter to request claims without corresponding scope
   // Default: false (strict scope-based access control)

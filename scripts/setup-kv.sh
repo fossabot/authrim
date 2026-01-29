@@ -10,6 +10,12 @@
 
 set -e
 
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/lib/authrim-paths.sh" ]; then
+  source "${SCRIPT_DIR}/lib/authrim-paths.sh"
+fi
+
 # Parse command line arguments
 RESET_MODE=false
 DEPLOY_ENV=""
@@ -52,6 +58,14 @@ if [ -z "$DEPLOY_ENV" ]; then
     echo "  $0 --env=dev"
     echo "  $0 --env=staging"
     echo "  $0 --env=prod"
+    exit 1
+fi
+
+# Validate environment name (security: prevent path traversal)
+if type validate_env_name &>/dev/null; then
+    validate_env_name "$DEPLOY_ENV" || exit 1
+elif [[ "$DEPLOY_ENV" =~ \.\. ]] || [[ "$DEPLOY_ENV" =~ / ]] || [[ "$DEPLOY_ENV" =~ \\ ]]; then
+    echo "❌ Error: Invalid environment name '${DEPLOY_ENV}': path traversal characters not allowed"
     exit 1
 fi
 
@@ -723,6 +737,33 @@ echo "📝 Updating packages/ar-vc/wrangler.${DEPLOY_ENV}.toml..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 update_wrangler_toml "packages/ar-vc/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
 echo "✅ ar-vc updated"
+
+# Save KV IDs to lock.json
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📦 Saving KV namespace IDs to lock.json..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if type add_kv_to_lock &>/dev/null; then
+    add_kv_to_lock "$DEPLOY_ENV" "CLIENTS_CACHE" "${DEPLOY_ENV}-CLIENTS_CACHE" "$CLIENTS_CACHE_ID" "$PREVIEW_CLIENTS_CACHE_ID"
+    echo "  ✓ CLIENTS_CACHE"
+    add_kv_to_lock "$DEPLOY_ENV" "INITIAL_ACCESS_TOKENS" "${DEPLOY_ENV}-INITIAL_ACCESS_TOKENS" "$INITIAL_ACCESS_TOKENS_ID" "$PREVIEW_INITIAL_ACCESS_TOKENS_ID"
+    echo "  ✓ INITIAL_ACCESS_TOKENS"
+    add_kv_to_lock "$DEPLOY_ENV" "SETTINGS" "${DEPLOY_ENV}-SETTINGS" "$SETTINGS_ID" "$PREVIEW_SETTINGS_ID"
+    echo "  ✓ SETTINGS"
+    add_kv_to_lock "$DEPLOY_ENV" "REBAC_CACHE" "${DEPLOY_ENV}-REBAC_CACHE" "$REBAC_CACHE_ID" "$PREVIEW_REBAC_CACHE_ID"
+    echo "  ✓ REBAC_CACHE"
+    add_kv_to_lock "$DEPLOY_ENV" "USER_CACHE" "${DEPLOY_ENV}-USER_CACHE" "$USER_CACHE_ID" "$PREVIEW_USER_CACHE_ID"
+    echo "  ✓ USER_CACHE"
+    add_kv_to_lock "$DEPLOY_ENV" "AUTHRIM_CONFIG" "${DEPLOY_ENV}-AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
+    echo "  ✓ AUTHRIM_CONFIG"
+    add_kv_to_lock "$DEPLOY_ENV" "STATE_STORE" "${DEPLOY_ENV}-STATE_STORE" "$STATE_STORE_ID" "$PREVIEW_STATE_STORE_ID"
+    echo "  ✓ STATE_STORE"
+    echo ""
+    echo "✅ KV IDs saved to $(get_lock_path "$DEPLOY_ENV")"
+else
+    echo "⚠️  Warning: authrim-paths.sh not loaded, skipping lock.json update"
+fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

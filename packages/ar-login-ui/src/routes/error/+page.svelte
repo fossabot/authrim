@@ -3,6 +3,7 @@
 	import { Button, Card, Alert } from '$lib/components';
 	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
 	import { LL } from '$i18n/i18n-svelte';
+	import { brandingStore } from '$lib/stores/branding.svelte';
 
 	let errorCode = $state('');
 	let errorDescription = $state('');
@@ -38,32 +39,26 @@
 	}
 
 	function handleContactSupport() {
-		// TODO: Add support email or link
-		window.location.href = 'mailto:support@authrim.dev?subject=Error: ' + errorCode;
+		window.location.href =
+			'mailto:support@authrim.dev?subject=Error: ' + encodeURIComponent(errorCode);
 	}
 </script>
 
 <svelte:head>
-	<title>{$LL.error_title()} - {$LL.app_title()}</title>
+	<title>{$LL.error_title()} - {brandingStore.brandName || $LL.app_title()}</title>
 	<meta name="description" content="An error occurred. Please try again or contact support." />
 </svelte:head>
 
-<div
-	class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center px-4 py-12"
->
-	<!-- Language Switcher (Top Right) -->
-	<div class="absolute top-4 right-4">
-		<LanguageSwitcher />
-	</div>
+<div class="auth-page">
+	<LanguageSwitcher />
 
-	<!-- Main Card -->
-	<div class="w-full max-w-md">
-		<!-- Logo -->
-		<div class="text-center mb-8">
-			<h1 class="text-4xl font-bold text-primary-600 dark:text-primary-400 mb-2">
-				{$LL.app_title()}
+	<div class="auth-container">
+		<!-- Header -->
+		<div class="auth-header">
+			<h1 class="auth-header__title">
+				{brandingStore.brandName || $LL.app_title()}
 			</h1>
-			<p class="text-gray-600 dark:text-gray-400 text-sm">
+			<p class="auth-header__subtitle">
 				{$LL.app_subtitle()}
 			</p>
 		</div>
@@ -71,21 +66,19 @@
 		<!-- Error Card -->
 		<Card class="text-center">
 			<!-- Error Icon -->
-			<div class="flex justify-center mb-6">
-				<div class="rounded-full bg-error-100 dark:bg-error-900/30 p-4">
-					<div
-						class="i-heroicons-exclamation-circle h-12 w-12 text-error-600 dark:text-error-400"
-					></div>
+			<div class="auth-icon-badge">
+				<div class="auth-icon-badge__circle auth-icon-badge__circle--danger">
+					<div class="i-heroicons-exclamation-circle h-9 w-9 auth-icon-badge__icon"></div>
 				</div>
 			</div>
 
 			<!-- Title -->
-			<h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+			<h2 class="auth-section-title text-center">
 				{$LL.error_title()}
 			</h2>
 
 			<!-- Subtitle -->
-			<p class="text-gray-600 dark:text-gray-400 mb-6">
+			<p class="auth-section-subtitle text-center mb-6">
 				{$LL.error_subtitle()}
 			</p>
 
@@ -98,11 +91,11 @@
 			</Alert>
 
 			<!-- Error Code -->
-			<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 mb-6">
-				<p class="text-xs text-gray-600 dark:text-gray-400 mb-1">
+			<div class="auth-error-code-box mb-6">
+				<p class="auth-error-code-box__label">
 					{$LL.error_errorCode()}
 				</p>
-				<p class="text-sm font-mono text-gray-900 dark:text-white">
+				<p class="auth-error-code-box__value">
 					{errorCode}
 				</p>
 			</div>
@@ -116,19 +109,19 @@
 
 				<Button variant="ghost" class="w-full" onclick={handleContactSupport}>
 					<div class="i-heroicons-question-mark-circle h-5 w-5"></div>
-					Contact Support
+					{$LL.common_contactSupport()}
 				</Button>
 			</div>
 
 			<!-- Contact Support Text -->
-			<p class="mt-6 text-xs text-gray-600 dark:text-gray-400">
+			<p class="mt-6 text-xs" style="color: var(--text-muted);">
 				{$LL.error_contactSupport()}
 			</p>
 		</Card>
 	</div>
 
 	<!-- Footer -->
-	<footer class="mt-12 text-center text-xs text-gray-600 dark:text-gray-400">
+	<footer class="auth-footer">
 		<p>{$LL.footer_stack()}</p>
 	</footer>
 </div>

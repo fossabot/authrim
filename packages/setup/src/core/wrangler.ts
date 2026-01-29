@@ -489,8 +489,8 @@ function generateEnvVars(
   // Sharding configuration
   if (component === 'ar-lib-core' || component === 'ar-auth' || component === 'ar-token') {
     vars['AUTHRIM_CODE_SHARDS'] = config.sharding.authCodeShards.toString();
-    vars['AUTHRIM_SESSION_SHARDS'] = (config.sharding.sessionShards ?? 32).toString();
-    vars['AUTHRIM_CHALLENGE_SHARDS'] = (config.sharding.challengeShards ?? 16).toString();
+    vars['AUTHRIM_SESSION_SHARDS'] = (config.sharding.sessionShards ?? 4).toString();
+    vars['AUTHRIM_CHALLENGE_SHARDS'] = (config.sharding.challengeShards ?? 4).toString();
   }
   // Flow Engine sharding (for ar-auth only)
   if (component === 'ar-auth') {

@@ -130,7 +130,7 @@ const ru: Translations = {
   'env.d1Databases': 'Базы данных D1: {{count}}',
   'env.kvNamespaces': 'Пространства имён KV: {{count}}',
   'env.chooseAnother':
-    'Пожалуйста, выберите другое имя или используйте "npx @authrim/setup manage" для удаления.',
+    'Пожалуйста, выберите другое имя или используйте "{{command}} manage" для удаления.',
   'env.available': 'Название окружения доступно',
   'env.checkFailed': 'Не удалось проверить существующие окружения (продолжаем)',
   'env.noEnvFound': 'Окружения Authrim не найдены.',

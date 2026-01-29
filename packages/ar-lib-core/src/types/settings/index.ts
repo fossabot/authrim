@@ -32,6 +32,7 @@ export * from './plugin';
 export * from './assurance-levels';
 export * from './check-api-audit';
 export * from './dcr';
+export * from './login-ui';
 
 // Re-export SettingsManager types
 export type {
@@ -85,6 +86,7 @@ import { PLUGIN_CATEGORY_META } from './plugin';
 import { ASSURANCE_LEVELS_CATEGORY_META } from './assurance-levels';
 import { CHECK_API_AUDIT_CATEGORY_META } from './check-api-audit';
 import { DCR_CATEGORY_META } from './dcr';
+import { LOGIN_UI_CATEGORY_META } from './login-ui';
 
 /**
  * All category metadata for easy registration
@@ -127,6 +129,8 @@ export const ALL_CATEGORY_META = {
   'check-api-audit': CHECK_API_AUDIT_CATEGORY_META,
   // Dynamic Client Registration (RFC 7591)
   dcr: DCR_CATEGORY_META,
+  // Login UI Customization
+  'login-ui': LOGIN_UI_CATEGORY_META,
 } as const;
 
 /**
@@ -241,6 +245,11 @@ export const CATEGORY_SCOPE_CONFIG: Record<
 
   // Dynamic Client Registration (RFC 7591)
   dcr: {
+    allowedScopes: ['tenant'],
+  },
+
+  // Login UI Customization
+  'login-ui': {
     allowedScopes: ['tenant'],
   },
 };

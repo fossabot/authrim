@@ -262,8 +262,9 @@
 
 	// Internal state - we use $state + $effect instead of $derived because
 	// SvelteFlow mutates nodes/edges via bind:, requiring mutable state
-	let flowNodes = $state<Node[]>(toFlowNodes(propNodes));
-	let flowEdges = $state<Edge[]>(toFlowEdges(propEdges));
+	// Initialized empty, populated by $effect when props change
+	let flowNodes = $state<Node[]>([]);
+	let flowEdges = $state<Edge[]>([]);
 
 	// Update when props change - using propsKey to ensure dependency tracking
 	$effect(() => {

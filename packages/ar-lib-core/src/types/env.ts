@@ -204,11 +204,11 @@ export interface Env {
   AUTHRIM_FLOW_STATE_SHARDS?: string; // Number of flow state DO shards (default: 32)
 
   // Region-aware sharding settings (Priority: KV -> env -> defaults)
-  REGION_SHARD_TOTAL_SHARDS?: string; // Total number of shards (default: 20)
+  REGION_SHARD_TOTAL_SHARDS?: string; // Total number of shards (default: 4)
   REGION_SHARD_GENERATION?: string; // Current generation for migration (default: 1)
-  REGION_SHARD_APAC_PERCENT?: string; // Asia-Pacific region percentage (default: 20)
-  REGION_SHARD_ENAM_PERCENT?: string; // North America East percentage (default: 40)
-  REGION_SHARD_WEUR_PERCENT?: string; // Western Europe percentage (default: 40)
+  REGION_SHARD_ENAM_PERCENT?: string; // North America East percentage (default: 50)
+  REGION_SHARD_WEUR_PERCENT?: string; // Western Europe percentage (default: 25)
+  REGION_SHARD_APAC_PERCENT?: string; // Asia-Pacific region percentage (default: 25)
   REGION_SHARD_GROUPS_JSON?: string; // Colocation groups as JSON (optional)
 
   // ============================================================

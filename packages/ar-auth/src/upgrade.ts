@@ -30,7 +30,7 @@ import {
   createErrorResponse,
   AR_ERROR_CODES,
   isAnonymousAuthEnabled,
-  loadClientContract,
+  loadClientContractCached,
   // Event System
   publishEvent,
   type AuthEventData,
@@ -125,7 +125,8 @@ export async function upgradeHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // Load client contract to check allowed upgrade methods
-    const clientContract = await loadClientContract(
+    const clientContract = await loadClientContractCached(
+      c,
       c.env.AUTHRIM_CONFIG,
       c.env,
       tenantId,
@@ -279,7 +280,8 @@ export async function upgradeCompleteHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // Load client contract for default settings
-    const clientContract = await loadClientContract(
+    const clientContract = await loadClientContractCached(
+      c,
       c.env.AUTHRIM_CONFIG,
       c.env,
       tenantId,

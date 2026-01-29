@@ -6,6 +6,7 @@
 		type ExternalIdPProvider,
 		PROVIDER_TEMPLATES
 	} from '$lib/api/admin-external-providers';
+	import { Modal } from '$lib/components';
 
 	let providers: ExternalIdPProvider[] = $state([]);
 	let loading = $state(true);
@@ -194,59 +195,39 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-{#if showDeleteDialog && providerToDelete}
-	<div
-		class="modal-overlay"
-		onclick={closeDeleteDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeDeleteDialog()}
-		tabindex="-1"
-		role="dialog"
-		aria-modal="true"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">Delete External IdP Provider</h2>
+<Modal open={showDeleteDialog && !!providerToDelete} onClose={closeDeleteDialog} title="Delete External IdP Provider" size="md">
+	{#if providerToDelete}
+		{#if deleteError}
+			<div class="alert alert-error">{deleteError}</div>
+		{/if}
+
+		<p class="modal-description">
+			Are you sure you want to delete this external IdP provider? This action cannot be undone
+			and users will no longer be able to sign in with this provider.
+		</p>
+
+		<div class="info-box">
+			<div class="info-row">
+				<span class="info-label">Provider:</span>
+				<span class="info-value">{providerToDelete.name}</span>
 			</div>
-
-			<div class="modal-body">
-				{#if deleteError}
-					<div class="alert alert-error">{deleteError}</div>
-				{/if}
-
-				<p class="modal-description">
-					Are you sure you want to delete this external IdP provider? This action cannot be undone
-					and users will no longer be able to sign in with this provider.
-				</p>
-
-				<div class="info-box">
-					<div class="info-row">
-						<span class="info-label">Provider:</span>
-						<span class="info-value">{providerToDelete.name}</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Type:</span>
-						<span class="info-value">{providerToDelete.providerType.toUpperCase()}</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Client ID:</span>
-						<code class="info-value">{providerToDelete.clientId}</code>
-					</div>
-				</div>
+			<div class="info-row">
+				<span class="info-label">Type:</span>
+				<span class="info-value">{providerToDelete.providerType.toUpperCase()}</span>
 			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
-					{deleting ? 'Deleting...' : 'Delete Provider'}
-				</button>
+			<div class="info-row">
+				<span class="info-label">Client ID:</span>
+				<code class="info-value">{providerToDelete.clientId}</code>
 			</div>
 		</div>
-	</div>
-{/if}
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
+			{deleting ? 'Deleting...' : 'Delete Provider'}
+		</button>
+	{/snippet}
+</Modal>

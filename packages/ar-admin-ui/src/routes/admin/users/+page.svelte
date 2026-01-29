@@ -8,6 +8,7 @@
 		type Pagination,
 		type UserListParams
 	} from '$lib/api/admin-users';
+	import { Modal } from '$lib/components';
 
 	let users: User[] = $state([]);
 	let pagination: Pagination | null = $state(null);
@@ -362,88 +363,63 @@
 </div>
 
 <!-- Bulk Delete Confirmation Dialog -->
-{#if showBulkDeleteDialog}
-	<div
-		class="modal-overlay"
-		onclick={closeBulkDeleteDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeBulkDeleteDialog()}
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-	>
-		<div
-			class="modal-content"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="modal-header">
-				<h2 class="modal-title">
-					Delete {selectedIds.size} User{selectedIds.size === 1 ? '' : 's'}
-				</h2>
-			</div>
+<Modal open={showBulkDeleteDialog} onClose={closeBulkDeleteDialog} title="Delete {selectedIds.size} User{selectedIds.size === 1 ? '' : 's'}" size="md">
+	<div class="alert alert-error" style="margin-bottom: 16px;">
+		<p style="margin: 0; font-weight: 500;">This action cannot be undone</p>
+		<p style="margin: 8px 0 0 0; font-size: 0.875rem;">
+			The selected users will be permanently deleted.
+		</p>
+	</div>
 
-			<div class="modal-body">
-				<div class="alert alert-error" style="margin-bottom: 16px;">
-					<p style="margin: 0; font-weight: 500;">⚠️ This action cannot be undone</p>
-					<p style="margin: 8px 0 0 0; font-size: 0.875rem;">
-						The selected users will be permanently deleted.
-					</p>
+	<div style="margin-bottom: 16px;">
+		<p style="font-weight: 500; margin: 0 0 8px 0; color: var(--text-primary);">
+			Users to be deleted:
+		</p>
+		<div class="panel" style="max-height: 200px; overflow-y: auto; padding: 0;">
+			{#each getSelectedUsers() as user (user.id)}
+				<div
+					style="padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 0.875rem;"
+				>
+					<span style="color: var(--text-primary);">{user.email || user.id}</span>
+					{#if user.name}
+						<span style="color: var(--text-secondary); margin-left: 8px;">({user.name})</span>
+					{/if}
 				</div>
-
-				<div style="margin-bottom: 16px;">
-					<p style="font-weight: 500; margin: 0 0 8px 0; color: var(--text-primary);">
-						Users to be deleted:
-					</p>
-					<div class="panel" style="max-height: 200px; overflow-y: auto; padding: 0;">
-						{#each getSelectedUsers() as user (user.id)}
-							<div
-								style="padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 0.875rem;"
-							>
-								<span style="color: var(--text-primary);">{user.email || user.id}</span>
-								{#if user.name}
-									<span style="color: var(--text-secondary); margin-left: 8px;">({user.name})</span>
-								{/if}
-							</div>
-						{/each}
-					</div>
-				</div>
-
-				{#if bulkDeleting}
-					<div style="margin-bottom: 16px;">
-						<div class="progress-bar">
-							<div
-								class="progress-bar-fill"
-								class:warning={bulkDeleteProgress.failed > 0}
-								style="width: {(bulkDeleteProgress.current / bulkDeleteProgress.total) * 100}%;"
-							></div>
-						</div>
-						<p
-							style="font-size: 0.75rem; color: var(--text-secondary); margin: 8px 0 0 0; text-align: center;"
-						>
-							Deleting {bulkDeleteProgress.current} of {bulkDeleteProgress.total}...
-							{#if bulkDeleteProgress.failed > 0}
-								<span style="color: var(--danger);">({bulkDeleteProgress.failed} failed)</span>
-							{/if}
-						</p>
-					</div>
-				{/if}
-
-				{#if bulkDeleteError}
-					<div class="alert alert-error">{bulkDeleteError}</div>
-				{/if}
-			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeBulkDeleteDialog} disabled={bulkDeleting}>
-					Cancel
-				</button>
-				<button class="btn btn-danger" onclick={executeBulkDelete} disabled={bulkDeleting}>
-					{bulkDeleting
-						? 'Deleting...'
-						: `Delete ${selectedIds.size} User${selectedIds.size === 1 ? '' : 's'}`}
-				</button>
-			</div>
+			{/each}
 		</div>
 	</div>
-{/if}
+
+	{#if bulkDeleting}
+		<div style="margin-bottom: 16px;">
+			<div class="progress-bar">
+				<div
+					class="progress-bar-fill"
+					class:warning={bulkDeleteProgress.failed > 0}
+					style="width: {(bulkDeleteProgress.current / bulkDeleteProgress.total) * 100}%;"
+				></div>
+			</div>
+			<p
+				style="font-size: 0.75rem; color: var(--text-secondary); margin: 8px 0 0 0; text-align: center;"
+			>
+				Deleting {bulkDeleteProgress.current} of {bulkDeleteProgress.total}...
+				{#if bulkDeleteProgress.failed > 0}
+					<span style="color: var(--danger);">({bulkDeleteProgress.failed} failed)</span>
+				{/if}
+			</p>
+		</div>
+	{/if}
+
+	{#if bulkDeleteError}
+		<div class="alert alert-error">{bulkDeleteError}</div>
+	{/if}
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeBulkDeleteDialog} disabled={bulkDeleting}>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={executeBulkDelete} disabled={bulkDeleting}>
+			{bulkDeleting
+				? 'Deleting...'
+				: `Delete ${selectedIds.size} User${selectedIds.size === 1 ? '' : 's'}`}
+		</button>
+	{/snippet}
+</Modal>

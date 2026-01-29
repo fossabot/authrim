@@ -124,6 +124,8 @@ export * from './utils/setup-token';
 export * from './utils/setup-session';
 export * from './utils/system-init';
 export * from './utils/contract-loader';
+export * from './utils/cache-config';
+export * from './utils/request-cache';
 export * from './utils/health-check';
 export * from './utils/dns-verification';
 export * from './utils/security';

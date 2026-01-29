@@ -10,6 +10,12 @@
 
 set -e
 
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/lib/authrim-paths.sh" ]; then
+  source "${SCRIPT_DIR}/lib/authrim-paths.sh"
+fi
+
 # Parse command line arguments
 RESET_MODE=false
 DEPLOY_ENV=""
@@ -52,6 +58,14 @@ if [ -z "$DEPLOY_ENV" ]; then
     echo "  $0 --env=dev"
     echo "  $0 --env=staging"
     echo "  $0 --env=prod"
+    exit 1
+fi
+
+# Validate environment name (security: prevent path traversal)
+if type validate_env_name &>/dev/null; then
+    validate_env_name "$DEPLOY_ENV" || exit 1
+elif [[ "$DEPLOY_ENV" =~ \.\. ]] || [[ "$DEPLOY_ENV" =~ / ]] || [[ "$DEPLOY_ENV" =~ \\ ]]; then
+    echo "❌ Error: Invalid environment name '${DEPLOY_ENV}': path traversal characters not allowed"
     exit 1
 fi
 
@@ -402,6 +416,25 @@ else
     echo ""
     echo "To run migrations later:"
     echo "  bash migrations/migrate.sh $DEPLOY_ENV up"
+fi
+
+# Save D1 ID to lock.json
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📦 Saving D1 database ID to lock.json..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if type add_d1_to_lock &>/dev/null && [ -n "$DB_ID" ]; then
+    add_d1_to_lock "$DEPLOY_ENV" "DB" "$DB_NAME" "$DB_ID"
+    echo "  ✓ DB (${DB_NAME})"
+    echo ""
+    echo "✅ D1 ID saved to $(get_lock_path "$DEPLOY_ENV")"
+else
+    if [ -z "$DB_ID" ]; then
+        echo "⚠️  Warning: DB_ID is empty, skipping lock.json update"
+    else
+        echo "⚠️  Warning: authrim-paths.sh not loaded, skipping lock.json update"
+    fi
 fi
 
 echo ""

@@ -4,14 +4,21 @@
 # This script safely deletes D1 databases for the Authrim project
 #
 # Usage:
-#   ./delete-d1.sh                 - Interactive mode (prompts for environment and confirmation)
-#   ./delete-d1.sh local           - Delete local database with confirmation
-#   ./delete-d1.sh remote          - Delete remote database with confirmation
-#   ./delete-d1.sh --dry-run       - Dry run mode (shows what would be deleted)
-#   ./delete-d1.sh local --force   - Force deletion without confirmation (USE WITH CAUTION)
+#   ./delete-d1.sh                    - Interactive mode (prompts for environment and confirmation)
+#   ./delete-d1.sh --env=<name>       - Delete D1 database for specific environment using lock.json
+#   ./delete-d1.sh local              - Delete local database with confirmation
+#   ./delete-d1.sh remote             - Delete remote database with confirmation
+#   ./delete-d1.sh --dry-run          - Dry run mode (shows what would be deleted)
+#   ./delete-d1.sh local --force      - Force deletion without confirmation (USE WITH CAUTION)
 #
 
 set -e
+
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/lib/authrim-paths.sh" ]; then
+  source "${SCRIPT_DIR}/lib/authrim-paths.sh"
+fi
 
 # Color codes for output
 RED='\033[0;31m'
@@ -24,9 +31,14 @@ NC='\033[0m' # No Color
 DRY_RUN=false
 FORCE=false
 ENV=""
+DEPLOY_ENV=""
 
 for arg in "$@"; do
     case $arg in
+        --env=*)
+            DEPLOY_ENV="${arg#*=}"
+            shift
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -42,12 +54,22 @@ for arg in "$@"; do
         *)
             if [ -n "$arg" ]; then
                 echo -e "${RED}❌ Unknown option: $arg${NC}"
-                echo "Usage: $0 [local|remote] [--dry-run] [--force]"
+                echo "Usage: $0 [--env=<name>] [local|remote] [--dry-run] [--force]"
                 exit 1
             fi
             ;;
     esac
 done
+
+# Validate environment name if specified (security: prevent path traversal)
+if [ -n "$DEPLOY_ENV" ]; then
+    if type validate_env_name &>/dev/null; then
+        validate_env_name "$DEPLOY_ENV" || exit 1
+    elif [[ "$DEPLOY_ENV" =~ \.\. ]] || [[ "$DEPLOY_ENV" =~ / ]] || [[ "$DEPLOY_ENV" =~ \\ ]]; then
+        echo -e "${RED}❌ Error: Invalid environment name '${DEPLOY_ENV}': path traversal characters not allowed${NC}"
+        exit 1
+    fi
+fi
 
 echo -e "${BLUE}⚡️ Authrim D1 Database Deletion${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -58,17 +80,17 @@ if [ "$DRY_RUN" = true ]; then
     echo ""
 fi
 
-# Check if npx is available
-if ! command -v npx &> /dev/null; then
-    echo -e "${RED}❌ Error: npx is not installed${NC}"
-    echo "Please install Node.js and npm"
+# Check if wrangler is available
+if ! command -v wrangler &> /dev/null; then
+    echo -e "${RED}❌ Error: wrangler is not installed${NC}"
+    echo "Please install it with: npm install -g wrangler"
     exit 1
 fi
 
 # Check if user is logged in to Cloudflare
-if ! npx wrangler whoami &> /dev/null; then
+if ! wrangler whoami &> /dev/null; then
     echo -e "${RED}❌ Error: Not logged in to Cloudflare${NC}"
-    echo "Please run: npx wrangler login"
+    echo "Please run: wrangler login"
     exit 1
 fi
 
@@ -96,9 +118,21 @@ if [ -z "$ENV" ]; then
     echo ""
 fi
 
-# Prompt for database name
-read -p "Database name [authrim-users-db]: " DB_NAME_INPUT
-DB_NAME=${DB_NAME_INPUT:-authrim-users-db}
+# Get database name from lock.json if DEPLOY_ENV is specified, otherwise prompt
+DB_NAME=""
+if [ -n "$DEPLOY_ENV" ] && type lock_file_exists &>/dev/null && lock_file_exists "$DEPLOY_ENV"; then
+    # Try to get DB name from lock.json
+    DB_NAME=$(get_d1_name "$DEPLOY_ENV" "DB" 2>/dev/null)
+    if [ -n "$DB_NAME" ]; then
+        echo -e "${BLUE}📋 Found database in lock.json: $DB_NAME${NC}"
+    fi
+fi
+
+# If not found in lock.json, prompt for database name
+if [ -z "$DB_NAME" ]; then
+    read -p "Database name [authrim-users-db]: " DB_NAME_INPUT
+    DB_NAME=${DB_NAME_INPUT:-authrim-users-db}
+fi
 
 echo -e "${BLUE}📊 Checking for D1 database: $DB_NAME${NC}"
 echo ""
@@ -106,9 +140,9 @@ echo ""
 # Check if database exists
 DB_EXISTS=false
 DB_INFO=""
-if npx wrangler d1 info "$DB_NAME" &> /dev/null; then
+if wrangler d1 info "$DB_NAME" &> /dev/null; then
     DB_EXISTS=true
-    DB_INFO=$(npx wrangler d1 info "$DB_NAME" 2>&1)
+    DB_INFO=$(wrangler d1 info "$DB_NAME" 2>&1)
 fi
 
 if [ "$DB_EXISTS" = false ]; then
@@ -123,7 +157,7 @@ if [ "$DB_EXISTS" = false ]; then
 fi
 
 # Try to extract database ID
-DB_LIST_JSON=$(npx wrangler d1 list --json 2>/dev/null || echo "")
+DB_LIST_JSON=$(wrangler d1 list --json 2>/dev/null || echo "")
 DB_ID=""
 
 if [ -n "$DB_LIST_JSON" ]; then
@@ -157,7 +191,7 @@ echo -e "${RED}⚠️  All data in this database will be permanently deleted!${N
 # Try to show table information
 echo ""
 echo -e "${BLUE}📊 Database contents:${NC}"
-TABLES=$(npx wrangler d1 execute "$DB_NAME" --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;" 2>/dev/null || echo "")
+TABLES=$(wrangler d1 execute "$DB_NAME" --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;" 2>/dev/null || echo "")
 if [ -n "$TABLES" ]; then
     echo "$TABLES"
 else
@@ -200,7 +234,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # Delete the database using wrangler
-if npx wrangler d1 delete "$DB_NAME" --skip-confirmation; then
+if wrangler d1 delete "$DB_NAME" --skip-confirmation; then
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo -e "${GREEN}✅ Database deleted successfully!${NC}"

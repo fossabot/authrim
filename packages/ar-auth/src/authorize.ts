@@ -9,7 +9,6 @@ import {
   validateNonce,
   isRedirectUriRegistered,
   createOAuthConfigManager,
-  getClient,
   getAuthCodeShardIndex,
   createShardedAuthCode,
   buildAuthCodeShardInstanceName,
@@ -36,9 +35,11 @@ import {
   // Custom Redirect URIs (Authrim Extension)
   validateCustomRedirectParams,
   // Contract Loader (Human Auth / AI Ephemeral Auth two-layer model)
-  loadTenantProfile,
-  loadClientContract,
   filterResponseTypesByProfile,
+  // Request-level caching (P0 KV Cache Optimization)
+  getClientCached,
+  loadTenantProfileCached,
+  loadClientContractCached,
   // Database Adapter and Session-Client Repository (for implicit/hybrid logout support)
   D1Adapter,
   SessionClientRepository,
@@ -862,7 +863,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
             );
           }
 
-          const clientResult = await getClient(c.env, client_id);
+          const clientResult = await getClientCached(c, c.env, client_id);
           if (!clientResult) {
             return c.json(
               {
@@ -1133,8 +1134,8 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   // Type narrowing: client_id is guaranteed to be a string at this point
   const validClientId: string = client_id as string;
 
-  // Fetch client metadata to validate redirect_uri
-  const clientMetadata = await getClient(c.env, validClientId);
+  // Fetch client metadata to validate redirect_uri (request-level cached)
+  const clientMetadata = await getClientCached(c, c.env, validClientId);
   if (!clientMetadata) {
     return c.json(
       {
@@ -1148,7 +1149,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   // Profile-based response_type validation (Human Auth / AI Ephemeral Auth two-layer model)
   // AI Ephemeral profile restricts implicit/hybrid flows to 'code' only for MCP User Delegation
   const tenantId = (clientMetadata.tenant_id as string) || 'default';
-  const tenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  const tenantProfile = await loadTenantProfileCached(c, c.env.AUTHRIM_CONFIG, c.env, tenantId);
   const profileAllowedResponseTypes = filterResponseTypesByProfile(
     ['code', 'id_token', 'id_token token', 'code id_token', 'code token', 'code id_token token'],
     tenantProfile
@@ -1985,7 +1986,8 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       // For anonymous users, prompt=none requires explicit client permission
       if (isAnonymousSession) {
         // client_id is validated earlier via validateClientId()
-        const clientContract = await loadClientContract(
+        const clientContract = await loadClientContractCached(
+          c,
           c.env.AUTHRIM_CONFIG,
           c.env,
           tenantId,
@@ -2192,8 +2194,8 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
   // Check if consent is required (unless already confirmed)
   // Note: _consent_confirmed is already parsed at the top of this function
   if (_consent_confirmed !== 'true') {
-    // Get client metadata to check if it's a trusted client
-    const clientMetadata = await getClient(c.env, validClientId);
+    // Get client metadata to check if it's a trusted client (request-level cached)
+    const clientMetadata = await getClientCached(c, c.env, validClientId);
 
     // Check if this is a trusted client that can skip consent
     const isTrustedClient =
@@ -3256,8 +3258,8 @@ async function createJARMResponse(
   clientId: string
 ): Promise<Response> {
   try {
-    // Get client metadata to check for encryption requirements
-    const client = await getClient(c.env, clientId);
+    // Get client metadata to check for encryption requirements (request-level cached)
+    const client = await getClientCached(c, c.env, clientId);
     if (!client) {
       throw new Error('Client authentication failed');
     }
@@ -3652,7 +3654,7 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
   let isCertificationTest = false;
 
   if (client_id) {
-    const clientMetadata = await getClient(c.env, client_id);
+    const clientMetadata = await getClientCached(c, c.env, client_id);
     if (clientMetadata?.redirect_uris && Array.isArray(clientMetadata.redirect_uris)) {
       isCertificationTest = (clientMetadata.redirect_uris as string[]).some((uri: string) =>
         uri.includes('certification.openid.net')
@@ -3836,7 +3838,7 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
   // Profile-based session management (Human Auth / AI Ephemeral Auth two-layer model)
   // For AI Ephemeral profile (uses_do_for_state=false), skip session creation.
   // AI agents typically don't maintain browser sessions - they use tokens directly.
-  const sessionTenantProfile = await loadTenantProfile(c.env.AUTHRIM_CONFIG, c.env, tenantId);
+  const sessionTenantProfile = await loadTenantProfileCached(c, c.env.AUTHRIM_CONFIG, c.env, tenantId);
 
   if (sessionTenantProfile.uses_do_for_state) {
     // Human profile: Create session using sharded SessionStore

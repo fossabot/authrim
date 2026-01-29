@@ -31,6 +31,7 @@ import {
   AR_ERROR_CODES,
   getTenantIdFromContext,
   getLogger,
+  getClient,
 } from '@authrim/ar-lib-core';
 import { z } from 'zod';
 
@@ -567,13 +568,10 @@ export async function adminStatsClientHandler(c: Context<{ Bindings: Env }>) {
   try {
     const adapter = createAdapter(c);
 
-    // Verify client exists and belongs to tenant
-    const client = await adapter.queryOne<{ client_id: string; client_name: string | null }>(
-      'SELECT client_id, client_name FROM oauth_clients WHERE client_id = ? AND tenant_id = ?',
-      [clientId, tenantId]
-    );
+    // Verify client exists and belongs to tenant using KV cache (with D1 fallback)
+    const client = await getClient(c.env, clientId);
 
-    if (!client) {
+    if (!client || client.tenant_id !== tenantId) {
       return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
     }
 
@@ -670,7 +668,7 @@ export async function adminStatsClientHandler(c: Context<{ Bindings: Env }>) {
 
     const stats: ClientStats = {
       client_id: clientId,
-      client_name: client.client_name,
+      client_name: client.client_name ?? null,
       tokens: {
         active_access_tokens: tokenStats?.active_access ?? 0,
         active_refresh_tokens: tokenStats?.active_refresh ?? 0,

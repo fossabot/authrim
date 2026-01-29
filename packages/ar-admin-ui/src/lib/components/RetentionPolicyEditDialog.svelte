@@ -16,8 +16,8 @@
 
 	let { open, category, currentRetentionDays, onClose, onSave }: Props = $props();
 
-	// Form state
-	let retentionDays = $state(currentRetentionDays);
+	// Form state - initialized in effect when dialog opens
+	let retentionDays = $state(0);
 	let loading = $state(false);
 	let estimateLoading = $state(false);
 	let error = $state<string | null>(null);
@@ -90,6 +90,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="dialog-title"
+		tabindex="-1"
 		onkeydown={handleKeyDown}
 	>
 		<div

@@ -131,7 +131,7 @@ const de: Translations = {
   'env.d1Databases': 'D1-Datenbanken: {{count}}',
   'env.kvNamespaces': 'KV-Namespaces: {{count}}',
   'env.chooseAnother':
-    'Bitte wählen Sie einen anderen Namen oder verwenden Sie "npx @authrim/setup manage" um sie zuerst zu löschen.',
+    'Bitte wählen Sie einen anderen Namen oder verwenden Sie "{{command}} manage" um sie zuerst zu löschen.',
   'env.available': 'Umgebungsname ist verfügbar',
   'env.checkFailed': 'Vorhandene Umgebungen konnten nicht überprüft werden (fahre trotzdem fort)',
   'env.noEnvFound': 'Keine Authrim-Umgebungen gefunden.',

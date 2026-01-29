@@ -232,7 +232,7 @@ button {
 	font-size: 1.5rem;
 	font-weight: 700;
 	color: var(--text-primary);
-	margin: 0;
+	margin: 0 0 20px 0;
 }
 
 .page-description {
@@ -1584,12 +1584,12 @@ button {
 /* === Template Selection Grid === */
 .template-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-	gap: 12px;
+	grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+	gap: 8px;
 }
 
 .template-card {
-	padding: 16px;
+	padding: 10px 8px;
 	border: 2px solid var(--border);
 	border-radius: var(--radius-md);
 	background: var(--bg-card);
@@ -1610,15 +1610,25 @@ button {
 	background: var(--primary-light);
 }
 
+.template-icon {
+	color: var(--text-secondary);
+	margin-bottom: 4px;
+}
+
+.template-card-selected .template-icon {
+	color: var(--primary);
+}
+
 .template-name {
 	font-weight: 500;
+	font-size: 0.8125rem;
 	color: var(--text-primary);
 }
 
 .template-desc {
-	font-size: 0.75rem;
+	font-size: 0.6875rem;
 	color: var(--text-secondary);
-	margin-top: 4px;
+	margin-top: 2px;
 }
 
 /* === Advanced Details (collapsible) === */
@@ -5490,6 +5500,16 @@ tr.expired {
 .setting-modified {
 	font-size: 0.75rem;
 	color: var(--warning);
+}
+
+.setting-in-development {
+	font-size: 0.6875rem;
+	font-weight: 600;
+	color: var(--info, #3b82f6);
+	background: color-mix(in srgb, var(--info, #3b82f6) 12%, transparent);
+	padding: 1px 8px;
+	border-radius: 9999px;
+	white-space: nowrap;
 }
 
 .setting-description {

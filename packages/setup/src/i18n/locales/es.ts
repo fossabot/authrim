@@ -131,7 +131,7 @@ const es: Translations = {
   'env.d1Databases': 'Bases de datos D1: {{count}}',
   'env.kvNamespaces': 'Namespaces KV: {{count}}',
   'env.chooseAnother':
-    'Por favor elige otro nombre o usa "npx @authrim/setup manage" para eliminarlo primero.',
+    'Por favor elige otro nombre o usa "{{command}} manage" para eliminarlo primero.',
   'env.available': 'Nombre de entorno disponible',
   'env.checkFailed': 'No se pudo verificar entornos existentes (continuando de todas formas)',
   'env.noEnvFound': 'No se encontraron entornos de Authrim.',

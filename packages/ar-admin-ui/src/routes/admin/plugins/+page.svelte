@@ -6,6 +6,7 @@
 		type PluginHealthResponse,
 		PLUGIN_CATEGORIES
 	} from '$lib/api/admin-plugins';
+	import { Modal } from '$lib/components';
 
 	let plugins: PluginWithStatus[] = $state([]);
 	let loading = $state(true);
@@ -435,212 +436,198 @@
 </div>
 
 <!-- Detail Dialog -->
-{#if showDetailDialog && selectedPlugin}
-	<div
-		class="modal-overlay"
-		onclick={closeDetailDialog}
-		onkeydown={(e) => e.key === 'Escape' && closeDetailDialog()}
-		tabindex="-1"
-		role="presentation"
-	>
-		<div
-			class="modal-content modal-lg"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-		>
-			<div class="plugin-dialog-header">
-				<div class="plugin-dialog-info">
-					<span class="plugin-dialog-icon">{selectedPlugin.meta?.icon || '🧩'}</span>
-					<div>
-						<h2 class="plugin-dialog-title">
-							{selectedPlugin.meta?.name || selectedPlugin.id}
-						</h2>
-						<div class="plugin-dialog-version">v{selectedPlugin.version}</div>
-					</div>
-				</div>
-				<button class="close-btn" onclick={closeDetailDialog}>×</button>
-			</div>
-
-			{#if selectedPlugin.trustLevel === 'community'}
-				<div class="warning-banner">
-					⚠️ This is a community plugin. Authrim does not guarantee its security, reliability, or
-					compatibility.
-				</div>
-			{/if}
-
-			{#if selectedPlugin.meta?.description}
-				<p class="plugin-description">{selectedPlugin.meta.description}</p>
-			{/if}
-
-			<div class="plugin-info-grid">
-				<div class="plugin-info-item">
-					<div class="plugin-info-label">Source</div>
-					<div class="plugin-info-value">
-						{getSourceIcon(selectedPlugin.source.type)}
-						{selectedPlugin.source.type}
-						{#if selectedPlugin.source.identifier}
-							<div class="plugin-info-subvalue">{selectedPlugin.source.identifier}</div>
-						{/if}
-					</div>
-				</div>
-				<div class="plugin-info-item">
-					<div class="plugin-info-label">Status</div>
-					<div class="plugin-info-value">
-						{selectedPlugin.enabled ? '✓ Enabled' : '○ Disabled'}
-					</div>
+<Modal open={showDetailDialog && !!selectedPlugin} onClose={closeDetailDialog} title={selectedPlugin?.meta?.name ?? selectedPlugin?.id ?? ''} size="lg">
+	{#snippet header()}
+		<div class="plugin-dialog-header">
+			<div class="plugin-dialog-info">
+				<span class="plugin-dialog-icon">{selectedPlugin?.meta?.icon || '🧩'}</span>
+				<div>
+					<h2 class="plugin-dialog-title">
+						{selectedPlugin?.meta?.name || selectedPlugin?.id}
+					</h2>
+					<div class="plugin-dialog-version">v{selectedPlugin?.version}</div>
 				</div>
 			</div>
+			<button class="close-btn" onclick={closeDetailDialog}>×</button>
+		</div>
+	{/snippet}
 
-			{#if selectedPlugin.capabilities.length > 0}
-				<div class="plugin-section">
-					<div class="plugin-section-title">Capabilities</div>
-					<div class="plugin-capabilities">
-						{#each selectedPlugin.capabilities as cap (cap)}
-							<span class="badge-capability">{cap}</span>
-						{/each}
-					</div>
-				</div>
-			{/if}
+	{#if selectedPlugin?.trustLevel === 'community'}
+		<div class="warning-banner">
+			⚠️ This is a community plugin. Authrim does not guarantee its security, reliability, or
+			compatibility.
+		</div>
+	{/if}
 
-			{#if selectedPlugin.meta?.author}
-				<div class="plugin-section">
-					<div class="plugin-section-title">Author</div>
-					<div class="plugin-info-value">
-						{selectedPlugin.meta.author.name}
-						{#if selectedPlugin.meta.author.url}
-							<a
-								href={selectedPlugin.meta.author.url}
-								target="_blank"
-								rel="noopener noreferrer"
-								class="plugin-doc-link"
-							>
-								↗
-							</a>
-						{/if}
-					</div>
-				</div>
-			{/if}
+	{#if selectedPlugin?.meta?.description}
+		<p class="plugin-description">{selectedPlugin.meta.description}</p>
+	{/if}
 
-			{#if selectedPlugin.meta?.documentationUrl}
-				<div class="plugin-section">
+	<div class="plugin-info-grid">
+		<div class="plugin-info-item">
+			<div class="plugin-info-label">Source</div>
+			<div class="plugin-info-value">
+				{getSourceIcon(selectedPlugin?.source.type ?? '')}
+				{selectedPlugin?.source.type}
+				{#if selectedPlugin?.source.identifier}
+					<div class="plugin-info-subvalue">{selectedPlugin.source.identifier}</div>
+				{/if}
+			</div>
+		</div>
+		<div class="plugin-info-item">
+			<div class="plugin-info-label">Status</div>
+			<div class="plugin-info-value">
+				{selectedPlugin?.enabled ? '✓ Enabled' : '○ Disabled'}
+			</div>
+		</div>
+	</div>
+
+	{#if selectedPlugin && selectedPlugin.capabilities.length > 0}
+		<div class="plugin-section">
+			<div class="plugin-section-title">Capabilities</div>
+			<div class="plugin-capabilities">
+				{#each selectedPlugin.capabilities as cap (cap)}
+					<span class="badge-capability">{cap}</span>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	{#if selectedPlugin?.meta?.author}
+		<div class="plugin-section">
+			<div class="plugin-section-title">Author</div>
+			<div class="plugin-info-value">
+				{selectedPlugin.meta.author.name}
+				{#if selectedPlugin.meta.author.url}
 					<a
-						href={selectedPlugin.meta.documentationUrl}
+						href={selectedPlugin.meta.author.url}
 						target="_blank"
 						rel="noopener noreferrer"
 						class="plugin-doc-link"
 					>
-						📖 Documentation ↗
+						↗
 					</a>
-				</div>
-			{/if}
-
-			<!-- Success/Error Messages -->
-			{#if successMessage}
-				<div class="alert alert-success">✓ {successMessage}</div>
-			{/if}
-			{#if error && showDetailDialog}
-				<div class="alert alert-error">{error}</div>
-			{/if}
-
-			<div class="plugin-section">
-				<div class="plugin-config-header">
-					<div class="plugin-config-title">Configuration</div>
-					{#if pluginSchema && !loadingConfig}
-						{#if isEditMode}
-							<div class="plugin-config-actions">
-								<button
-									class="btn btn-secondary btn-sm"
-									onclick={cancelEditing}
-									disabled={savingConfig}
-								>
-									Cancel
-								</button>
-								<button class="btn btn-primary btn-sm" onclick={saveConfig} disabled={savingConfig}>
-									{savingConfig ? 'Saving...' : 'Save'}
-								</button>
-							</div>
-						{:else}
-							<button class="btn btn-primary btn-sm" onclick={startEditing}>Edit</button>
-						{/if}
-					{/if}
-				</div>
-
-				{#if loadingConfig}
-					<div class="text-muted">Loading configuration...</div>
-				{:else if pluginSchema && pluginSchema.properties}
-					<!-- Schema-based form -->
-					<div class="plugin-config-form">
-						{#each Object.entries(pluginSchema.properties) as [key, prop] (key)}
-							<div class="plugin-config-field">
-								<label class="plugin-config-label">
-									{key}
-									{#if isFieldRequired(key)}
-										<span class="plugin-config-required">*</span>
-									{/if}
-								</label>
-								{#if prop.description}
-									<div class="plugin-config-hint">{prop.description}</div>
-								{/if}
-
-								{#if prop.type === 'boolean'}
-									<label class="plugin-config-checkbox">
-										<input
-											type="checkbox"
-											checked={Boolean(editedConfig[key] ?? prop.default)}
-											disabled={!isEditMode}
-											onchange={(e) =>
-												updateConfigValue(key, (e.target as HTMLInputElement).checked)}
-										/>
-										<span class="plugin-config-checkbox-label">
-											{(editedConfig[key] ?? prop.default) ? 'Enabled' : 'Disabled'}
-										</span>
-									</label>
-								{:else if prop.enum}
-									<select
-										class="plugin-config-select"
-										value={String(editedConfig[key] ?? prop.default ?? '')}
-										disabled={!isEditMode}
-										onchange={(e) => updateConfigValue(key, (e.target as HTMLSelectElement).value)}
-									>
-										{#each prop.enum as option (option)}
-											<option value={option}>{option}</option>
-										{/each}
-									</select>
-								{:else}
-									<input
-										type={getInputType(prop)}
-										class="plugin-config-input"
-										value={String(editedConfig[key] ?? prop.default ?? '')}
-										disabled={!isEditMode}
-										oninput={(e) => {
-											const target = e.target as HTMLInputElement;
-											const value =
-												prop.type === 'integer' || prop.type === 'number'
-													? Number(target.value)
-													: target.value;
-											updateConfigValue(key, value);
-										}}
-										placeholder={prop.default !== undefined ? String(prop.default) : ''}
-										min={prop.minimum}
-										max={prop.maximum}
-									/>
-								{/if}
-							</div>
-						{/each}
-					</div>
-				{:else if Object.keys(pluginConfig).length === 0}
-					<div class="text-muted">No configuration available.</div>
-				{:else}
-					<!-- Fallback: JSON view when no schema -->
-					<pre class="plugin-config-json">{JSON.stringify(pluginConfig, null, 2)}</pre>
 				{/if}
 			</div>
-
-			<div class="modal-footer">
-				<button class="btn btn-secondary" onclick={closeDetailDialog}>Close</button>
-			</div>
 		</div>
+	{/if}
+
+	{#if selectedPlugin?.meta?.documentationUrl}
+		<div class="plugin-section">
+			<a
+				href={selectedPlugin.meta.documentationUrl}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="plugin-doc-link"
+			>
+				📖 Documentation ↗
+			</a>
+		</div>
+	{/if}
+
+	<!-- Success/Error Messages -->
+	{#if successMessage}
+		<div class="alert alert-success">✓ {successMessage}</div>
+	{/if}
+	{#if error && showDetailDialog}
+		<div class="alert alert-error">{error}</div>
+	{/if}
+
+	<div class="plugin-section">
+		<div class="plugin-config-header">
+			<div class="plugin-config-title">Configuration</div>
+			{#if pluginSchema && !loadingConfig}
+				{#if isEditMode}
+					<div class="plugin-config-actions">
+						<button
+							class="btn btn-secondary btn-sm"
+							onclick={cancelEditing}
+							disabled={savingConfig}
+						>
+							Cancel
+						</button>
+						<button class="btn btn-primary btn-sm" onclick={saveConfig} disabled={savingConfig}>
+							{savingConfig ? 'Saving...' : 'Save'}
+						</button>
+					</div>
+				{:else}
+					<button class="btn btn-primary btn-sm" onclick={startEditing}>Edit</button>
+				{/if}
+			{/if}
+		</div>
+
+		{#if loadingConfig}
+			<div class="text-muted">Loading configuration...</div>
+		{:else if pluginSchema && pluginSchema.properties}
+			<!-- Schema-based form -->
+			<div class="plugin-config-form">
+				{#each Object.entries(pluginSchema.properties) as [key, prop] (key)}
+					<div class="plugin-config-field">
+						<label class="plugin-config-label">
+							{key}
+							{#if isFieldRequired(key)}
+								<span class="plugin-config-required">*</span>
+							{/if}
+						</label>
+						{#if prop.description}
+							<div class="plugin-config-hint">{prop.description}</div>
+						{/if}
+
+						{#if prop.type === 'boolean'}
+							<label class="plugin-config-checkbox">
+								<input
+									type="checkbox"
+									checked={Boolean(editedConfig[key] ?? prop.default)}
+									disabled={!isEditMode}
+									onchange={(e) =>
+										updateConfigValue(key, (e.target as HTMLInputElement).checked)}
+								/>
+								<span class="plugin-config-checkbox-label">
+									{(editedConfig[key] ?? prop.default) ? 'Enabled' : 'Disabled'}
+								</span>
+							</label>
+						{:else if prop.enum}
+							<select
+								class="plugin-config-select"
+								value={String(editedConfig[key] ?? prop.default ?? '')}
+								disabled={!isEditMode}
+								onchange={(e) => updateConfigValue(key, (e.target as HTMLSelectElement).value)}
+							>
+								{#each prop.enum as option (option)}
+									<option value={option}>{option}</option>
+								{/each}
+							</select>
+						{:else}
+							<input
+								type={getInputType(prop)}
+								class="plugin-config-input"
+								value={String(editedConfig[key] ?? prop.default ?? '')}
+								disabled={!isEditMode}
+								oninput={(e) => {
+									const target = e.target as HTMLInputElement;
+									const value =
+										prop.type === 'integer' || prop.type === 'number'
+											? Number(target.value)
+											: target.value;
+									updateConfigValue(key, value);
+								}}
+								placeholder={prop.default !== undefined ? String(prop.default) : ''}
+								min={prop.minimum}
+								max={prop.maximum}
+							/>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{:else if Object.keys(pluginConfig).length === 0}
+			<div class="text-muted">No configuration available.</div>
+		{:else}
+			<!-- Fallback: JSON view when no schema -->
+			<pre class="plugin-config-json">{JSON.stringify(pluginConfig, null, 2)}</pre>
+		{/if}
 	</div>
-{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeDetailDialog}>Close</button>
+	{/snippet}
+</Modal>

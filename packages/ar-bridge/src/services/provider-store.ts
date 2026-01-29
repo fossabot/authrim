@@ -117,10 +117,10 @@ export async function createProvider(
       issuer, client_id, client_secret_encrypted,
       authorization_endpoint, token_endpoint, userinfo_endpoint, jwks_uri,
       scopes, token_endpoint_auth_method, attribute_mapping, auto_link_email, jit_provisioning, require_email_verified, always_fetch_userinfo,
-      provider_quirks, icon_url, button_color, button_text,
+      provider_quirks, icon_url, button_color, button_color_dark, button_text,
       use_request_object, request_object_signing_alg, private_key_jwk_encrypted, public_key_jwk,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       provider.tenantId || 'default',
@@ -146,6 +146,7 @@ export async function createProvider(
       JSON.stringify(provider.providerQuirks || {}),
       provider.iconUrl || null,
       provider.buttonColor || null,
+      provider.buttonColorDark || null,
       provider.buttonText || null,
       provider.useRequestObject ? 1 : 0,
       provider.requestObjectSigningAlg || null,
@@ -186,7 +187,7 @@ export async function updateProvider(
       issuer = ?, client_id = ?, client_secret_encrypted = ?,
       authorization_endpoint = ?, token_endpoint = ?, userinfo_endpoint = ?, jwks_uri = ?,
       scopes = ?, token_endpoint_auth_method = ?, attribute_mapping = ?, auto_link_email = ?, jit_provisioning = ?, require_email_verified = ?, always_fetch_userinfo = ?,
-      provider_quirks = ?, icon_url = ?, button_color = ?, button_text = ?,
+      provider_quirks = ?, icon_url = ?, button_color = ?, button_color_dark = ?, button_text = ?,
       use_request_object = ?, request_object_signing_alg = ?, private_key_jwk_encrypted = ?, public_key_jwk = ?,
       updated_at = ?
     WHERE id = ?`,
@@ -213,6 +214,7 @@ export async function updateProvider(
       JSON.stringify(updated.providerQuirks || {}),
       updated.iconUrl || null,
       updated.buttonColor || null,
+      updated.buttonColorDark || null,
       updated.buttonText || null,
       updated.useRequestObject ? 1 : 0,
       updated.requestObjectSigningAlg || null,
@@ -264,6 +266,7 @@ interface DbUpstreamProvider {
   provider_quirks: string;
   icon_url: string | null;
   button_color: string | null;
+  button_color_dark: string | null;
   button_text: string | null;
   // Request Object (JAR - RFC 9101) fields
   use_request_object: number | null;
@@ -301,6 +304,7 @@ function mapDbToProvider(db: DbUpstreamProvider): UpstreamProvider {
     providerQuirks: JSON.parse(db.provider_quirks || '{}'),
     iconUrl: db.icon_url || undefined,
     buttonColor: db.button_color || undefined,
+    buttonColorDark: db.button_color_dark || undefined,
     buttonText: db.button_text || undefined,
     // Request Object (JAR - RFC 9101) fields
     useRequestObject: db.use_request_object === 1,
