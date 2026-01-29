@@ -61,6 +61,7 @@ export interface ClientSettings {
 
   // DPoP & Token Exchange
   'client.dpop_bound_access_tokens': boolean;
+  'client.dpop_mode': 'disabled' | 'critical_only' | 'all';
   'client.token_exchange_allowed': boolean;
   'client.delegation_mode': string;
 
@@ -373,6 +374,17 @@ export const CLIENT_SETTINGS_META: Record<keyof ClientSettings, SettingMeta> = {
     label: 'DPoP Bound Access Tokens',
     description: 'Bind access tokens to DPoP proof',
     visibility: 'admin',
+  },
+  'client.dpop_mode': {
+    key: 'client.dpop_mode',
+    type: 'enum',
+    default: 'disabled',
+    envKey: 'CLIENT_DPOP_MODE',
+    label: 'DPoP Mode',
+    description:
+      'DPoP enforcement mode: disabled (no DPoP), critical_only (token/revoke/introspect only), all (all endpoints)',
+    enum: ['disabled', 'critical_only', 'all'],
+    visibility: 'public',
   },
   'client.token_exchange_allowed': {
     key: 'client.token_exchange_allowed',
@@ -764,6 +776,7 @@ export const CLIENT_DEFAULTS: ClientSettings = {
   'client.response_types': 'code',
   'client.subject_type': 'public',
   'client.dpop_bound_access_tokens': false,
+  'client.dpop_mode': 'disabled',
   'client.token_exchange_allowed': false,
   'client.delegation_mode': 'delegation',
   'client.frontchannel_logout_uri': '',

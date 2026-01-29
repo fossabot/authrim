@@ -90,7 +90,12 @@ import {
   type ClientMetadata,
 } from '@authrim/ar-lib-core';
 import { importPKCS8, importJWK, type CryptoKey } from 'jose';
-import { extractDPoPProof, validateDPoPProof } from '@authrim/ar-lib-core';
+import {
+  extractDPoPProof,
+  validateDPoPProof,
+  isDPoPRequiredForRequest,
+  type DPoPMode,
+} from '@authrim/ar-lib-core';
 import { parseDeviceCodeId, getDeviceCodeStoreById } from '@authrim/ar-lib-core';
 import { parseCIBARequestId, getCIBARequestStoreById } from '@authrim/ar-lib-core';
 // Event System
@@ -624,22 +629,32 @@ async function handleAuthorizationCodeGrant(
   const tenantProfile = await loadTenantProfileCached(c, c.env.AUTHRIM_CONFIG, c.env, tenantId);
 
   // DPoP requirement (FAPI 2.0 / sender-constrained tokens) - request-level cached
-  let requireDpop = false;
+  let fapiRequiresDpop = false;
   try {
     const settings = await getSystemSettingsCached(c, c.env);
     if (settings) {
       const fapi = settings.fapi || {};
       // If FAPI is enabled, default to requiring DPoP unless explicitly disabled
-      requireDpop = Boolean(fapi.requireDpop || (fapi.enabled && fapi.requireDpop !== false));
+      fapiRequiresDpop = Boolean(fapi.requireDpop || (fapi.enabled && fapi.requireDpop !== false));
     }
   } catch (error) {
     log.error('Failed to load FAPI settings for DPoP', {}, error as Error);
   }
 
-  const clientRequiresDpop = Boolean(clientMetadata.dpop_bound_access_tokens);
+  // Client-level DPoP mode (disabled | critical_only | all)
+  const clientDpopMode = (clientMetadata.dpop_mode as DPoPMode) || 'disabled';
+  const clientDpopBoundTokens = Boolean(clientMetadata.dpop_bound_access_tokens);
+  const requestPath = new URL(c.req.url).pathname;
+
+  // Determine if DPoP is required for this specific request
+  const clientRequiresDpop = isDPoPRequiredForRequest(
+    clientDpopMode,
+    requestPath,
+    clientDpopBoundTokens
+  );
   const dpopProof = extractDPoPProof(c.req.raw.headers);
 
-  if ((requireDpop || clientRequiresDpop) && !dpopProof) {
+  if ((fapiRequiresDpop || clientRequiresDpop) && !dpopProof) {
     return oauthError(c, 'invalid_request', 'DPoP proof is required for this request', 400);
   }
 
