@@ -152,6 +152,7 @@ if [ "$RESET_MODE" = false ]; then
 fi
 
 # Define all required KV namespaces (base names)
+# Must match packages/setup/src/core/naming.ts KV_NAMESPACES
 declare -a BASE_NAMESPACES=(
     "CLIENTS_CACHE"
     "INITIAL_ACCESS_TOKENS"
@@ -160,6 +161,7 @@ declare -a BASE_NAMESPACES=(
     "USER_CACHE"
     "AUTHRIM_CONFIG"
     "STATE_STORE"
+    "CONSENT_CACHE"
 )
 
 # Add environment prefix to namespace names
@@ -565,6 +567,9 @@ echo "✅ ${DEPLOY_ENV}-AUTHRIM_CONFIG: $AUTHRIM_CONFIG_ID"
 STATE_STORE_ID=$(create_kv_namespace "${DEPLOY_ENV}-STATE_STORE")
 echo "✅ ${DEPLOY_ENV}-STATE_STORE: $STATE_STORE_ID"
 
+CONSENT_CACHE_ID=$(create_kv_namespace "${DEPLOY_ENV}-CONSENT_CACHE")
+echo "✅ ${DEPLOY_ENV}-CONSENT_CACHE: $CONSENT_CACHE_ID"
+
 echo ""
 echo "Creating preview namespaces (for development/testing)..."
 
@@ -589,6 +594,9 @@ echo "✅ ${DEPLOY_ENV}-AUTHRIM_CONFIG (preview): $PREVIEW_AUTHRIM_CONFIG_ID"
 
 PREVIEW_STATE_STORE_ID=$(create_kv_namespace "${DEPLOY_ENV}-STATE_STORE" "--preview")
 echo "✅ ${DEPLOY_ENV}-STATE_STORE (preview): $PREVIEW_STATE_STORE_ID"
+
+PREVIEW_CONSENT_CACHE_ID=$(create_kv_namespace "${DEPLOY_ENV}-CONSENT_CACHE" "--preview")
+echo "✅ ${DEPLOY_ENV}-CONSENT_CACHE (preview): $PREVIEW_CONSENT_CACHE_ID"
 
 echo ""
 echo "📝 Updating wrangler.toml files..."
@@ -663,6 +671,8 @@ echo "📝 Updating packages/ar-auth/wrangler.${DEPLOY_ENV}.toml..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 update_wrangler_toml "packages/ar-auth/wrangler.${DEPLOY_ENV}.toml" "CLIENTS_CACHE" "$CLIENTS_CACHE_ID" "$PREVIEW_CLIENTS_CACHE_ID"
 update_wrangler_toml "packages/ar-auth/wrangler.${DEPLOY_ENV}.toml" "SETTINGS" "$SETTINGS_ID" "$PREVIEW_SETTINGS_ID"
+update_wrangler_toml "packages/ar-auth/wrangler.${DEPLOY_ENV}.toml" "USER_CACHE" "$USER_CACHE_ID" "$PREVIEW_USER_CACHE_ID"
+update_wrangler_toml "packages/ar-auth/wrangler.${DEPLOY_ENV}.toml" "CONSENT_CACHE" "$CONSENT_CACHE_ID" "$PREVIEW_CONSENT_CACHE_ID"
 update_wrangler_toml "packages/ar-auth/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
 echo "✅ ar-auth updated"
 
@@ -674,6 +684,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 update_wrangler_toml "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" "CLIENTS_CACHE" "$CLIENTS_CACHE_ID" "$PREVIEW_CLIENTS_CACHE_ID"
 update_wrangler_toml "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" "INITIAL_ACCESS_TOKENS" "$INITIAL_ACCESS_TOKENS_ID" "$PREVIEW_INITIAL_ACCESS_TOKENS_ID"
 update_wrangler_toml "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" "SETTINGS" "$SETTINGS_ID" "$PREVIEW_SETTINGS_ID"
+update_wrangler_toml "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" "USER_CACHE" "$USER_CACHE_ID" "$PREVIEW_USER_CACHE_ID"
 update_wrangler_toml "packages/ar-management/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
 echo "✅ ar-management updated"
 
@@ -683,6 +694,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "📝 Updating packages/ar-policy/wrangler.${DEPLOY_ENV}.toml..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 update_wrangler_toml "packages/ar-policy/wrangler.${DEPLOY_ENV}.toml" "REBAC_CACHE" "$REBAC_CACHE_ID" "$PREVIEW_REBAC_CACHE_ID"
+update_wrangler_toml "packages/ar-policy/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
 echo "✅ ar-policy updated"
 
 # Update ar-token wrangler.toml
@@ -703,6 +715,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "📝 Updating packages/ar-userinfo/wrangler.${DEPLOY_ENV}.toml..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 update_wrangler_toml "packages/ar-userinfo/wrangler.${DEPLOY_ENV}.toml" "CLIENTS_CACHE" "$CLIENTS_CACHE_ID" "$PREVIEW_CLIENTS_CACHE_ID"
+update_wrangler_toml "packages/ar-userinfo/wrangler.${DEPLOY_ENV}.toml" "USER_CACHE" "$USER_CACHE_ID" "$PREVIEW_USER_CACHE_ID"
+update_wrangler_toml "packages/ar-userinfo/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
 echo "✅ ar-userinfo updated"
 
 # Update ar-discovery wrangler.toml
@@ -711,6 +725,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "📝 Updating packages/ar-discovery/wrangler.${DEPLOY_ENV}.toml..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 update_wrangler_toml "packages/ar-discovery/wrangler.${DEPLOY_ENV}.toml" "SETTINGS" "$SETTINGS_ID" "$PREVIEW_SETTINGS_ID"
+update_wrangler_toml "packages/ar-discovery/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
 echo "✅ ar-discovery updated"
 
 # Update shared wrangler.toml
@@ -728,6 +743,7 @@ echo "📝 Updating packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 update_wrangler_toml "packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml" "SETTINGS" "$SETTINGS_ID" "$PREVIEW_SETTINGS_ID"
 update_wrangler_toml "packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml" "STATE_STORE" "$STATE_STORE_ID" "$PREVIEW_STATE_STORE_ID"
+update_wrangler_toml "packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
 echo "✅ ar-bridge updated"
 
 # Update ar-vc wrangler.toml
@@ -737,6 +753,31 @@ echo "📝 Updating packages/ar-vc/wrangler.${DEPLOY_ENV}.toml..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 update_wrangler_toml "packages/ar-vc/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
 echo "✅ ar-vc updated"
+
+# Update ar-async wrangler.toml
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📝 Updating packages/ar-async/wrangler.${DEPLOY_ENV}.toml..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+update_wrangler_toml "packages/ar-async/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
+echo "✅ ar-async updated"
+
+# Update ar-saml wrangler.toml
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📝 Updating packages/ar-saml/wrangler.${DEPLOY_ENV}.toml..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+update_wrangler_toml "packages/ar-saml/wrangler.${DEPLOY_ENV}.toml" "SETTINGS" "$SETTINGS_ID" "$PREVIEW_SETTINGS_ID"
+update_wrangler_toml "packages/ar-saml/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
+echo "✅ ar-saml updated"
+
+# Update ar-router wrangler.toml
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📝 Updating packages/ar-router/wrangler.${DEPLOY_ENV}.toml..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+update_wrangler_toml "packages/ar-router/wrangler.${DEPLOY_ENV}.toml" "AUTHRIM_CONFIG" "$AUTHRIM_CONFIG_ID" "$PREVIEW_AUTHRIM_CONFIG_ID"
+echo "✅ ar-router updated"
 
 # Save KV IDs to lock.json
 echo ""
@@ -759,6 +800,8 @@ if type add_kv_to_lock &>/dev/null; then
     echo "  ✓ AUTHRIM_CONFIG"
     add_kv_to_lock "$DEPLOY_ENV" "STATE_STORE" "${DEPLOY_ENV}-STATE_STORE" "$STATE_STORE_ID" "$PREVIEW_STATE_STORE_ID"
     echo "  ✓ STATE_STORE"
+    add_kv_to_lock "$DEPLOY_ENV" "CONSENT_CACHE" "${DEPLOY_ENV}-CONSENT_CACHE" "$CONSENT_CACHE_ID" "$PREVIEW_CONSENT_CACHE_ID"
+    echo "  ✓ CONSENT_CACHE"
     echo ""
     echo "✅ KV IDs saved to $(get_lock_path "$DEPLOY_ENV")"
 else
@@ -777,6 +820,7 @@ echo "  • ${DEPLOY_ENV}-REBAC_CACHE: $REBAC_CACHE_ID / $PREVIEW_REBAC_CACHE_ID
 echo "  • ${DEPLOY_ENV}-USER_CACHE: $USER_CACHE_ID / $PREVIEW_USER_CACHE_ID"
 echo "  • ${DEPLOY_ENV}-AUTHRIM_CONFIG: $AUTHRIM_CONFIG_ID / $PREVIEW_AUTHRIM_CONFIG_ID"
 echo "  • ${DEPLOY_ENV}-STATE_STORE: $STATE_STORE_ID / $PREVIEW_STATE_STORE_ID"
+echo "  • ${DEPLOY_ENV}-CONSENT_CACHE: $CONSENT_CACHE_ID / $PREVIEW_CONSENT_CACHE_ID"
 echo ""
 echo "All wrangler.${DEPLOY_ENV}.toml files have been updated with the correct namespace IDs."
 echo ""
@@ -790,6 +834,9 @@ echo "  • packages/ar-lib-core/wrangler.${DEPLOY_ENV}.toml"
 echo "  • packages/ar-bridge/wrangler.${DEPLOY_ENV}.toml"
 echo "  • packages/ar-policy/wrangler.${DEPLOY_ENV}.toml"
 echo "  • packages/ar-vc/wrangler.${DEPLOY_ENV}.toml"
+echo "  • packages/ar-async/wrangler.${DEPLOY_ENV}.toml"
+echo "  • packages/ar-saml/wrangler.${DEPLOY_ENV}.toml"
+echo "  • packages/ar-router/wrangler.${DEPLOY_ENV}.toml"
 echo ""
 echo "⚠️  Important: After creating or updating KV namespaces, wait 10-30 seconds"
 echo "   before deploying to allow Cloudflare to propagate the changes."
