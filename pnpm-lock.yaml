@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -183,8 +183,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -210,12 +210,15 @@ importers:
       '@authrim/ar-lib-core':
         specifier: workspace:*
         version: link:../ar-lib-core
+      '@authrim/ar-lib-plugin':
+        specifier: workspace:*
+        version: link:../ar-lib-plugin
       '@simplewebauthn/server':
         specifier: ^13.2.2
         version: 13.2.2
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -245,8 +248,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -273,8 +276,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -292,8 +295,8 @@ importers:
   packages/ar-lib-core:
     dependencies:
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -314,8 +317,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       zod:
         specifier: ^3.24.4
         version: 3.25.76
@@ -358,8 +361,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20251121.0
@@ -486,8 +489,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-scim
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -514,8 +517,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-policy
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20251121.0
@@ -536,8 +539,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20251121.0
@@ -561,8 +564,8 @@ importers:
         specifier: ^0.9.6
         version: 0.9.8
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -598,8 +601,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -620,8 +623,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -645,8 +648,8 @@ importers:
         specifier: workspace:*
         version: link:../ar-lib-core
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       jose:
         specifier: ^6.1.2
         version: 6.1.3
@@ -686,7 +689,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.19.9
-        version: 1.19.9(hono@4.11.4)
+        version: 1.19.9(hono@4.11.7)
       '@inquirer/prompts':
         specifier: ^7.2.1
         version: 7.10.1(@types/node@22.19.7)
@@ -703,8 +706,8 @@ importers:
         specifier: ^9.5.2
         version: 9.6.1
       hono:
-        specifier: ^4.11.4
-        version: 4.11.4
+        specifier: ^4.11.7
+        version: 4.11.7
       ora:
         specifier: ^8.1.1
         version: 8.2.0
@@ -3597,8 +3600,8 @@ packages:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
 
-  hono@4.11.4:
-    resolution: {integrity: sha512-U7tt8JsyrxSRKspfhtLET79pU8K+tInj5QZXs1jSugO1Vq5dFj3kmZsRldo29mTBfcjDRVRXrEZ6LS63Cog9ZA==}
+  hono@4.11.7:
+    resolution: {integrity: sha512-l7qMiNee7t82bH3SeyUCt9UF15EVmaBvsppY2zQtrbIhl/yzBTny+YUxsVjSjQ6gaqaeVtZmGocom8TzBlA4Yw==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@6.0.0:
@@ -5871,9 +5874,9 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hono/node-server@1.19.9(hono@4.11.4)':
+  '@hono/node-server@1.19.9(hono@4.11.7)':
     dependencies:
-      hono: 4.11.4
+      hono: 4.11.7
 
   '@humanfs/core@0.19.1': {}
 
@@ -8264,7 +8267,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.11.4: {}
+  hono@4.11.7: {}
 
   html-encoding-sniffer@6.0.0:
     dependencies:
