@@ -371,3 +371,74 @@ export function extractDPoPToken(authHeader: string): string | undefined {
 
   return parts[1];
 }
+
+/**
+ * DPoP Mode type for client configuration
+ */
+export type DPoPMode = 'disabled' | 'critical_only' | 'all';
+
+/**
+ * Critical paths that require DPoP when dpop_mode is 'critical_only'
+ * These are endpoints where token theft would be most damaging:
+ * - /token: Token issuance (authorization code exchange, refresh)
+ * - /revoke: Token revocation
+ * - /introspect: Token introspection (reveals token validity)
+ * - /par: Pushed Authorization Request (initiates auth flow)
+ * - /device: Device authorization (device code exchange)
+ */
+const DPOP_CRITICAL_PATHS = [
+  '/token',
+  '/oauth/token',
+  '/revoke',
+  '/oauth/revoke',
+  '/introspect',
+  '/oauth/introspect',
+  '/par',
+  '/oauth/par',
+  '/device',
+  '/oauth/device',
+];
+
+/**
+ * Checks if a request path is a critical path for DPoP enforcement
+ * @param path - Request pathname (e.g., '/token', '/oauth/token')
+ * @returns True if the path is a critical path
+ */
+export function isDPoPCriticalPath(path: string): boolean {
+  // Normalize path: remove trailing slash and convert to lowercase
+  const normalizedPath = path.replace(/\/$/, '').toLowerCase();
+
+  return DPOP_CRITICAL_PATHS.some(
+    (criticalPath) =>
+      normalizedPath === criticalPath || normalizedPath.endsWith(criticalPath)
+  );
+}
+
+/**
+ * Determines if DPoP is required for a request based on client's dpop_mode setting
+ * @param dpopMode - Client's DPoP mode setting
+ * @param path - Request pathname
+ * @param dpopBoundAccessTokens - Legacy setting (client.dpop_bound_access_tokens)
+ * @returns True if DPoP is required for this request
+ */
+export function isDPoPRequiredForRequest(
+  dpopMode: DPoPMode,
+  path: string,
+  dpopBoundAccessTokens: boolean = false
+): boolean {
+  // Legacy setting takes precedence if enabled (backwards compatibility)
+  if (dpopBoundAccessTokens) {
+    return true;
+  }
+
+  switch (dpopMode) {
+    case 'disabled':
+      return false;
+    case 'critical_only':
+      return isDPoPCriticalPath(path);
+    case 'all':
+      return true;
+    default:
+      return false;
+  }
+}
