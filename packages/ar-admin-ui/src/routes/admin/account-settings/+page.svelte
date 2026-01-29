@@ -948,86 +948,6 @@
 		color: white;
 	}
 
-	/* Modal */
-	.modal-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 100;
-		padding: 24px;
-	}
-
-	.modal-content {
-		background: var(--bg-card);
-		border-radius: var(--radius-lg);
-		border: 1px solid var(--border-light);
-		width: 100%;
-		max-width: 480px;
-		box-shadow: var(--shadow-lg);
-	}
-
-	.modal-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 20px 24px;
-		border-bottom: 1px solid var(--border-light);
-	}
-
-	.modal-title {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: var(--text-primary);
-		margin: 0;
-	}
-
-	.modal-title :global(i) {
-		width: 24px;
-		height: 24px;
-		color: var(--primary);
-	}
-
-	.modal-close {
-		width: 32px;
-		height: 32px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border: none;
-		background: transparent;
-		border-radius: var(--radius-sm);
-		color: var(--text-secondary);
-		cursor: pointer;
-		transition: all var(--transition-fast);
-	}
-
-	.modal-close:hover {
-		background: var(--bg-tertiary);
-		color: var(--text-primary);
-	}
-
-	.modal-close :global(i) {
-		width: 20px;
-		height: 20px;
-	}
-
-	.modal-body {
-		padding: 24px;
-	}
-
-	.modal-description {
-		font-size: 0.875rem;
-		color: var(--text-secondary);
-		margin: 0 0 20px 0;
-		line-height: 1.5;
-	}
-
 	.form-group {
 		display: flex;
 		flex-direction: column;
@@ -1074,14 +994,6 @@
 		width: 18px;
 		height: 18px;
 		flex-shrink: 0;
-	}
-
-	.modal-footer {
-		display: flex;
-		justify-content: flex-end;
-		gap: 12px;
-		padding: 16px 24px;
-		border-top: 1px solid var(--border-light);
 	}
 
 	.modal-btn {
@@ -1324,10 +1236,6 @@
 		.logout-btn {
 			width: 100%;
 			justify-content: center;
-		}
-
-		.modal-overlay {
-			padding: 16px;
 		}
 
 		.passkey-item {

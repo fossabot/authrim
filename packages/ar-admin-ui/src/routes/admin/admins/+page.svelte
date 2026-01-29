@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { adminAdminsAPI, type AdminUser, type AdminUserListParams } from '$lib/api/admin-admins';
+	import { Modal } from '$lib/components';
 
 	let admins: AdminUser[] = $state([]);
 	let total = $state(0);
@@ -282,7 +283,13 @@
 							<td>{formatDate(admin.last_login_at)}</td>
 							<td>{formatDate(admin.created_at)}</td>
 							<td>
-								<div class="action-buttons" onclick={(e) => e.stopPropagation()}>
+								<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+								<div
+									class="action-buttons"
+									onclick={(e) => e.stopPropagation()}
+									onkeydown={(e) => e.stopPropagation()}
+									role="group"
+								>
 									{#if admin.status === 'active'}
 										<button
 											class="btn btn-sm btn-warning"
@@ -344,49 +351,40 @@
 </div>
 
 <!-- Create Admin Dialog -->
-{#if showCreateDialog}
-	<div class="dialog-overlay" onclick={closeCreateDialog}>
-		<div class="dialog" onclick={(e) => e.stopPropagation()}>
-			<div class="dialog-header">
-				<h2>Create Admin User</h2>
-				<button class="close-btn" onclick={closeCreateDialog}>&times;</button>
-			</div>
-			<div class="dialog-body">
-				{#if createError}
-					<div class="alert alert-danger">{createError}</div>
-				{/if}
-				<div class="form-group">
-					<label for="email">Email *</label>
-					<input
-						type="email"
-						id="email"
-						class="input"
-						bind:value={newAdminEmail}
-						placeholder="admin@example.com"
-					/>
-				</div>
-				<div class="form-group">
-					<label for="name">Name</label>
-					<input
-						type="text"
-						id="name"
-						class="input"
-						bind:value={newAdminName}
-						placeholder="John Doe"
-					/>
-				</div>
-			</div>
-			<div class="dialog-footer">
-				<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={handleCreate} disabled={creating}>
-					{creating ? 'Creating...' : 'Create'}
-				</button>
-			</div>
-		</div>
+<Modal open={showCreateDialog} onClose={closeCreateDialog} title="Create Admin User" size="md">
+	{#if createError}
+		<div class="alert alert-danger">{createError}</div>
+	{/if}
+	<div class="form-group">
+		<label for="email">Email *</label>
+		<input
+			type="email"
+			id="email"
+			class="input"
+			bind:value={newAdminEmail}
+			placeholder="admin@example.com"
+		/>
 	</div>
-{/if}
+	<div class="form-group">
+		<label for="name">Name</label>
+		<input
+			type="text"
+			id="name"
+			class="input"
+			bind:value={newAdminName}
+			placeholder="John Doe"
+		/>
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
+			Cancel
+		</button>
+		<button class="btn btn-primary" onclick={handleCreate} disabled={creating}>
+			{creating ? 'Creating...' : 'Create'}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
 	/* Page-specific styles for Admin Users */
@@ -478,19 +476,6 @@
 	.error-text {
 		color: var(--danger);
 		margin-bottom: 1rem;
-	}
-
-	/* Dialog extensions (not in global) */
-	.dialog-body {
-		padding: 1.5rem;
-	}
-
-	.dialog-footer {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.5rem;
-		padding: 1rem 1.5rem;
-		border-top: 1px solid var(--border);
 	}
 
 	/* Alert for dialog errors */

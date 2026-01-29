@@ -8,6 +8,7 @@
 		canDeleteAdminRole,
 		getRoleTypeBadgeClass
 	} from '$lib/api/admin-admin-roles';
+	import { Modal } from '$lib/components';
 
 	let roles: AdminRole[] = $state([]);
 	let permissions: AdminPermission[] = $state([]);
@@ -248,133 +249,117 @@
 </div>
 
 <!-- Create Role Dialog -->
-{#if showCreateDialog}
-	<div class="dialog-overlay" onclick={closeCreateDialog}>
-		<div class="dialog dialog-lg" onclick={(e) => e.stopPropagation()}>
-			<div class="dialog-header">
-				<h2>Create Admin Role</h2>
-				<button class="close-btn" onclick={closeCreateDialog}>&times;</button>
-			</div>
-			<div class="dialog-body">
-				{#if createError}
-					<div class="alert alert-danger">{createError}</div>
-				{/if}
-				<div class="form-group">
-					<label for="name">Role Name *</label>
+<Modal open={showCreateDialog} onClose={closeCreateDialog} title="Create Admin Role" size="lg">
+	{#if createError}
+		<div class="alert alert-danger">{createError}</div>
+	{/if}
+	<div class="form-group">
+		<label for="name">Role Name *</label>
+		<input
+			type="text"
+			id="name"
+			class="input"
+			bind:value={newRoleName}
+			placeholder="e.g., security_admin"
+		/>
+	</div>
+	<div class="form-group">
+		<label for="displayName">Display Name</label>
+		<input
+			type="text"
+			id="displayName"
+			class="input"
+			bind:value={newRoleDisplayName}
+			placeholder="e.g., Security Administrator"
+		/>
+	</div>
+	<div class="form-group">
+		<label for="description">Description</label>
+		<textarea
+			id="description"
+			class="input"
+			bind:value={newRoleDescription}
+			placeholder="What this role can do..."
+			rows="2"
+		></textarea>
+	</div>
+	<div class="form-group">
+		<!-- svelte-ignore a11y_label_has_associated_control -->
+		<label>Permissions</label>
+		<div class="permissions-grid">
+			{#each permissions as perm (perm.key)}
+				<label class="permission-checkbox">
 					<input
-						type="text"
-						id="name"
-						class="input"
-						bind:value={newRoleName}
-						placeholder="e.g., security_admin"
+						type="checkbox"
+						checked={selectedPermissions.has(perm.key)}
+						onchange={() => togglePermission(selectedPermissions, perm.key)}
 					/>
-				</div>
-				<div class="form-group">
-					<label for="displayName">Display Name</label>
-					<input
-						type="text"
-						id="displayName"
-						class="input"
-						bind:value={newRoleDisplayName}
-						placeholder="e.g., Security Administrator"
-					/>
-				</div>
-				<div class="form-group">
-					<label for="description">Description</label>
-					<textarea
-						id="description"
-						class="input"
-						bind:value={newRoleDescription}
-						placeholder="What this role can do..."
-						rows="2"
-					></textarea>
-				</div>
-				<div class="form-group">
-					<label>Permissions</label>
-					<div class="permissions-grid">
-						{#each permissions as perm (perm.key)}
-							<label class="permission-checkbox">
-								<input
-									type="checkbox"
-									checked={selectedPermissions.has(perm.key)}
-									onchange={() => togglePermission(selectedPermissions, perm.key)}
-								/>
-								<span class="permission-key">{perm.key}</span>
-								<span class="permission-desc">{perm.description}</span>
-							</label>
-						{/each}
-					</div>
-				</div>
-			</div>
-			<div class="dialog-footer">
-				<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={handleCreate} disabled={creating}>
-					{creating ? 'Creating...' : 'Create'}
-				</button>
-			</div>
+					<span class="permission-key">{perm.key}</span>
+					<span class="permission-desc">{perm.description}</span>
+				</label>
+			{/each}
 		</div>
 	</div>
-{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
+			Cancel
+		</button>
+		<button class="btn btn-primary" onclick={handleCreate} disabled={creating}>
+			{creating ? 'Creating...' : 'Create'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Edit Role Dialog -->
-{#if showEditDialog && editingRole}
-	<div class="dialog-overlay" onclick={closeEditDialog}>
-		<div class="dialog dialog-lg" onclick={(e) => e.stopPropagation()}>
-			<div class="dialog-header">
-				<h2>Edit Role: {editingRole.name}</h2>
-				<button class="close-btn" onclick={closeEditDialog}>&times;</button>
-			</div>
-			<div class="dialog-body">
-				<div class="form-group">
-					<label for="editDisplayName">Display Name</label>
+<Modal open={showEditDialog && !!editingRole} onClose={closeEditDialog} title="Edit Role: {editingRole?.name || ''}" size="lg">
+	<div class="form-group">
+		<label for="editDisplayName">Display Name</label>
+		<input
+			type="text"
+			id="editDisplayName"
+			class="input"
+			bind:value={editDisplayName}
+			placeholder="e.g., Security Administrator"
+		/>
+	</div>
+	<div class="form-group">
+		<label for="editDescription">Description</label>
+		<textarea
+			id="editDescription"
+			class="input"
+			bind:value={editDescription}
+			placeholder="What this role can do..."
+			rows="2"
+		></textarea>
+	</div>
+	<div class="form-group">
+		<!-- svelte-ignore a11y_label_has_associated_control -->
+		<label>Permissions</label>
+		<div class="permissions-grid">
+			{#each permissions as perm (perm.key)}
+				<label class="permission-checkbox">
 					<input
-						type="text"
-						id="editDisplayName"
-						class="input"
-						bind:value={editDisplayName}
-						placeholder="e.g., Security Administrator"
+						type="checkbox"
+						checked={editPermissions.has(perm.key)}
+						onchange={() => togglePermission(editPermissions, perm.key)}
 					/>
-				</div>
-				<div class="form-group">
-					<label for="editDescription">Description</label>
-					<textarea
-						id="editDescription"
-						class="input"
-						bind:value={editDescription}
-						placeholder="What this role can do..."
-						rows="2"
-					></textarea>
-				</div>
-				<div class="form-group">
-					<label>Permissions</label>
-					<div class="permissions-grid">
-						{#each permissions as perm (perm.key)}
-							<label class="permission-checkbox">
-								<input
-									type="checkbox"
-									checked={editPermissions.has(perm.key)}
-									onchange={() => togglePermission(editPermissions, perm.key)}
-								/>
-								<span class="permission-key">{perm.key}</span>
-								<span class="permission-desc">{perm.description}</span>
-							</label>
-						{/each}
-					</div>
-				</div>
-			</div>
-			<div class="dialog-footer">
-				<button class="btn btn-secondary" onclick={closeEditDialog} disabled={saving}>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={handleSave} disabled={saving}>
-					{saving ? 'Saving...' : 'Save'}
-				</button>
-			</div>
+					<span class="permission-key">{perm.key}</span>
+					<span class="permission-desc">{perm.description}</span>
+				</label>
+			{/each}
 		</div>
 	</div>
-{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeEditDialog} disabled={saving}>
+			Cancel
+		</button>
+		<button class="btn btn-primary" onclick={handleSave} disabled={saving}>
+			{saving ? 'Saving...' : 'Save'}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
 	/* Page-specific styles for Admin Roles */
@@ -477,26 +462,6 @@
 	.error-text {
 		color: var(--danger);
 		margin-bottom: 1rem;
-	}
-
-	/* Dialog extensions (not in global) */
-	.dialog-lg {
-		max-width: 600px;
-		width: 95%;
-	}
-
-	.dialog-body {
-		padding: 1.5rem;
-		max-height: 60vh;
-		overflow-y: auto;
-	}
-
-	.dialog-footer {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.5rem;
-		padding: 1rem 1.5rem;
-		border-top: 1px solid var(--border);
 	}
 
 	/* Form input styling */

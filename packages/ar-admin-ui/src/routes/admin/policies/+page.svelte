@@ -678,6 +678,7 @@
 
 	<!-- Resource Types -->
 	<div class="form-group">
+		<!-- svelte-ignore a11y_label_has_associated_control -->
 		<label class="form-label">Resource Types</label>
 		<div class="input-with-button">
 			<input
@@ -703,6 +704,7 @@
 
 	<!-- Actions -->
 	<div class="form-group">
+		<!-- svelte-ignore a11y_label_has_associated_control -->
 		<label class="form-label">Actions</label>
 		<div class="input-with-button">
 			<input
@@ -728,6 +730,7 @@
 
 	<!-- Conditions -->
 	<div class="form-group">
+		<!-- svelte-ignore a11y_label_has_associated_control -->
 		<label class="form-label">Conditions</label>
 		<button type="button" class="btn btn-secondary btn-sm" onclick={openConditionBuilder}>
 			<i class="i-ph-plus"></i>

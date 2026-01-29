@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
+	import Modal from './Modal.svelte';
 	import OrganizationTree from './OrganizationTree.svelte';
 	import {
 		adminOrganizationsAPI,
@@ -141,12 +142,6 @@
 		}
 	}
 
-	function handleKeyDown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			onClose();
-		}
-	}
-
 	// Debounce search
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 	function handleSearchInput(e: Event) {
@@ -172,140 +167,53 @@
 	});
 </script>
 
-{#if open}
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-	<div
-		class="dialog-overlay"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="dialog-title"
-		tabindex="-1"
-		onkeydown={handleKeyDown}
-	>
-		<div class="dialog-content">
-			<div class="dialog-header">
-				<h2 id="dialog-title">{title}</h2>
-				<button class="close-btn" onclick={onClose} aria-label="Close">
-					<span>×</span>
-				</button>
-			</div>
-
-			<div class="dialog-body">
-				<!-- Search -->
-				<div class="search-box">
-					<input
-						type="text"
-						placeholder="Search organizations..."
-						value={searchQuery}
-						oninput={handleSearchInput}
-					/>
-				</div>
-
-				<!-- Tree -->
-				<div class="tree-container">
-					{#if loading}
-						<div class="loading">Loading organizations...</div>
-					{:else if error}
-						<div class="error">{error}</div>
-					{:else if hierarchyData}
-						<OrganizationTree
-							node={hierarchyData.organization}
-							{expandedNodes}
-							selectedId={selectedOrg?.id ?? null}
-							selectable={true}
-							onSelect={handleNodeSelect}
-							onToggle={handleToggle}
-							{highlightIds}
-						/>
-					{/if}
-				</div>
-
-				<!-- Selection info -->
-				{#if selectedOrg}
-					<div class="selection-info">
-						<span class="label">Selected:</span>
-						<span class="value">{selectedOrg.display_name || selectedOrg.name}</span>
-					</div>
-				{/if}
-			</div>
-
-			<div class="dialog-footer">
-				<button class="btn btn-secondary" onclick={onClose}> Cancel </button>
-				<button class="btn btn-primary" onclick={handleConfirm} disabled={!selectedOrg}>
-					Select
-				</button>
-			</div>
-		</div>
+<Modal {open} onClose={onClose} {title} size="md">
+	<!-- Search -->
+	<div class="search-box">
+		<input
+			type="text"
+			placeholder="Search organizations..."
+			value={searchQuery}
+			oninput={handleSearchInput}
+		/>
 	</div>
-{/if}
+
+	<!-- Tree -->
+	<div class="tree-container">
+		{#if loading}
+			<div class="loading">Loading organizations...</div>
+		{:else if error}
+			<div class="error">{error}</div>
+		{:else if hierarchyData}
+			<OrganizationTree
+				node={hierarchyData.organization}
+				{expandedNodes}
+				selectedId={selectedOrg?.id ?? null}
+				selectable={true}
+				onSelect={handleNodeSelect}
+				onToggle={handleToggle}
+				{highlightIds}
+			/>
+		{/if}
+	</div>
+
+	<!-- Selection info -->
+	{#if selectedOrg}
+		<div class="selection-info">
+			<span class="label">Selected:</span>
+			<span class="value">{selectedOrg.display_name || selectedOrg.name}</span>
+		</div>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={onClose}> Cancel </button>
+		<button class="btn btn-primary" onclick={handleConfirm} disabled={!selectedOrg}>
+			Select
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
-	.dialog-overlay {
-		position: fixed;
-		inset: 0;
-		background-color: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-
-	.dialog-content {
-		background: white;
-		border-radius: 8px;
-		box-shadow:
-			0 20px 25px -5px rgba(0, 0, 0, 0.1),
-			0 10px 10px -5px rgba(0, 0, 0, 0.04);
-		max-width: 500px;
-		width: 90%;
-		max-height: 80vh;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.dialog-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 16px 20px;
-		border-bottom: 1px solid #e5e7eb;
-	}
-
-	.dialog-header h2 {
-		margin: 0;
-		font-size: 18px;
-		font-weight: 600;
-		color: #111827;
-	}
-
-	.close-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		background: none;
-		border: none;
-		border-radius: 6px;
-		cursor: pointer;
-		color: #6b7280;
-		font-size: 24px;
-		line-height: 1;
-	}
-
-	.close-btn:hover {
-		background-color: #f3f4f6;
-		color: #374151;
-	}
-
-	.dialog-body {
-		flex: 1;
-		overflow: hidden;
-		display: flex;
-		flex-direction: column;
-		padding: 16px 20px;
-	}
-
 	.search-box {
 		margin-bottom: 12px;
 	}
@@ -360,14 +268,6 @@
 	.selection-info .value {
 		color: #1e40af;
 		font-weight: 500;
-	}
-
-	.dialog-footer {
-		display: flex;
-		justify-content: flex-end;
-		gap: 12px;
-		padding: 16px 20px;
-		border-top: 1px solid #e5e7eb;
 	}
 
 	.btn {

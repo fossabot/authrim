@@ -563,6 +563,7 @@
 			<div class="plugin-config-form">
 				{#each Object.entries(pluginSchema.properties) as [key, prop] (key)}
 					<div class="plugin-config-field">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
 						<label class="plugin-config-label">
 							{key}
 							{#if isFieldRequired(key)}

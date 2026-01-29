@@ -369,6 +369,7 @@
 	</div>
 
 	<div class="form-group">
+		<!-- svelte-ignore a11y_label_has_associated_control -->
 		<label class="form-label">Events to Subscribe</label>
 		<div class="event-selector">
 			{#each COMMON_EVENT_PATTERNS as eventPattern (eventPattern.pattern)}

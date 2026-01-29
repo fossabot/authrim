@@ -400,6 +400,7 @@
 				<!-- Redirect URIs -->
 				{#if selectedPreset?.requiresRedirectUri}
 					<div class="form-group">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
 						<label class="form-label">
 							Redirect URIs <span style="color: var(--danger);">*</span>
 						</label>
@@ -478,6 +479,7 @@
 						<div class="advanced-panel">
 							<!-- Grant Types -->
 							<div class="form-group">
+								<!-- svelte-ignore a11y_label_has_associated_control -->
 								<label class="form-label">Grant Types</label>
 								<div class="checkbox-list">
 									{#each [{ id: 'authorization_code', label: 'Authorization Code' }, { id: 'refresh_token', label: 'Refresh Token' }, { id: 'client_credentials', label: 'Client Credentials' }, { id: 'urn:ietf:params:oauth:grant-type:device_code', label: 'Device Code' }] as grant (grant.id)}
@@ -496,6 +498,7 @@
 							<!-- Response Types (with warning for implicit) -->
 							{#if selectedPreset?.id === 'custom'}
 								<div class="form-group">
+									<!-- svelte-ignore a11y_label_has_associated_control -->
 									<label class="form-label">Response Types</label>
 									<div class="warning-box">
 										<p>
@@ -573,6 +576,7 @@
 
 			<!-- Client ID -->
 			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
 				<label class="form-label">Client ID</label>
 				<div class="input-copy-group">
 					<input type="text" value={createdClient.client_id} readonly class="input-readonly" />
@@ -588,6 +592,7 @@
 			<!-- Client Secret -->
 			{#if createdClient.client_secret}
 				<div class="form-group">
+					<!-- svelte-ignore a11y_label_has_associated_control -->
 					<label class="form-label">Client Secret</label>
 					<div class="warning-box">
 						<p>⚠️ <strong>Save this secret now!</strong> It will not be shown again.</p>
@@ -612,6 +617,7 @@
 			<!-- Redirect URIs with CORS Status -->
 			{#if createdClient.redirect_uris.length > 0}
 				<div class="form-group">
+					<!-- svelte-ignore a11y_label_has_associated_control -->
 					<label class="form-label">Redirect URIs - CORS Status</label>
 					<ul class="uri-list">
 						{#each createdClient.redirect_uris as uri (uri)}

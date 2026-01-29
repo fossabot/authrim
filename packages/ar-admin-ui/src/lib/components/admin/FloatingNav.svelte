@@ -50,7 +50,6 @@
 	class:open={mobileOpen}
 	onmouseenter={handleMouseEnter}
 	onmouseleave={handleMouseLeave}
-	role="navigation"
 	aria-label="Main navigation"
 >
 	<!-- Header with logo -->

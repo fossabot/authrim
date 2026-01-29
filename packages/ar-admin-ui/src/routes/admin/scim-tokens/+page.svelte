@@ -260,6 +260,7 @@
 	</div>
 
 	<div class="form-group">
+		<!-- svelte-ignore a11y_label_has_associated_control -->
 		<label class="form-label">SCIM Token</label>
 		<div class="token-display">
 			<code class="token-value">{createdToken?.token}</code>

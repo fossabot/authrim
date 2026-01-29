@@ -35,7 +35,7 @@
 		footer
 	}: Props = $props();
 
-	let dialogEl: HTMLDivElement | null = null;
+	let dialogEl: HTMLDivElement | null = $state(null);
 	const dialogId = `modal-${Math.random().toString(36).slice(2, 9)}`;
 	const titleId = `${dialogId}-title`;
 
@@ -104,6 +104,7 @@
 		onclick={handleOverlayClick}
 		onkeydown={handleKeyDown}
 	>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
 			class="modal-content"
 			style={sizeStyles[size]}

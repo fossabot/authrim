@@ -5,6 +5,7 @@
 		type IpAllowlistEntry,
 		validateIpRange
 	} from '$lib/api/admin-ip-allowlist';
+	import { Modal } from '$lib/components';
 
 	let entries: IpAllowlistEntry[] = $state([]);
 	let currentIp = $state('');
@@ -304,130 +305,103 @@
 </div>
 
 <!-- Create Dialog -->
-{#if showCreateDialog}
-	<div class="dialog-overlay" onclick={closeCreateDialog}>
-		<div class="dialog" onclick={(e) => e.stopPropagation()}>
-			<div class="dialog-header">
-				<h2>Add IP Entry</h2>
-				<button class="close-btn" onclick={closeCreateDialog}>&times;</button>
-			</div>
-			<div class="dialog-body">
-				{#if createError}
-					<div class="alert alert-danger">{createError}</div>
-				{/if}
-				<div class="form-group">
-					<label for="ipRange">IP Address or CIDR Range *</label>
-					<input
-						type="text"
-						id="ipRange"
-						class="input"
-						bind:value={newIpRange}
-						placeholder="e.g., 192.168.1.0/24 or 10.0.0.1"
-					/>
-					<p class="help-text">Single IP or CIDR notation (e.g., 192.168.1.0/24)</p>
-				</div>
-				<div class="form-group">
-					<label for="description">Description</label>
-					<input
-						type="text"
-						id="description"
-						class="input"
-						bind:value={newDescription}
-						placeholder="e.g., Office network"
-					/>
-				</div>
-			</div>
-			<div class="dialog-footer">
-				<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={handleCreate} disabled={creating}>
-					{creating ? 'Adding...' : 'Add'}
-				</button>
-			</div>
-		</div>
+<Modal open={showCreateDialog} onClose={closeCreateDialog} title="Add IP Entry" size="md">
+	{#if createError}
+		<div class="alert alert-danger">{createError}</div>
+	{/if}
+	<div class="form-group">
+		<label for="ipRange">IP Address or CIDR Range *</label>
+		<input
+			type="text"
+			id="ipRange"
+			class="input"
+			bind:value={newIpRange}
+			placeholder="e.g., 192.168.1.0/24 or 10.0.0.1"
+		/>
+		<p class="help-text">Single IP or CIDR notation (e.g., 192.168.1.0/24)</p>
 	</div>
-{/if}
+	<div class="form-group">
+		<label for="description">Description</label>
+		<input
+			type="text"
+			id="description"
+			class="input"
+			bind:value={newDescription}
+			placeholder="e.g., Office network"
+		/>
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>
+			Cancel
+		</button>
+		<button class="btn btn-primary" onclick={handleCreate} disabled={creating}>
+			{creating ? 'Adding...' : 'Add'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Edit Dialog -->
-{#if showEditDialog && editingEntry}
-	<div class="dialog-overlay" onclick={closeEditDialog}>
-		<div class="dialog" onclick={(e) => e.stopPropagation()}>
-			<div class="dialog-header">
-				<h2>Edit IP Entry</h2>
-				<button class="close-btn" onclick={closeEditDialog}>&times;</button>
-			</div>
-			<div class="dialog-body">
-				<div class="form-group">
-					<label for="editIpRange">IP Address or CIDR Range</label>
-					<input type="text" id="editIpRange" class="input" bind:value={editIpRange} />
-				</div>
-				<div class="form-group">
-					<label for="editDescription">Description</label>
-					<input type="text" id="editDescription" class="input" bind:value={editDescription} />
-				</div>
-			</div>
-			<div class="dialog-footer">
-				<button class="btn btn-secondary" onclick={closeEditDialog} disabled={saving}>
-					Cancel
-				</button>
-				<button class="btn btn-primary" onclick={handleSave} disabled={saving}>
-					{saving ? 'Saving...' : 'Save'}
-				</button>
-			</div>
-		</div>
+<Modal open={showEditDialog && !!editingEntry} onClose={closeEditDialog} title="Edit IP Entry" size="md">
+	<div class="form-group">
+		<label for="editIpRange">IP Address or CIDR Range</label>
+		<input type="text" id="editIpRange" class="input" bind:value={editIpRange} />
 	</div>
-{/if}
+	<div class="form-group">
+		<label for="editDescription">Description</label>
+		<input type="text" id="editDescription" class="input" bind:value={editDescription} />
+	</div>
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeEditDialog} disabled={saving}>
+			Cancel
+		</button>
+		<button class="btn btn-primary" onclick={handleSave} disabled={saving}>
+			{saving ? 'Saving...' : 'Save'}
+		</button>
+	{/snippet}
+</Modal>
 
 <!-- Check IP Dialog -->
-{#if showCheckDialog}
-	<div class="dialog-overlay" onclick={closeCheckDialog}>
-		<div class="dialog" onclick={(e) => e.stopPropagation()}>
-			<div class="dialog-header">
-				<h2>Check IP Address</h2>
-				<button class="close-btn" onclick={closeCheckDialog}>&times;</button>
-			</div>
-			<div class="dialog-body">
-				<div class="form-group">
-					<label for="checkIpInput">IP Address</label>
-					<input
-						type="text"
-						id="checkIpInput"
-						class="input"
-						bind:value={checkIp}
-						placeholder="Enter IP address to check"
-					/>
-				</div>
-				{#if checkResult !== null}
-					<div class="check-result {checkResult.allowed ? 'allowed' : 'denied'}">
-						{#if checkResult.restriction_active}
-							{#if checkResult.allowed}
-								<span class="result-icon">✓</span>
-								<span>This IP is <strong>allowed</strong></span>
-							{:else}
-								<span class="result-icon">✗</span>
-								<span>This IP is <strong>not allowed</strong></span>
-							{/if}
-						{:else}
-							<span class="result-icon">○</span>
-							<span>No IP restriction active - all IPs are allowed</span>
-						{/if}
-					</div>
-				{/if}
-			</div>
-			<div class="dialog-footer">
-				<button class="btn btn-secondary" onclick={closeCheckDialog}>Close</button>
-				<button
-					class="btn btn-primary"
-					onclick={handleCheckIp}
-					disabled={checking || !checkIp.trim()}
-				>
-					{checking ? 'Checking...' : 'Check'}
-				</button>
-			</div>
-		</div>
+<Modal open={showCheckDialog} onClose={closeCheckDialog} title="Check IP Address" size="md">
+	<div class="form-group">
+		<label for="checkIpInput">IP Address</label>
+		<input
+			type="text"
+			id="checkIpInput"
+			class="input"
+			bind:value={checkIp}
+			placeholder="Enter IP address to check"
+		/>
 	</div>
-{/if}
+	{#if checkResult !== null}
+		<div class="check-result {checkResult.allowed ? 'allowed' : 'denied'}">
+			{#if checkResult.restriction_active}
+				{#if checkResult.allowed}
+					<span class="result-icon">✓</span>
+					<span>This IP is <strong>allowed</strong></span>
+				{:else}
+					<span class="result-icon">✗</span>
+					<span>This IP is <strong>not allowed</strong></span>
+				{/if}
+			{:else}
+				<span class="result-icon">○</span>
+				<span>No IP restriction active - all IPs are allowed</span>
+			{/if}
+		</div>
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeCheckDialog}>Close</button>
+		<button
+			class="btn btn-primary"
+			onclick={handleCheckIp}
+			disabled={checking || !checkIp.trim()}
+		>
+			{checking ? 'Checking...' : 'Check'}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
 	/* Page-specific styles for IP Allowlist */
@@ -568,19 +542,6 @@
 	.text-secondary {
 		color: var(--text-secondary);
 		font-size: 0.875rem;
-	}
-
-	/* Dialog extensions */
-	.dialog-body {
-		padding: 1.5rem;
-	}
-
-	.dialog-footer {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.5rem;
-		padding: 1rem 1.5rem;
-		border-top: 1px solid var(--border);
 	}
 
 	/* Form */

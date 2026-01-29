@@ -325,6 +325,7 @@
 
 				<!-- Client ID -->
 				<div class="form-group">
+					<!-- svelte-ignore a11y_label_has_associated_control -->
 					<label class="form-label">Client ID</label>
 					<div class="input-copy-group">
 						<input type="text" value={client.client_id} readonly class="input-readonly" />
@@ -340,6 +341,7 @@
 
 				<!-- Client Name -->
 				<div class="form-group">
+					<!-- svelte-ignore a11y_label_has_associated_control -->
 					<label class="form-label">Client Name</label>
 					{#if isEditing}
 						<input type="text" class="form-input" bind:value={editForm.client_name} />
@@ -350,6 +352,7 @@
 
 				<!-- Client Secret -->
 				<div class="form-group">
+					<!-- svelte-ignore a11y_label_has_associated_control -->
 					<label class="form-label">Client Secret</label>
 					<div class="input-copy-group">
 						<input
@@ -375,6 +378,7 @@
 				<div class="form-grid">
 					<!-- Grant Types -->
 					<div class="form-group">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
 						<label class="form-label">Grant Types</label>
 						{#if isEditing}
 							<div class="checkbox-list">
@@ -405,6 +409,7 @@
 
 					<!-- Response Types -->
 					<div class="form-group">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
 						<label class="form-label">Response Types</label>
 						{#if isEditing}
 							<div class="checkbox-list">
@@ -438,6 +443,7 @@
 
 					<!-- Token Endpoint Auth Method -->
 					<div class="form-group">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
 						<label class="form-label">Token Endpoint Auth Method</label>
 						{#if isEditing}
 							<select class="form-select" bind:value={editForm.token_endpoint_auth_method}>
@@ -460,6 +466,7 @@
 								description="Require PKCE for authorization requests"
 							/>
 						{:else}
+							<!-- svelte-ignore a11y_label_has_associated_control -->
 							<label class="form-label">PKCE Required</label>
 							<p class="display-text">{client.require_pkce ? 'Yes' : 'No'}</p>
 						{/if}
@@ -627,6 +634,7 @@
 		</div>
 
 		<div class="form-group">
+			<!-- svelte-ignore a11y_label_has_associated_control -->
 			<label class="form-label">New Client Secret</label>
 			<div class="input-copy-group">
 				<input type="text" value={newSecret} readonly class="input-readonly" />

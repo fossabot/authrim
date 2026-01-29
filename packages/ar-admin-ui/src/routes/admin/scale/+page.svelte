@@ -18,6 +18,7 @@
 		type RefreshTokenShardConfig
 	} from '$lib/api/admin-infrastructure';
 	import WorldMap from '$lib/components/WorldMap.svelte';
+	import { Modal } from '$lib/components';
 
 	// =========================================================================
 	// Types
@@ -675,35 +676,30 @@
 	{/if}
 
 	<!-- Diff Confirmation Dialog -->
-	{#if showDiffDialog}
-		<div class="dialog-overlay" onclick={() => (showDiffDialog = false)}>
-			<div class="dialog" onclick={(e) => e.stopPropagation()}>
-				<h3>Confirm Changes</h3>
-				<p class="dialog-subtitle">You are about to change:</p>
+	<Modal open={showDiffDialog} onClose={() => (showDiffDialog = false)} title="Confirm Changes" size="sm">
+		<p class="dialog-subtitle">You are about to change:</p>
 
-				<ul class="diff-list">
-					{#each diffItems() as item (item.label)}
-						<li>
-							<span class="diff-label">{item.label}:</span>
-							<span class="diff-old">{item.oldValue}</span>
-							<span class="diff-arrow">→</span>
-							<span class="diff-new">{item.newValue}</span>
-						</li>
-					{/each}
-				</ul>
+		<ul class="diff-list">
+			{#each diffItems() as item (item.label)}
+				<li>
+					<span class="diff-label">{item.label}:</span>
+					<span class="diff-old">{item.oldValue}</span>
+					<span class="diff-arrow">→</span>
+					<span class="diff-new">{item.newValue}</span>
+				</li>
+			{/each}
+		</ul>
 
-				<p class="dialog-warning">
-					<i class="i-ph-warning"></i>
-					Changes affect new sessions only.
-				</p>
+		<p class="dialog-warning">
+			<i class="i-ph-warning"></i>
+			Changes affect new sessions only.
+		</p>
 
-				<div class="dialog-actions">
-					<button class="btn btn-secondary" onclick={() => (showDiffDialog = false)}>Cancel</button>
-					<button class="btn btn-primary" onclick={saveAllChanges}>Save Changes</button>
-				</div>
-			</div>
-		</div>
-	{/if}
+		{#snippet footer()}
+			<button class="btn btn-secondary" onclick={() => (showDiffDialog = false)}>Cancel</button>
+			<button class="btn btn-primary" onclick={saveAllChanges}>Save Changes</button>
+		{/snippet}
+	</Modal>
 </div>
 
 <style>
@@ -1376,133 +1372,6 @@
 		font-style: italic;
 	}
 
-	/* Scale Sliders */
-	.scale-sliders {
-		display: flex;
-		flex-direction: column;
-		gap: 24px;
-	}
-
-	.scale-group {
-		background: var(--bg-tertiary);
-		border-radius: var(--radius-md);
-		padding: 20px;
-	}
-
-	.scale-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 12px;
-	}
-
-	.scale-header h3 {
-		font-size: 0.9375rem;
-		font-weight: 600;
-		color: var(--text-primary);
-		margin: 0;
-	}
-
-	.slider-container {
-		display: flex;
-		align-items: center;
-		gap: 16px;
-	}
-
-	.scale-slider {
-		flex: 1;
-		height: 8px;
-		accent-color: var(--primary);
-	}
-
-	.scale-value {
-		font-size: 1rem;
-		font-weight: 700;
-		color: var(--primary);
-		min-width: 90px;
-		text-align: right;
-	}
-
-	.scale-info {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		margin-top: 12px;
-	}
-
-	.lps-estimate {
-		font-size: 0.9375rem;
-		font-weight: 600;
-		color: var(--success);
-	}
-
-	.scale-warning {
-		display: flex;
-		align-items: flex-start;
-		gap: 8px;
-		padding: 10px 12px;
-		background: var(--info-bg, rgba(59, 130, 246, 0.1));
-		border-radius: var(--radius-sm);
-		margin-top: 12px;
-		font-size: 0.8125rem;
-		color: var(--info, #3b82f6);
-	}
-
-	/* RPS Breakdown */
-	.rps-breakdown {
-		margin-top: 24px;
-		padding: 16px;
-		background: var(--bg-tertiary);
-		border-radius: var(--radius-md);
-	}
-
-	.rps-breakdown h4 {
-		font-size: 0.8125rem;
-		font-weight: 600;
-		color: var(--text-secondary);
-		text-transform: uppercase;
-		margin: 0 0 12px 0;
-	}
-
-	.rps-grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 8px;
-	}
-
-	.rps-item {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 8px 12px;
-		background: var(--bg-card);
-		border-radius: var(--radius-sm);
-	}
-
-	.rps-label {
-		font-size: 0.8125rem;
-		color: var(--text-secondary);
-	}
-
-	.rps-value {
-		font-size: 0.8125rem;
-		font-weight: 600;
-		color: var(--text-primary);
-	}
-
-	/* Disclaimer */
-	.disclaimer {
-		display: flex;
-		align-items: flex-start;
-		gap: 8px;
-		padding: 12px;
-		background: var(--warning-bg);
-		border-radius: var(--radius-sm);
-		margin-top: 16px;
-		font-size: 0.8125rem;
-		color: var(--warning);
-	}
-
 	/* Advanced Section */
 	.advanced-section {
 		background: var(--bg-secondary);
@@ -1662,32 +1531,6 @@
 	}
 
 	/* Dialog */
-	.dialog-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-
-	.dialog {
-		background: var(--bg-card);
-		border-radius: var(--radius-lg);
-		padding: 24px;
-		max-width: 480px;
-		width: 90%;
-		box-shadow: var(--shadow-lg);
-	}
-
-	.dialog h3 {
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: var(--text-primary);
-		margin: 0 0 8px 0;
-	}
-
 	.dialog-subtitle {
 		font-size: 0.875rem;
 		color: var(--text-secondary);
@@ -1743,18 +1586,8 @@
 		margin: 0 0 20px 0;
 	}
 
-	.dialog-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 12px;
-	}
-
 	/* Responsive */
 	@media (max-width: 768px) {
-		.summary-value {
-			font-size: 1.25rem;
-		}
-
 		.lps-value {
 			font-size: 1.5rem;
 		}
@@ -1783,10 +1616,6 @@
 		}
 
 		.shard-grid {
-			grid-template-columns: repeat(2, 1fr);
-		}
-
-		.rps-grid {
 			grid-template-columns: repeat(2, 1fr);
 		}
 	}

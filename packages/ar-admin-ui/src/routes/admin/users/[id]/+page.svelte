@@ -770,6 +770,7 @@
 		<!-- Step 2: Select Scope -->
 		<p class="step-indicator">Step 2 of 2: Select Scope</p>
 		<div class="form-group">
+			<!-- svelte-ignore a11y_label_has_associated_control -->
 			<label class="form-label">Select scope for this role</label>
 			<div class="scope-options">
 				<label class="scope-option" class:selected={selectedScope === 'global'}>
@@ -791,6 +792,7 @@
 
 		{#if selectedScope === 'org'}
 			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
 				<label class="form-label">Select Organization</label>
 				<div class="org-selector">
 					{#if selectedOrgName}

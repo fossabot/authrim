@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { OrganizationNode } from '$lib/api/admin-organizations';
+	import OrganizationTree from './OrganizationTree.svelte';
 
 	interface Props {
 		node: OrganizationNode;
@@ -50,6 +51,7 @@
 </script>
 
 <div class="tree-node" style="--depth: {node.depth}">
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
 		class="node-content"
 		class:selectable
@@ -97,7 +99,7 @@
 	{#if hasChildren && isExpanded}
 		<div class="children">
 			{#each node.children as child (child.id)}
-				<svelte:self
+				<OrganizationTree
 					node={child}
 					{expandedNodes}
 					{selectedId}

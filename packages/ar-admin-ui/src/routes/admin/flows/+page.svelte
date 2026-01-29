@@ -259,7 +259,7 @@
 						bind:value={searchQuery}
 						onkeypress={(e) => e.key === 'Enter' && handleSearch()}
 					/>
-					<button class="btn btn-secondary" onclick={handleSearch}>
+					<button class="btn btn-secondary" onclick={handleSearch} aria-label="Search">
 						<i class="i-ph-magnifying-glass"></i>
 					</button>
 				</div>

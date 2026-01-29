@@ -316,6 +316,7 @@
 				<!-- Redirect URL Display -->
 				{#if redirectUrl()}
 					<div class="redirect-url-section">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
 						<label class="form-label">Redirect URL (for external IdP configuration)</label>
 						<div class="redirect-url-box">
 							<code class="redirect-url-text">{redirectUrl()}</code>

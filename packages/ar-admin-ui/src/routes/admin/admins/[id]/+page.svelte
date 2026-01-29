@@ -8,6 +8,7 @@
 		type UpdateAdminUserInput
 	} from '$lib/api/admin-admins';
 	import { adminAdminRolesAPI, type AdminRole } from '$lib/api/admin-admin-roles';
+	import { Modal } from '$lib/components';
 
 	let admin: AdminUserDetail | null = $state(null);
 	let availableRoles: AdminRole[] = $state([]);
@@ -384,46 +385,37 @@
 </div>
 
 <!-- Role Assignment Dialog -->
-{#if showRoleDialog}
-	<div class="dialog-overlay" onclick={closeRoleDialog}>
-		<div class="dialog" onclick={(e) => e.stopPropagation()}>
-			<div class="dialog-header">
-				<h2>Assign Role</h2>
-				<button class="btn-close" onclick={closeRoleDialog}>&times;</button>
-			</div>
-			<div class="dialog-body">
-				{#if roleError}
-					<div class="alert alert-danger">{roleError}</div>
-				{/if}
-				{#if assignableRoles.length === 0}
-					<p class="text-muted">No available roles to assign</p>
-				{:else}
-					<div class="form-group">
-						<label for="role">Select Role</label>
-						<select id="role" class="select" bind:value={selectedRoleId}>
-							<option value="">-- Select a role --</option>
-							{#each assignableRoles as role (role.id)}
-								<option value={role.id}>{role.display_name || role.name}</option>
-							{/each}
-						</select>
-					</div>
-				{/if}
-			</div>
-			<div class="dialog-footer">
-				<button class="btn btn-secondary" onclick={closeRoleDialog} disabled={assigningRole}>
-					Cancel
-				</button>
-				<button
-					class="btn btn-primary"
-					onclick={handleAssignRole}
-					disabled={assigningRole || !selectedRoleId}
-				>
-					{assigningRole ? 'Assigning...' : 'Assign'}
-				</button>
-			</div>
+<Modal open={showRoleDialog} onClose={closeRoleDialog} title="Assign Role" size="md">
+	{#if roleError}
+		<div class="alert alert-danger">{roleError}</div>
+	{/if}
+	{#if assignableRoles.length === 0}
+		<p class="text-muted">No available roles to assign</p>
+	{:else}
+		<div class="form-group">
+			<label for="role">Select Role</label>
+			<select id="role" class="select" bind:value={selectedRoleId}>
+				<option value="">-- Select a role --</option>
+				{#each assignableRoles as role (role.id)}
+					<option value={role.id}>{role.display_name || role.name}</option>
+				{/each}
+			</select>
 		</div>
-	</div>
-{/if}
+	{/if}
+
+	{#snippet footer()}
+		<button class="btn btn-secondary" onclick={closeRoleDialog} disabled={assigningRole}>
+			Cancel
+		</button>
+		<button
+			class="btn btn-primary"
+			onclick={handleAssignRole}
+			disabled={assigningRole || !selectedRoleId}
+		>
+			{assigningRole ? 'Assigning...' : 'Assign'}
+		</button>
+	{/snippet}
+</Modal>
 
 <style>
 	.page-container {
@@ -706,59 +698,6 @@
 	.error-text {
 		color: var(--danger);
 		margin-bottom: 1rem;
-	}
-
-	/* Dialog */
-	.dialog-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-
-	.dialog {
-		background: var(--bg-primary);
-		border-radius: var(--radius-lg);
-		width: 100%;
-		max-width: 400px;
-		box-shadow: var(--shadow-lg);
-	}
-
-	.dialog-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 1rem 1.5rem;
-		border-bottom: 1px solid var(--border-color);
-	}
-
-	.dialog-header h2 {
-		margin: 0;
-		font-size: 1.125rem;
-		font-weight: 600;
-	}
-
-	.btn-close {
-		background: none;
-		border: none;
-		font-size: 1.5rem;
-		cursor: pointer;
-		color: var(--text-muted);
-	}
-
-	.dialog-body {
-		padding: 1.5rem;
-	}
-
-	.dialog-footer {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.5rem;
-		padding: 1rem 1.5rem;
-		border-top: 1px solid var(--border-color);
 	}
 
 	.alert {

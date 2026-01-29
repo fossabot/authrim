@@ -8,6 +8,7 @@
 		type WebhookDelivery,
 		type DeliveryStatus
 	} from '$lib/api/admin-webhooks';
+	import { Modal } from '$lib/components';
 
 	let webhook: Webhook | null = $state(null);
 	let deliveries: WebhookDelivery[] = $state([]);
@@ -389,130 +390,117 @@
 </div>
 
 <!-- Detail Dialog -->
-{#if showDetailDialog && selectedDelivery}
-	<div class="dialog-overlay" onclick={closeDetailDialog} role="presentation">
-		<div
-			class="dialog detail-dialog"
-			onclick={(e) => e.stopPropagation()}
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="detail-dialog-title"
-		>
-			<div class="dialog-header">
-				<h2 id="detail-dialog-title">Delivery Details</h2>
-				<button class="close-btn" onclick={closeDetailDialog}>×</button>
-			</div>
-
-			<div class="detail-content">
-				<div class="detail-info">
-					<div class="info-row">
-						<span class="info-label">Event Type</span>
-						<span class="info-value">{selectedDelivery.event_type}</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Event ID</span>
-						<span class="info-value mono">{selectedDelivery.event_id}</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Status</span>
-						<span class={getStatusBadgeClass(selectedDelivery.status)}>
-							{selectedDelivery.status}
-						</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Attempts</span>
-						<span class="info-value">{selectedDelivery.attempt_count}</span>
-					</div>
-					<div class="info-row">
-						<span class="info-label">Created</span>
-						<span class="info-value">{formatDate(selectedDelivery.created_at)}</span>
-					</div>
-					{#if selectedDelivery.completed_at}
-						<div class="info-row">
-							<span class="info-label">Completed</span>
-							<span class="info-value">{formatDate(selectedDelivery.completed_at)}</span>
-						</div>
-					{/if}
-					{#if selectedDelivery.next_retry_at}
-						<div class="info-row">
-							<span class="info-label">Next Retry</span>
-							<span class="info-value">{formatDate(selectedDelivery.next_retry_at)}</span>
-						</div>
-					{/if}
-					{#if selectedDelivery.error_message}
-						<div class="info-row">
-							<span class="info-label">Error</span>
-							<span class="info-value text-danger">{selectedDelivery.error_message}</span>
-						</div>
-					{/if}
+<Modal open={showDetailDialog && !!selectedDelivery} onClose={closeDetailDialog} title="Delivery Details" size="lg">
+	{#if selectedDelivery}
+		<div class="detail-content">
+			<div class="detail-info">
+				<div class="info-row">
+					<span class="info-label">Event Type</span>
+					<span class="info-value">{selectedDelivery.event_type}</span>
 				</div>
-
-				<div class="view-mode-tabs">
-					<button
-						class="tab-btn"
-						class:active={detailViewMode === 'pretty'}
-						onclick={() => (detailViewMode = 'pretty')}
-					>
-						Pretty
-					</button>
-					<button
-						class="tab-btn"
-						class:active={detailViewMode === 'raw'}
-						onclick={() => (detailViewMode = 'raw')}
-					>
-						Raw
-					</button>
+				<div class="info-row">
+					<span class="info-label">Event ID</span>
+					<span class="info-value mono">{selectedDelivery.event_id}</span>
 				</div>
-
-				{#if selectedDelivery.request_body}
-					<div class="payload-section">
-						<div class="payload-header">
-							<h3>Request Body</h3>
-							<button
-								class="copy-btn"
-								onclick={() => copyToClipboard(selectedDelivery?.request_body || '')}
-								title="Copy masked content"
-							>
-								Copy
-							</button>
-						</div>
-						<pre class="payload-content">{detailViewMode === 'pretty'
-								? formatJson(selectedDelivery.request_body)
-								: truncateContent(maskSensitiveData(selectedDelivery.request_body))}</pre>
+				<div class="info-row">
+					<span class="info-label">Status</span>
+					<span class={getStatusBadgeClass(selectedDelivery.status)}>
+						{selectedDelivery.status}
+					</span>
+				</div>
+				<div class="info-row">
+					<span class="info-label">Attempts</span>
+					<span class="info-value">{selectedDelivery.attempt_count}</span>
+				</div>
+				<div class="info-row">
+					<span class="info-label">Created</span>
+					<span class="info-value">{formatDate(selectedDelivery.created_at)}</span>
+				</div>
+				{#if selectedDelivery.completed_at}
+					<div class="info-row">
+						<span class="info-label">Completed</span>
+						<span class="info-value">{formatDate(selectedDelivery.completed_at)}</span>
 					</div>
 				{/if}
-
-				{#if selectedDelivery.response_body}
-					<div class="payload-section">
-						<div class="payload-header">
-							<h3>Response Body</h3>
-							<button
-								class="copy-btn"
-								onclick={() => copyToClipboard(selectedDelivery?.response_body || '')}
-								title="Copy masked content"
-							>
-								Copy
-							</button>
-						</div>
-						<pre class="payload-content">{detailViewMode === 'pretty'
-								? formatJson(selectedDelivery.response_body)
-								: truncateContent(maskSensitiveData(selectedDelivery.response_body))}</pre>
+				{#if selectedDelivery.next_retry_at}
+					<div class="info-row">
+						<span class="info-label">Next Retry</span>
+						<span class="info-value">{formatDate(selectedDelivery.next_retry_at)}</span>
+					</div>
+				{/if}
+				{#if selectedDelivery.error_message}
+					<div class="info-row">
+						<span class="info-label">Error</span>
+						<span class="info-value text-danger">{selectedDelivery.error_message}</span>
 					</div>
 				{/if}
 			</div>
 
-			<div class="dialog-actions">
-				{#if canReplay(selectedDelivery)}
-					<button
-						class="btn btn-primary"
-						onclick={() => selectedDelivery && handleReplay(selectedDelivery)}
-						disabled={replayingId === selectedDelivery.id}
-					>
-						{replayingId === selectedDelivery.id ? 'Replaying...' : 'Replay Delivery'}
-					</button>
-				{/if}
-				<button class="btn btn-secondary" onclick={closeDetailDialog}>Close</button>
+			<div class="view-mode-tabs">
+				<button
+					class="tab-btn"
+					class:active={detailViewMode === 'pretty'}
+					onclick={() => (detailViewMode = 'pretty')}
+				>
+					Pretty
+				</button>
+				<button
+					class="tab-btn"
+					class:active={detailViewMode === 'raw'}
+					onclick={() => (detailViewMode = 'raw')}
+				>
+					Raw
+				</button>
 			</div>
+
+			{#if selectedDelivery.request_body}
+				<div class="payload-section">
+					<div class="payload-header">
+						<h3>Request Body</h3>
+						<button
+							class="copy-btn"
+							onclick={() => copyToClipboard(selectedDelivery?.request_body || '')}
+							title="Copy masked content"
+						>
+							Copy
+						</button>
+					</div>
+					<pre class="payload-content">{detailViewMode === 'pretty'
+							? formatJson(selectedDelivery.request_body)
+							: truncateContent(maskSensitiveData(selectedDelivery.request_body))}</pre>
+				</div>
+			{/if}
+
+			{#if selectedDelivery.response_body}
+				<div class="payload-section">
+					<div class="payload-header">
+						<h3>Response Body</h3>
+						<button
+							class="copy-btn"
+							onclick={() => copyToClipboard(selectedDelivery?.response_body || '')}
+							title="Copy masked content"
+						>
+							Copy
+						</button>
+					</div>
+					<pre class="payload-content">{detailViewMode === 'pretty'
+							? formatJson(selectedDelivery.response_body)
+							: truncateContent(maskSensitiveData(selectedDelivery.response_body))}</pre>
+				</div>
+			{/if}
 		</div>
-	</div>
-{/if}
+	{/if}
+
+	{#snippet footer()}
+		{#if selectedDelivery && canReplay(selectedDelivery)}
+			<button
+				class="btn btn-primary"
+				onclick={() => selectedDelivery && handleReplay(selectedDelivery)}
+				disabled={replayingId === selectedDelivery.id}
+			>
+				{replayingId === selectedDelivery.id ? 'Replaying...' : 'Replay Delivery'}
+			</button>
+		{/if}
+		<button class="btn btn-secondary" onclick={closeDetailDialog}>Close</button>
+	{/snippet}
+</Modal>

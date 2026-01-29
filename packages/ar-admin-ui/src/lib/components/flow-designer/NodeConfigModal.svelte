@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { GraphNode, GraphNodeType } from '$lib/api/admin-flows';
+	import { Modal } from '$lib/components';
 
 	interface Props {
 		node: GraphNode | null;
@@ -463,18 +464,6 @@
 		return descriptions[type] || "Configure this node's behavior.";
 	}
 
-	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Escape') {
-			onClose();
-		}
-	}
-
-	function handleBackdropClick(event: MouseEvent) {
-		if (event.target === event.currentTarget) {
-			onClose();
-		}
-	}
-
 	function toggleAuthMethod(method: string) {
 		if (authMethods.includes(method)) {
 			authMethods = authMethods.filter((m) => m !== method);
@@ -782,562 +771,495 @@
 	}
 </script>
 
-{#if node}
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-	<div
-		class="modal-backdrop"
-		onclick={handleBackdropClick}
-		onkeydown={handleKeyDown}
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="modal-title"
-		tabindex="-1"
-	>
-		<div class="modal-content">
-			<div class="modal-header">
-				<h3 id="modal-title">{getNodeTypeLabel(node.type)}</h3>
-				<button class="close-btn" onclick={onClose} aria-label="Close">×</button>
-			</div>
+<Modal open={!!node} {onClose} title={node ? getNodeTypeLabel(node.type) : ''} size="md">
+	{#if node}
+		<p class="node-description">{getNodeDescription(node.type)}</p>
 
-			<div class="modal-body">
-				<p class="node-description">{getNodeDescription(node.type)}</p>
+		<div class="form-group">
+			<label for="node-label">Label</label>
+			<input type="text" id="node-label" bind:value={label} placeholder="Enter node label" />
+		</div>
 
-				<div class="form-group">
-					<label for="node-label">Label</label>
-					<input type="text" id="node-label" bind:value={label} placeholder="Enter node label" />
+		<!-- Identifier Type: Radio buttons -->
+		{#if node.type === 'identifier'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Identifier Type</label>
+				<div class="radio-group">
+					{#each ['email', 'phone', 'username'] as type (type)}
+						<label class="radio-label">
+							<input
+								type="radio"
+								name="identifier-type"
+								value={type}
+								checked={identifierType === type}
+								onchange={() => setIdentifierType(type)}
+							/>
+							<span>{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+						</label>
+					{/each}
 				</div>
+			</div>
+		{/if}
 
-				<!-- Identifier Type: Radio buttons -->
-				{#if node.type === 'identifier'}
-					<div class="form-group">
-						<label>Identifier Type</label>
-						<div class="radio-group">
-							{#each ['email', 'phone', 'username'] as type (type)}
-								<label class="radio-label">
-									<input
-										type="radio"
-										name="identifier-type"
-										value={type}
-										checked={identifierType === type}
-										onchange={() => setIdentifierType(type)}
-									/>
-									<span>{type.charAt(0).toUpperCase() + type.slice(1)}</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Auth Methods: Checkboxes (multiple selection) -->
-				{#if node.type === 'auth_method'}
-					<div class="form-group">
-						<label>Authentication Methods <span class="hint">(select one or more)</span></label>
-						<div class="checkbox-group">
-							{#each [{ value: 'password', label: 'Password' }, { value: 'passkey', label: 'Passkey' }, { value: 'social', label: 'Social Login' }, { value: 'magic_link', label: 'Magic Link' }] as option (option.value)}
-								<label class="checkbox-label">
-									<input
-										type="checkbox"
-										checked={authMethods.includes(option.value)}
-										onchange={() => toggleAuthMethod(option.value)}
-									/>
-									<span>{option.label}</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- MFA Factors: Checkboxes (multiple selection) -->
-				{#if node.type === 'mfa'}
-					<div class="form-group">
-						<label>MFA Factors <span class="hint">(select one or more)</span></label>
-						<div class="checkbox-group">
-							{#each [{ value: 'totp', label: 'TOTP (Authenticator App)' }, { value: 'sms', label: 'SMS' }, { value: 'email', label: 'Email OTP' }, { value: 'webauthn', label: 'WebAuthn / Passkey' }] as option (option.value)}
-								<label class="checkbox-label">
-									<input
-										type="checkbox"
-										checked={mfaFactors.includes(option.value)}
-										onchange={() => toggleMfaFactor(option.value)}
-									/>
-									<span>{option.label}</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Auth Method Select: Checkboxes (available methods for user to choose) -->
-				{#if node.type === 'auth_method_select'}
-					<div class="form-group">
-						<label>Available Methods <span class="hint">(methods user can select from)</span></label
-						>
-						<div class="checkbox-group">
-							{#each [{ value: 'password', label: 'Password' }, { value: 'passkey', label: 'Passkey' }, { value: 'email_otp', label: 'Email OTP' }, { value: 'sms_otp', label: 'SMS OTP' }, { value: 'magic_link', label: 'Magic Link' }, { value: 'social', label: 'Social Login' }] as option (option.value)}
-								<label class="checkbox-label">
-									<input
-										type="checkbox"
-										checked={authMethodSelectMethods.includes(option.value)}
-										onchange={() => toggleAuthMethodSelect(option.value)}
-									/>
-									<span>{option.label}</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Login Method Select: Checkboxes (login options for user to choose) -->
-				{#if node.type === 'login_method_select'}
-					<div class="form-group">
-						<label
-							>Available Methods <span class="hint">(login options user can select from)</span
-							></label
-						>
-						<div class="checkbox-group">
-							{#each [{ value: 'email', label: 'Email + Password' }, { value: 'social', label: 'Social Login' }, { value: 'passkey', label: 'Passkey' }, { value: 'enterprise', label: 'Enterprise SSO' }] as option (option.value)}
-								<label class="checkbox-label">
-									<input
-										type="checkbox"
-										checked={loginMethodSelectMethods.includes(option.value)}
-										onchange={() => toggleLoginMethodSelect(option.value)}
-									/>
-									<span>{option.label}</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Redirect Destination (V1 semantic) -->
-				{#if node.type === 'redirect'}
-					<div class="form-group">
-						<label>Redirect To <span class="hint">(semantic destination)</span></label>
-						<div class="radio-group">
-							{#each availableRedirectDestinations as dest (dest.value)}
-								<label class="radio-label">
-									<input
-										type="radio"
-										name="redirect-to"
-										value={dest.value}
-										checked={redirectTo === dest.value}
-										onchange={() => setRedirectTo(dest.value)}
-									/>
-									<span class="option-content">
-										<span class="option-label">{dest.label}</span>
-										<span class="option-description">{dest.description}</span>
-									</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Check Session (V1 fact-based) -->
-				{#if node.type === 'check_session'}
-					<div class="form-group">
-						<label>Session Fact <span class="hint">(condition to check)</span></label>
-						<div class="radio-group">
-							{#each availableSessionFacts as fact (fact.value)}
-								<label class="radio-label">
-									<input
-										type="radio"
-										name="session-fact"
-										value={fact.value}
-										checked={sessionFact === fact.value}
-										onchange={() => setSessionFact(fact.value)}
-									/>
-									<span class="option-content">
-										<span class="option-label">{fact.label}</span>
-										<span class="option-description">{fact.description}</span>
-									</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- Error Screen (V1) -->
-				{#if node.type === 'error'}
-					<div class="form-group">
-						<label>Error Reason</label>
-						<div class="radio-group compact">
-							{#each availableErrorReasons as reason (reason.value)}
-								<label class="radio-label">
-									<input
-										type="radio"
-										name="error-reason"
-										value={reason.value}
-										checked={errorReason === reason.value}
-										onchange={() => setErrorReason(reason.value)}
-									/>
-									<span>{reason.label}</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-					<div class="form-group">
-						<label class="checkbox-label single">
-							<input type="checkbox" checked={errorAllowRetry} onchange={toggleErrorRetry} />
-							<span>Allow Retry (shows retry button)</span>
-						</label>
-					</div>
-				{/if}
-
-				<!-- Login Methods: Checkboxes + Remember Me -->
-				{#if node.type === 'login'}
-					<div class="form-group">
-						<label>Login Methods <span class="hint">(select one or more)</span></label>
-						<div class="checkbox-group">
-							{#each [{ value: 'password', label: 'Password' }, { value: 'passkey', label: 'Passkey' }, { value: 'social', label: 'Social Login' }, { value: 'magic_link', label: 'Magic Link' }] as option (option.value)}
-								<label class="checkbox-label">
-									<input
-										type="checkbox"
-										checked={loginMethods.includes(option.value)}
-										onchange={() => toggleLoginMethod(option.value)}
-									/>
-									<span>{option.label}</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-					<div class="form-group">
-						<label class="checkbox-label single">
-							<input type="checkbox" checked={loginRememberMe} onchange={toggleRememberMe} />
-							<span>Remember Me option</span>
-						</label>
-					</div>
-				{/if}
-
-				<!-- Register Options -->
-				{#if node.type === 'register'}
-					<div class="form-group">
-						<label>Registration Options</label>
-						<div class="checkbox-group">
-							<label class="checkbox-label">
-								<input
-									type="checkbox"
-									checked={registerRequireVerification}
-									onchange={toggleRegisterVerification}
-								/>
-								<span>Require Email Verification</span>
-							</label>
-							<label class="checkbox-label">
-								<input
-									type="checkbox"
-									checked={registerAutoLogin}
-									onchange={toggleRegisterAutoLogin}
-								/>
-								<span>Auto-login after registration</span>
-							</label>
-						</div>
-					</div>
-				{/if}
-
-				<!-- Consent Types -->
-				{#if node.type === 'consent'}
-					<div class="form-group">
-						<label>Consent Types <span class="hint">(select one or more)</span></label>
-						<div class="checkbox-group">
-							{#each availableConsents as consent (consent.value)}
-								<label class="checkbox-label">
-									<input
-										type="checkbox"
-										checked={consentTypes.includes(consent.value)}
-										onchange={() => toggleConsentType(consent.value)}
-									/>
-									<span>{consent.label}</span>
-								</label>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				<!-- User Input Fields -->
-				{#if node.type === 'user_input'}
-					<div class="form-group">
-						<label>Fields to Collect <span class="hint">(select from DB schema)</span></label>
-						<div class="field-selector">
-							{#each availableFields as field (field.name)}
-								<div class="field-item" class:selected={isFieldSelected(field.name)}>
-									<label class="field-checkbox">
-										<input
-											type="checkbox"
-											checked={isFieldSelected(field.name)}
-											onchange={() => toggleField(field)}
-										/>
-										<span class="field-label">{field.label}</span>
-										<span class="field-type">{field.type}</span>
-									</label>
-									{#if isFieldSelected(field.name)}
-										<label class="required-toggle">
-											<input
-												type="checkbox"
-												checked={userInputFields.find((f) => f.name === field.name)?.required}
-												onchange={() => toggleFieldRequired(field.name)}
-											/>
-											<span>Required</span>
-										</label>
-									{/if}
-								</div>
-							{/each}
-						</div>
-						{#if userInputFields.length > 0}
-							<div class="selected-fields">
-								<span class="hint"
-									>Selected: {userInputFields.map((f) => f.label || f.name).join(', ')}</span
-								>
-							</div>
-						{/if}
-					</div>
-				{/if}
-
-				<!-- Decision Node Branches -->
-				{#if node.type === 'decision'}
-					<div class="form-group">
-						<label>Decision Branches <span class="hint">(priority-based evaluation)</span></label>
-						<div class="decision-branches">
-							{#each decisionBranches as branch, index (branch.id)}
-								<div class="branch-item">
-									<div class="branch-header">
-										<span class="branch-priority">#{branch.priority}</span>
-										<input
-											type="text"
-											class="branch-label-input"
-											value={branch.label}
-											oninput={(e) => updateDecisionBranch(index, 'label', e.currentTarget.value)}
-											placeholder="Branch label"
-										/>
-										<button
-											class="btn-remove-small"
-											onclick={() => removeDecisionBranch(index)}
-											type="button"
-										>
-											×
-										</button>
-									</div>
-									<div class="branch-condition">
-										<div class="condition-row">
-											<input
-												type="text"
-												class="condition-key"
-												value={branch.condition.key}
-												oninput={(e) =>
-													updateDecisionCondition(
-														index,
-														e.currentTarget.value,
-														branch.condition.operator,
-														branch.condition.value as string
-													)}
-												placeholder="key (e.g., prevNode.success)"
-											/>
-											<select
-												class="condition-operator"
-												value={branch.condition.operator}
-												onchange={(e) =>
-													updateDecisionCondition(
-														index,
-														branch.condition.key,
-														e.currentTarget.value,
-														branch.condition.value as string
-													)}
-											>
-												<option value="isTrue">is True</option>
-												<option value="isFalse">is False</option>
-												<option value="equals">equals</option>
-												<option value="notEquals">not equals</option>
-												<option value="greaterThan">greater than</option>
-												<option value="lessThan">less than</option>
-												<option value="contains">contains</option>
-												<option value="in">in</option>
-												<option value="exists">exists</option>
-											</select>
-											{#if !['isTrue', 'isFalse', 'exists', 'notExists'].includes(branch.condition.operator)}
-												<input
-													type="text"
-													class="condition-value"
-													value={(branch.condition.value as string) || ''}
-													oninput={(e) =>
-														updateDecisionCondition(
-															index,
-															branch.condition.key,
-															branch.condition.operator,
-															e.currentTarget.value
-														)}
-													placeholder="value"
-												/>
-											{/if}
-										</div>
-									</div>
-								</div>
-							{/each}
-						</div>
-						<button class="btn-add" onclick={addDecisionBranch} type="button">+ Add Branch</button>
-						<div class="form-group" style="margin-top: 12px;">
-							<label>Default Branch ID <span class="hint">(fallback if no match)</span></label>
+		<!-- Auth Methods: Checkboxes (multiple selection) -->
+		{#if node.type === 'auth_method'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Authentication Methods <span class="hint">(select one or more)</span></label>
+				<div class="checkbox-group">
+					{#each [{ value: 'password', label: 'Password' }, { value: 'passkey', label: 'Passkey' }, { value: 'social', label: 'Social Login' }, { value: 'magic_link', label: 'Magic Link' }] as option (option.value)}
+						<label class="checkbox-label">
 							<input
-								type="text"
-								bind:value={decisionDefaultBranch}
-								oninput={updateConfigFromForm}
-								placeholder="branch_default"
+								type="checkbox"
+								checked={authMethods.includes(option.value)}
+								onchange={() => toggleAuthMethod(option.value)}
 							/>
-						</div>
-					</div>
-				{/if}
+							<span>{option.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+		{/if}
 
-				<!-- Switch Node Cases -->
-				{#if node.type === 'switch'}
-					<div class="form-group">
-						<label>Switch Key <span class="hint">(e.g., risk.level)</span></label>
+		<!-- MFA Factors: Checkboxes (multiple selection) -->
+		{#if node.type === 'mfa'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>MFA Factors <span class="hint">(select one or more)</span></label>
+				<div class="checkbox-group">
+					{#each [{ value: 'totp', label: 'TOTP (Authenticator App)' }, { value: 'sms', label: 'SMS' }, { value: 'email', label: 'Email OTP' }, { value: 'webauthn', label: 'WebAuthn / Passkey' }] as option (option.value)}
+						<label class="checkbox-label">
+							<input
+								type="checkbox"
+								checked={mfaFactors.includes(option.value)}
+								onchange={() => toggleMfaFactor(option.value)}
+							/>
+							<span>{option.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<!-- Auth Method Select: Checkboxes (available methods for user to choose) -->
+		{#if node.type === 'auth_method_select'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Available Methods <span class="hint">(methods user can select from)</span></label>
+				<div class="checkbox-group">
+					{#each [{ value: 'password', label: 'Password' }, { value: 'passkey', label: 'Passkey' }, { value: 'email_otp', label: 'Email OTP' }, { value: 'sms_otp', label: 'SMS OTP' }, { value: 'magic_link', label: 'Magic Link' }, { value: 'social', label: 'Social Login' }] as option (option.value)}
+						<label class="checkbox-label">
+							<input
+								type="checkbox"
+								checked={authMethodSelectMethods.includes(option.value)}
+								onchange={() => toggleAuthMethodSelect(option.value)}
+							/>
+							<span>{option.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<!-- Login Method Select: Checkboxes (login options for user to choose) -->
+		{#if node.type === 'login_method_select'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label
+					>Available Methods <span class="hint">(login options user can select from)</span></label
+				>
+				<div class="checkbox-group">
+					{#each [{ value: 'email', label: 'Email + Password' }, { value: 'social', label: 'Social Login' }, { value: 'passkey', label: 'Passkey' }, { value: 'enterprise', label: 'Enterprise SSO' }] as option (option.value)}
+						<label class="checkbox-label">
+							<input
+								type="checkbox"
+								checked={loginMethodSelectMethods.includes(option.value)}
+								onchange={() => toggleLoginMethodSelect(option.value)}
+							/>
+							<span>{option.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<!-- Redirect Destination (V1 semantic) -->
+		{#if node.type === 'redirect'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Redirect To <span class="hint">(semantic destination)</span></label>
+				<div class="radio-group">
+					{#each availableRedirectDestinations as dest (dest.value)}
+						<label class="radio-label">
+							<input
+								type="radio"
+								name="redirect-to"
+								value={dest.value}
+								checked={redirectTo === dest.value}
+								onchange={() => setRedirectTo(dest.value)}
+							/>
+							<span class="option-content">
+								<span class="option-label">{dest.label}</span>
+								<span class="option-description">{dest.description}</span>
+							</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<!-- Check Session (V1 fact-based) -->
+		{#if node.type === 'check_session'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Session Fact <span class="hint">(condition to check)</span></label>
+				<div class="radio-group">
+					{#each availableSessionFacts as fact (fact.value)}
+						<label class="radio-label">
+							<input
+								type="radio"
+								name="session-fact"
+								value={fact.value}
+								checked={sessionFact === fact.value}
+								onchange={() => setSessionFact(fact.value)}
+							/>
+							<span class="option-content">
+								<span class="option-label">{fact.label}</span>
+								<span class="option-description">{fact.description}</span>
+							</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<!-- Error Screen (V1) -->
+		{#if node.type === 'error'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Error Reason</label>
+				<div class="radio-group compact">
+					{#each availableErrorReasons as reason (reason.value)}
+						<label class="radio-label">
+							<input
+								type="radio"
+								name="error-reason"
+								value={reason.value}
+								checked={errorReason === reason.value}
+								onchange={() => setErrorReason(reason.value)}
+							/>
+							<span>{reason.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="checkbox-label single">
+					<input type="checkbox" checked={errorAllowRetry} onchange={toggleErrorRetry} />
+					<span>Allow Retry (shows retry button)</span>
+				</label>
+			</div>
+		{/if}
+
+		<!-- Login Methods: Checkboxes + Remember Me -->
+		{#if node.type === 'login'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Login Methods <span class="hint">(select one or more)</span></label>
+				<div class="checkbox-group">
+					{#each [{ value: 'password', label: 'Password' }, { value: 'passkey', label: 'Passkey' }, { value: 'social', label: 'Social Login' }, { value: 'magic_link', label: 'Magic Link' }] as option (option.value)}
+						<label class="checkbox-label">
+							<input
+								type="checkbox"
+								checked={loginMethods.includes(option.value)}
+								onchange={() => toggleLoginMethod(option.value)}
+							/>
+							<span>{option.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="checkbox-label single">
+					<input type="checkbox" checked={loginRememberMe} onchange={toggleRememberMe} />
+					<span>Remember Me option</span>
+				</label>
+			</div>
+		{/if}
+
+		<!-- Register Options -->
+		{#if node.type === 'register'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Registration Options</label>
+				<div class="checkbox-group">
+					<label class="checkbox-label">
 						<input
-							type="text"
-							bind:value={switchKey}
-							oninput={updateConfigFromForm}
-							placeholder="risk.level"
+							type="checkbox"
+							checked={registerRequireVerification}
+							onchange={toggleRegisterVerification}
 						/>
-					</div>
-					<div class="form-group">
-						<label>Switch Cases <span class="hint">(value matching)</span></label>
-						<div class="switch-cases">
-							{#each switchCases as switchCase, index (switchCase.id)}
-								<div class="case-item">
-									<div class="case-header">
-										<input
-											type="text"
-											class="case-label-input"
-											value={switchCase.label}
-											oninput={(e) => updateSwitchCase(index, 'label', e.currentTarget.value)}
-											placeholder="Case label"
-										/>
-										<button
-											class="btn-remove-small"
-											onclick={() => removeSwitchCase(index)}
-											type="button"
-										>
-											×
-										</button>
-									</div>
-									<div class="case-values">
-										<input
-											type="text"
-											class="values-input"
-											value={switchCase.values.join(', ')}
-											oninput={(e) => updateSwitchCaseValues(index, e.currentTarget.value)}
-											placeholder="low, none (comma-separated)"
-										/>
-									</div>
-								</div>
-							{/each}
-						</div>
-						<button class="btn-add" onclick={addSwitchCase} type="button">+ Add Case</button>
-						<div class="form-group" style="margin-top: 12px;">
-							<label>Default Case ID <span class="hint">(fallback if no match)</span></label>
-							<input
-								type="text"
-								bind:value={switchDefaultCase}
-								oninput={updateConfigFromForm}
-								placeholder="case_default"
-							/>
-						</div>
-					</div>
-				{/if}
-				<!-- Collapsible JSON Config -->
-				<div class="json-section">
-					<button class="json-toggle" onclick={() => (jsonExpanded = !jsonExpanded)} type="button">
-						<span class="toggle-icon">{jsonExpanded ? '▼' : '▶'}</span>
-						<span>Advanced (JSON)</span>
-					</button>
+						<span>Require Email Verification</span>
+					</label>
+					<label class="checkbox-label">
+						<input type="checkbox" checked={registerAutoLogin} onchange={toggleRegisterAutoLogin} />
+						<span>Auto-login after registration</span>
+					</label>
+				</div>
+			</div>
+		{/if}
 
-					{#if jsonExpanded}
-						<div class="json-content">
-							<textarea
-								id="node-config"
-								bind:value={configJson}
-								rows="6"
-								class:has-error={!!configError}
-								spellcheck="false"
-							></textarea>
-							{#if configError}
-								<span class="error-text">{configError}</span>
+		<!-- Consent Types -->
+		{#if node.type === 'consent'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Consent Types <span class="hint">(select one or more)</span></label>
+				<div class="checkbox-group">
+					{#each availableConsents as consent (consent.value)}
+						<label class="checkbox-label">
+							<input
+								type="checkbox"
+								checked={consentTypes.includes(consent.value)}
+								onchange={() => toggleConsentType(consent.value)}
+							/>
+							<span>{consent.label}</span>
+						</label>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		<!-- User Input Fields -->
+		{#if node.type === 'user_input'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Fields to Collect <span class="hint">(select from DB schema)</span></label>
+				<div class="field-selector">
+					{#each availableFields as field (field.name)}
+						<div class="field-item" class:selected={isFieldSelected(field.name)}>
+							<label class="field-checkbox">
+								<input
+									type="checkbox"
+									checked={isFieldSelected(field.name)}
+									onchange={() => toggleField(field)}
+								/>
+								<span class="field-label">{field.label}</span>
+								<span class="field-type">{field.type}</span>
+							</label>
+							{#if isFieldSelected(field.name)}
+								<label class="required-toggle">
+									<input
+										type="checkbox"
+										checked={userInputFields.find((f) => f.name === field.name)?.required}
+										onchange={() => toggleFieldRequired(field.name)}
+									/>
+									<span>Required</span>
+								</label>
 							{/if}
 						</div>
+					{/each}
+				</div>
+				{#if userInputFields.length > 0}
+					<div class="selected-fields">
+						<span class="hint"
+							>Selected: {userInputFields.map((f) => f.label || f.name).join(', ')}</span
+						>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Decision Node Branches -->
+		{#if node.type === 'decision'}
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Decision Branches <span class="hint">(priority-based evaluation)</span></label>
+				<div class="decision-branches">
+					{#each decisionBranches as branch, index (branch.id)}
+						<div class="branch-item">
+							<div class="branch-header">
+								<span class="branch-priority">#{branch.priority}</span>
+								<input
+									type="text"
+									class="branch-label-input"
+									value={branch.label}
+									oninput={(e) => updateDecisionBranch(index, 'label', e.currentTarget.value)}
+									placeholder="Branch label"
+								/>
+								<button
+									class="btn-remove-small"
+									onclick={() => removeDecisionBranch(index)}
+									type="button"
+								>
+									×
+								</button>
+							</div>
+							<div class="branch-condition">
+								<div class="condition-row">
+									<input
+										type="text"
+										class="condition-key"
+										value={branch.condition.key}
+										oninput={(e) =>
+											updateDecisionCondition(
+												index,
+												e.currentTarget.value,
+												branch.condition.operator,
+												branch.condition.value as string
+											)}
+										placeholder="key (e.g., prevNode.success)"
+									/>
+									<select
+										class="condition-operator"
+										value={branch.condition.operator}
+										onchange={(e) =>
+											updateDecisionCondition(
+												index,
+												branch.condition.key,
+												e.currentTarget.value,
+												branch.condition.value as string
+											)}
+									>
+										<option value="isTrue">is True</option>
+										<option value="isFalse">is False</option>
+										<option value="equals">equals</option>
+										<option value="notEquals">not equals</option>
+										<option value="greaterThan">greater than</option>
+										<option value="lessThan">less than</option>
+										<option value="contains">contains</option>
+										<option value="in">in</option>
+										<option value="exists">exists</option>
+									</select>
+									{#if !['isTrue', 'isFalse', 'exists', 'notExists'].includes(branch.condition.operator)}
+										<input
+											type="text"
+											class="condition-value"
+											value={(branch.condition.value as string) || ''}
+											oninput={(e) =>
+												updateDecisionCondition(
+													index,
+													branch.condition.key,
+													branch.condition.operator,
+													e.currentTarget.value
+												)}
+											placeholder="value"
+										/>
+									{/if}
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+				<button class="btn-add" onclick={addDecisionBranch} type="button">+ Add Branch</button>
+				<div class="form-group" style="margin-top: 12px;">
+					<label for="decision-default-branch">Default Branch ID <span class="hint">(fallback if no match)</span></label>
+					<input
+						type="text"
+						id="decision-default-branch"
+						bind:value={decisionDefaultBranch}
+						oninput={updateConfigFromForm}
+						placeholder="branch_default"
+					/>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Switch Node Cases -->
+		{#if node.type === 'switch'}
+			<div class="form-group">
+				<label for="switch-key">Switch Key <span class="hint">(e.g., risk.level)</span></label>
+				<input
+					type="text"
+					id="switch-key"
+					bind:value={switchKey}
+					oninput={updateConfigFromForm}
+					placeholder="risk.level"
+				/>
+			</div>
+			<div class="form-group">
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Switch Cases <span class="hint">(value matching)</span></label>
+				<div class="switch-cases">
+					{#each switchCases as switchCase, index (switchCase.id)}
+						<div class="case-item">
+							<div class="case-header">
+								<input
+									type="text"
+									class="case-label-input"
+									value={switchCase.label}
+									oninput={(e) => updateSwitchCase(index, 'label', e.currentTarget.value)}
+									placeholder="Case label"
+								/>
+								<button
+									class="btn-remove-small"
+									onclick={() => removeSwitchCase(index)}
+									type="button"
+								>
+									×
+								</button>
+							</div>
+							<div class="case-values">
+								<input
+									type="text"
+									class="values-input"
+									value={switchCase.values.join(', ')}
+									oninput={(e) => updateSwitchCaseValues(index, e.currentTarget.value)}
+									placeholder="low, none (comma-separated)"
+								/>
+							</div>
+						</div>
+					{/each}
+				</div>
+				<button class="btn-add" onclick={addSwitchCase} type="button">+ Add Case</button>
+				<div class="form-group" style="margin-top: 12px;">
+					<label for="switch-default-case">Default Case ID <span class="hint">(fallback if no match)</span></label>
+					<input
+						type="text"
+						id="switch-default-case"
+						bind:value={switchDefaultCase}
+						oninput={updateConfigFromForm}
+						placeholder="case_default"
+					/>
+				</div>
+			</div>
+		{/if}
+		<!-- Collapsible JSON Config -->
+		<div class="json-section">
+			<button class="json-toggle" onclick={() => (jsonExpanded = !jsonExpanded)} type="button">
+				<span class="toggle-icon">{jsonExpanded ? '▼' : '▶'}</span>
+				<span>Advanced (JSON)</span>
+			</button>
+
+			{#if jsonExpanded}
+				<div class="json-content">
+					<textarea
+						id="node-config"
+						bind:value={configJson}
+						rows="6"
+						class:has-error={!!configError}
+						spellcheck="false"
+					></textarea>
+					{#if configError}
+						<span class="error-text">{configError}</span>
 					{/if}
 				</div>
-			</div>
-
-			<div class="modal-footer">
-				{#if onDelete && canDelete(node.type)}
-					<button class="btn-delete" onclick={handleDelete}>Delete</button>
-				{/if}
-				<div class="footer-right">
-					<button class="btn-secondary" onclick={onClose}>Cancel</button>
-					<button class="btn-primary" onclick={handleSave}>Save</button>
-				</div>
-			</div>
+			{/if}
 		</div>
-	</div>
-{/if}
+	{/if}
+
+	{#snippet footer()}
+		{#if node && onDelete && canDelete(node.type)}
+			<button class="btn-delete" onclick={handleDelete}>Delete</button>
+		{/if}
+		<div class="footer-right">
+			<button class="btn-secondary" onclick={onClose}>Cancel</button>
+			<button class="btn-primary" onclick={handleSave}>Save</button>
+		</div>
+	{/snippet}
+</Modal>
 
 <style>
-	.modal-backdrop {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.4);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 1000;
-	}
-
-	.modal-content {
-		background: white;
-		border-radius: 8px;
-		width: 420px;
-		max-width: 90vw;
-		max-height: 90vh;
-		display: flex;
-		flex-direction: column;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-	}
-
-	.modal-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		border-bottom: 1px solid #e5e7eb;
-	}
-
-	.modal-header h3 {
-		margin: 0;
-		font-size: 14px;
-		font-weight: 600;
-		color: #111827;
-	}
-
-	.close-btn {
-		width: 28px;
-		height: 28px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: transparent;
-		border: none;
-		border-radius: 4px;
-		font-size: 20px;
-		color: #6b7280;
-		cursor: pointer;
-	}
-
-	.close-btn:hover {
-		background: #f3f4f6;
-		color: #111827;
-	}
-
-	.modal-body {
-		padding: 16px;
-		overflow-y: auto;
-	}
-
 	.node-description {
 		margin: 0 0 16px 0;
 		padding: 12px;
@@ -1547,15 +1469,6 @@
 		margin-top: 4px;
 		font-size: 11px;
 		color: #ef4444;
-	}
-
-	.modal-footer {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		border-top: 1px solid #e5e7eb;
-		gap: 8px;
 	}
 
 	.footer-right {

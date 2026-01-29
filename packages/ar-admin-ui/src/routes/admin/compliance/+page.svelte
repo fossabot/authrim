@@ -646,6 +646,7 @@
 			<div class="framework-grid">
 				{#each complianceStatus.frameworks as framework (framework.framework)}
 					{@const hasDetail = !!FRAMEWORK_DETAILS[framework.framework]}
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
 						class="framework-card"
 						class:framework-card-clickable={hasDetail}

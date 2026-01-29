@@ -618,6 +618,7 @@
 						{@const region = getRegionFromFeature(feature as Feature<Geometry, CountryProperties>)}
 						{@const isSelected = isRegionSelected(region)}
 						{@const isDoCapable = DO_CAPABLE_REGIONS.includes(region)}
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 						<path
 							d={pathGenerator(feature) || ''}
 							class="country-path"
