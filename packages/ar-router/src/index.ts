@@ -495,27 +495,31 @@ app.post('/revoke/batch', async (c) => {
 });
 
 /**
- * Admin UI Setup Token endpoints - Route to OP_AUTH worker
- * These endpoints are used by Admin UI for passkey registration after initial setup.
- * Must be registered BEFORE /api/admin/* to avoid being routed to OP_MANAGEMENT.
+ * Admin API routing - conditionally route to OP_AUTH or OP_MANAGEMENT
+ *
+ * /api/admin/auth/* - Route to OP_AUTH worker (admin passkey login endpoints)
+ * /api/admin/setup-token/* - Route to OP_AUTH worker (admin setup token endpoints)
+ * /api/admin/* - Route to OP_MANAGEMENT worker (admin management endpoints)
+ *
+ * Note: Using conditional routing instead of separate route registrations
+ * because Hono's wildcard pattern matching doesn't guarantee more specific
+ * patterns are matched first when using app.all().
  */
-app.all('/api/admin/setup-token/*', async (c) => {
-  const request = new Request(c.req.url, c.req.raw);
-  return c.env.OP_AUTH.fetch(request);
-});
-
-/**
- * Admin UI Authentication endpoints - Route to OP_AUTH worker
- * These endpoints handle admin passkey login (separate from end-user passkeys).
- * Must be registered BEFORE /api/admin/* to avoid being routed to OP_MANAGEMENT.
- */
-app.all('/api/admin/auth/*', async (c) => {
-  const request = new Request(c.req.url, c.req.raw);
-  return c.env.OP_AUTH.fetch(request);
-});
-
 app.all('/api/admin/*', async (c) => {
+  const path = c.req.path;
   const request = new Request(c.req.url, c.req.raw);
+
+  // Route admin auth endpoints to OP_AUTH
+  if (path.startsWith('/api/admin/auth/')) {
+    return c.env.OP_AUTH.fetch(request);
+  }
+
+  // Route admin setup token endpoints to OP_AUTH
+  if (path.startsWith('/api/admin/setup-token/')) {
+    return c.env.OP_AUTH.fetch(request);
+  }
+
+  // Route all other admin endpoints to OP_MANAGEMENT
   return c.env.OP_MANAGEMENT.fetch(request);
 });
 

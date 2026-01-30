@@ -837,6 +837,12 @@ export interface FlowSubmitRequest {
 
   /** Capability応答 */
   response: unknown;
+
+  /** テナントID（セッション検証用、リクエストコンテキストから取得） */
+  tenantId?: string;
+
+  /** クライアントID（セッション検証用、リクエストコンテキストから取得） */
+  clientId?: string;
 }
 
 /**

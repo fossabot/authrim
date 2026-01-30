@@ -62,17 +62,41 @@ interface DOInitResponse {
 }
 
 /**
+ * DOが返すOAuthパラメータ（snake_caseでOAuth標準に準拠）
+ */
+interface DOOAuthParams {
+  state?: string;
+  nonce?: string;
+  code_challenge?: string;
+  code_challenge_method?: 'plain' | 'S256';
+  redirect_uri?: string;
+  scope?: string;
+  response_type?: string;
+  response_mode?: string;
+  acr_values?: string;
+  max_age?: number;
+  ui_locales?: string;
+  prompt?: string;
+  login_hint?: string;
+  claims?: string;
+}
+
+/**
  * DO状態レスポンス
  */
 interface DOStateResponse {
   state?: {
     sessionId: string;
     flowId: string;
+    flowType: string;
+    tenantId: string;
+    clientId: string;
     currentNodeId: string;
     visitedNodeIds: string[];
     completedCapabilities: string[];
     expiresAt: number;
     collectedData?: Record<string, unknown>;
+    oauthParams?: DOOAuthParams;
   };
   error?: string;
   code?: string;
@@ -87,11 +111,15 @@ interface DOCheckRequestResponse {
   state?: {
     sessionId: string;
     flowId: string;
+    flowType: string;
+    tenantId: string;
+    clientId: string;
     currentNodeId: string;
     visitedNodeIds: string[];
     completedCapabilities: string[];
     expiresAt: number;
     collectedData?: Record<string, unknown>;
+    oauthParams?: DOOAuthParams;
   };
   error?: string;
   code?: string;
@@ -169,6 +197,7 @@ export class FlowExecutor {
     const doResponse = await this.callDO<DOInitResponse>(sessionId, '/init', 'POST', {
       sessionId,
       flowId: graphDef.id,
+      flowType, // flowTypeを保存（再コンパイル時に必要）
       tenantId,
       clientId,
       entryNodeId: actualEntryNodeId,
@@ -197,23 +226,7 @@ export class FlowExecutor {
    * Capability応答を処理し次のUIContractを返却
    */
   async submitCapability(params: FlowSubmitRequest): Promise<FlowSubmitResponse> {
-    const { sessionId, requestId, capabilityId, response } = params;
-
-    // セキュリティ対策（Medium 10）: セッション権限チェック
-    // TODO: 以下の検証を実装する必要がある
-    // 1. sessionId が有効（期限切れでない、改ざんされていない）
-    // 2. セッションが正しい tenantId/clientId に属している
-    // 3. リクエスト元 IP/User-Agent がセッション作成時と一致する
-    // 現在は DO 側でセッション管理しているが、追加の検証が必要
-    // 実装例:
-    //   const session = await this.validateSession(sessionId);
-    //   if (!session || session.isExpired()) {
-    //     return { type: 'error', error: { code: 'invalid_session', message: 'Session expired' } };
-    //   }
-
-    console.warn(
-      `[Security] submitCapability: Missing session validation for sessionId="${sessionId}"`
-    );
+    const { sessionId, requestId, capabilityId, response, tenantId, clientId } = params;
 
     // 1. 冪等性チェック（/check-request）
     // これにより同一requestIdのリクエストは処理をスキップしてキャッシュ結果を返す
@@ -251,7 +264,35 @@ export class FlowExecutor {
       };
     }
 
-    const { flowId, currentNodeId, collectedData = {} } = checkResponse.state;
+    const { flowId, flowType, currentNodeId, collectedData = {}, oauthParams } = checkResponse.state;
+
+    // セキュリティ対策: セッション検証（Critical 4）
+    // リクエストコンテキストのtenantId/clientIdがセッションのものと一致するか検証
+    // これによりセッションハイジャック攻撃を防止
+    if (tenantId && checkResponse.state.tenantId !== tenantId) {
+      console.error(
+        `[Security] Session tenant mismatch: expected=${tenantId}, got=${checkResponse.state.tenantId}`
+      );
+      return {
+        type: 'error',
+        error: {
+          code: 'invalid_session',
+          message: 'Session tenant mismatch',
+        },
+      };
+    }
+    if (clientId && checkResponse.state.clientId !== clientId) {
+      console.error(
+        `[Security] Session client mismatch: expected=${clientId}, got=${checkResponse.state.clientId}`
+      );
+      return {
+        type: 'error',
+        error: {
+          code: 'invalid_session',
+          message: 'Session client mismatch',
+        },
+      };
+    }
 
     // セキュリティ対策: レート制限（Critical 3）
     // セッション状態からリクエストタイムスタンプを取得（DO側で実装されていない場合は空配列）
@@ -353,7 +394,11 @@ export class FlowExecutor {
     const compiledPlan = this.compiledPlans.get(`compiled-${flowId}`);
     if (!compiledPlan) {
       // キャッシュにない場合、再コンパイル
-      const graphDef = await this.registry.getFlow('login'); // TODO: flowTypeを保存
+      // flowTypeはDOに保存されているため、セッションから取得
+      const graphDef = await this.registry.getFlow(
+        flowType as FlowType,
+        checkResponse.state.tenantId
+      );
       if (!graphDef) {
         return {
           type: 'error',
@@ -390,16 +435,22 @@ export class FlowExecutor {
     }
 
     // 4. 次のノードを決定（Decision/Switch対応）
-    const runtimeContext = this.buildRuntimeContext(collectedData);
+    // tenantId/clientIdはDOから取得した検証済みの値を使用（セキュリティ強化）
+    const runtimeContext = this.buildRuntimeContext(collectedData, {
+      tenantId: checkResponse.state.tenantId,
+      clientId: checkResponse.state.clientId,
+    });
     const nextNodeId = await this.determineNextNode(currentNode, plan, runtimeContext);
 
     // 完了チェック
     if (!nextNodeId) {
       // フロー完了 → リダイレクト
+      // redirect_uri はOAuthパラメータから取得、なければフォールバック
+      const redirectUrl = oauthParams?.redirect_uri || '/callback';
       return {
         type: 'redirect',
         redirect: {
-          url: '/callback', // TODO: 実際のリダイレクトURLを取得
+          url: redirectUrl,
           method: 'GET',
         },
       };
@@ -418,10 +469,12 @@ export class FlowExecutor {
 
     // endノードの場合、リダイレクト
     if (nextNode.type === 'end') {
+      // redirect_uri はOAuthパラメータから取得、なければフォールバック
+      const redirectUrl = oauthParams?.redirect_uri || '/callback';
       return {
         type: 'redirect',
         redirect: {
-          url: '/callback', // TODO: 実際のリダイレクトURLを取得
+          url: redirectUrl,
           method: 'GET',
         },
       };
@@ -478,14 +531,22 @@ export class FlowExecutor {
       throw new Error(stateResponse.error || 'Session not found');
     }
 
-    const { flowId, currentNodeId, visitedNodeIds, completedCapabilities, collectedData } =
-      stateResponse.state;
+    const {
+      flowId,
+      flowType,
+      tenantId,
+      currentNodeId,
+      visitedNodeIds,
+      completedCapabilities,
+      collectedData,
+    } = stateResponse.state;
 
     // 2. CompiledPlanを取得
     let plan = this.compiledPlans.get(`compiled-${flowId}`);
     if (!plan) {
       // キャッシュにない場合、再コンパイル
-      const graphDef = await this.registry.getFlow('login');
+      // flowTypeはDOに保存されているため、セッションから取得
+      const graphDef = await this.registry.getFlow(flowType as FlowType, tenantId);
       if (graphDef) {
         plan = this.getOrCompilePlan(graphDef);
       }
@@ -940,24 +1001,18 @@ export class FlowExecutor {
    * - 危険な`as`型キャストを排除
    * - Type guardによる安全な型チェック
    * - デフォルト値によるフォールバック
+   * - tenant/clientはDOから取得した検証済みの値を使用
+   *
+   * @param collectedData - 収集済みデータ（信頼できないデータとして扱う）
+   * @param verifiedContext - DOから取得した検証済みコンテキスト
    */
-  private buildRuntimeContext(collectedData: Record<string, unknown>): FlowRuntimeContext {
-    // セキュリティ警告: collectedDataは信頼できないデータ
-    // TODO: 認証済みソースから実際のユーザー情報を取得する実装が必要
-    // 現在は簡易実装として、collectedDataから必要な情報を抽出
-
-    // 本来は認証済みソースから取得すべき情報
-    // 暫定的にcollectedDataから取得するが、将来的には以下のような実装が必要:
-    // - user: セッションIDからユーザー情報を再取得
-    // - device: リクエストヘッダーから抽出
-    // - request: 実際のHTTPリクエストから抽出
-    // - risk: リスク評価エンジンから取得
-    // - tenant/client: セッションから検証済みのものを取得
-
-    console.warn(
-      '[Security] buildRuntimeContext: Using collectedData for context. This should be replaced with authenticated sources.'
-    );
-
+  private buildRuntimeContext(
+    collectedData: Record<string, unknown>,
+    verifiedContext?: {
+      tenantId?: string;
+      clientId?: string;
+    }
+  ): FlowRuntimeContext {
     // Type guard: objectかどうかチェック
     const isObject = (value: unknown): value is Record<string, unknown> => {
       return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -968,16 +1023,24 @@ export class FlowExecutor {
       return isObject(value) && typeof value.success === 'boolean';
     };
 
+    // tenant/clientはDOから取得した検証済みの値を優先使用
+    // collectedDataからの値は信頼できないため無視
+    const tenant = verifiedContext?.tenantId ? { id: verifiedContext.tenantId } : undefined;
+    const client = verifiedContext?.clientId ? { id: verifiedContext.clientId } : undefined;
+
     return {
-      // Type guardによる安全な型チェック（unsafeな`as`キャストを排除）
+      // tenant/clientはDOから取得した検証済みの値を使用（セキュリティ強化）
+      tenant,
+      client,
+
+      // user/device/request/riskはcollectedDataから取得（将来的には認証済みソースから取得すべき）
+      // 注意: これらの値はフロー内でのみ使用され、認証判定には直接使用されない
       user: isObject(collectedData.user) ? collectedData.user : undefined,
       device: isObject(collectedData.device) ? collectedData.device : undefined,
       request: isObject(collectedData.request) ? collectedData.request : undefined,
       risk: isObject(collectedData.risk) ? collectedData.risk : undefined,
-      tenant: isObject(collectedData.tenant) ? collectedData.tenant : undefined,
-      client: isObject(collectedData.client) ? collectedData.client : undefined,
 
-      // 以下は信頼できないデータとして許可
+      // 以下はフロー内で収集されたデータ
       form: isObject(collectedData.form) ? collectedData.form : undefined,
       prevNode: isNodeOutput(collectedData.prevNode) ? collectedData.prevNode : undefined,
       variables: isObject(collectedData.variables) ? collectedData.variables : undefined,

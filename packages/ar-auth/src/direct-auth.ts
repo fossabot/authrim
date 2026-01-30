@@ -50,6 +50,13 @@ import {
   getSessionCookieSameSite,
   // KV Client Cache
   getClient,
+  // Refresh Token
+  createRefreshToken,
+  getRefreshTokenShardConfig,
+  getRefreshTokenShardIndex,
+  buildRefreshTokenRotatorInstanceName,
+  createRefreshTokenJti,
+  generateRefreshTokenRandomPart,
 } from '@authrim/ar-lib-core';
 
 import {
@@ -76,6 +83,7 @@ import {
 } from './utils/email-code-utils';
 import { getEmailCodeHtml, getEmailCodeText } from './utils/email/templates';
 import { getPluginContext } from '@authrim/ar-lib-core';
+import { importPKCS8 } from 'jose';
 
 // ===== Constants =====
 
@@ -83,6 +91,51 @@ const RP_NAME = 'Authrim';
 const CHALLENGE_TTL = 5 * 60; // 5 minutes
 const AUTH_CODE_TTL = 60; // 60 seconds
 const EMAIL_CODE_TTL = 5 * 60; // 5 minutes
+const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60; // 30 days
+
+// Module-level cache for signing key (per Worker isolate)
+let cachedSigningKey: { privateKey: CryptoKey; kid: string } | null = null;
+let cachedKeyTimestamp = 0;
+const KEY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Get signing key from KeyManager DO (with caching)
+ */
+async function getSigningKeyFromKeyManager(
+  env: Env
+): Promise<{ privateKey: CryptoKey; kid: string }> {
+  const now = Date.now();
+
+  // Return from cache if valid
+  if (cachedSigningKey && now - cachedKeyTimestamp < KEY_CACHE_TTL) {
+    return cachedSigningKey;
+  }
+
+  // Fetch from KeyManager
+  if (!env.KEY_MANAGER) {
+    throw new Error('KEY_MANAGER binding not available');
+  }
+
+  const keyManagerId = env.KEY_MANAGER.idFromName('default-v3');
+  const keyManager = env.KEY_MANAGER.get(keyManagerId);
+
+  // Get active key via RPC
+  let keyData = await keyManager.getActiveKeyWithPrivateRpc();
+
+  if (!keyData) {
+    // No active key, generate and activate one
+    keyData = await keyManager.rotateKeysWithPrivateRpc();
+  }
+
+  // Import private key
+  const privateKey = await importPKCS8(keyData.privatePEM, 'RS256');
+
+  // Update cache
+  cachedSigningKey = { privateKey, kid: keyData.kid };
+  cachedKeyTimestamp = now;
+
+  return cachedSigningKey;
+}
 
 // WebAuthn transport types
 type AuthenticatorTransport = 'usb' | 'nfc' | 'ble' | 'internal' | 'hybrid';
@@ -1572,9 +1625,79 @@ export async function directTokenHandler(c: Context<{ Bindings: Env }>) {
     };
 
     // Add refresh_token if requested (for mobile/SPA)
-    if (request_refresh_token) {
-      // TODO: Implement refresh token generation using RefreshTokenRotator
-      // For now, we don't issue refresh tokens
+    if (request_refresh_token && c.env.REFRESH_TOKEN_ROTATOR) {
+      try {
+        // Get signing key from KeyManager
+        const { privateKey, kid } = await getSigningKeyFromKeyManager(c.env);
+
+        // Get shard configuration and calculate shard index
+        const shardConfig = await getRefreshTokenShardConfig(c.env, client_id);
+        const shardIndex = await getRefreshTokenShardIndex(
+          userId,
+          client_id,
+          shardConfig.currentShardCount
+        );
+
+        // Generate sharded JTI with generation and shard info
+        const randomPart = generateRefreshTokenRandomPart();
+        const refreshTokenJti = createRefreshTokenJti(
+          shardConfig.currentGeneration,
+          shardIndex,
+          randomPart
+        );
+
+        // Route to sharded DO instance
+        const instanceName = buildRefreshTokenRotatorInstanceName(
+          client_id,
+          shardConfig.currentGeneration,
+          shardIndex
+        );
+        const rotatorId = c.env.REFRESH_TOKEN_ROTATOR.idFromName(instanceName);
+        const rotator = c.env.REFRESH_TOKEN_ROTATOR.get(rotatorId);
+
+        // Create token family in RefreshTokenRotator
+        const familyResult = await rotator.createFamilyRpc({
+          jti: refreshTokenJti,
+          userId,
+          clientId: client_id,
+          scope: 'openid profile email', // Default scope for direct auth
+          ttl: REFRESH_TOKEN_TTL,
+          generation: shardConfig.currentGeneration,
+          shardIndex,
+        });
+
+        // Create refresh token JWT with rtv (Refresh Token Version) claim
+        const refreshTokenResult = await createRefreshToken(
+          {
+            iss: c.env.ISSUER_URL,
+            sub: userId,
+            aud: client_id,
+            client_id,
+            scope: familyResult.allowedScope,
+          },
+          privateKey,
+          kid,
+          familyResult.expiresIn,
+          familyResult.newJti,
+          familyResult.version
+        );
+
+        response.refresh_token = refreshTokenResult.token;
+
+        log.info('Refresh token issued', {
+          action: 'refresh_token_issued',
+          userId,
+          clientId: client_id,
+          jti: refreshTokenJti,
+        });
+      } catch (error) {
+        // Log error but don't fail the request - session is still valid
+        log.error('Failed to generate refresh token', {
+          action: 'refresh_token_error',
+          errorType: error instanceof Error ? error.name : 'Unknown',
+        });
+        // Continue without refresh token
+      }
     }
 
     return c.json(response);
@@ -2027,9 +2150,77 @@ export async function directLogoutHandler(c: Context<{ Bindings: Env }>) {
         }
       }
 
-      // TODO: If revoke_tokens is true, also revoke refresh tokens
-      if (revoke_tokens) {
-        // Future: Revoke refresh tokens associated with this session
+      // Revoke refresh tokens for this user if requested
+      if (revoke_tokens && c.env.REFRESH_TOKEN_ROTATOR && c.env.DB) {
+        try {
+          // Get session to get user ID
+          const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sessionId);
+          const session = (await sessionStore.getSessionRpc(sessionId)) as Session | null;
+
+          if (session?.userId) {
+            // Query all active token families for this user from D1
+            const tenantId = getTenantIdFromContext(c);
+            const authCtx = createAuthContextFromHono(c, tenantId);
+
+            // Find all active token families for this user
+            const families = await authCtx.coreAdapter.query<{
+              jti: string;
+              client_id: string;
+              generation: number;
+            }>(
+              `SELECT jti, client_id, generation FROM user_token_families
+               WHERE user_id = ? AND tenant_id = ? AND expires_at > ?`,
+              [session.userId, tenantId, Date.now()]
+            );
+
+            // Revoke each family in the RefreshTokenRotator
+            for (const family of families) {
+              try {
+                // Parse JTI to get shard info
+                const jtiParts = family.jti.split(':');
+                if (jtiParts.length >= 3) {
+                  const shardIndex = parseInt(jtiParts[1], 10);
+                  const instanceName = buildRefreshTokenRotatorInstanceName(
+                    family.client_id,
+                    family.generation,
+                    shardIndex
+                  );
+                  const rotatorId = c.env.REFRESH_TOKEN_ROTATOR.idFromName(instanceName);
+                  const rotator = c.env.REFRESH_TOKEN_ROTATOR.get(rotatorId);
+
+                  // Revoke the family
+                  await rotator.revokeFamilyRpc(family.jti);
+                }
+              } catch (familyError) {
+                // Log but continue with other families
+                log.warn('Failed to revoke token family', {
+                  action: 'revoke_token_family',
+                  jti: family.jti,
+                  errorType: familyError instanceof Error ? familyError.name : 'Unknown',
+                });
+              }
+            }
+
+            // Mark families as revoked in D1
+            await authCtx.coreAdapter.execute(
+              `UPDATE user_token_families SET expires_at = 0
+               WHERE user_id = ? AND tenant_id = ?`,
+              [session.userId, tenantId]
+            );
+
+            log.info('Revoked refresh tokens on logout', {
+              action: 'revoke_refresh_tokens',
+              userId: session.userId,
+              familyCount: families.length,
+            });
+          }
+        } catch (revokeError) {
+          // Log but don't fail logout
+          log.warn('Failed to revoke refresh tokens', {
+            action: 'revoke_tokens_error',
+            errorType: revokeError instanceof Error ? revokeError.name : 'Unknown',
+          });
+        }
       }
     }
 

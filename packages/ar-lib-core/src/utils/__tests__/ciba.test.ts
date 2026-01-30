@@ -4,6 +4,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { SignJWT, generateKeyPair, exportJWK } from 'jose';
+import type { JWK } from 'jose';
 import {
   generateAuthReqId,
   generateCIBAUserCode,
@@ -14,6 +16,8 @@ import {
   calculatePollingInterval,
   isCIBARequestExpired,
   isPollingTooFast,
+  validateCIBAIdTokenHint,
+  validateCIBALoginHintToken,
   CIBA_CONSTANTS,
 } from '../ciba';
 
@@ -321,6 +325,160 @@ describe('CIBA Utilities', () => {
       };
       const tooFast = isPollingTooFast(metadata);
       expect(tooFast).toBe(false);
+    });
+  });
+
+  describe('validateCIBAIdTokenHint - Signature Verification', () => {
+    const ISSUER_URL = 'https://auth.example.com';
+
+    it('should validate id_token_hint with valid signature', async () => {
+      // Generate key pair
+      const { privateKey, publicKey } = await generateKeyPair('RS256');
+      const publicJwk = await exportJWK(publicKey);
+      publicJwk.kid = 'test-key-1';
+      publicJwk.alg = 'RS256';
+      publicJwk.use = 'sig';
+
+      // Create a valid JWT
+      const jwt = await new SignJWT({ sub: 'user-123' })
+        .setProtectedHeader({ alg: 'RS256', kid: 'test-key-1' })
+        .setIssuedAt()
+        .setIssuer(ISSUER_URL)
+        .setExpirationTime('1h')
+        .sign(privateKey);
+
+      const result = await validateCIBAIdTokenHint(jwt, {
+        issuerUrl: ISSUER_URL,
+        jwks: { keys: [publicJwk as JWK] },
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.subjectId).toBe('user-123');
+    });
+
+    it('should reject id_token_hint with invalid signature', async () => {
+      // Generate two different key pairs
+      const { privateKey: signingKey } = await generateKeyPair('RS256');
+      const { publicKey: wrongPublicKey } = await generateKeyPair('RS256');
+      const wrongJwk = await exportJWK(wrongPublicKey);
+      wrongJwk.kid = 'test-key-1';
+      wrongJwk.alg = 'RS256';
+      wrongJwk.use = 'sig';
+
+      // Sign with one key
+      const jwt = await new SignJWT({ sub: 'user-123' })
+        .setProtectedHeader({ alg: 'RS256', kid: 'test-key-1' })
+        .setIssuedAt()
+        .setIssuer(ISSUER_URL)
+        .setExpirationTime('1h')
+        .sign(signingKey);
+
+      // Verify with different key - should fail
+      const result = await validateCIBAIdTokenHint(jwt, {
+        issuerUrl: ISSUER_URL,
+        jwks: { keys: [wrongJwk as JWK] },
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error_description).toContain('signature verification failed');
+    });
+
+    it('should reject id_token_hint when no matching key in JWKS', async () => {
+      const { privateKey } = await generateKeyPair('RS256');
+      const { publicKey: differentKey } = await generateKeyPair('RS256');
+      const differentJwk = await exportJWK(differentKey);
+      differentJwk.kid = 'different-key';
+      differentJwk.alg = 'RS256';
+      differentJwk.use = 'sig';
+
+      // Sign with kid 'test-key-1'
+      const jwt = await new SignJWT({ sub: 'user-123' })
+        .setProtectedHeader({ alg: 'RS256', kid: 'test-key-1' })
+        .setIssuedAt()
+        .setIssuer(ISSUER_URL)
+        .setExpirationTime('1h')
+        .sign(privateKey);
+
+      // JWKS only has 'different-key'
+      const result = await validateCIBAIdTokenHint(jwt, {
+        issuerUrl: ISSUER_URL,
+        jwks: { keys: [differentJwk as JWK] },
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error_description).toContain('no matching key found');
+    });
+
+    it('should skip signature verification when JWKS not provided', async () => {
+      const { privateKey } = await generateKeyPair('RS256');
+
+      const jwt = await new SignJWT({ sub: 'user-123' })
+        .setProtectedHeader({ alg: 'RS256', kid: 'test-key-1' })
+        .setIssuedAt()
+        .setIssuer(ISSUER_URL)
+        .setExpirationTime('1h')
+        .sign(privateKey);
+
+      // No JWKS provided - signature verification is skipped
+      const result = await validateCIBAIdTokenHint(jwt, {
+        issuerUrl: ISSUER_URL,
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.subjectId).toBe('user-123');
+    });
+  });
+
+  describe('validateCIBALoginHintToken - Signature Verification', () => {
+    const AUDIENCE = 'https://auth.example.com';
+
+    it('should validate login_hint_token with valid signature', async () => {
+      const { privateKey, publicKey } = await generateKeyPair('ES256');
+      const publicJwk = await exportJWK(publicKey);
+      publicJwk.kid = 'third-party-key';
+      publicJwk.alg = 'ES256';
+      publicJwk.use = 'sig';
+
+      const jwt = await new SignJWT({ sub: 'user-456' })
+        .setProtectedHeader({ alg: 'ES256', kid: 'third-party-key' })
+        .setIssuedAt()
+        .setIssuer('https://third-party.com')
+        .setAudience(AUDIENCE)
+        .setExpirationTime('1h')
+        .sign(privateKey);
+
+      const result = await validateCIBALoginHintToken(jwt, {
+        audience: AUDIENCE,
+        jwks: { keys: [publicJwk as JWK] },
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.subjectId).toBe('user-456');
+    });
+
+    it('should reject login_hint_token with invalid signature', async () => {
+      const { privateKey: signingKey } = await generateKeyPair('ES256');
+      const { publicKey: wrongPublicKey } = await generateKeyPair('ES256');
+      const wrongJwk = await exportJWK(wrongPublicKey);
+      wrongJwk.kid = 'third-party-key';
+      wrongJwk.alg = 'ES256';
+      wrongJwk.use = 'sig';
+
+      const jwt = await new SignJWT({ sub: 'user-456' })
+        .setProtectedHeader({ alg: 'ES256', kid: 'third-party-key' })
+        .setIssuedAt()
+        .setIssuer('https://third-party.com')
+        .setAudience(AUDIENCE)
+        .setExpirationTime('1h')
+        .sign(signingKey);
+
+      const result = await validateCIBALoginHintToken(jwt, {
+        audience: AUDIENCE,
+        jwks: { keys: [wrongJwk as JWK] },
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error_description).toContain('signature verification failed');
     });
   });
 });

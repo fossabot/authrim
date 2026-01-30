@@ -746,6 +746,7 @@ app.post('/revoke/batch', batchRevokeHandler);
 
 // Admin authentication middleware - applies to ALL /api/admin/* routes
 // Supports both Bearer token (for headless/API usage) and session-based auth (for UI)
+// Note: /api/admin/auth/* routes are handled by ar-auth via ar-router
 app.use('/api/admin/*', adminAuthMiddleware());
 
 // Body size limit for Admin API - prevents DoS attacks via large payloads

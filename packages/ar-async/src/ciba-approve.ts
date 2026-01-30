@@ -12,6 +12,10 @@ import {
   createErrorResponse,
   AR_ERROR_CODES,
   getLogger,
+  checkRateLimit,
+  getCloudProvider,
+  getClientIP,
+  RateLimitProfiles,
 } from '@authrim/ar-lib-core';
 import { sendPingNotification } from '@authrim/ar-lib-core/notifications';
 
@@ -36,11 +40,36 @@ import { sendPingNotification } from '@authrim/ar-lib-core/notifications';
 export async function cibaApproveHandler(c: Context<{ Bindings: Env }>) {
   const log = getLogger(c).module('CIBA');
   try {
-    // Get client IP for rate limiting
-    const clientIp =
-      c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
+    // Get client IP for rate limiting using cloud provider configuration
+    const cloudProvider = await getCloudProvider(c.env);
+    const clientIp = getClientIP(c, cloudProvider);
 
-    // TODO: Check rate limiting if needed
+    // Check rate limiting for CIBA approval requests (strict profile: 10 requests/minute)
+    // This prevents brute-force attacks on auth_req_id
+    const rateLimitResult = await checkRateLimit(c.env, `ciba-approve:${clientIp}`, {
+      ...RateLimitProfiles.strict,
+    });
+
+    if (!rateLimitResult.allowed) {
+      log.warn('CIBA approve rate limit exceeded', {
+        clientIp: clientIp.substring(0, 10) + '...',
+        remaining: rateLimitResult.remaining,
+        resetAt: rateLimitResult.resetAt,
+      });
+      const retryAfter = rateLimitResult.resetAt - Math.floor(Date.now() / 1000);
+      c.header('Retry-After', retryAfter.toString());
+      c.header('X-RateLimit-Limit', RateLimitProfiles.strict.maxRequests.toString());
+      c.header('X-RateLimit-Remaining', rateLimitResult.remaining.toString());
+      c.header('X-RateLimit-Reset', rateLimitResult.resetAt.toString());
+      return c.json(
+        {
+          error: 'rate_limit_exceeded',
+          error_description: 'Too many approval requests. Please try again later.',
+          retry_after: retryAfter,
+        },
+        429
+      );
+    }
 
     // Parse JSON request body
     const body = await c.req.json();

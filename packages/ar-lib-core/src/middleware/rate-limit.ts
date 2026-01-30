@@ -128,7 +128,7 @@ export const VALID_CLOUD_PROVIDERS: CloudProvider[] = ['cloudflare', 'aws', 'azu
  * @param env - Environment with KV bindings
  * @returns Cloud provider setting
  */
-async function getCloudProvider(env: Env): Promise<CloudProvider> {
+export async function getCloudProvider(env: Env): Promise<CloudProvider> {
   const now = Date.now();
   const cacheTTL = getCacheTTLMs(env);
 
@@ -229,7 +229,7 @@ function getFallbackIP(c: Context): string {
  * @param c - Hono context
  * @param provider - Cloud provider
  */
-function getClientIP(c: Context, provider: CloudProvider): string {
+export function getClientIP(c: Context, provider: CloudProvider): string {
   switch (provider) {
     case 'cloudflare': {
       // Cloudflare provides the client IP in CF-Connecting-IP header
@@ -316,8 +316,13 @@ function getClientIP(c: Context, provider: CloudProvider): string {
  *
  * Uses RateLimiterCounter DO for atomic, precise rate limiting (issue #6).
  * Falls back to KV-based rate limiting if DO is unavailable.
+ *
+ * @param env - Environment bindings with RATE_LIMITER DO and STATE_STORE KV
+ * @param clientIP - Client IP address (used as rate limit key)
+ * @param config - Rate limit configuration
+ * @returns Rate limit check result with allowed flag, remaining requests, and reset timestamp
  */
-async function checkRateLimit(
+export async function checkRateLimit(
   env: Env,
   clientIP: string,
   config: RateLimitConfig

@@ -20,6 +20,8 @@ import {
   createErrorResponse,
   AR_ERROR_CODES,
   getLogger,
+  getJwksWithCache,
+  publishEvent,
 } from '@authrim/ar-lib-core';
 
 /**
@@ -117,9 +119,11 @@ export async function cibaAuthorizationHandler(c: Context<{ Bindings: Env }>) {
 
     // Validate id_token_hint if provided (JWT signed by this server)
     if (id_token_hint) {
-      const idTokenValidation = validateCIBAIdTokenHint(id_token_hint, {
+      // Get JWKS for signature verification (this server's keys)
+      const { keys: jwksKeys } = await getJwksWithCache(c.env);
+      const idTokenValidation = await validateCIBAIdTokenHint(id_token_hint, {
         issuerUrl: c.env.ISSUER_URL,
-        // TODO: Add JWKS for signature verification
+        jwks: { keys: jwksKeys },
       });
 
       if (!idTokenValidation.valid) {
@@ -135,9 +139,13 @@ export async function cibaAuthorizationHandler(c: Context<{ Bindings: Env }>) {
 
     // Validate login_hint_token if provided (JWT from third party)
     if (login_hint_token && !resolvedSubjectId) {
-      const loginHintTokenValidation = validateCIBALoginHintToken(login_hint_token, {
+      // For login_hint_token, JWKS would come from the third-party issuer
+      // Currently we validate without signature verification for third-party tokens
+      // In production, implement dynamic JWKS fetching based on the token's issuer
+      const loginHintTokenValidation = await validateCIBALoginHintToken(login_hint_token, {
         audience: c.env.ISSUER_URL,
-        // TODO: Add JWKS for signature verification (third-party issuer)
+        // Note: Third-party JWKS not yet implemented
+        // jwks would need to be fetched from the third-party issuer's jwks_uri
       });
 
       if (!loginHintTokenValidation.valid) {
@@ -216,20 +224,49 @@ export async function cibaAuthorizationHandler(c: Context<{ Bindings: Env }>) {
       return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
     }
 
-    // TODO: Send user notification
-    // Based on login_hint type:
-    // - Email: Send email with approval link
-    // - Phone: Send SMS with approval link
-    // - Push: Send push notification to mobile app
-    // - For now, log the request for manual approval via UI
-    log.info('CIBA authentication request created', {
+    // User notification for CIBA authentication requests
+    //
+    // Current implementation: Logs the request for manual approval via CIBA UI
+    // (/ciba/pending, /ciba/approve endpoints)
+    //
+    // Future integration options (implement via event hooks):
+    // - Email: Send email with approval link using configured SMTP/SendGrid/etc
+    // - SMS: Send SMS with approval code using Twilio/etc
+    // - Push: Send push notification to mobile app using FCM/APNs
+    // - Webhook: POST to configured endpoint for custom notification handling
+    //
+    // To enable notifications:
+    // 1. Add event hook for 'ciba.request.created' event type
+    // 2. Configure notification provider in tenant settings
+    // 3. Implement notification handler that consumes the event
+
+    log.info('CIBA authentication request created - awaiting user approval', {
       action: 'request_created',
       authReqId,
       clientId: client_id,
-      hasLoginHint: !!login_hint,
+      loginHintType: login_hint ? parseLoginHint(login_hint).type : 'none',
       hasBindingMessage: !!binding_message,
       hasUserCode: !!generatedUserCode,
       deliveryMode,
+      expiresIn,
+    });
+
+    // Publish event for notification hooks (non-blocking)
+    // External systems can subscribe to this event to send notifications
+    publishEvent(c, {
+      type: 'ciba.request.created',
+      tenantId: clientMetadata.tenant_id as string,
+      data: {
+        auth_req_id: authReqId,
+        client_id,
+        login_hint: login_hint || undefined,
+        binding_message: binding_message || undefined,
+        user_code: generatedUserCode,
+        delivery_mode: deliveryMode,
+        expires_at: metadata.expires_at,
+      },
+    }).catch((err: unknown) => {
+      log.warn('Failed to publish ciba.request.created event', {}, err as Error);
     });
 
     // Build response based on delivery mode

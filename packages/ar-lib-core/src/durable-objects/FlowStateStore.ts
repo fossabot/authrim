@@ -45,6 +45,8 @@ export interface RuntimeState {
   sessionId: string;
   /** FlowID（どのFlowを実行中か） */
   flowId: string;
+  /** FlowType（'login' | 'authorization' | 'consent' | 'logout'） */
+  flowType: string;
   /** テナントID */
   tenantId: string;
   /** クライアントID */
@@ -104,6 +106,8 @@ export interface CreateRuntimeStateParams {
   sessionId: string;
   /** FlowID */
   flowId: string;
+  /** FlowType（'login' | 'authorization' | 'consent' | 'logout'） */
+  flowType: string;
   /** テナントID */
   tenantId: string;
   /** クライアントID */
@@ -209,6 +213,7 @@ export class FlowStateStore {
     this.runtimeState = {
       sessionId: params.sessionId,
       flowId: params.flowId,
+      flowType: params.flowType,
       tenantId: params.tenantId,
       clientId: params.clientId,
       currentNodeId: params.entryNodeId,
@@ -468,22 +473,30 @@ export class FlowStateStore {
   private getPublicState(): {
     sessionId: string;
     flowId: string;
+    flowType: string;
+    tenantId: string;
+    clientId: string;
     currentNodeId: string;
     visitedNodeIds: string[];
     completedCapabilities: string[];
     expiresAt: number;
     collectedData?: Record<string, unknown>;
+    oauthParams?: OAuthFlowParams;
   } | null {
     if (!this.runtimeState) return null;
 
     return {
       sessionId: this.runtimeState.sessionId,
       flowId: this.runtimeState.flowId,
+      flowType: this.runtimeState.flowType,
+      tenantId: this.runtimeState.tenantId,
+      clientId: this.runtimeState.clientId,
       currentNodeId: this.runtimeState.currentNodeId,
       visitedNodeIds: this.runtimeState.visitedNodeIds,
       completedCapabilities: this.runtimeState.completedCapabilities,
       expiresAt: this.runtimeState.expiresAt,
       collectedData: this.runtimeState.collectedData,
+      oauthParams: this.runtimeState.oauthParams,
     };
   }
 

@@ -5,7 +5,8 @@
  */
 
 import type { CIBARequestMetadata } from '../types/oidc';
-import type { JWK } from 'jose';
+import { jwtVerify, createLocalJWKSet, errors as joseErrors } from 'jose';
+import type { JWK, JWTVerifyResult, JWTPayload as JoseJWTPayload, JWTHeaderParameters } from 'jose';
 import { createLogger } from './logger';
 
 const log = createLogger().module('CIBA');
@@ -349,19 +350,20 @@ function parseJWTWithoutVerification(jwt: string): {
  * - Token must not be expired (with clock skew tolerance)
  * - Token must not be used before nbf (if present)
  * - Sub claim must be present
+ * - Signature is verified against provided JWKS
  *
  * @param idTokenHint - The id_token_hint JWT string
  * @param options - Validation options
  * @returns Validation result with extracted subject ID
  */
-export function validateCIBAIdTokenHint(
+export async function validateCIBAIdTokenHint(
   idTokenHint: string,
   options: ValidateJWTHintOptions = {}
-): JWTHintValidationResult {
+): Promise<JWTHintValidationResult> {
   const clockSkew = options.clockSkewSeconds ?? 60;
   const nowSeconds = Math.floor(Date.now() / 1000);
 
-  // Parse JWT
+  // Parse JWT for initial validation (before signature verification)
   const parsed = parseJWTWithoutVerification(idTokenHint);
   if (!parsed) {
     return {
@@ -419,9 +421,37 @@ export function validateCIBAIdTokenHint(
     };
   }
 
-  // TODO: Implement signature verification when JWKS is provided
-  // For now, log warning if JWKS not configured
-  if (!options.jwks) {
+  // Signature verification
+  if (options.jwks && options.jwks.keys.length > 0) {
+    try {
+      const jwks = createLocalJWKSet(options.jwks);
+      await jwtVerify(idTokenHint, jwks, {
+        algorithms: [...ALLOWED_JWT_ALGORITHMS],
+        issuer: options.issuerUrl,
+        clockTolerance: clockSkew,
+      });
+      log.debug('id_token_hint signature verified successfully');
+    } catch (err) {
+      if (err instanceof joseErrors.JWSSignatureVerificationFailed) {
+        log.warn('id_token_hint signature verification failed');
+        return {
+          valid: false,
+          error: 'invalid_request',
+          error_description: 'Invalid id_token_hint: signature verification failed',
+        };
+      }
+      if (err instanceof joseErrors.JWKSNoMatchingKey) {
+        log.warn('id_token_hint: no matching key found in JWKS');
+        return {
+          valid: false,
+          error: 'invalid_request',
+          error_description: 'Invalid id_token_hint: no matching key found',
+        };
+      }
+      // Re-throw unexpected errors
+      throw err;
+    }
+  } else {
     log.warn(
       'id_token_hint signature verification skipped - JWKS not configured. Configure JWKS for production security.'
     );
@@ -446,19 +476,20 @@ export function validateCIBAIdTokenHint(
  * - Token must not be expired
  * - Token must not be used before nbf (if present)
  * - Sub or subject claim must be present
+ * - Signature is verified against provided JWKS (third-party issuer)
  *
  * @param loginHintToken - The login_hint_token JWT string
  * @param options - Validation options
  * @returns Validation result with extracted subject ID
  */
-export function validateCIBALoginHintToken(
+export async function validateCIBALoginHintToken(
   loginHintToken: string,
   options: ValidateJWTHintOptions = {}
-): JWTHintValidationResult {
+): Promise<JWTHintValidationResult> {
   const clockSkew = options.clockSkewSeconds ?? 60;
   const nowSeconds = Math.floor(Date.now() / 1000);
 
-  // Parse JWT
+  // Parse JWT for initial validation (before signature verification)
   const parsed = parseJWTWithoutVerification(loginHintToken);
   if (!parsed) {
     return {
@@ -518,9 +549,38 @@ export function validateCIBALoginHintToken(
     };
   }
 
-  // TODO: Implement signature verification when JWKS is provided
-  // For login_hint_token, the issuer could be a third party
-  if (!options.jwks) {
+  // Signature verification
+  // For login_hint_token, the JWKS could be from a third-party issuer
+  if (options.jwks && options.jwks.keys.length > 0) {
+    try {
+      const jwks = createLocalJWKSet(options.jwks);
+      await jwtVerify(loginHintToken, jwks, {
+        algorithms: [...ALLOWED_JWT_ALGORITHMS],
+        audience: options.audience,
+        clockTolerance: clockSkew,
+      });
+      log.debug('login_hint_token signature verified successfully');
+    } catch (err) {
+      if (err instanceof joseErrors.JWSSignatureVerificationFailed) {
+        log.warn('login_hint_token signature verification failed');
+        return {
+          valid: false,
+          error: 'invalid_request',
+          error_description: 'Invalid login_hint_token: signature verification failed',
+        };
+      }
+      if (err instanceof joseErrors.JWKSNoMatchingKey) {
+        log.warn('login_hint_token: no matching key found in JWKS');
+        return {
+          valid: false,
+          error: 'invalid_request',
+          error_description: 'Invalid login_hint_token: no matching key found',
+        };
+      }
+      // Re-throw unexpected errors
+      throw err;
+    }
+  } else {
     log.warn(
       'login_hint_token signature verification skipped - JWKS not configured. Configure JWKS for production security.'
     );

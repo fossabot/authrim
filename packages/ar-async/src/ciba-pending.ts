@@ -44,9 +44,24 @@ import {
 export async function cibaPendingHandler(c: Context<{ Bindings: Env }>) {
   const log = getLogger(c).module('CIBA');
   try {
-    // TODO: In production, get user_id from session
+    // User identification for CIBA pending requests
+    // In production: user_id should come from authenticated session (cookie/token)
+    // Currently: accepts user_id from query parameter for development/testing
+    //
+    // TODO: Integrate with session management when available:
+    // const sessionUser = await getAuthenticatedUser(c);
+    // const userId = sessionUser?.sub;
+
     const loginHint = c.req.query('login_hint');
     const userId = c.req.query('user_id');
+
+    // Security warning: query parameter user_id is only for development
+    if (userId && !loginHint) {
+      log.warn(
+        'CIBA pending: user_id from query parameter (development mode). Production should use session authentication.',
+        { hasLoginHint: !!loginHint }
+      );
+    }
 
     if (!loginHint && !userId) {
       return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_REQUIRED_FIELD, {
