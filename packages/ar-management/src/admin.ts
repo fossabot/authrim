@@ -2249,7 +2249,7 @@ export async function adminClientDeleteHandler(c: Context<{ Bindings: Env }>) {
     // Uses versioned KV keys (v1:client:{id}, v1:cache-mode:client:{id})
     const log = getLogger(c).module('ADMIN-CLIENT');
     try {
-      await invalidateClientCacheOnDelete(c.env, clientId);
+      await invalidateClientCacheOnDelete(c.env, clientId, tenantId);
     } catch (error) {
       log.warn('Failed to invalidate client cache on delete', {
         action: 'cache_invalidate',
