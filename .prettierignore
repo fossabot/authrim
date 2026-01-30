@@ -7,6 +7,12 @@ build/
 .svelte-kit/
 **/.svelte-kit/
 
+# typesafe-i18n generated files
+**/i18n/i18n-types.ts
+**/i18n/i18n-util.ts
+**/i18n/i18n-util.async.ts
+**/i18n/i18n-util.sync.ts
+
 # Dependencies
 node_modules/
 
