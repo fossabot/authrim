@@ -513,6 +513,36 @@ export function createRefreshTokenPayload(
   };
 }
 
+/**
+ * Create a test refresh token JWT string (for handler tests)
+ * Uses test-kid-001 to match the mock public key
+ */
+export function createTestRefreshTokenJWT(
+  payloadOverrides?: Partial<TestRefreshTokenPayload>,
+  headerOverrides?: { kid?: string; alg?: string }
+): string {
+  const header = {
+    alg: 'RS256',
+    typ: 'JWT',
+    kid: 'test-kid-001', // Must match getMockPublicJWK().kid
+    ...headerOverrides,
+  };
+  const payload = createRefreshTokenPayload(payloadOverrides);
+
+  // Base64URL encode
+  const base64UrlEncode = (obj: object): string => {
+    const json = JSON.stringify(obj);
+    const base64 = Buffer.from(json).toString('base64');
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/[=]/g, '');
+  };
+
+  const headerB64 = base64UrlEncode(header);
+  const payloadB64 = base64UrlEncode(payload);
+  const signatureB64 = base64UrlEncode({ sig: 'test-signature' });
+
+  return `${headerB64}.${payloadB64}.${signatureB64}`;
+}
+
 // ============================================================================
 // Request Body Fixtures
 // ============================================================================

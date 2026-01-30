@@ -290,6 +290,8 @@ export function createMockEnv(overrides?: Partial<MockEnv>): MockEnv {
     ISSUER_URL: 'https://auth.example.com',
     KEY_MANAGER_SECRET: 'test-key-manager-secret',
     ENVIRONMENT: 'test',
+    // PUBLIC_JWK_JSON for token verification (used by getVerificationKeyFromJWKS)
+    PUBLIC_JWK_JSON: JSON.stringify(getMockPublicJWK()),
     ...overrides,
   };
 }

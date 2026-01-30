@@ -31,6 +31,7 @@ import {
   createAuthCodeGrantRequest,
   createRefreshTokenGrantRequest,
   createRefreshTokenPayload,
+  createTestRefreshTokenJWT,
   createPKCEValues,
   createInvalidPKCEVerifierShort,
   createInvalidPKCEVerifierLong,
@@ -918,7 +919,11 @@ describe('Security-Critical Tests', () => {
 
     describe('DPoP Token Binding', () => {
       it('should include cnf claim with jkt in access token when DPoP is used', async () => {
-        const client = createFAPIClient();
+        // Use FAPI client but override auth method to allow secret-based auth for testing
+        const client = createFAPIClient({
+          token_endpoint_auth_method: 'client_secret_post',
+          client_secret_hash: 'test-secret-hash',
+        });
         const authCodeData = createAuthCodeData();
         const expectedJkt = 'dpop-thumbprint-value';
 
@@ -944,6 +949,7 @@ describe('Security-Critical Tests', () => {
             code: 'valid-auth-code',
             redirect_uri: authCodeData.redirectUri,
             client_id: client.client_id,
+            client_secret: 'valid-secret',
           },
           env: mockEnv,
         });
@@ -963,7 +969,11 @@ describe('Security-Critical Tests', () => {
       });
 
       it('should return token_type as DPoP when DPoP is used', async () => {
-        const client = createFAPIClient();
+        // Use FAPI client but override auth method to allow secret-based auth for testing
+        const client = createFAPIClient({
+          token_endpoint_auth_method: 'client_secret_post',
+          client_secret_hash: 'test-secret-hash',
+        });
         const authCodeData = createAuthCodeData();
 
         mocks.mockGetClientCached.mockResolvedValue(client);
@@ -988,6 +998,7 @@ describe('Security-Critical Tests', () => {
             code: 'valid-auth-code',
             redirect_uri: authCodeData.redirectUri,
             client_id: client.client_id,
+            client_secret: 'valid-secret',
           },
           env: mockEnv,
         });
@@ -1142,6 +1153,11 @@ describe('Security-Critical Tests', () => {
           client_id: client.client_id,
           sub: 'user-001',
         });
+        // Create a valid JWT string with proper header (kid matching mock public key)
+        const refreshTokenJWT = createTestRefreshTokenJWT({
+          client_id: client.client_id,
+          sub: 'user-001',
+        });
 
         mocks.mockGetClientCached.mockResolvedValue(client);
         mocks.mockParseToken.mockReturnValue(refreshTokenPayload);
@@ -1169,7 +1185,7 @@ describe('Security-Critical Tests', () => {
           method: 'POST',
           body: {
             grant_type: 'refresh_token',
-            refresh_token: 'current-refresh-token',
+            refresh_token: refreshTokenJWT,
             client_id: client.client_id,
             client_secret: 'valid-secret', // Required for confidential client
           },
@@ -1191,6 +1207,9 @@ describe('Security-Critical Tests', () => {
         const refreshTokenPayload = createRefreshTokenPayload({
           client_id: client.client_id,
         });
+        const refreshTokenJWT = createTestRefreshTokenJWT({
+          client_id: client.client_id,
+        });
 
         // Disable rotation via env
         mockEnv.ENABLE_REFRESH_TOKEN_ROTATION = 'false';
@@ -1207,7 +1226,7 @@ describe('Security-Critical Tests', () => {
           method: 'POST',
           body: {
             grant_type: 'refresh_token',
-            refresh_token: 'original-refresh-token',
+            refresh_token: refreshTokenJWT,
             client_id: client.client_id,
             client_secret: 'valid-secret', // Required for confidential client
           },
@@ -1218,7 +1237,7 @@ describe('Security-Critical Tests', () => {
         const body = await parseJsonResponse<{ refresh_token: string }>(response);
 
         expect(response.status).toBe(200);
-        expect(body.refresh_token).toBe('original-refresh-token');
+        expect(body.refresh_token).toBe(refreshTokenJWT);
       });
     });
 
@@ -1228,6 +1247,10 @@ describe('Security-Critical Tests', () => {
         const refreshTokenPayload = createRefreshTokenPayload({
           client_id: client.client_id,
           version: 1, // Old version
+        });
+        const refreshTokenJWT = createTestRefreshTokenJWT({
+          client_id: client.client_id,
+          version: 1,
         });
 
         mocks.mockGetClientCached.mockResolvedValue(client);
@@ -1255,7 +1278,7 @@ describe('Security-Critical Tests', () => {
           method: 'POST',
           body: {
             grant_type: 'refresh_token',
-            refresh_token: 'stolen-refresh-token',
+            refresh_token: refreshTokenJWT,
             client_id: client.client_id,
             client_secret: 'valid-secret', // Required for confidential client
           },
@@ -1275,6 +1298,10 @@ describe('Security-Critical Tests', () => {
       it('should revoke entire token family when theft is detected', async () => {
         const client = createConfidentialClient();
         const refreshTokenPayload = createRefreshTokenPayload({
+          client_id: client.client_id,
+          family_id: 'family-001',
+        });
+        const refreshTokenJWT = createTestRefreshTokenJWT({
           client_id: client.client_id,
           family_id: 'family-001',
         });
@@ -1304,7 +1331,7 @@ describe('Security-Critical Tests', () => {
           method: 'POST',
           body: {
             grant_type: 'refresh_token',
-            refresh_token: 'compromised-refresh-token',
+            refresh_token: refreshTokenJWT,
             client_id: client.client_id,
             client_secret: 'valid-secret', // Required for confidential client
           },
@@ -1326,6 +1353,10 @@ describe('Security-Critical Tests', () => {
           client_id: client.client_id,
           scope: 'openid profile', // Original scope
         });
+        const refreshTokenJWT = createTestRefreshTokenJWT({
+          client_id: client.client_id,
+          scope: 'openid profile',
+        });
 
         mocks.mockGetClientCached.mockResolvedValue(client);
         mocks.mockParseToken.mockReturnValue(refreshTokenPayload);
@@ -1339,7 +1370,7 @@ describe('Security-Critical Tests', () => {
           method: 'POST',
           body: {
             grant_type: 'refresh_token',
-            refresh_token: 'valid-refresh-token',
+            refresh_token: refreshTokenJWT,
             client_id: client.client_id,
             client_secret: 'valid-secret', // Required for confidential client
             scope: 'openid profile admin', // Requesting more scopes
@@ -1360,6 +1391,10 @@ describe('Security-Critical Tests', () => {
       it('should allow scope that is a subset of original grant', async () => {
         const client = createConfidentialClient();
         const refreshTokenPayload = createRefreshTokenPayload({
+          client_id: client.client_id,
+          scope: 'openid profile email',
+        });
+        const refreshTokenJWT = createTestRefreshTokenJWT({
           client_id: client.client_id,
           scope: 'openid profile email',
         });
@@ -1389,7 +1424,7 @@ describe('Security-Critical Tests', () => {
           method: 'POST',
           body: {
             grant_type: 'refresh_token',
-            refresh_token: 'valid-refresh-token',
+            refresh_token: refreshTokenJWT,
             client_id: client.client_id,
             client_secret: 'valid-secret', // Required for confidential client
             scope: 'openid profile', // Subset of original
@@ -1411,6 +1446,9 @@ describe('Security-Critical Tests', () => {
         const refreshTokenPayload = createRefreshTokenPayload({
           client_id: 'client-b', // Different client
         });
+        const refreshTokenJWT = createTestRefreshTokenJWT({
+          client_id: 'client-b',
+        });
 
         mocks.mockGetClientCached.mockResolvedValue(client);
         mocks.mockParseToken.mockReturnValue(refreshTokenPayload);
@@ -1424,7 +1462,7 @@ describe('Security-Critical Tests', () => {
           method: 'POST',
           body: {
             grant_type: 'refresh_token',
-            refresh_token: 'stolen-from-other-client',
+            refresh_token: refreshTokenJWT,
             client_id: 'client-a', // Trying to use with different client
             client_secret: 'valid-secret', // Required for confidential client
           },
