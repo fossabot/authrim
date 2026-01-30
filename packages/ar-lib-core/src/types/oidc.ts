@@ -421,6 +421,13 @@ export interface ClientMetadata extends ClientRegistrationResponse {
    * Client must provide a valid DPoP proof in all token requests.
    */
   dpop_bound_access_tokens?: boolean;
+  /**
+   * DPoP enforcement mode for this client.
+   * - 'disabled': DPoP not required
+   * - 'critical_only': DPoP required for critical operations only
+   * - 'all': DPoP required for all token requests
+   */
+  dpop_mode?: 'disabled' | 'critical_only' | 'all';
 
   // ==========================================================================
   // RFC 8693: Token Exchange Settings

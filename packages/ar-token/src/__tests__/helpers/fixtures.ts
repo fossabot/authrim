@@ -14,6 +14,7 @@ import type {
   TokenTypeURN,
   ActClaim,
   DelegationMode,
+  JWKS,
 } from '@authrim/ar-lib-core';
 
 // ============================================================================
@@ -41,7 +42,7 @@ export interface TestClientMetadata extends Partial<ClientMetadata> {
   id_token_encrypted_response_alg?: string;
   id_token_encrypted_response_enc?: string;
   jwks_uri?: string;
-  jwks?: object;
+  jwks?: JWKS;
 }
 
 /**

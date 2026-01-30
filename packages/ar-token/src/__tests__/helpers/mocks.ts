@@ -10,6 +10,7 @@
 import { vi } from 'vitest';
 import type { Context } from 'hono';
 import type { Mock } from 'vitest';
+import type { Env } from '@authrim/ar-lib-core';
 
 // ============================================================================
 // Type Definitions
@@ -107,6 +108,8 @@ export interface MockEnv {
   ENABLE_TOKEN_EXCHANGE?: string;
   ENABLE_NATIVE_SSO?: string;
   ENABLE_CIBA?: string;
+  ENABLE_CLIENT_CREDENTIALS?: string;
+  ENABLE_REFRESH_TOKEN_ROTATION?: string;
   // Region-aware sharding
   CF_REGION?: string;
 }
@@ -288,8 +291,11 @@ export interface MockContextOptions {
 
 /**
  * Create a mock Hono context for testing handlers
+ *
+ * Note: Returns Context<{ Bindings: Env }> type for compatibility with token handlers.
+ * The actual MockEnv is a subset of Env, but handlers only use the mocked properties.
  */
-export function createMockContext(options: MockContextOptions = {}): Context<{ Bindings: MockEnv }> {
+export function createMockContext(options: MockContextOptions = {}): Context<{ Bindings: Env }> {
   const {
     method = 'POST',
     url = 'https://auth.example.com/oauth/token',
@@ -360,7 +366,7 @@ export function createMockContext(options: MockContextOptions = {}): Context<{ B
     },
   };
 
-  return mockContext as unknown as Context<{ Bindings: MockEnv }>;
+  return mockContext as unknown as Context<{ Bindings: Env }>;
 }
 
 // ============================================================================

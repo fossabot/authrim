@@ -418,13 +418,28 @@ export function applyPatchOperations<T extends object>(
         let current: PatchableRecord = result;
         for (let i = 0; i < pathParts.length - 1; i++) {
           const part = pathParts[i];
+          // SECURITY: Skip dangerous property names (additional inline check for static analysis)
+          if (dangerousProps.includes(part)) continue;
           if (!Object.prototype.hasOwnProperty.call(current, part)) {
-            current[part] = {};
+            Object.defineProperty(current, part, {
+              value: {},
+              writable: true,
+              enumerable: true,
+              configurable: true,
+            });
           }
           current = current[part] as PatchableRecord;
         }
         const targetKey = pathParts[pathParts.length - 1];
-        current[targetKey] = value;
+        // SECURITY: Skip dangerous property names
+        if (!dangerousProps.includes(targetKey)) {
+          Object.defineProperty(current, targetKey, {
+            value: value,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
+        }
         break;
       }
 
@@ -432,13 +447,18 @@ export function applyPatchOperations<T extends object>(
         let current: PatchableRecord = result;
         for (let i = 0; i < pathParts.length - 1; i++) {
           const part = pathParts[i];
+          // SECURITY: Skip dangerous property names
+          if (dangerousProps.includes(part)) break;
           if (!Object.prototype.hasOwnProperty.call(current, part)) {
             break;
           }
           current = current[part] as PatchableRecord;
         }
         const targetKey = pathParts[pathParts.length - 1];
-        delete current[targetKey];
+        // SECURITY: Skip dangerous property names
+        if (!dangerousProps.includes(targetKey)) {
+          delete current[targetKey];
+        }
         break;
       }
     }
