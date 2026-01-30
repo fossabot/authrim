@@ -81,8 +81,8 @@ export function serializeToOAuth(descriptor: ErrorDescriptor): Response {
   // Add WWW-Authenticate for 401 responses
   // RFC 6750 Section 3.1: Include error_description for better diagnostics
   if (descriptor.status === 401) {
-    // Escape double quotes in error description for header safety
-    const escapedDescription = descriptor.detail.replace(/"/g, '\\"');
+    // Escape backslashes and double quotes in error description for header safety
+    const escapedDescription = descriptor.detail.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     headers['WWW-Authenticate'] =
       `Bearer error="${descriptor.rfcError}", error_description="${escapedDescription}"`;
   }

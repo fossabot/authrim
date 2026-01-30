@@ -143,8 +143,8 @@ export function handleUserInfoError(_c: Context, error: OIDCError): Response {
 
   // RFC 6750 Section 3.1: Include error_description for better diagnostics
   if (error.statusCode === HTTP_STATUS.UNAUTHORIZED && error.error_description) {
-    // Escape double quotes in error_description for header safety
-    const escapedDescription = error.error_description.replace(/"/g, '\\"');
+    // Escape backslashes and double quotes in error_description for header safety
+    const escapedDescription = error.error_description.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     headers['WWW-Authenticate'] =
       `Bearer error="${error.error}", error_description="${escapedDescription}"`;
   }

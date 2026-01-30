@@ -31,26 +31,45 @@ export function escapeHtml(str: string): string {
 /**
  * Sanitize a string by removing potential script injection patterns
  * More aggressive than escapeHtml - removes dangerous patterns entirely
+ *
+ * SECURITY NOTE: This function uses a multi-pass approach to handle
+ * nested/encoded attack patterns. For user-facing display, prefer
+ * escapeHtml() which is safer. This function is for cases where
+ * stripped text content is acceptable.
  */
 export function sanitizeText(str: string): string {
 	if (!str || typeof str !== 'string') return '';
 
-	return (
-		str
-			// Remove script tags and their content
-			.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-			// Remove event handlers
+	let result = str;
+	let previousResult = '';
+
+	// Multi-pass sanitization to handle nested patterns
+	// Loop until no more changes are made (handles recursive injection attempts)
+	while (result !== previousResult) {
+		previousResult = result;
+		result = result
+			// Remove null bytes that could bypass filters
+			.replace(/\0/g, '')
+			// Remove script tags and their content (handles whitespace variations)
+			.replace(/<\s*script\b[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
+			// Remove script tags without closing (self-closing or malformed)
+			.replace(/<\s*script\b[^>]*\/?>/gi, '')
+			// Remove event handlers (handles whitespace and encoding variations)
 			.replace(/\s*on\w+\s*=\s*(['"])[^'"]*\1/gi, '')
 			.replace(/\s*on\w+\s*=\s*[^\s>]+/gi, '')
-			// Remove javascript: URLs
-			.replace(/javascript:/gi, '')
+			// Remove javascript: URLs (handles whitespace, case, and encoding)
+			.replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '')
+			// Remove vbscript: URLs
+			.replace(/v\s*b\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '')
 			// Remove data: URLs that could contain scripts
-			.replace(/data:\s*text\/html/gi, '')
+			.replace(/data\s*:[^,]*text\/html[^,]*/gi, '')
 			// Remove any remaining HTML tags (keep text content)
 			.replace(/<[^>]*>/g, '')
-			// Trim whitespace
-			.trim()
-	);
+			// Normalize whitespace
+			.replace(/[\r\n]+/g, ' ');
+	}
+
+	return result.trim();
 }
 
 /**

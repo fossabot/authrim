@@ -406,18 +406,25 @@ export function applyPatchOperations<T extends object>(
     // Parse path (simple implementation, doesn't handle complex paths)
     const pathParts = path.split('.');
 
+    // SECURITY: Prevent prototype pollution by rejecting dangerous property names
+    const dangerousProps = ['__proto__', 'constructor', 'prototype'];
+    if (pathParts.some((part) => dangerousProps.includes(part))) {
+      continue; // Skip operations that could cause prototype pollution
+    }
+
     switch (op) {
       case 'add':
       case 'replace': {
         let current: PatchableRecord = result;
         for (let i = 0; i < pathParts.length - 1; i++) {
           const part = pathParts[i];
-          if (!current[part]) {
+          if (!Object.prototype.hasOwnProperty.call(current, part)) {
             current[part] = {};
           }
           current = current[part] as PatchableRecord;
         }
-        current[pathParts[pathParts.length - 1]] = value;
+        const targetKey = pathParts[pathParts.length - 1];
+        current[targetKey] = value;
         break;
       }
 
@@ -425,12 +432,13 @@ export function applyPatchOperations<T extends object>(
         let current: PatchableRecord = result;
         for (let i = 0; i < pathParts.length - 1; i++) {
           const part = pathParts[i];
-          if (!current[part]) {
+          if (!Object.prototype.hasOwnProperty.call(current, part)) {
             break;
           }
           current = current[part] as PatchableRecord;
         }
-        delete current[pathParts[pathParts.length - 1]];
+        const targetKey = pathParts[pathParts.length - 1];
+        delete current[targetKey];
         break;
       }
     }

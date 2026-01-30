@@ -5392,7 +5392,7 @@ export async function adminUserActivityLogHandler(c: Context<{ Bindings: Env }>)
     if (actionFilter) {
       if (actionFilter.includes('*')) {
         query += ' AND action LIKE ?';
-        bindings.push(actionFilter.replace('*', '%'));
+        bindings.push(actionFilter.replace(/\*/g, '%'));
       } else {
         query += ' AND action = ?';
         bindings.push(actionFilter);

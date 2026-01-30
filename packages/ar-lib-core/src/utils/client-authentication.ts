@@ -153,7 +153,13 @@ export async function validateClientAssertion(
 
     // Step 4: Verify audience matches token endpoint or issuer ID
     // URL normalization: remove trailing slashes for comparison
-    const normalizeUrl = (url: string): string => url.replace(/\/+$/, '');
+    const normalizeUrl = (url: string): string => {
+      let result = url;
+      while (result.endsWith('/')) {
+        result = result.slice(0, -1);
+      }
+      return result;
+    };
     const normalizedEndpoint = normalizeUrl(tokenEndpoint);
 
     // RFC 7523 Section 3 recommends token endpoint URL, but OIDC Core and industry practice

@@ -136,8 +136,8 @@ function oauthError(
   // RFC 6750 Section 3: Add WWW-Authenticate header for 401 responses
   // Include error_description for better diagnostics (RFC 6750 Section 3.1)
   if (status === 401) {
-    // Escape double quotes in error_description for header safety
-    const escapedDescription = errorDescription.replace(/"/g, '\\"');
+    // Escape backslashes and double quotes in error_description for header safety
+    const escapedDescription = errorDescription.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     c.header(
       'WWW-Authenticate',
       `Bearer error="${error}", error_description="${escapedDescription}"`
