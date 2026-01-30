@@ -45,12 +45,17 @@ export async function cibaPendingHandler(c: Context<{ Bindings: Env }>) {
   const log = getLogger(c).module('CIBA');
   try {
     // User identification for CIBA pending requests
-    // In production: user_id should come from authenticated session (cookie/token)
-    // Currently: accepts user_id from query parameter for development/testing
     //
-    // TODO: Integrate with session management when available:
-    // const sessionUser = await getAuthenticatedUser(c);
-    // const userId = sessionUser?.sub;
+    // Security Note: This endpoint accepts user identification via query parameters
+    // for development/testing purposes. In production deployments:
+    //
+    // 1. Configure authentication middleware on this route
+    // 2. Extract user_id from the authenticated session:
+    //    const sessionUser = await getAuthenticatedUser(c);
+    //    const userId = sessionUser?.sub;
+    // 3. Reject requests without valid session authentication
+    //
+    // The current implementation logs a warning when using query parameter auth.
 
     const loginHint = c.req.query('login_hint');
     const userId = c.req.query('user_id');

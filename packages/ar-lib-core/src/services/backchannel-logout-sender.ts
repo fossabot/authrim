@@ -526,6 +526,24 @@ export interface ProcessRetryParams {
     attempt: number,
     issuer: string
   ) => Promise<void>;
+  /**
+   * Optional callback for alerting when max retries are exceeded.
+   * Use this to integrate with external alerting systems (e.g., Slack, PagerDuty, email).
+   *
+   * @example
+   * ```typescript
+   * onAlert: async (details) => {
+   *   await sendToSlack(`Backchannel logout failed for client ${details.clientId}`);
+   * }
+   * ```
+   */
+  onAlert?: (details: {
+    clientId: string;
+    sessionId: string;
+    userId: string;
+    attempts: number;
+    error: string;
+  }) => Promise<void>;
 }
 
 /**
@@ -538,11 +556,30 @@ export async function processRetry(params: ProcessRetryParams): Promise<LogoutSe
   if (params.attempt > params.config.retry.max_attempts) {
     // Final failure
     if (params.config.on_final_failure === 'alert') {
-      // TODO: Implement alerting mechanism
+      // Log error for observability
       log.error('Backchannel logout final failure', {
         clientId: params.clientId,
+        sessionId: params.sessionId,
+        userId: params.userId,
         attempts: params.attempt,
       });
+
+      // Call external alerting callback if provided
+      if (params.onAlert) {
+        try {
+          await params.onAlert({
+            clientId: params.clientId,
+            sessionId: params.sessionId,
+            userId: params.userId,
+            attempts: params.attempt,
+            error: `Backchannel logout failed after ${params.attempt} attempts`,
+          });
+        } catch (alertError) {
+          log.warn('Failed to send backchannel logout alert', {
+            error: alertError instanceof Error ? alertError.message : String(alertError),
+          });
+        }
+      }
     }
 
     // Clear pending lock

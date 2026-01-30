@@ -16,16 +16,16 @@ timeline
                 : ✅ P8 Policy Integration
                 : ✅ P7 Identity Hub
                 : ✅ P9 Advanced Identity (VC/DID)
-                : ⏳ P10 SDK & API
-                : ⏳ P11 Security & QA
     section 2026
+        Jan : ✅ P10 SDK & API Complete
+            : ⏳ P11 Security & QA (~50%)
         Q1 : P12 Certification & Release
 ```
 
 **Legend:**
 
-- ✅ Complete (Phases 1-9)
-- ⏳ In Progress (Phase 10, 11)
+- ✅ Complete (Phases 1-10)
+- ⏳ In Progress (Phase 11)
 - 🔜 Planned (Phase 12: 2026-Q1)
 
 ---
@@ -120,8 +120,8 @@ timeline
 | **M7: Identity Hub**       | 2025-12-20 | ✅ Complete | RP Module, Social Login (7 providers), PII Separation                 |
 | **M8: Policy Integration** | 2025-12-19 | ✅ Complete | Unified AuthN + AuthZ, Token embedding, Check API                     |
 | **M9: Advanced Identity**  | 2025-12-20 | ✅ Complete | OpenID4VP/CI, DID Resolver, DID Auth, 227 tests                       |
-| **M10: SDK & API**         | 2025-Q4    | 🔜 Planned  | WebSDK, CLI, API Documentation                                        |
-| **M11: Security & QA**     | 2025-Q4    | ⏳ ~30%     | Load Testing ✅, Client Credentials ✅, Security Tests ✅, Audit pending |
+| **M10: SDK & API**         | 2026-01-30 | ✅ Complete | @authrim/core, web, server, sveltekit SDKs, Documentation Portal      |
+| **M11: Security & QA**     | 2025-Q4    | ⏳ ~50%     | Load Testing ✅, Client Credentials ✅, Conformance OP ✅, Audit pending |
 | **M12: Release**           | 2026-Q1    | 🔜 Final    | OpenID Certification, Public Release                                  |
 
 ---
@@ -395,42 +395,64 @@ Data separation architecture for GDPR/CCPA compliance:
 
 ---
 
-## Phase 10: SDK & API 🔜 PLANNED
+## Phase 10: SDK & API ✅ COMPLETE
 
-**Timeline:** 2025-Q4 (December 2025)
+**Timeline:** December 2025 - January 2026
 
 **Goal:** Developer SDKs and comprehensive API documentation
 
-### Key Features
+### JavaScript SDK Packages ✅
 
-| Feature               | Description                               | Status     |
-| --------------------- | ----------------------------------------- | ---------- |
-| @authrim/sdk-core     | Headless OIDC/PKCE client                 | 🔜 Planned |
-| @authrim/sdk-web      | Web Components (Lit/Stencil)              | 🔜 Planned |
-| @authrim/sdk-react    | React hooks and components                | 🔜 Planned |
-| CDN Bundle            | `authrim-sdk.min.js` for `<script>` usage | 🔜 Planned |
-| OpenAPI Spec          | Complete API specification                | 🔜 Planned |
-| API Portal            | Interactive documentation                 | 🔜 Planned |
-| Login Flow Designer   | Visual login page configuration           | 🔜 Planned |
-| Policy Admin Console  | Role Editor, Policy Editor, ReBAC Graph   | 🔜 Planned |
-| **Error Code Guide**  | SDK error handling documentation          | 🔜 Planned |
+All JavaScript SDKs are production-ready and published:
 
-### 10.1 SDK Error Handling Documentation 📌 REQUIRED
+| Package | Version | Description | Status |
+|---------|---------|-------------|--------|
+| **@authrim/core** | 0.1.11 | Platform-agnostic OIDC/PKCE client | ✅ Complete |
+| **@authrim/web** | 0.1.9 | Browser SDK (Direct Auth, OAuth flows, Session) | ✅ Complete |
+| **@authrim/server** | 0.1.1 | Server SDK (JWT validation, DPoP, Middleware) | ✅ Complete |
+| **@authrim/sveltekit** | 0.1.2 | SvelteKit integration (SSR, Components, Stores) | ✅ Complete |
 
-> **Important**: Must be completed before SDK public release
+**SDK Features Implemented:**
+- ✅ Authorization Code Flow with PKCE (RFC 7636)
+- ✅ Token Exchange (RFC 8693), Introspection (RFC 7662), Revocation (RFC 7009)
+- ✅ DPoP Support (RFC 9449) - Proof of Possession validation
+- ✅ Direct Auth (Passkey/WebAuthn, Email Code/OTP, Social Login)
+- ✅ Device Flow UI (RFC 8628) with QR code helpers
+- ✅ Silent Authentication & Session Management
+- ✅ Back-Channel Logout (OIDC 1.0)
+- ✅ SCIM 2.0 Provisioning (RFC 7643/7644)
+- ✅ Verifiable Credentials (OpenID4VCI/VP)
+- ✅ Framework Middleware (Express, Fastify, Hono, Koa, NestJS)
 
-Error code implementation completed (2024-12-23). The following documentation must be included in the SDK:
+**Test Coverage:**
+- js-core: 13 test files
+- js-server: 28 test files
+- js-web: 16 test files
+- Total: 57 test files
 
-| Document | Content | Reference |
-|----------|---------|-----------|
-| Error Code Reference | RFC standard error codes list | `private/docs/error-codes-inventory.md` Section 1 |
-| Error Handling Guide | Error handling best practices | `private/docs/error-codes-inventory.md` Section 9 |
-| Security Considerations | Security levels (public/masked/internal) explanation | `private/docs/error-codes-inventory.md` Section 8 |
+### Documentation & Examples ✅
 
-**Implemented Changes**:
-- ErrorFactory: Extended to 28 functions (RFC 6749/6750/8628/9449/7591/8693 compliant)
-- error_description: Unified to RFC-compliant English messages
-- Error code consolidation: `internal_server_error`→`server_error`, `unauthorized`→`invalid_token`, etc.
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Documentation Portal** | Astro/Starlight-based site | ✅ Complete |
+| **API Reference** | Comprehensive SDK docs | ✅ Complete |
+| **Error Code Catalog** | 91 error codes documented | ✅ Complete |
+| **Example: Web** | Vanilla JS reference app | ✅ Complete |
+| **Example: SvelteKit** | SvelteKit reference app | ✅ Complete |
+
+### Future SDK Expansion 🔜
+
+Framework-specific packages planned for post-v1.0:
+
+| Package | Description | Status |
+|---------|-------------|--------|
+| @authrim/react | React hooks and components | 🔜 Post-v1.0 |
+| @authrim/vue | Vue.js integration | 🔜 Post-v1.0 |
+| @authrim/angular | Angular integration | 🔜 Post-v1.0 |
+| @authrim/flutter | Flutter/Dart SDK | 🔜 Post-v1.0 |
+| @authrim/react-native | React Native SDK | 🔜 Post-v1.0 |
+
+> **Note:** JavaScript SDK ecosystem is complete. Additional framework SDKs will be developed based on community demand after v1.0 release.
 
 ---
 
@@ -599,6 +621,7 @@ By 2026-Q1, Authrim will be:
 | 2025-12-26 | **FAPI 2.0 Contract Presets**: Added `fapi2-security-profile` and `fapi2-message-signing` presets based on OIDF FAPI 2.0 Final specs. Deprecation plan for legacy `fapi-security` API added to roadmap. |
 | 2026-01-01 | **Client Credentials Flow ✅ Complete** (RFC 6749 §4.4): `client_secret_basic`, `client_secret_post`, `private_key_jwt` authentication methods implemented with 382 lines of tests. |
 | 2026-01-01 | **Documentation Alignment**: Updated PII Separation (✅ Complete), RAR Phase 1 (✅ Complete), Flow×UI Types (✅ Complete) documentation to reflect actual implementation status. |
+| 2026-01-30 | **Phase 10 ✅ Complete**: JavaScript SDK ecosystem fully implemented - @authrim/core (v0.1.11), @authrim/web (v0.1.9), @authrim/server (v0.1.1), @authrim/sveltekit (v0.1.2). Documentation portal (Astro/Starlight), 57 test files, 2 example apps. |
 
 ---
 
@@ -615,6 +638,6 @@ The following features are intentionally **not supported** due to architectural 
 
 > **Last Update:** 2026-01-30
 >
-> **Current Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 11 ~50%
+> **Current Status:** Phase 1-10 ✅ Complete | Phase 11 ~50% | Phase 12 🔜 Planned
 >
 > **Authrim** - The Identity & Access Platform for the modern web.

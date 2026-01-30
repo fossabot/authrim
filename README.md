@@ -154,8 +154,8 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | 7     | **Identity Hub Foundation**    | 2025-12  | ✅ Complete |
 | 8     | **Unified Policy Integration** | 2025-12  | ✅ Complete |
 | 9     | **Advanced Identity (VC/DID)** | 2025-12  | ✅ Complete |
-| 10    | SDK & API                      | 2025-Q4  | 🔜 Planned  |
-| 11    | Security & QA                  | 2025-Q4  | ⏳ ~50%     |
+| 10    | **SDK & API**                  | 2026-01  | ✅ Complete |
+| 11    | Security & QA                  | 2026-Q1  | ⏳ ~50%     |
 | 12    | Certification & Release        | 2026-Q1  | 🔜 Final    |
 
 [View detailed roadmap](./docs/ROADMAP.md)
@@ -264,8 +264,14 @@ Actual costs depend on request volume, CPU time, and usage of KV / D1 / R2.
 | Multi-language (EN/JA) | ✅ Done | |
 | **Tooling** | | |
 | Setup CLI (`@authrim/setup`) | ✅ Done | [Documentation](./packages/setup/README.md) |
-| **Roadmap** | | |
-| WebSDK | Planned | |
+| **SDK Packages** | | |
+| @authrim/core | ✅ Done | v0.1.11 - Platform-agnostic OIDC client |
+| @authrim/web | ✅ Done | v0.1.9 - Browser SDK |
+| @authrim/server | ✅ Done | v0.1.1 - Server SDK (Express, Hono, etc.) |
+| @authrim/sveltekit | ✅ Done | v0.1.2 - SvelteKit integration |
+| **Future SDKs** | | |
+| @authrim/react | 🔜 Post-v1.0 | React hooks/components |
+| @authrim/vue | 🔜 Post-v1.0 | Vue.js integration |
 | **Not Supported** | | |
 | MTLS (RFC 8705) | — | |
 | AD / LDAP | — | |
@@ -376,7 +382,7 @@ See [LICENSE](./LICENSE) for details.
 
 > **Authrim** — _Identity & Access at the edge of everywhere_
 >
-> **Status:** Phase 6 ✅ | Phase 7 ✅ | Phase 8 ✅ | Phase 9 ✅ | Phase 10 🔜 | Phase 11 ~50%
+> **Status:** Phase 1-10 ✅ Complete | Phase 11 ~50% | Phase 12 🔜 Planned
 >
 > _From zero to production-ready Identity & Access Platform in under 5 minutes._
 >

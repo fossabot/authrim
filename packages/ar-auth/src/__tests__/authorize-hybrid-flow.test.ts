@@ -2,22 +2,40 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { parseToken } from '@authrim/ar-lib-core/utils/jwt';
 
 /**
- * Hybrid Flow Tests
+ * Hybrid Flow & Implicit Flow Integration Tests
  *
- * Tests for OIDC Core 3.3 Hybrid Flow implementation:
- * - response_type=code id_token
- * - response_type=code token
- * - response_type=code id_token token
+ * OIDC Core 3.2 (Implicit) and 3.3 (Hybrid) Flow implementations.
  *
- * These tests verify:
- * - Fragment encoding for responses
- * - ID token generation with c_hash
- * - Access token generation
- * - Nonce validation (required for hybrid flows)
+ * ## Test Coverage
  *
- * NOTE: These are integration tests that require a running server.
- * They are skipped by default and should be run separately with:
- * npx vitest run src/__tests__/authorize-hybrid-flow.test.ts --config vitest.integration.config.ts
+ * These flows are covered by:
+ * 1. **OpenID Foundation Conformance Suite** - All 7 OP profiles + 4 Logout profiles passed
+ *    - See: https://www.certification.openid.net/
+ * 2. **These integration tests** - For local development verification
+ *
+ * ## Why Skipped by Default
+ *
+ * These are **integration tests** that require a running Authrim server.
+ * Unit tests cannot adequately test the full OAuth flow which involves:
+ * - Browser redirects
+ * - Fragment URL encoding (#)
+ * - Session state management
+ * - Token generation with proper signing keys
+ *
+ * ## How to Run
+ *
+ * ```bash
+ * # 1. Start the dev server in one terminal
+ * pnpm --filter ar-router dev
+ *
+ * # 2. Run integration tests in another terminal
+ * pnpm --filter ar-auth test:integration
+ * ```
+ *
+ * ## Conformance Results
+ *
+ * - Hybrid OP: https://www.certification.openid.net/plan-detail.html?plan=LKV8BKyTZZbl9&public=true
+ * - Implicit OP: https://www.certification.openid.net/plan-detail.html?plan=aZHmoBP9mzeH0&public=true
  */
 
 // Skip integration tests when running unit tests (requires running server on localhost:8787)
