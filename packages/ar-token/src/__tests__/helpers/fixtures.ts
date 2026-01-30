@@ -48,7 +48,9 @@ export interface TestClientMetadata extends Partial<ClientMetadata> {
 /**
  * Create a confidential client with client_secret_basic auth
  */
-export function createConfidentialClient(overrides?: Partial<TestClientMetadata>): TestClientMetadata {
+export function createConfidentialClient(
+  overrides?: Partial<TestClientMetadata>
+): TestClientMetadata {
   return {
     client_id: 'confidential-client-001',
     tenant_id: 'default',
@@ -103,7 +105,9 @@ export function createM2MClient(overrides?: Partial<TestClientMetadata>): TestCl
 /**
  * Create a client with private_key_jwt authentication
  */
-export function createPrivateKeyJwtClient(overrides?: Partial<TestClientMetadata>): TestClientMetadata {
+export function createPrivateKeyJwtClient(
+  overrides?: Partial<TestClientMetadata>
+): TestClientMetadata {
   return {
     client_id: 'private-key-jwt-client-001',
     tenant_id: 'default',
@@ -141,7 +145,9 @@ export function createFAPIClient(overrides?: Partial<TestClientMetadata>): TestC
 /**
  * Create a client configured for token exchange
  */
-export function createTokenExchangeClient(overrides?: Partial<TestClientMetadata>): TestClientMetadata {
+export function createTokenExchangeClient(
+  overrides?: Partial<TestClientMetadata>
+): TestClientMetadata {
   return {
     client_id: 'token-exchange-client-001',
     tenant_id: 'default',
@@ -157,7 +163,9 @@ export function createTokenExchangeClient(overrides?: Partial<TestClientMetadata
 /**
  * Create a client configured for device flow
  */
-export function createDeviceFlowClient(overrides?: Partial<TestClientMetadata>): TestClientMetadata {
+export function createDeviceFlowClient(
+  overrides?: Partial<TestClientMetadata>
+): TestClientMetadata {
   return {
     client_id: 'device-client-001',
     tenant_id: 'default',
@@ -188,7 +196,9 @@ export function createCIBAClient(overrides?: Partial<TestClientMetadata>): TestC
 /**
  * Create a client with ID token encryption enabled
  */
-export function createEncryptedIdTokenClient(overrides?: Partial<TestClientMetadata>): TestClientMetadata {
+export function createEncryptedIdTokenClient(
+  overrides?: Partial<TestClientMetadata>
+): TestClientMetadata {
   return {
     client_id: 'encrypted-client-001',
     tenant_id: 'default',
@@ -324,7 +334,9 @@ export function createAuthCodeData(overrides?: Partial<TestAuthCodeData>): TestA
 /**
  * Create authorization code data with DPoP binding
  */
-export function createDPoPBoundAuthCodeData(overrides?: Partial<TestAuthCodeData>): TestAuthCodeData {
+export function createDPoPBoundAuthCodeData(
+  overrides?: Partial<TestAuthCodeData>
+): TestAuthCodeData {
   return createAuthCodeData({
     dpopJkt: 'dpop-thumbprint-' + Math.random().toString(36).substring(7),
     ...overrides,
@@ -334,7 +346,9 @@ export function createDPoPBoundAuthCodeData(overrides?: Partial<TestAuthCodeData
 /**
  * Create authorization code data for replay attack scenario
  */
-export function createReplayAttackAuthCodeData(overrides?: Partial<TestAuthCodeData>): TestAuthCodeData {
+export function createReplayAttackAuthCodeData(
+  overrides?: Partial<TestAuthCodeData>
+): TestAuthCodeData {
   return createAuthCodeData({
     replayAttack: {
       accessTokenJti: 'at-jti-already-issued',
@@ -370,7 +384,9 @@ export interface TestAccessTokenPayload {
 /**
  * Create a basic access token payload
  */
-export function createAccessTokenPayload(overrides?: Partial<TestAccessTokenPayload>): TestAccessTokenPayload {
+export function createAccessTokenPayload(
+  overrides?: Partial<TestAccessTokenPayload>
+): TestAccessTokenPayload {
   const now = Math.floor(Date.now() / 1000);
   return {
     iss: 'https://auth.example.com',
@@ -388,7 +404,9 @@ export function createAccessTokenPayload(overrides?: Partial<TestAccessTokenPayl
 /**
  * Create a DPoP-bound access token payload
  */
-export function createDPoPBoundAccessTokenPayload(overrides?: Partial<TestAccessTokenPayload>): TestAccessTokenPayload {
+export function createDPoPBoundAccessTokenPayload(
+  overrides?: Partial<TestAccessTokenPayload>
+): TestAccessTokenPayload {
   return createAccessTokenPayload({
     cnf: { jkt: 'dpop-thumbprint-value' },
     ...overrides,
@@ -398,7 +416,9 @@ export function createDPoPBoundAccessTokenPayload(overrides?: Partial<TestAccess
 /**
  * Create a delegated access token payload (Token Exchange)
  */
-export function createDelegatedAccessTokenPayload(overrides?: Partial<TestAccessTokenPayload>): TestAccessTokenPayload {
+export function createDelegatedAccessTokenPayload(
+  overrides?: Partial<TestAccessTokenPayload>
+): TestAccessTokenPayload {
   return createAccessTokenPayload({
     act: {
       sub: 'client:service-a',
@@ -474,7 +494,9 @@ export interface TestRefreshTokenPayload {
 /**
  * Create a basic refresh token payload
  */
-export function createRefreshTokenPayload(overrides?: Partial<TestRefreshTokenPayload>): TestRefreshTokenPayload {
+export function createRefreshTokenPayload(
+  overrides?: Partial<TestRefreshTokenPayload>
+): TestRefreshTokenPayload {
   const now = Math.floor(Date.now() / 1000);
   return {
     iss: 'https://auth.example.com',
@@ -512,7 +534,9 @@ export interface AuthCodeGrantRequest {
 /**
  * Create an authorization code grant request
  */
-export function createAuthCodeGrantRequest(overrides?: Partial<AuthCodeGrantRequest>): AuthCodeGrantRequest {
+export function createAuthCodeGrantRequest(
+  overrides?: Partial<AuthCodeGrantRequest>
+): AuthCodeGrantRequest {
   return {
     grant_type: 'authorization_code',
     code: 'auth-code-' + Math.random().toString(36).substring(7),
@@ -537,7 +561,9 @@ export interface RefreshTokenGrantRequest {
 /**
  * Create a refresh token grant request
  */
-export function createRefreshTokenGrantRequest(overrides?: Partial<RefreshTokenGrantRequest>): RefreshTokenGrantRequest {
+export function createRefreshTokenGrantRequest(
+  overrides?: Partial<RefreshTokenGrantRequest>
+): RefreshTokenGrantRequest {
   return {
     grant_type: 'refresh_token',
     refresh_token: 'rt-' + Math.random().toString(36).substring(7),
@@ -562,7 +588,9 @@ export interface ClientCredentialsGrantRequest {
 /**
  * Create a client credentials grant request
  */
-export function createClientCredentialsGrantRequest(overrides?: Partial<ClientCredentialsGrantRequest>): ClientCredentialsGrantRequest {
+export function createClientCredentialsGrantRequest(
+  overrides?: Partial<ClientCredentialsGrantRequest>
+): ClientCredentialsGrantRequest {
   return {
     grant_type: 'client_credentials',
     client_id: 'm2m-service-client-001',
@@ -589,7 +617,9 @@ export interface TokenExchangeGrantRequest {
 /**
  * Create a token exchange grant request
  */
-export function createTokenExchangeGrantRequest(overrides?: Partial<TokenExchangeGrantRequest>): TokenExchangeGrantRequest {
+export function createTokenExchangeGrantRequest(
+  overrides?: Partial<TokenExchangeGrantRequest>
+): TokenExchangeGrantRequest {
   return {
     grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
     subject_token: 'subject-jwt-token',
@@ -612,7 +642,9 @@ export interface DeviceCodeGrantRequest {
 /**
  * Create a device code grant request
  */
-export function createDeviceCodeGrantRequest(overrides?: Partial<DeviceCodeGrantRequest>): DeviceCodeGrantRequest {
+export function createDeviceCodeGrantRequest(
+  overrides?: Partial<DeviceCodeGrantRequest>
+): DeviceCodeGrantRequest {
   return {
     grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
     device_code: 'device-code-' + Math.random().toString(36).substring(7),
@@ -656,7 +688,9 @@ export interface JWTBearerGrantRequest {
 /**
  * Create a JWT Bearer grant request
  */
-export function createJWTBearerGrantRequest(overrides?: Partial<JWTBearerGrantRequest>): JWTBearerGrantRequest {
+export function createJWTBearerGrantRequest(
+  overrides?: Partial<JWTBearerGrantRequest>
+): JWTBearerGrantRequest {
   return {
     grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
     assertion: 'jwt-assertion-token',
@@ -981,7 +1015,9 @@ export interface TestDeviceSecretData {
 /**
  * Create device secret data
  */
-export function createDeviceSecretData(overrides?: Partial<TestDeviceSecretData>): TestDeviceSecretData {
+export function createDeviceSecretData(
+  overrides?: Partial<TestDeviceSecretData>
+): TestDeviceSecretData {
   const now = Math.floor(Date.now() / 1000);
   return {
     device_secret: 'ds-' + Math.random().toString(36).substring(7),

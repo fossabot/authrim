@@ -20,11 +20,17 @@ import type { Env } from '@authrim/ar-lib-core';
  * Mock KVNamespace interface
  */
 export interface MockKVNamespace {
-  get: Mock<(key: string, options?: { type?: string; cacheTtl?: number }) => Promise<string | null>>;
+  get: Mock<
+    (key: string, options?: { type?: string; cacheTtl?: number }) => Promise<string | null>
+  >;
   put: Mock<(key: string, value: string, options?: { expirationTtl?: number }) => Promise<void>>;
   delete: Mock<(key: string) => Promise<void>>;
-  list: Mock<(options?: { prefix?: string; limit?: number }) => Promise<{ keys: { name: string }[] }>>;
-  getWithMetadata: Mock<(key: string, options?: object) => Promise<{ value: string | null; metadata: object | null }>>;
+  list: Mock<
+    (options?: { prefix?: string; limit?: number }) => Promise<{ keys: { name: string }[] }>
+  >;
+  getWithMetadata: Mock<
+    (key: string, options?: object) => Promise<{ value: string | null; metadata: object | null }>
+  >;
 }
 
 /**
@@ -59,10 +65,14 @@ export interface MockDurableObjectStub {
   rotateKeysWithPrivateRpc?: Mock<() => Promise<{ kid: string; privatePEM: string }>>;
   getAllPublicKeysRpc?: Mock<() => Promise<object[]>>;
   // RPC methods for AuthCodeStore
-  consumeCodeRpc?: Mock<(params: { code: string; clientId: string; codeVerifier?: string }) => Promise<object>>;
+  consumeCodeRpc?: Mock<
+    (params: { code: string; clientId: string; codeVerifier?: string }) => Promise<object>
+  >;
   // RPC methods for RefreshTokenRotator
   rotateTokenRpc?: Mock<(params: object) => Promise<object>>;
-  createFamilyRpc?: Mock<(params: object) => Promise<{ version: number; expiresIn: number; allowedScope: string }>>;
+  createFamilyRpc?: Mock<
+    (params: object) => Promise<{ version: number; expiresIn: number; allowedScope: string }>
+  >;
   // RPC methods for DeviceCodeStore
   getRequestRpc?: Mock<(params: object) => Promise<object | null>>;
   // RPC methods for CIBARequestStore
@@ -164,7 +174,9 @@ export function createMockD1(options?: {
     const statement: MockD1PreparedStatement = {
       bind: vi.fn().mockReturnThis(),
       run: vi.fn().mockResolvedValue({ success: true, meta: {} }),
-      all: vi.fn().mockResolvedValue({ results: options?.queryResults?.['default'] ?? [], success: true }),
+      all: vi
+        .fn()
+        .mockResolvedValue({ results: options?.queryResults?.['default'] ?? [], success: true }),
       first: vi.fn().mockResolvedValue(options?.firstResult ?? null),
       raw: vi.fn().mockResolvedValue([]),
     };
@@ -204,14 +216,23 @@ export function createMockDurableObjectStub(options?: {
   return {
     fetch: vi.fn().mockResolvedValue(options?.fetchResponse ?? new Response('{}', { status: 200 })),
     id: createMockDurableObjectId(),
-    getActiveKeyWithPrivateRpc: options?.rpcMethods?.getActiveKeyWithPrivateRpc ?? vi.fn().mockResolvedValue(null),
-    rotateKeysWithPrivateRpc: options?.rpcMethods?.rotateKeysWithPrivateRpc ?? vi.fn().mockResolvedValue({ kid: 'test-kid', privatePEM: 'test-pem' }),
+    getActiveKeyWithPrivateRpc:
+      options?.rpcMethods?.getActiveKeyWithPrivateRpc ?? vi.fn().mockResolvedValue(null),
+    rotateKeysWithPrivateRpc:
+      options?.rpcMethods?.rotateKeysWithPrivateRpc ??
+      vi.fn().mockResolvedValue({ kid: 'test-kid', privatePEM: 'test-pem' }),
     getAllPublicKeysRpc: options?.rpcMethods?.getAllPublicKeysRpc ?? vi.fn().mockResolvedValue([]),
-    consumeCodeRpc: options?.rpcMethods?.consumeCodeRpc ?? vi.fn().mockRejectedValue(new Error('Code not found')),
-    rotateTokenRpc: options?.rpcMethods?.rotateTokenRpc ?? vi.fn().mockRejectedValue(new Error('Token not found')),
-    createFamilyRpc: options?.rpcMethods?.createFamilyRpc ?? vi.fn().mockResolvedValue({ version: 1, expiresIn: 2592000, allowedScope: 'openid profile' }),
+    consumeCodeRpc:
+      options?.rpcMethods?.consumeCodeRpc ?? vi.fn().mockRejectedValue(new Error('Code not found')),
+    rotateTokenRpc:
+      options?.rpcMethods?.rotateTokenRpc ??
+      vi.fn().mockRejectedValue(new Error('Token not found')),
+    createFamilyRpc:
+      options?.rpcMethods?.createFamilyRpc ??
+      vi.fn().mockResolvedValue({ version: 1, expiresIn: 2592000, allowedScope: 'openid profile' }),
     getRequestRpc: options?.rpcMethods?.getRequestRpc ?? vi.fn().mockResolvedValue(null),
-    getRequestStatusRpc: options?.rpcMethods?.getRequestStatusRpc ?? vi.fn().mockResolvedValue(null),
+    getRequestStatusRpc:
+      options?.rpcMethods?.getRequestStatusRpc ?? vi.fn().mockResolvedValue(null),
   };
 }
 
@@ -393,7 +414,11 @@ export function base64UrlDecode(str: string): string {
 /**
  * Create a test JWT (for parsing tests, not signature verification)
  */
-export function createTestJWT(header: object, payload: object, signature = 'test-signature'): string {
+export function createTestJWT(
+  header: object,
+  payload: object,
+  signature = 'test-signature'
+): string {
   const headerB64 = base64UrlEncode(JSON.stringify(header));
   const payloadB64 = base64UrlEncode(JSON.stringify(payload));
   const signatureB64 = base64UrlEncode(signature);
@@ -501,7 +526,9 @@ export function createArLibCoreMocks() {
     mockIsTokenRevoked: vi.fn().mockResolvedValue(false),
 
     // Client Authentication
-    mockValidateClientAssertion: vi.fn().mockResolvedValue({ valid: true, client_id: 'test-client' }),
+    mockValidateClientAssertion: vi
+      .fn()
+      .mockResolvedValue({ valid: true, client_id: 'test-client' }),
     mockVerifyClientSecretHash: vi.fn().mockReturnValue(true),
     mockParseBasicAuth: vi.fn().mockReturnValue({ success: false }),
 
@@ -564,7 +591,9 @@ export function createArLibCoreMocks() {
     mockGetAccessTokenRBACClaims: vi.fn().mockResolvedValue({}),
     mockEvaluatePermissionsForScope: vi.fn().mockReturnValue([]),
     mockIsPolicyEmbeddingEnabled: vi.fn().mockResolvedValue(false),
-    mockCreateTokenClaimEvaluator: vi.fn().mockReturnValue({ evaluate: vi.fn().mockReturnValue({}) }),
+    mockCreateTokenClaimEvaluator: vi
+      .fn()
+      .mockReturnValue({ evaluate: vi.fn().mockReturnValue({}) }),
     mockEvaluateIdLevelPermissions: vi.fn().mockReturnValue([]),
     mockIsCustomClaimsEnabled: vi.fn().mockResolvedValue(false),
     mockIsIdLevelPermissionsEnabled: vi.fn().mockResolvedValue(false),
@@ -590,7 +619,9 @@ export function createArLibCoreMocks() {
     // Configuration Manager
     mockCreateOAuthConfigManager: vi.fn().mockReturnValue({
       get: vi.fn().mockResolvedValue(null),
-      getWithDefault: vi.fn().mockImplementation((_key: string, defaultValue: unknown) => Promise.resolve(defaultValue)),
+      getWithDefault: vi
+        .fn()
+        .mockImplementation((_key: string, defaultValue: unknown) => Promise.resolve(defaultValue)),
     }),
 
     // Timing-safe comparison

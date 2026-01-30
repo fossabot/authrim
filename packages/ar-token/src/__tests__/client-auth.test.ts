@@ -63,9 +63,13 @@ const mocks = vi.hoisted(() => ({
   mockGetSystemSettingsCached: vi.fn().mockResolvedValue(null),
 
   // Token operations
-  mockCreateAccessToken: vi.fn().mockResolvedValue({ token: 'mock-access-token', jti: 'at-jti-001' }),
+  mockCreateAccessToken: vi
+    .fn()
+    .mockResolvedValue({ token: 'mock-access-token', jti: 'at-jti-001' }),
   mockCreateIDToken: vi.fn().mockResolvedValue('mock-id-token'),
-  mockCreateRefreshToken: vi.fn().mockResolvedValue({ token: 'mock-refresh-token', jti: 'rt-jti-001' }),
+  mockCreateRefreshToken: vi
+    .fn()
+    .mockResolvedValue({ token: 'mock-refresh-token', jti: 'rt-jti-001' }),
   mockVerifyToken: vi.fn().mockResolvedValue({ valid: true, payload: {} }),
   mockParseToken: vi.fn().mockReturnValue({}),
   mockParseTokenHeader: vi.fn().mockReturnValue({ alg: 'RS256', kid: 'test-kid' }),
@@ -217,9 +221,13 @@ function resetAllMocks() {
   mocks.mockGetSystemSettingsCached.mockReset().mockResolvedValue(null);
 
   // Reset token operation mocks
-  mocks.mockCreateAccessToken.mockReset().mockResolvedValue({ token: 'mock-access-token', jti: 'at-jti-001' });
+  mocks.mockCreateAccessToken
+    .mockReset()
+    .mockResolvedValue({ token: 'mock-access-token', jti: 'at-jti-001' });
   mocks.mockCreateIDToken.mockReset().mockResolvedValue('mock-id-token');
-  mocks.mockCreateRefreshToken.mockReset().mockResolvedValue({ token: 'mock-refresh-token', jti: 'rt-jti-001' });
+  mocks.mockCreateRefreshToken
+    .mockReset()
+    .mockResolvedValue({ token: 'mock-refresh-token', jti: 'rt-jti-001' });
   mocks.mockVerifyToken.mockReset().mockResolvedValue({ valid: true, payload: {} });
 
   // Reset client auth mocks
@@ -332,7 +340,10 @@ describe('Client Authentication Tests', () => {
 
       expect(response.status).toBe(200);
       expect(body.access_token).toBeDefined();
-      expect(mocks.mockVerifyClientSecretHash).toHaveBeenCalledWith('valid-secret', client.client_secret_hash);
+      expect(mocks.mockVerifyClientSecretHash).toHaveBeenCalledWith(
+        'valid-secret',
+        client.client_secret_hash
+      );
     });
 
     it('should reject invalid Basic auth credentials', async () => {
@@ -504,7 +515,10 @@ describe('Client Authentication Tests', () => {
 
       expect(response.status).toBe(200);
       expect(body.access_token).toBeDefined();
-      expect(mocks.mockVerifyClientSecretHash).toHaveBeenCalledWith('valid-secret', client.client_secret_hash);
+      expect(mocks.mockVerifyClientSecretHash).toHaveBeenCalledWith(
+        'valid-secret',
+        client.client_secret_hash
+      );
     });
 
     it('should reject missing client_secret for confidential client', async () => {
@@ -579,7 +593,10 @@ describe('Client Authentication Tests', () => {
       expect(response.status).toBe(200);
 
       // POST body credentials are used (implementation prioritizes form data over Basic auth)
-      expect(mocks.mockVerifyClientSecretHash).toHaveBeenCalledWith('post-secret', client.client_secret_hash);
+      expect(mocks.mockVerifyClientSecretHash).toHaveBeenCalledWith(
+        'post-secret',
+        client.client_secret_hash
+      );
     });
   });
 
@@ -1068,7 +1085,9 @@ describe('Client Authentication Tests', () => {
       });
 
       const response1 = await tokenHandler(ctx1);
-      const body1 = await parseJsonResponse<{ error: string; error_description: string }>(response1);
+      const body1 = await parseJsonResponse<{ error: string; error_description: string }>(
+        response1
+      );
 
       // Both should return the same generic error
       expect(body1.error).toBe('invalid_client');
@@ -1170,7 +1189,12 @@ describe('Client Authentication Tests', () => {
       });
 
       const response = await tokenHandler(ctx);
-      const body = await parseJsonResponse<{ access_token?: string; token_type?: string; error?: string; error_description?: string }>(response);
+      const body = await parseJsonResponse<{
+        access_token?: string;
+        token_type?: string;
+        error?: string;
+        error_description?: string;
+      }>(response);
 
       expect(response.status).toBe(200);
       expect(body.access_token).toBeDefined();

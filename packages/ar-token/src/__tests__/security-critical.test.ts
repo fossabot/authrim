@@ -77,9 +77,13 @@ const mocks = vi.hoisted(() => ({
   mockGetSystemSettingsCached: vi.fn().mockResolvedValue(null),
 
   // Token operations
-  mockCreateAccessToken: vi.fn().mockResolvedValue({ token: 'mock-access-token', jti: 'at-jti-001' }),
+  mockCreateAccessToken: vi
+    .fn()
+    .mockResolvedValue({ token: 'mock-access-token', jti: 'at-jti-001' }),
   mockCreateIDToken: vi.fn().mockResolvedValue('mock-id-token'),
-  mockCreateRefreshToken: vi.fn().mockResolvedValue({ token: 'mock-refresh-token', jti: 'rt-jti-001' }),
+  mockCreateRefreshToken: vi
+    .fn()
+    .mockResolvedValue({ token: 'mock-refresh-token', jti: 'rt-jti-001' }),
   mockVerifyToken: vi.fn().mockResolvedValue({ valid: true, payload: {} }),
   mockParseToken: vi.fn().mockReturnValue({}),
   mockParseTokenHeader: vi.fn().mockReturnValue({ alg: 'RS256', kid: 'test-kid' }),
@@ -109,7 +113,9 @@ const mocks = vi.hoisted(() => ({
   mockGetRefreshTokenShardConfig: vi.fn().mockReturnValue({ count: 1 }),
   mockGetRefreshTokenShardIndex: vi.fn().mockReturnValue(0),
   mockCreateRefreshTokenJti: vi.fn().mockReturnValue('rt-jti-001'),
-  mockParseRefreshTokenJti: vi.fn().mockReturnValue({ shardIndex: 0, randomPart: 'abc', generation: 1 }),
+  mockParseRefreshTokenJti: vi
+    .fn()
+    .mockReturnValue({ shardIndex: 0, randomPart: 'abc', generation: 1 }),
   mockBuildRefreshTokenRotatorInstanceName: vi.fn().mockReturnValue('refresh-token-0'),
   mockGenerateRefreshTokenRandomPart: vi.fn().mockReturnValue('random-part'),
   mockGenerateRegionAwareJti: vi.fn().mockResolvedValue({ jti: 'jti-region-001' }),
@@ -318,9 +324,13 @@ function resetAllMocks() {
   mocks.mockGetSystemSettingsCached.mockReset().mockResolvedValue(null);
 
   // Reset token operation mocks
-  mocks.mockCreateAccessToken.mockReset().mockResolvedValue({ token: 'mock-access-token', jti: 'at-jti-001' });
+  mocks.mockCreateAccessToken
+    .mockReset()
+    .mockResolvedValue({ token: 'mock-access-token', jti: 'at-jti-001' });
   mocks.mockCreateIDToken.mockReset().mockResolvedValue('mock-id-token');
-  mocks.mockCreateRefreshToken.mockReset().mockResolvedValue({ token: 'mock-refresh-token', jti: 'rt-jti-001' });
+  mocks.mockCreateRefreshToken
+    .mockReset()
+    .mockResolvedValue({ token: 'mock-refresh-token', jti: 'rt-jti-001' });
   mocks.mockVerifyToken.mockReset().mockResolvedValue({ valid: true, payload: {} });
   mocks.mockRevokeToken.mockReset().mockResolvedValue(undefined);
   mocks.mockIsTokenRevoked.mockReset().mockResolvedValue(false);
@@ -337,7 +347,9 @@ function resetAllMocks() {
   // Reset sharding mocks
   mocks.mockParseShardedAuthCode.mockReset().mockReturnValue(null);
   mocks.mockGetShardCount.mockReset().mockResolvedValue(1);
-  mocks.mockParseRefreshTokenJti.mockReset().mockReturnValue({ shardIndex: 0, randomPart: 'abc', generation: 1 });
+  mocks.mockParseRefreshTokenJti
+    .mockReset()
+    .mockReturnValue({ shardIndex: 0, randomPart: 'abc', generation: 1 });
   mocks.mockGenerateRegionAwareJti.mockReset().mockResolvedValue({ jti: 'jti-region-001' });
   mocks.mockGetRefreshToken.mockReset().mockResolvedValue(null);
 
@@ -445,9 +457,9 @@ describe('Security-Critical Tests', () => {
         const client = createPublicClient({ require_pkce: true });
 
         // Mock AuthCodeStore DO to throw error for missing verifier
-        const consumeCodeRpcMock = vi.fn().mockRejectedValue(
-          new Error('PKCE code_verifier is required')
-        );
+        const consumeCodeRpcMock = vi
+          .fn()
+          .mockRejectedValue(new Error('PKCE code_verifier is required'));
         mockEnv.AUTH_CODE_STORE.get = vi.fn().mockReturnValue({
           consumeCodeRpc: consumeCodeRpcMock,
         });
@@ -479,9 +491,9 @@ describe('Security-Critical Tests', () => {
         const client = createPublicClient({ require_pkce: true });
 
         // Mock AuthCodeStore DO to throw error for invalid verifier
-        const consumeCodeRpcMock = vi.fn().mockRejectedValue(
-          new Error('Invalid code_verifier format')
-        );
+        const consumeCodeRpcMock = vi
+          .fn()
+          .mockRejectedValue(new Error('Invalid code_verifier format'));
         mockEnv.AUTH_CODE_STORE.get = vi.fn().mockReturnValue({
           consumeCodeRpc: consumeCodeRpcMock,
         });
@@ -510,9 +522,9 @@ describe('Security-Critical Tests', () => {
       it('should reject code_verifier that is too long (> 128 characters)', async () => {
         const client = createPublicClient({ require_pkce: true });
 
-        const consumeCodeRpcMock = vi.fn().mockRejectedValue(
-          new Error('Invalid code_verifier format')
-        );
+        const consumeCodeRpcMock = vi
+          .fn()
+          .mockRejectedValue(new Error('Invalid code_verifier format'));
         mockEnv.AUTH_CODE_STORE.get = vi.fn().mockReturnValue({
           consumeCodeRpc: consumeCodeRpcMock,
         });
@@ -538,9 +550,9 @@ describe('Security-Critical Tests', () => {
       it('should reject code_verifier with invalid characters', async () => {
         const client = createPublicClient({ require_pkce: true });
 
-        const consumeCodeRpcMock = vi.fn().mockRejectedValue(
-          new Error('Invalid code_verifier format')
-        );
+        const consumeCodeRpcMock = vi
+          .fn()
+          .mockRejectedValue(new Error('Invalid code_verifier format'));
         mockEnv.AUTH_CODE_STORE.get = vi.fn().mockReturnValue({
           consumeCodeRpc: consumeCodeRpcMock,
         });
@@ -569,9 +581,11 @@ describe('Security-Critical Tests', () => {
         const client = createPublicClient({ require_pkce: true });
 
         // Mock AuthCodeStore DO to throw error for PKCE mismatch
-        const consumeCodeRpcMock = vi.fn().mockRejectedValue(
-          new Error('PKCE verification failed: code_verifier does not match code_challenge')
-        );
+        const consumeCodeRpcMock = vi
+          .fn()
+          .mockRejectedValue(
+            new Error('PKCE verification failed: code_verifier does not match code_challenge')
+          );
         mockEnv.AUTH_CODE_STORE.get = vi.fn().mockReturnValue({
           consumeCodeRpc: consumeCodeRpcMock,
         });
@@ -625,7 +639,9 @@ describe('Security-Critical Tests', () => {
         });
 
         const response = await tokenHandler(ctx);
-        const body = await parseJsonResponse<{ error: string; error_description: string }>(response);
+        const body = await parseJsonResponse<{ error: string; error_description: string }>(
+          response
+        );
 
         expect(response.status).toBe(400);
         expect(body.error).toBe('invalid_request');
@@ -721,7 +737,9 @@ describe('Security-Critical Tests', () => {
         });
 
         const response = await tokenHandler(ctx);
-        const body = await parseJsonResponse<{ error: string; error_description: string }>(response);
+        const body = await parseJsonResponse<{ error: string; error_description: string }>(
+          response
+        );
 
         expect(response.status).toBe(400);
         expect(body.error).toBe('invalid_dpop_proof');
@@ -854,7 +872,9 @@ describe('Security-Critical Tests', () => {
         });
 
         const response = await tokenHandler(ctx);
-        const body = await parseJsonResponse<{ error: string; error_description: string }>(response);
+        const body = await parseJsonResponse<{ error: string; error_description: string }>(
+          response
+        );
 
         expect(response.status).toBe(400);
         expect(body.error).toBe('invalid_grant');
@@ -886,7 +906,9 @@ describe('Security-Critical Tests', () => {
         });
 
         const response = await tokenHandler(ctx);
-        const body = await parseJsonResponse<{ error: string; error_description: string }>(response);
+        const body = await parseJsonResponse<{ error: string; error_description: string }>(
+          response
+        );
 
         expect(response.status).toBe(400);
         expect(body.error).toBe('invalid_grant');
@@ -990,9 +1012,9 @@ describe('Security-Critical Tests', () => {
         mocks.mockGetClientCached.mockResolvedValue(client);
 
         // Mock AuthCodeStore to throw error for already consumed code
-        const consumeCodeRpcMock = vi.fn().mockRejectedValue(
-          new Error('Authorization code has already been consumed')
-        );
+        const consumeCodeRpcMock = vi
+          .fn()
+          .mockRejectedValue(new Error('Authorization code has already been consumed'));
         mockEnv.AUTH_CODE_STORE.get = vi.fn().mockReturnValue({
           consumeCodeRpc: consumeCodeRpcMock,
         });
@@ -1222,9 +1244,9 @@ describe('Security-Critical Tests', () => {
         });
 
         // Mock RefreshTokenRotator to detect theft
-        const rotateRpcMock = vi.fn().mockRejectedValue(
-          new Error('Token theft detected: version mismatch')
-        );
+        const rotateRpcMock = vi
+          .fn()
+          .mockRejectedValue(new Error('Token theft detected: version mismatch'));
         mockEnv.REFRESH_TOKEN_ROTATOR.get = vi.fn().mockReturnValue({
           rotateRpc: rotateRpcMock,
         });
@@ -1241,7 +1263,9 @@ describe('Security-Critical Tests', () => {
         });
 
         const response = await tokenHandler(ctx);
-        const body = await parseJsonResponse<{ error: string; error_description: string }>(response);
+        const body = await parseJsonResponse<{ error: string; error_description: string }>(
+          response
+        );
 
         expect(response.status).toBe(400);
         expect(body.error).toBe('invalid_grant');
@@ -1269,9 +1293,9 @@ describe('Security-Critical Tests', () => {
         });
 
         // Mock RefreshTokenRotator to indicate family was revoked
-        const rotateRpcMock = vi.fn().mockRejectedValue(
-          new Error('Token family revoked due to theft detection')
-        );
+        const rotateRpcMock = vi
+          .fn()
+          .mockRejectedValue(new Error('Token family revoked due to theft detection'));
         mockEnv.REFRESH_TOKEN_ROTATOR.get = vi.fn().mockReturnValue({
           rotateRpc: rotateRpcMock,
         });
@@ -1324,7 +1348,9 @@ describe('Security-Critical Tests', () => {
         });
 
         const response = await tokenHandler(ctx);
-        const body = await parseJsonResponse<{ error: string; error_description: string }>(response);
+        const body = await parseJsonResponse<{ error: string; error_description: string }>(
+          response
+        );
 
         expect(response.status).toBe(400);
         expect(body.error).toBe('invalid_scope');
@@ -1406,7 +1432,9 @@ describe('Security-Critical Tests', () => {
         });
 
         const response = await tokenHandler(ctx);
-        const body = await parseJsonResponse<{ error: string; error_description: string }>(response);
+        const body = await parseJsonResponse<{ error: string; error_description: string }>(
+          response
+        );
 
         expect(response.status).toBe(400);
         expect(body.error).toBe('invalid_grant');
@@ -1595,7 +1623,9 @@ describe('Security-Critical Tests', () => {
         });
 
         const response = await tokenHandler(ctx);
-        const body = await parseJsonResponse<{ error: string; error_description: string }>(response);
+        const body = await parseJsonResponse<{ error: string; error_description: string }>(
+          response
+        );
 
         expect(response.status).toBe(401);
         expect(body.error).toBe('invalid_client');
@@ -1676,9 +1706,11 @@ describe('Security-Critical Tests', () => {
         mocks.mockGetClientCached.mockResolvedValue(client);
 
         // Mock internal error
-        const consumeCodeRpcMock = vi.fn().mockRejectedValue(
-          new Error('Internal database connection failed: host=db.internal.example.com')
-        );
+        const consumeCodeRpcMock = vi
+          .fn()
+          .mockRejectedValue(
+            new Error('Internal database connection failed: host=db.internal.example.com')
+          );
         mockEnv.AUTH_CODE_STORE.get = vi.fn().mockReturnValue({
           consumeCodeRpc: consumeCodeRpcMock,
         });
