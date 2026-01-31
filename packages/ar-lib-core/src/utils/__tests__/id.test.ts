@@ -8,7 +8,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Direct import from TypeScript source with explicit .ts extension
 // Note: The .ts extension is required for vitest to correctly resolve the module
 import {
-  generateId,
   generateUserId,
   isValidUserId,
   getUserIdFormatFromSettings,
@@ -18,23 +17,8 @@ import {
 } from '../id.ts';
 
 describe('ID Generation Utilities', () => {
-  describe('generateId', () => {
-    it('should generate a valid UUID v4', () => {
-      const id = generateId();
-
-      // UUID v4 format: 8-4-4-4-12
-      expect(id).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      );
-    });
-
-    it('should generate unique IDs', () => {
-      const id1 = generateId();
-      const id2 = generateId();
-
-      expect(id1).not.toBe(id2);
-    });
-  });
+  // Note: generateId tests are in repositories/base.test.ts
+  // as generateId is exported from repositories/base.ts
 
   describe('generateUserId', () => {
     it('should generate NanoID by default', () => {

@@ -20,9 +20,9 @@
 	let hierarchyData: OrganizationHierarchyResponse | null = $state(null);
 	let hierarchyLoading = $state(false);
 	let hierarchyError = $state('');
-	let expandedNodes: Set<string> = new SvelteSet();
+	let expandedNodes = $state<Set<string>>(new SvelteSet());
 	let searchQuery = $state('');
-	let highlightedIds: Set<string> = new SvelteSet();
+	let highlightedIds = $state<Set<string>>(new SvelteSet());
 
 	// Domain mappings state
 	let mappings: OrgDomainMapping[] = $state([]);

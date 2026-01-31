@@ -10,9 +10,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Env } from '@authrim/ar-lib-core';
 
-// Mock scheduleAuditLogFromContext to avoid ESM import issues
+// Mock scheduleAuditLogFromContext and generateUserIdFromSettings to avoid ESM import issues
 import * as arLibCore from '@authrim/ar-lib-core';
 vi.spyOn(arLibCore, 'scheduleAuditLogFromContext').mockImplementation(() => {});
+vi.spyOn(arLibCore, 'generateUserIdFromSettings').mockImplementation(
+  async () => `user-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+);
 
 import {
   adminStatsHandler,

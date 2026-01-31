@@ -51,6 +51,7 @@ export * from './types/settings/assurance-levels';
 export * from './utils/audit-log';
 export * from './utils/client-authentication';
 export * from './utils/crypto';
+export * from './utils/id';
 export * from './utils/d1-retry';
 export * from './utils/device-flow';
 export * from './utils/ciba';

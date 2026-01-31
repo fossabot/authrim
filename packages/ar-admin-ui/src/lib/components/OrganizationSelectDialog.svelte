@@ -22,10 +22,10 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let hierarchyData = $state<OrganizationHierarchyResponse | null>(null);
-	let expandedNodes: Set<string> = new SvelteSet();
+	let expandedNodes = $state<Set<string>>(new SvelteSet());
 	let selectedOrg = $state<OrganizationNode | null>(null);
 	let searchQuery = $state('');
-	let highlightIds: Set<string> = new SvelteSet();
+	let highlightIds = $state<Set<string>>(new SvelteSet());
 
 	// Load hierarchy when dialog opens
 	$effect(() => {

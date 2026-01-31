@@ -41,16 +41,6 @@ function generateNanoId(size: number = NANOID_LENGTH): string {
 }
 
 /**
- * Generate a unique ID using UUID v4
- * Use this for internal IDs (tokens, sessions, challenges, etc.)
- *
- * @returns UUID v4 string
- */
-export function generateId(): string {
-  return crypto.randomUUID();
-}
-
-/**
  * Generate a user ID based on the specified format
  * Use this for end-user identifiable IDs (user_id in OIDC sub claim, etc.)
  *

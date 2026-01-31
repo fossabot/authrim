@@ -73,13 +73,27 @@ vi.mock('@authrim/ar-lib-scim', async (importOriginal) => {
 
 // Mock shared utilities
 vi.mock('@authrim/ar-lib-core/utils/id', () => ({
-  generateId: vi
+  generateUserId: vi
     .fn()
     .mockImplementation(() => `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`),
+  isValidUserId: vi.fn().mockReturnValue(true),
+  getUserIdFormatFromSettings: vi.fn().mockResolvedValue('nanoid'),
+  generateUserIdFromSettings: vi
+    .fn()
+    .mockImplementation(
+      async () => `user-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+    ),
+  DEFAULT_USER_ID_FORMAT: 'nanoid',
 }));
 
 vi.mock('@authrim/ar-lib-core/utils/crypto', () => ({
   hashPassword: vi.fn().mockResolvedValue('hashed_password_123'),
+  generateSecureRandomString: vi
+    .fn()
+    .mockImplementation(
+      (length: number = 32) =>
+        `mock-random-${Date.now()}-${Math.random().toString(36).substring(2, 2 + length)}`
+    ),
 }));
 
 vi.mock('@authrim/ar-lib-core', async (importOriginal) => {
@@ -88,6 +102,11 @@ vi.mock('@authrim/ar-lib-core', async (importOriginal) => {
     ...actual,
     invalidateUserCache: vi.fn().mockResolvedValue(undefined),
     getTenantIdFromContext: vi.fn().mockReturnValue('default'),
+    generateUserIdFromSettings: vi
+      .fn()
+      .mockImplementation(
+        async () => `user-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+      ),
   };
 });
 
