@@ -59,7 +59,7 @@ echo "✅ Go version: go${GO_VERSION}"
 # Install xk6
 echo ""
 echo "📦 Installing xk6 build tool..."
-go install go.k6.io/xk6/cmd/xk6@latest
+go install go.k6.io/xk6/cmd/xk6@v1.3.3
 
 # Verify PATH
 if ! command -v xk6 &> /dev/null; then
