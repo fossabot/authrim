@@ -37,6 +37,17 @@ vi.mock('@authrim/ar-lib-core', async () => {
       .mockImplementation((_c, env, clientId) => mockGetClient(env, clientId)),
     getLogger: () => mockLogger,
     sendPingNotification: vi.fn().mockResolvedValue(undefined),
+    // Mock rate limiting to always allow (bypass for tests)
+    checkRateLimit: vi.fn().mockResolvedValue({
+      allowed: true,
+      remaining: 10,
+      resetAt: Math.floor(Date.now() / 1000) + 60,
+    }),
+    // Mock cloud provider detection
+    getCloudProvider: vi.fn().mockResolvedValue('cloudflare'),
+    getClientIP: vi.fn().mockReturnValue('127.0.0.1'),
+    // Mock auth check
+    isMockAuthEnabled: vi.fn().mockResolvedValue(true),
   };
 });
 
