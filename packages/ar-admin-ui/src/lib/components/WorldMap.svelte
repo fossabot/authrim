@@ -11,7 +11,7 @@
 	 * - Neon cyan and electric blue accents
 	 * - Animated traffic pulses between regions
 	 */
-	import { onMount, untrack } from 'svelte';
+	import { onMount } from 'svelte';
 	import * as d3 from 'd3';
 	import type { FeatureCollection, Feature, Geometry } from 'geojson';
 
@@ -349,21 +349,12 @@
 	let geoData: FeatureCollection | null = $state(null);
 	let width = $state(800);
 	let height = $state(400);
-	// Version counter to force re-render when projection changes
-	// This is incremented in $effect using untrack to avoid infinite loops
-	let projectionVersion = $state(0);
 
 	// =========================================================================
 	// D3 Setup
 	// =========================================================================
 	const projection = d3.geoNaturalEarth1();
 	const pathGenerator = d3.geoPath(projection);
-
-	// =========================================================================
-	// Derived State
-	// =========================================================================
-	// Reactive selected regions set for efficient lookups
-	let selectedRegionsSet = $derived(new Set(selectedRegions));
 
 	// =========================================================================
 	// Helper Functions
@@ -531,11 +522,6 @@
 				],
 				geoData
 			);
-			// Increment version to trigger re-render of paths
-			// Use untrack to avoid infinite loop (don't track projectionVersion read)
-			untrack(() => {
-				projectionVersion++;
-			});
 		}
 	});
 
@@ -623,15 +609,14 @@
 
 		</defs>
 
-		<!-- Map content - use #key to re-render when projection changes -->
-		{#key projectionVersion}
+		<!-- Map content -->
 		<g class="map-content">
 			<!-- World map countries -->
-			{#if geoData && projectionVersion > 0}
+			{#if geoData}
 				<g class="countries">
 					{#each geoData.features as feature (feature.properties?.ISO_A3 || Math.random())}
 						{@const region = getRegionFromFeature(feature as Feature<Geometry, CountryProperties>)}
-						{@const isSelected = selectedRegionsSet.has(region)}
+						{@const isSelected = isRegionSelected(region)}
 						{@const isDoCapable = DO_CAPABLE_REGIONS.includes(region)}
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 						<path
@@ -651,7 +636,6 @@
 			{/if}
 
 			<!-- Traffic arcs (from all PoPs - rendered BEFORE dots so dots appear on top) -->
-			{#if projectionVersion > 0}
 			<g class="traffic-arcs">
 				{#each CLOUDFLARE_POPS as pop (pop.iata)}
 					{@const sourcePos = projection([pop.lon, pop.lat])}
@@ -676,15 +660,13 @@
 					{/if}
 				{/each}
 			</g>
-			{/if}
 
 			<!-- Cloudflare PoP points (small dots - rendered AFTER arcs so they appear on top) -->
-			{#if projectionVersion > 0}
 			<g class="pop-points">
 				{#each CLOUDFLARE_POPS as pop (pop.iata)}
 					{@const pos = projection([pop.lon, pop.lat])}
 					{@const popRegion = getRegionFromCoords(pop.lat, pop.lon)}
-					{@const isInSelectedRegion = selectedRegionsSet.has(popRegion)}
+					{@const isInSelectedRegion = selectedRegions.includes(popRegion)}
 					{#if pos}
 						<circle
 							cx={pos[0]}
@@ -698,14 +680,12 @@
 					{/if}
 				{/each}
 			</g>
-			{/if}
 
 			<!-- Primary DO datacenter points (larger, glowing) -->
-			{#if projectionVersion > 0}
 			<g class="datacenters">
 				{#each CF_DATACENTERS as dc (dc.city)}
 					{@const pos = projection([dc.lon, dc.lat])}
-					{@const isSelected = selectedRegionsSet.has(dc.region)}
+					{@const isSelected = selectedRegions.includes(dc.region)}
 					{#if pos}
 						{#if isSelected}
 							<g class="dc-group">
@@ -723,9 +703,7 @@
 					{/if}
 				{/each}
 			</g>
-			{/if}
 		</g>
-		{/key}
 	</svg>
 
 	<!-- Legend -->
