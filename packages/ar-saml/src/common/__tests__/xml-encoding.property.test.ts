@@ -41,84 +41,69 @@ describe('XML Encoding Property Tests', () => {
   describe('Base64 Encoding Properties', () => {
     it('∀ string: base64Decode(base64Encode(s)) === s (round-trip)', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 0, maxLength: 1000 }),
-          (s) => {
-            const encoded = base64Encode(s);
-            const decoded = base64Decode(encoded);
-            expect(decoded).toBe(s);
-          }
-        ),
+        fc.property(fc.string({ minLength: 0, maxLength: 1000 }), (s) => {
+          const encoded = base64Encode(s);
+          const decoded = base64Decode(encoded);
+          expect(decoded).toBe(s);
+        }),
         { numRuns: 200 }
       );
     });
 
     it('∀ string: base64Encode produces valid base64 characters', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1, maxLength: 500 }),
-          (s) => {
-            const encoded = base64Encode(s);
-            // Base64 characters: A-Z, a-z, 0-9, +, /, =
-            expect(encoded).toMatch(/^[A-Za-z0-9+/=]*$/);
-          }
-        ),
+        fc.property(fc.string({ minLength: 1, maxLength: 500 }), (s) => {
+          const encoded = base64Encode(s);
+          // Base64 characters: A-Z, a-z, 0-9, +, /, =
+          expect(encoded).toMatch(/^[A-Za-z0-9+/=]*$/);
+        }),
         { numRuns: 200 }
       );
     });
 
     it('∀ string: base64UrlDecode(base64UrlEncode(s)) === s (round-trip)', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 0, maxLength: 500 }),
-          (s) => {
-            const encoded = base64UrlEncode(s);
-            const decoded = base64UrlDecode(encoded);
-            expect(decoded).toBe(s);
-          }
-        ),
+        fc.property(fc.string({ minLength: 0, maxLength: 500 }), (s) => {
+          const encoded = base64UrlEncode(s);
+          const decoded = base64UrlDecode(encoded);
+          expect(decoded).toBe(s);
+        }),
         { numRuns: 200 }
       );
     });
 
     it('∀ string: base64UrlEncode produces URL-safe characters', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 1, maxLength: 500 }),
-          (s) => {
-            const encoded = base64UrlEncode(s);
-            // Base64URL characters: A-Z, a-z, 0-9, -, _ (no padding)
-            expect(encoded).toMatch(/^[A-Za-z0-9_-]*$/);
-            // Should not contain standard base64 special chars
-            expect(encoded).not.toContain('+');
-            expect(encoded).not.toContain('/');
-            expect(encoded).not.toContain('=');
-          }
-        ),
+        fc.property(fc.string({ minLength: 1, maxLength: 500 }), (s) => {
+          const encoded = base64UrlEncode(s);
+          // Base64URL characters: A-Z, a-z, 0-9, -, _ (no padding)
+          expect(encoded).toMatch(/^[A-Za-z0-9_-]*$/);
+          // Should not contain standard base64 special chars
+          expect(encoded).not.toContain('+');
+          expect(encoded).not.toContain('/');
+          expect(encoded).not.toContain('=');
+        }),
         { numRuns: 200 }
       );
     });
 
     it('base64 vs base64url: same content, different encoding', () => {
       fc.assert(
-        fc.property(
-          fc.string({ minLength: 10, maxLength: 100 }),
-          (s) => {
-            const base64 = base64Encode(s);
-            const base64url = base64UrlEncode(s);
+        fc.property(fc.string({ minLength: 10, maxLength: 100 }), (s) => {
+          const base64 = base64Encode(s);
+          const base64url = base64UrlEncode(s);
 
-            // If base64 contains special chars, base64url should be different
-            if (/[+/=]/.test(base64)) {
-              expect(base64url).not.toBe(base64);
-            }
-
-            // Both should decode to same value
-            const decoded64 = base64Decode(base64);
-            const decodedUrl = base64UrlDecode(base64url);
-            expect(decoded64).toBe(s);
-            expect(decodedUrl).toBe(s);
+          // If base64 contains special chars, base64url should be different
+          if (/[+/=]/.test(base64)) {
+            expect(base64url).not.toBe(base64);
           }
-        ),
+
+          // Both should decode to same value
+          const decoded64 = base64Decode(base64);
+          const decodedUrl = base64UrlDecode(base64url);
+          expect(decoded64).toBe(s);
+          expect(decodedUrl).toBe(s);
+        }),
         { numRuns: 100 }
       );
     });
@@ -178,8 +163,8 @@ describe('XML Encoding Property Tests', () => {
     it('parseDateTime throws for invalid date strings', () => {
       const invalidDates = [
         'not-a-date',
-        '2024-13-01T00:00:00Z',  // Invalid month
-        '2024-01-32T00:00:00Z',  // Invalid day
+        '2024-13-01T00:00:00Z', // Invalid month
+        '2024-01-32T00:00:00Z', // Invalid day
         '',
       ];
 
@@ -248,19 +233,15 @@ describe('XML Encoding Property Tests', () => {
 
     it('∀ element with attributes: attributes are preserved', () => {
       fc.assert(
-        fc.property(
-          samlIdArb,
-          samlDateTimeArb,
-          (id, instant) => {
-            const xml = `<?xml version="1.0"?><root ID="${id}" IssueInstant="${instant}"/>`;
-            const doc = parseXml(xml);
-            const root = doc.documentElement;
+        fc.property(samlIdArb, samlDateTimeArb, (id, instant) => {
+          const xml = `<?xml version="1.0"?><root ID="${id}" IssueInstant="${instant}"/>`;
+          const doc = parseXml(xml);
+          const root = doc.documentElement;
 
-            expect(root).not.toBeNull();
-            expect(root!.getAttribute('ID')).toBe(id);
-            expect(root!.getAttribute('IssueInstant')).toBe(instant);
-          }
-        ),
+          expect(root).not.toBeNull();
+          expect(root!.getAttribute('ID')).toBe(id);
+          expect(root!.getAttribute('IssueInstant')).toBe(instant);
+        }),
         { numRuns: 100 }
       );
     });
@@ -273,32 +254,26 @@ describe('XML Encoding Property Tests', () => {
   describe('XML Creation Properties', () => {
     it('createElement with namespace: produces namespaced element', () => {
       fc.assert(
-        fc.property(
-          fc.constantFrom('Request', 'Response', 'Issuer', 'NameID'),
-          (localName) => {
-            const doc = createDocument();
-            const elem = createElement(doc, SAML_NAMESPACES.SAML2P, localName, 'samlp');
+        fc.property(fc.constantFrom('Request', 'Response', 'Issuer', 'NameID'), (localName) => {
+          const doc = createDocument();
+          const elem = createElement(doc, SAML_NAMESPACES.SAML2P, localName, 'samlp');
 
-            expect(elem.localName).toBe(localName);
-            expect(elem.namespaceURI).toBe(SAML_NAMESPACES.SAML2P);
-          }
-        ),
+          expect(elem.localName).toBe(localName);
+          expect(elem.namespaceURI).toBe(SAML_NAMESPACES.SAML2P);
+        }),
         { numRuns: 50 }
       );
     });
 
     it('setAttribute: sets attribute value correctly', () => {
       fc.assert(
-        fc.property(
-          samlIdArb,
-          (value) => {
-            const doc = createDocument();
-            const elem = createElement(doc, SAML_NAMESPACES.SAML2P, 'Request', 'samlp');
-            setAttribute(elem, 'ID', value);
+        fc.property(samlIdArb, (value) => {
+          const doc = createDocument();
+          const elem = createElement(doc, SAML_NAMESPACES.SAML2P, 'Request', 'samlp');
+          setAttribute(elem, 'ID', value);
 
-            expect(elem.getAttribute('ID')).toBe(value);
-          }
-        ),
+          expect(elem.getAttribute('ID')).toBe(value);
+        }),
         { numRuns: 50 }
       );
     });
@@ -379,7 +354,9 @@ describe('XML Encoding Property Tests', () => {
     });
 
     it('PUBLIC reference: parseXml rejects input with PUBLIC', () => {
-      expect(() => parseXml('PUBLIC "-//W3C//DTD" "http://evil.com"')).toThrow(/XML security error/);
+      expect(() => parseXml('PUBLIC "-//W3C//DTD" "http://evil.com"')).toThrow(
+        /XML security error/
+      );
     });
   });
 

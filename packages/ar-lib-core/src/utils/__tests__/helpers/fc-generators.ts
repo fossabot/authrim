@@ -18,8 +18,7 @@ import * as fc from 'fast-check';
  * Valid PKCE code_verifier characters per RFC 7636
  * unreserved = ALPHA / DIGIT / "-" / "." / "_" / "~"
  */
-const CODE_VERIFIER_CHARS =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+const CODE_VERIFIER_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
 
 /**
  * RFC 7636 compliant code_verifier generator

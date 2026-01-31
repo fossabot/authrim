@@ -123,36 +123,26 @@ describe('SCIM Filter Property Tests', () => {
   describe('Comparison Operator Properties', () => {
     it('∀ operator in [eq,ne,co,sw,ew,gt,ge,lt,le]: filter parses with correct operator', () => {
       fc.assert(
-        fc.property(
-          scimAttributeArb,
-          scimOperatorArb,
-          scimStringValueArb,
-          (attr, op, value) => {
-            const filter = `${attr} ${op} "${value}"`;
-            const ast = parseScimFilter(filter);
-            expect(ast.type).toBe('comparison');
-            expect(ast.operator).toBe(op);
-            expect(ast.attribute).toBe(attr);
-            expect(ast.value).toBe(value);
-          }
-        ),
+        fc.property(scimAttributeArb, scimOperatorArb, scimStringValueArb, (attr, op, value) => {
+          const filter = `${attr} ${op} "${value}"`;
+          const ast = parseScimFilter(filter);
+          expect(ast.type).toBe('comparison');
+          expect(ast.operator).toBe(op);
+          expect(ast.attribute).toBe(attr);
+          expect(ast.value).toBe(value);
+        }),
         { numRuns: 300 }
       );
     });
 
     it('∀ boolean value: filter parses with correct boolean value', () => {
       fc.assert(
-        fc.property(
-          scimAttributeArb,
-          scimOperatorArb,
-          fc.boolean(),
-          (attr, op, value) => {
-            const filter = `${attr} ${op} ${value}`;
-            const ast = parseScimFilter(filter);
-            expect(ast.type).toBe('comparison');
-            expect(ast.value).toBe(value);
-          }
-        ),
+        fc.property(scimAttributeArb, scimOperatorArb, fc.boolean(), (attr, op, value) => {
+          const filter = `${attr} ${op} ${value}`;
+          const ast = parseScimFilter(filter);
+          expect(ast.type).toBe('comparison');
+          expect(ast.value).toBe(value);
+        }),
         { numRuns: 200 }
       );
     });
@@ -423,9 +413,12 @@ describe('SCIM Filter Property Tests', () => {
 
     it('special characters in attribute names: handles correctly', () => {
       // SCIM allows colon in attribute names for extensions
-      const filter = 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber eq "123"';
+      const filter =
+        'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber eq "123"';
       const ast = parseScimFilter(filter);
-      expect(ast.attribute).toBe('urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber');
+      expect(ast.attribute).toBe(
+        'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber'
+      );
     });
 
     it('null value: parses as null', () => {

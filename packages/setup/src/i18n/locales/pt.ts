@@ -855,7 +855,8 @@ const pt: Translations = {
   'web.form.userIdFormat': 'Formato de ID de Usuário',
   'web.form.userIdNanoid': 'NanoID (recomendado)',
   'web.form.userIdUuid': 'UUID v4',
-  'web.form.userIdFormatHint': 'Formato para gerar IDs de usuário. Não pode ser alterado após a criação de usuários.',
+  'web.form.userIdFormatHint':
+    'Formato para gerar IDs de usuário. Não pode ser alterado após a criação de usuários.',
   'web.form.loginDomainPlaceholder': 'login.exemplo.com',
   'web.form.adminDomainPlaceholder': 'admin.exemplo.com',
 

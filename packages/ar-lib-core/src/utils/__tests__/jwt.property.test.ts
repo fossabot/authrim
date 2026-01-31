@@ -113,9 +113,13 @@ describe('JWT Format Validation Properties', () => {
   });
 
   it('∀ random part count (1-10): only 3-part is valid', () => {
-    const partsArb = fc.integer({ min: 1, max: 10 }).chain((n) =>
-      fc.array(base64urlArb(10, 50), { minLength: n, maxLength: n }).map((parts) => parts.join('.'))
-    );
+    const partsArb = fc
+      .integer({ min: 1, max: 10 })
+      .chain((n) =>
+        fc
+          .array(base64urlArb(10, 50), { minLength: n, maxLength: n })
+          .map((parts) => parts.join('.'))
+      );
 
     fc.assert(
       fc.property(partsArb, (token) => {
@@ -133,7 +137,13 @@ describe('JWT Format Validation Properties', () => {
   });
 
   it('empty parts: validateToken returns valid=false', () => {
-    const emptyPartArb = fc.constantFrom('.payload.signature', 'header..signature', 'header.payload.', '..', '....');
+    const emptyPartArb = fc.constantFrom(
+      '.payload.signature',
+      'header..signature',
+      'header.payload.',
+      '..',
+      '....'
+    );
 
     fc.assert(
       fc.property(emptyPartArb, (token) => {
@@ -293,15 +303,20 @@ describe('JWT Verification Properties', () => {
 
         const token = await createIDToken(claims, privateKey, kid, 3600);
 
-        await expect(verifyToken(token, publicKey, wrongIssuer, { audience: clientId })).rejects.toThrow();
+        await expect(
+          verifyToken(token, publicKey, wrongIssuer, { audience: clientId })
+        ).rejects.toThrow();
       }),
       { numRuns: 30 }
     );
   });
 
   it('∀ token with wrong audience: verifyToken fails', async () => {
-    const wrongAudienceArb = alphanumericExtArb('abcdefghijklmnopqrstuvwxyz0123456789-_', 5, 50)
-      .filter((aud) => aud !== clientId);
+    const wrongAudienceArb = alphanumericExtArb(
+      'abcdefghijklmnopqrstuvwxyz0123456789-_',
+      5,
+      50
+    ).filter((aud) => aud !== clientId);
 
     await fc.assert(
       fc.asyncProperty(wrongAudienceArb, async (wrongAudience) => {
@@ -313,7 +328,9 @@ describe('JWT Verification Properties', () => {
 
         const token = await createIDToken(claims, privateKey, kid, 3600);
 
-        await expect(verifyToken(token, publicKey, issuer, { audience: wrongAudience })).rejects.toThrow();
+        await expect(
+          verifyToken(token, publicKey, issuer, { audience: wrongAudience })
+        ).rejects.toThrow();
       }),
       { numRuns: 30 }
     );
@@ -341,7 +358,9 @@ describe('JWT Verification Properties', () => {
         parts[partIndex] = tamperedPart;
         const tamperedToken = parts.join('.');
 
-        await expect(verifyToken(tamperedToken, publicKey, issuer, { audience: clientId })).rejects.toThrow();
+        await expect(
+          verifyToken(tamperedToken, publicKey, issuer, { audience: clientId })
+        ).rejects.toThrow();
       }),
       { numRuns: 30 }
     );
@@ -400,7 +419,11 @@ describe('JWT Parsing Properties', () => {
   });
 
   it('∀ invalid JWT format: parseToken throws', () => {
-    const invalidFormatArb = fc.oneof(twoPartJwtArb, fourPartJwtArb, fc.constant('not.a.valid.jwt'));
+    const invalidFormatArb = fc.oneof(
+      twoPartJwtArb,
+      fourPartJwtArb,
+      fc.constant('not.a.valid.jwt')
+    );
 
     fc.assert(
       fc.property(invalidFormatArb, (invalidToken) => {
@@ -447,12 +470,14 @@ describe('JWT Round-Trip Properties', () => {
       iss: fc.constant(issuer),
       sub: alphanumericArb(1, 50),
       aud: fc.constant(clientId),
-      nonce: alphanumericExtArb('abcdefghijklmnopqrstuvwxyz0123456789-_', 10, 32)
-        .map((s) => (Math.random() > 0.5 ? s : undefined)),
+      nonce: alphanumericExtArb('abcdefghijklmnopqrstuvwxyz0123456789-_', 10, 32).map((s) =>
+        Math.random() > 0.5 ? s : undefined
+      ),
       email: fc.emailAddress(),
       email_verified: fc.boolean(),
-      name: alphanumericExtArb('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ', 2, 50)
-        .map((s) => s.trim() || 'Test User'),
+      name: alphanumericExtArb('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ', 2, 50).map(
+        (s) => s.trim() || 'Test User'
+      ),
     });
 
     await fc.assert(
@@ -478,15 +503,17 @@ describe('JWT Round-Trip Properties', () => {
   });
 
   it('∀ access token: create -> verify preserves scope and jti', async () => {
-    const scopeArb = fc.shuffledSubarray(['openid', 'profile', 'email', 'address', 'phone'], {
-      minLength: 1,
-      maxLength: 5,
-    }).map((scopes) => {
-      if (!scopes.includes('openid')) {
-        scopes.unshift('openid');
-      }
-      return scopes.join(' ');
-    });
+    const scopeArb = fc
+      .shuffledSubarray(['openid', 'profile', 'email', 'address', 'phone'], {
+        minLength: 1,
+        maxLength: 5,
+      })
+      .map((scopes) => {
+        if (!scopes.includes('openid')) {
+          scopes.unshift('openid');
+        }
+        return scopes.join(' ');
+      });
 
     await fc.assert(
       fc.asyncProperty(scopeArb, async (scope) => {

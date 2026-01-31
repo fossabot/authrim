@@ -288,15 +288,18 @@ describe('Redirect URI Registration Properties', () => {
 
   it('∀ unregistered URI: isRedirectUriRegistered returns false', () => {
     fc.assert(
-      fc.property(fc.tuple(httpsRedirectUriArb, httpsRedirectUriArb).filter(([a, b]) => a !== b), ([provided, registered]) => {
-        // Normalize both and check they're different
-        const normalizedProvided = normalizeRedirectUri(provided);
-        const normalizedRegistered = normalizeRedirectUri(registered);
+      fc.property(
+        fc.tuple(httpsRedirectUriArb, httpsRedirectUriArb).filter(([a, b]) => a !== b),
+        ([provided, registered]) => {
+          // Normalize both and check they're different
+          const normalizedProvided = normalizeRedirectUri(provided);
+          const normalizedRegistered = normalizeRedirectUri(registered);
 
-        if (normalizedProvided !== normalizedRegistered) {
-          expect(isRedirectUriRegistered(provided, [registered])).toBe(false);
+          if (normalizedProvided !== normalizedRegistered) {
+            expect(isRedirectUriRegistered(provided, [registered])).toBe(false);
+          }
         }
-      }),
+      ),
       { numRuns: 200 }
     );
   });

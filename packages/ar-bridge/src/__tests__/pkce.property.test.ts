@@ -14,10 +14,7 @@ import {
   generateState,
   generateNonce,
 } from '../utils/pkce';
-import {
-  codeVerifierArb,
-  base64urlArb,
-} from './helpers/fc-generators';
+import { codeVerifierArb, base64urlArb } from './helpers/fc-generators';
 
 // =============================================================================
 // Code Verifier Generation Properties
@@ -92,19 +89,15 @@ describe('PKCE Property Tests', () => {
 
     it('∀ different verifiers: different challenges (collision resistance)', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          codeVerifierArb,
-          codeVerifierArb,
-          async (v1, v2) => {
-            // Skip if verifiers are the same
-            if (v1 === v2) return;
+        fc.asyncProperty(codeVerifierArb, codeVerifierArb, async (v1, v2) => {
+          // Skip if verifiers are the same
+          if (v1 === v2) return;
 
-            const c1 = await generateCodeChallenge(v1);
-            const c2 = await generateCodeChallenge(v2);
+          const c1 = await generateCodeChallenge(v1);
+          const c2 = await generateCodeChallenge(v2);
 
-            expect(c1).not.toBe(c2);
-          }
-        ),
+          expect(c1).not.toBe(c2);
+        }),
         { numRuns: 100 }
       );
     });

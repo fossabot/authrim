@@ -30,7 +30,13 @@ import {
   createPIIContextFromHono,
   getLogger,
 } from '@authrim/ar-lib-core';
-import { D1Adapter, type DatabaseAdapter, generateId, generateUserIdFromSettings, hashPassword } from '@authrim/ar-lib-core';
+import {
+  D1Adapter,
+  type DatabaseAdapter,
+  generateId,
+  generateUserIdFromSettings,
+  hashPassword,
+} from '@authrim/ar-lib-core';
 import { logScimAudit } from '@authrim/ar-lib-scim';
 
 /**

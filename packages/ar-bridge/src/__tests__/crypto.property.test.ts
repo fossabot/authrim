@@ -7,7 +7,13 @@
 
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import { encrypt, decrypt, getEncryptionKey, getEncryptionKeyOrUndefined, EncryptionKeyInvalidError } from '../utils/crypto';
+import {
+  encrypt,
+  decrypt,
+  getEncryptionKey,
+  getEncryptionKeyOrUndefined,
+  EncryptionKeyInvalidError,
+} from '../utils/crypto';
 import {
   validHexKeyArb,
   wrongLengthHexKeyArb,

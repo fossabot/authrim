@@ -401,7 +401,8 @@ const de: Translations = {
   'userId.nanoidDesc': 'URL-sichere 21-Zeichen-IDs, kompakt und sicher',
   'userId.uuid': 'UUID v4',
   'userId.uuidDesc': 'Standard-36-Zeichen-UUIDs mit Bindestrichen',
-  'userId.note': 'Hinweis: Diese Einstellung kann nach der Benutzererstellung nicht geändert werden.',
+  'userId.note':
+    'Hinweis: Diese Einstellung kann nach der Benutzererstellung nicht geändert werden.',
   'userId.selected': 'Benutzer-ID-Format: {{format}}',
 
   // Optional components
@@ -853,7 +854,8 @@ const de: Translations = {
   'web.form.userIdFormat': 'Benutzer-ID-Format',
   'web.form.userIdNanoid': 'NanoID (empfohlen)',
   'web.form.userIdUuid': 'UUID v4',
-  'web.form.userIdFormatHint': 'Format für die Benutzer-ID-Generierung. Kann nach der Benutzererstellung nicht geändert werden.',
+  'web.form.userIdFormatHint':
+    'Format für die Benutzer-ID-Generierung. Kann nach der Benutzererstellung nicht geändert werden.',
   'web.form.loginDomainPlaceholder': 'login.beispiel.de',
   'web.form.adminDomainPlaceholder': 'admin.beispiel.de',
 

@@ -88,12 +88,12 @@ vi.mock('@authrim/ar-lib-core/utils/id', () => ({
 
 vi.mock('@authrim/ar-lib-core/utils/crypto', () => ({
   hashPassword: vi.fn().mockResolvedValue('hashed_password_123'),
-  generateSecureRandomString: vi
-    .fn()
-    .mockImplementation(
-      (length: number = 32) =>
-        `mock-random-${Date.now()}-${Math.random().toString(36).substring(2, 2 + length)}`
-    ),
+  generateSecureRandomString: vi.fn().mockImplementation(
+    (length: number = 32) =>
+      `mock-random-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 2 + length)}`
+  ),
 }));
 
 vi.mock('@authrim/ar-lib-core', async (importOriginal) => {

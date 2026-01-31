@@ -103,17 +103,13 @@ describe('SCIM Mapper Property Tests', () => {
 
     it('∀ InternalUser with active: userToScim converts correctly', () => {
       fc.assert(
-        fc.property(
-          minimalInternalUserArb,
-          fc.constantFrom(0, 1),
-          (user, active) => {
-            const userWithActive = { ...user, active };
-            const context = { baseUrl: 'https://example.com' };
-            const scimUser = userToScim(userWithActive, context);
+        fc.property(minimalInternalUserArb, fc.constantFrom(0, 1), (user, active) => {
+          const userWithActive = { ...user, active };
+          const context = { baseUrl: 'https://example.com' };
+          const scimUser = userToScim(userWithActive, context);
 
-            expect(scimUser.active).toBe(Boolean(active));
-          }
-        ),
+          expect(scimUser.active).toBe(Boolean(active));
+        }),
         { numRuns: 100 }
       );
     });
@@ -154,7 +150,7 @@ describe('SCIM Mapper Property Tests', () => {
 
           // primary email
           if (scimUser.emails && scimUser.emails.length > 0) {
-            const primaryEmail = scimUser.emails.find(e => e.primary) || scimUser.emails[0];
+            const primaryEmail = scimUser.emails.find((e) => e.primary) || scimUser.emails[0];
             expect(user.email).toBe(primaryEmail.value);
           }
         }),
@@ -264,25 +260,21 @@ describe('SCIM Mapper Property Tests', () => {
       });
 
       fc.assert(
-        fc.property(
-          resourceArb,
-          validPatchOpArb,
-          (resource, patchOp) => {
-            const patched = applyPatchOperations(resource, [patchOp]);
+        fc.property(resourceArb, validPatchOpArb, (resource, patchOp) => {
+          const patched = applyPatchOperations(resource, [patchOp]);
 
-            if (patchOp.op === 'remove') {
-              // For simple paths, the property should be deleted
-              if (!patchOp.path?.includes('.')) {
-                expect(patched[patchOp.path as string]).toBeUndefined();
-              }
-            } else if (patchOp.op === 'add' || patchOp.op === 'replace') {
-              // For simple paths, the value should be set
-              if (patchOp.value !== undefined && !patchOp.path?.includes('.')) {
-                expect(patched[patchOp.path as string]).toBe(patchOp.value);
-              }
+          if (patchOp.op === 'remove') {
+            // For simple paths, the property should be deleted
+            if (!patchOp.path?.includes('.')) {
+              expect(patched[patchOp.path as string]).toBeUndefined();
+            }
+          } else if (patchOp.op === 'add' || patchOp.op === 'replace') {
+            // For simple paths, the value should be set
+            if (patchOp.value !== undefined && !patchOp.path?.includes('.')) {
+              expect(patched[patchOp.path as string]).toBe(patchOp.value);
             }
           }
-        ),
+        }),
         { numRuns: 200 }
       );
     });
@@ -302,7 +294,11 @@ describe('SCIM Mapper Property Tests', () => {
           expect(({} as { polluted?: string }).polluted).toBeUndefined();
 
           // The dangerous path should not exist on the patched object in a dangerous way
-          if (patchOp.path === '__proto__' || patchOp.path === 'constructor' || patchOp.path === 'prototype') {
+          if (
+            patchOp.path === '__proto__' ||
+            patchOp.path === 'constructor' ||
+            patchOp.path === 'prototype'
+          ) {
             // These should be skipped, so they shouldn't have the polluted value
             expect(patched['__proto__']).not.toBe(patchOp.value);
           }
@@ -313,23 +309,19 @@ describe('SCIM Mapper Property Tests', () => {
 
     it('∀ nested path: applyPatchOperations creates intermediate objects', () => {
       fc.assert(
-        fc.property(
-          nameArb,
-          nameArb,
-          (givenName, familyName) => {
-            const resource = {};
-            const patches = [
-              { op: 'add' as const, path: 'name.givenName', value: givenName },
-              { op: 'add' as const, path: 'name.familyName', value: familyName },
-            ];
+        fc.property(nameArb, nameArb, (givenName, familyName) => {
+          const resource = {};
+          const patches = [
+            { op: 'add' as const, path: 'name.givenName', value: givenName },
+            { op: 'add' as const, path: 'name.familyName', value: familyName },
+          ];
 
-            const patched = applyPatchOperations(resource, patches);
+          const patched = applyPatchOperations(resource, patches);
 
-            expect(patched.name).toBeDefined();
-            expect(patched.name.givenName).toBe(givenName);
-            expect(patched.name.familyName).toBe(familyName);
-          }
-        ),
+          expect(patched.name).toBeDefined();
+          expect(patched.name.givenName).toBe(givenName);
+          expect(patched.name.familyName).toBe(familyName);
+        }),
         { numRuns: 100 }
       );
     });
@@ -360,10 +352,13 @@ describe('SCIM Mapper Property Tests', () => {
       fc.assert(
         fc.property(
           fc.record({
-            emails: fc.array(fc.record({
-              value: emailArb,
-              primary: fc.boolean(),
-            }), { minLength: 1, maxLength: 3 }),
+            emails: fc.array(
+              fc.record({
+                value: emailArb,
+                primary: fc.boolean(),
+              }),
+              { minLength: 1, maxLength: 3 }
+            ),
           }),
           (scimUser) => {
             const result = validateScimUser(scimUser);
@@ -396,10 +391,13 @@ describe('SCIM Mapper Property Tests', () => {
         fc.property(
           fc.record({
             userName: emailArb,
-            emails: fc.array(fc.record({
-              value: emailArb,
-              primary: fc.option(fc.boolean(), { nil: undefined }),
-            }), { minLength: 1, maxLength: 3 }),
+            emails: fc.array(
+              fc.record({
+                value: emailArb,
+                primary: fc.option(fc.boolean(), { nil: undefined }),
+              }),
+              { minLength: 1, maxLength: 3 }
+            ),
           }),
           (scimUser) => {
             const result = validateScimUser(scimUser);
@@ -485,27 +483,23 @@ describe('SCIM Mapper Property Tests', () => {
 
     it('∀ different updated_at: generateEtag produces different ETags', () => {
       fc.assert(
-        fc.property(
-          isoDateArb,
-          isoDateArb,
-          (dateStr1, dateStr2) => {
-            const time1 = new Date(dateStr1).getTime();
-            const time2 = new Date(dateStr2).getTime();
+        fc.property(isoDateArb, isoDateArb, (dateStr1, dateStr2) => {
+          const time1 = new Date(dateStr1).getTime();
+          const time2 = new Date(dateStr2).getTime();
 
-            // Skip if dates are the same
-            if (time1 === time2) {
-              return;
-            }
-
-            const resource1 = { created_at: dateStr1, updated_at: dateStr1 };
-            const resource2 = { created_at: dateStr1, updated_at: dateStr2 };
-
-            const etag1 = generateEtag(resource1);
-            const etag2 = generateEtag(resource2);
-
-            expect(etag1).not.toBe(etag2);
+          // Skip if dates are the same
+          if (time1 === time2) {
+            return;
           }
-        ),
+
+          const resource1 = { created_at: dateStr1, updated_at: dateStr1 };
+          const resource2 = { created_at: dateStr1, updated_at: dateStr2 };
+
+          const etag1 = generateEtag(resource1);
+          const etag2 = generateEtag(resource2);
+
+          expect(etag1).not.toBe(etag2);
+        }),
         { numRuns: 50 }
       );
     });
@@ -513,7 +507,11 @@ describe('SCIM Mapper Property Tests', () => {
     it('∀ ETag: parseEtag removes weak prefix and quotes', () => {
       fc.assert(
         fc.property(
-          fc.string({ unit: fc.constantFrom(...'0123456789'.split('')), minLength: 1, maxLength: 20 }),
+          fc.string({
+            unit: fc.constantFrom(...'0123456789'.split('')),
+            minLength: 1,
+            maxLength: 20,
+          }),
           (timestamp) => {
             const etag = `W/"${timestamp}"`;
             const parsed = parseEtag(etag);

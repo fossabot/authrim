@@ -264,7 +264,13 @@ export class FlowExecutor {
       };
     }
 
-    const { flowId, flowType, currentNodeId, collectedData = {}, oauthParams } = checkResponse.state;
+    const {
+      flowId,
+      flowType,
+      currentNodeId,
+      collectedData = {},
+      oauthParams,
+    } = checkResponse.state;
 
     // セキュリティ対策: セッション検証（Critical 4）
     // リクエストコンテキストのtenantId/clientIdがセッションのものと一致するか検証

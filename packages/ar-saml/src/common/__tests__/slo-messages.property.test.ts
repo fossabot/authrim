@@ -60,18 +60,14 @@ describe('SAML SLO Messages Property Tests', () => {
 
     it('∀ LogoutRequestOptions with sessionIndex: sessionIndex is preserved', () => {
       fc.assert(
-        fc.property(
-          minimalLogoutRequestOptionsArb,
-          sessionIndexArb,
-          (opts, sessionIndex) => {
-            const optsWithSession = { ...opts, sessionIndex };
-            const xml = buildLogoutRequest(optsWithSession);
-            const parsed = parseLogoutRequestXml(xml);
+        fc.property(minimalLogoutRequestOptionsArb, sessionIndexArb, (opts, sessionIndex) => {
+          const optsWithSession = { ...opts, sessionIndex };
+          const xml = buildLogoutRequest(optsWithSession);
+          const parsed = parseLogoutRequestXml(xml);
 
-            expect(parsed.sessionIndex).toBe(sessionIndex);
-            expect(parsed.sessionIndices).toContain(sessionIndex);
-          }
-        ),
+          expect(parsed.sessionIndex).toBe(sessionIndex);
+          expect(parsed.sessionIndices).toContain(sessionIndex);
+        }),
         { numRuns: 100 }
       );
     });
@@ -164,17 +160,13 @@ describe('SAML SLO Messages Property Tests', () => {
 
     it('∀ LogoutResponseOptions with status: status code is preserved', () => {
       fc.assert(
-        fc.property(
-          minimalLogoutResponseOptionsArb,
-          statusCodeArb,
-          (opts, statusCode) => {
-            const optsWithStatus = { ...opts, statusCode };
-            const xml = buildLogoutResponse(optsWithStatus);
-            const parsed = parseLogoutResponseXml(xml);
+        fc.property(minimalLogoutResponseOptionsArb, statusCodeArb, (opts, statusCode) => {
+          const optsWithStatus = { ...opts, statusCode };
+          const xml = buildLogoutResponse(optsWithStatus);
+          const parsed = parseLogoutResponseXml(xml);
 
-            expect(parsed.statusCode).toBe(statusCode);
-          }
-        ),
+          expect(parsed.statusCode).toBe(statusCode);
+        }),
         { numRuns: 100 }
       );
     });
@@ -296,7 +288,7 @@ describe('SAML SLO Messages Property Tests', () => {
       const invalidXmls = [
         '<not-a-logout-request/>',
         '<LogoutRequest/>',
-        '<samlp:LogoutRequest>',  // No closing tag
+        '<samlp:LogoutRequest>', // No closing tag
         'not xml at all',
       ];
 
@@ -331,11 +323,7 @@ describe('SAML SLO Messages Property Tests', () => {
     });
 
     it('invalid XML: parseLogoutResponseXml throws error', () => {
-      const invalidXmls = [
-        '<not-a-logout-response/>',
-        '<LogoutResponse/>',
-        'not xml at all',
-      ];
+      const invalidXmls = ['<not-a-logout-response/>', '<LogoutResponse/>', 'not xml at all'];
 
       for (const xml of invalidXmls) {
         expect(() => parseLogoutResponseXml(xml)).toThrow();
@@ -350,16 +338,13 @@ describe('SAML SLO Messages Property Tests', () => {
   describe('NameID Format Properties', () => {
     it('∀ NameID format: format attribute is correctly included', () => {
       fc.assert(
-        fc.property(
-          minimalLogoutRequestOptionsArb,
-          (opts) => {
-            const xml = buildLogoutRequest(opts);
-            expect(xml).toContain(`Format="${opts.nameIdFormat}"`);
+        fc.property(minimalLogoutRequestOptionsArb, (opts) => {
+          const xml = buildLogoutRequest(opts);
+          expect(xml).toContain(`Format="${opts.nameIdFormat}"`);
 
-            const parsed = parseLogoutRequestXml(xml);
-            expect(parsed.nameIdFormat).toBe(opts.nameIdFormat);
-          }
-        ),
+          const parsed = parseLogoutRequestXml(xml);
+          expect(parsed.nameIdFormat).toBe(opts.nameIdFormat);
+        }),
         { numRuns: 100 }
       );
     });
@@ -372,7 +357,13 @@ describe('SAML SLO Messages Property Tests', () => {
   describe('SAML ID Properties', () => {
     it('∀ SAML ID: ID attribute is preserved exactly', () => {
       fc.assert(
-        fc.property(samlIdArb, samlDateTimeArb, entityIdArb, samlUrlArb, nameIdValueArb, nameIdFormatArb,
+        fc.property(
+          samlIdArb,
+          samlDateTimeArb,
+          entityIdArb,
+          samlUrlArb,
+          nameIdValueArb,
+          nameIdFormatArb,
           (id, issueInstant, issuer, destination, nameId, nameIdFormat) => {
             const opts = { id, issueInstant, issuer, destination, nameId, nameIdFormat };
             const xml = buildLogoutRequest(opts);
@@ -387,22 +378,17 @@ describe('SAML SLO Messages Property Tests', () => {
 
     it('∀ different IDs: produce different requests', () => {
       fc.assert(
-        fc.property(
-          samlIdArb,
-          samlIdArb,
-          minimalLogoutRequestOptionsArb,
-          (id1, id2, baseOpts) => {
-            // Skip if IDs are the same
-            if (id1 === id2) return;
+        fc.property(samlIdArb, samlIdArb, minimalLogoutRequestOptionsArb, (id1, id2, baseOpts) => {
+          // Skip if IDs are the same
+          if (id1 === id2) return;
 
-            const xml1 = buildLogoutRequest({ ...baseOpts, id: id1 });
-            const xml2 = buildLogoutRequest({ ...baseOpts, id: id2 });
+          const xml1 = buildLogoutRequest({ ...baseOpts, id: id1 });
+          const xml2 = buildLogoutRequest({ ...baseOpts, id: id2 });
 
-            expect(xml1).not.toBe(xml2);
-            expect(xml1).toContain(`ID="${id1}"`);
-            expect(xml2).toContain(`ID="${id2}"`);
-          }
-        ),
+          expect(xml1).not.toBe(xml2);
+          expect(xml1).toContain(`ID="${id1}"`);
+          expect(xml2).toContain(`ID="${id2}"`);
+        }),
         { numRuns: 50 }
       );
     });

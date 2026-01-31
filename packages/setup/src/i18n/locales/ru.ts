@@ -851,7 +851,8 @@ const ru: Translations = {
   'web.form.userIdFormat': 'Формат ID пользователя',
   'web.form.userIdNanoid': 'NanoID (рекомендуется)',
   'web.form.userIdUuid': 'UUID v4',
-  'web.form.userIdFormatHint': 'Формат генерации ID пользователей. Нельзя изменить после создания пользователей.',
+  'web.form.userIdFormatHint':
+    'Формат генерации ID пользователей. Нельзя изменить после создания пользователей.',
   'web.form.loginDomainPlaceholder': 'login.example.com',
   'web.form.adminDomainPlaceholder': 'admin.example.com',
 

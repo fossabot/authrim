@@ -114,11 +114,29 @@ describe('PKCE Property Tests', () => {
       const invalidCharArb = fc
         .tuple(
           fc.string({
-            unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'.split('')),
+            unit: fc.constantFrom(
+              ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'.split('')
+            ),
             minLength: 42,
             maxLength: 127,
           }),
-          fc.constantFrom('+', '/', '=', ' ', '\n', '\t', '@', '#', '$', '%', '^', '&', '*', '日', 'ё')
+          fc.constantFrom(
+            '+',
+            '/',
+            '=',
+            ' ',
+            '\n',
+            '\t',
+            '@',
+            '#',
+            '$',
+            '%',
+            '^',
+            '&',
+            '*',
+            '日',
+            'ё'
+          )
         )
         .map(([prefix, invalidChar]) => prefix + invalidChar);
 
@@ -135,7 +153,9 @@ describe('PKCE Property Tests', () => {
     it('∀ verifier with NULL byte: validateCodeVerifier returns valid=false', () => {
       const nullByteArb = fc
         .string({
-          unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'.split('')),
+          unit: fc.constantFrom(
+            ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'.split('')
+          ),
           minLength: 42,
           maxLength: 127,
         })
@@ -154,7 +174,9 @@ describe('PKCE Property Tests', () => {
       const controlCharArb = fc
         .tuple(
           fc.string({
-            unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'.split('')),
+            unit: fc.constantFrom(
+              ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'.split('')
+            ),
             minLength: 42,
             maxLength: 127,
           }),

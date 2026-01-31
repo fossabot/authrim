@@ -847,7 +847,8 @@ const id: Translations = {
   'web.form.userIdFormat': 'Format ID Pengguna',
   'web.form.userIdNanoid': 'NanoID (disarankan)',
   'web.form.userIdUuid': 'UUID v4',
-  'web.form.userIdFormatHint': 'Format untuk membuat ID pengguna. Tidak dapat diubah setelah pengguna dibuat.',
+  'web.form.userIdFormatHint':
+    'Format untuk membuat ID pengguna. Tidak dapat diubah setelah pengguna dibuat.',
   'web.form.loginDomainPlaceholder': 'login.example.com',
   'web.form.adminDomainPlaceholder': 'admin.example.com',
 
