@@ -19,6 +19,7 @@ import {
   createPIIContextFromHono,
   createAuthContextFromHono,
   generateId,
+  generateUserIdFromSettings,
   D1Adapter,
   type DatabaseAdapter,
   createErrorResponse,
@@ -936,7 +937,7 @@ export async function adminUserCreateHandler(c: Context<{ Bindings: Env }>) {
       }
     }
 
-    const userId = generateId();
+    const userId = await generateUserIdFromSettings(c.env.AUTHRIM_CONFIG, tenantId);
 
     // Step 1: Insert into users_core (Core DB) with pii_status='pending'
     await authCtx.repositories.userCore.createUser({

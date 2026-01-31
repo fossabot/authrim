@@ -27,6 +27,7 @@ import {
   assignSystemAdminRole,
   // Helpers
   generateId,
+  generateUserIdFromSettings,
   createAuthContextFromHono,
   createPIIContextFromHono,
   getTenantIdFromContext,
@@ -566,7 +567,7 @@ setupApp.post('/api/admin-init-setup/initialize', async (c) => {
 
     // Create user in database
     const tenantId = getTenantIdFromContext(c);
-    const userId = generateId();
+    const userId = await generateUserIdFromSettings(c.env.AUTHRIM_CONFIG, tenantId);
 
     // Use DB_ADMIN when available (new Admin/EndUser separation architecture)
     if (c.env.DB_ADMIN) {

@@ -388,6 +388,16 @@ const ja: Translations = {
   'tenant.loginUiDomain': 'ログインUIドメイン（例: login.example.com）',
   'tenant.adminUiDomain': '管理UIドメイン（例: admin.example.com）',
 
+  // User ID format
+  'userId.title': 'ユーザーID形式',
+  'userId.prompt': 'ユーザーIDの形式を選択してください',
+  'userId.nanoid': 'NanoID（推奨）',
+  'userId.nanoidDesc': 'URL安全な21文字のID、コンパクトで安全',
+  'userId.uuid': 'UUID v4',
+  'userId.uuidDesc': 'ハイフン付き36文字の標準UUID',
+  'userId.note': '注意: この設定はユーザー作成後に変更できません。',
+  'userId.selected': 'ユーザーID形式: {{format}}',
+
   // Optional components
   'components.title': 'オプションコンポーネント',
   'components.note': '注: ソーシャルログインとポリシーエンジンは標準コンポーネントです',

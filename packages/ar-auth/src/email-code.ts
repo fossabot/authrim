@@ -22,6 +22,7 @@ import {
   getChallengeStoreByChallengeId,
   getTenantIdFromContext,
   generateId,
+  generateUserIdFromSettings,
   createAuthContextFromHono,
   createPIIContextFromHono,
   createErrorResponse,
@@ -172,7 +173,7 @@ export async function emailCodeSendHandler(c: Context<{ Bindings: Env }>) {
       }
 
       if (!user) {
-        const userId = generateId();
+        const userId = await generateUserIdFromSettings(c.env.AUTHRIM_CONFIG, tenantId);
         const defaultName = name || null;
         const preferredUsername = email.split('@')[0];
 

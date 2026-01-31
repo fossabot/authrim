@@ -1501,6 +1501,7 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
   let tenantName = 'default';
   let tenantDisplayName = 'Default Tenant';
   let baseDomain: string | undefined;
+  let userIdFormat: 'nanoid' | 'uuid' = 'nanoid';
 
   // Step 6: URL configuration (depends on tenant mode)
   let apiDomain: string | null = null;
@@ -1553,6 +1554,33 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
       default: 'Default Tenant',
     });
 
+    // User ID format selection
+    console.log('');
+    console.log(chalk.blue('━━━ ' + t('userId.title') + ' ━━━'));
+    console.log('');
+    console.log(chalk.gray('  ' + t('userId.note')));
+    console.log('');
+
+    userIdFormat = await select<'nanoid' | 'uuid'>({
+      message: t('userId.prompt'),
+      choices: [
+        {
+          name: t('userId.nanoid'),
+          value: 'nanoid' as const,
+          description: t('userId.nanoidDesc'),
+        },
+        {
+          name: t('userId.uuid'),
+          value: 'uuid' as const,
+          description: t('userId.uuidDesc'),
+        },
+      ],
+      default: 'nanoid',
+    });
+
+    console.log('');
+    console.log(chalk.green('  ✓ ' + t('userId.selected', { format: userIdFormat })));
+
     // UI domains for multi-tenant
     console.log('');
     console.log(chalk.blue('━━━ ' + t('tenant.uiDomainTitle') + ' ━━━'));
@@ -1588,6 +1616,33 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
       message: t('tenant.organizationName'),
       default: 'Default Tenant',
     });
+
+    // User ID format selection
+    console.log('');
+    console.log(chalk.blue('━━━ ' + t('userId.title') + ' ━━━'));
+    console.log('');
+    console.log(chalk.gray('  ' + t('userId.note')));
+    console.log('');
+
+    userIdFormat = await select<'nanoid' | 'uuid'>({
+      message: t('userId.prompt'),
+      choices: [
+        {
+          name: t('userId.nanoid'),
+          value: 'nanoid' as const,
+          description: t('userId.nanoidDesc'),
+        },
+        {
+          name: t('userId.uuid'),
+          value: 'uuid' as const,
+          description: t('userId.uuidDesc'),
+        },
+      ],
+      default: 'nanoid',
+    });
+
+    console.log('');
+    console.log(chalk.green('  ✓ ' + t('userId.selected', { format: userIdFormat })));
 
     const useCustomDomain = await confirm({
       message: t('domain.prompt'),
@@ -1929,6 +1984,7 @@ async function runNormalSetup(options: InitOptions): Promise<void> {
     displayName: tenantDisplayName,
     multiTenant,
     baseDomain,
+    userIdFormat,
   };
   config.components = {
     ...config.components,

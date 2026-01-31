@@ -2089,6 +2089,15 @@ export function getHtmlTemplate(
           <input type="text" id="tenant-display" placeholder="My Company" value="Default Tenant" data-i18n-placeholder="web.form.tenantDisplayPlaceholder">
           <small style="color: var(--text-muted)" data-i18n="web.form.tenantDisplayHint">Name shown on login page and consent screen</small>
         </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="user-id-format" data-i18n="web.form.userIdFormat">User ID Format</label>
+          <select id="user-id-format">
+            <option value="nanoid" selected data-i18n="web.form.userIdNanoid">NanoID (recommended)</option>
+            <option value="uuid" data-i18n="web.form.userIdUuid">UUID v4</option>
+          </select>
+          <small style="color: var(--text-muted)" data-i18n="web.form.userIdFormatHint">Format for generating user IDs. Cannot be changed after users are created.</small>
+        </div>
       </div>
 
       <!-- 3.2 UI Domains -->
@@ -3399,6 +3408,9 @@ export function getHtmlTemplate(
       document.getElementById('tenant-name').value = config.tenant?.name || 'default';
       document.getElementById('tenant-display').value = config.tenant?.displayName || 'Default Tenant';
       document.getElementById('naked-domain').checked = config.tenant?.nakedDomain || false;
+      if (document.getElementById('user-id-format')) {
+        document.getElementById('user-id-format').value = config.tenant?.userIdFormat || 'nanoid';
+      }
 
       // Set component checkboxes
       if (document.getElementById('comp-login-ui')) {
@@ -3645,6 +3657,7 @@ export function getHtmlTemplate(
       const nakedDomain = document.getElementById('naked-domain').checked;
       const tenantName = document.getElementById('tenant-name').value.trim() || 'default';
       const tenantDisplayName = document.getElementById('tenant-display').value.trim() || 'Default Tenant';
+      const userIdFormat = document.getElementById('user-id-format').value || 'nanoid';
       const loginDomain = document.getElementById('login-domain').value.trim();
       const adminDomain = document.getElementById('admin-domain').value.trim();
 
@@ -3662,6 +3675,7 @@ export function getHtmlTemplate(
           multiTenant: baseDomain ? true : false,  // Only multi-tenant with custom domain
           baseDomain: baseDomain || undefined,
           nakedDomain: baseDomain ? nakedDomain : false,
+          userIdFormat: userIdFormat,
         },
         components: {
           api: true,
@@ -4479,6 +4493,7 @@ export function getHtmlTemplate(
           displayName: config.tenant?.displayName || 'Default Tenant',
           multiTenant: config.tenant?.multiTenant || false,
           baseDomain: config.tenant?.baseDomain || undefined,
+          userIdFormat: config.tenant?.userIdFormat || 'nanoid',
         },
         components: config.components || {
           api: true,
