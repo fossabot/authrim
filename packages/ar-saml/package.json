@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo 'op-saml: lint skipped (uses root eslint config)'",
     "test": "vitest run",
+    "test:property": "vitest run -c vitest.property.config.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "@cloudflare/workers-types": "^4.20251121.0",
     "@types/pako": "^2.0.4",
     "@vitest/ui": "^4.0.13",
+    "fast-check": "^4.5.3",
     "typescript": "^5.9.3",
     "vitest": "^4.0.13",
     "wrangler": "^4.59.3"

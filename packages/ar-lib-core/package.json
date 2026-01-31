@@ -49,6 +49,8 @@
     "lint": "echo 'Shared package: lint skipped'",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:property": "vitest run -c vitest.property.config.ts",
+    "test:all": "vitest run",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -59,6 +61,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251121.0",
     "@types/node": "^20.19.25",
+    "fast-check": "^4.5.3",
     "typescript": "^5.9.3"
   }
 }
