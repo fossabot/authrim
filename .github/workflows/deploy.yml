@@ -8,6 +8,10 @@ on:
   #     - main
   workflow_dispatch: # Allow manual triggering from GitHub Actions UI
 
+# Restrict GITHUB_TOKEN permissions (OpenSSF Scorecard)
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy

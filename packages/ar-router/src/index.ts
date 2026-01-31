@@ -675,6 +675,14 @@ for (const uiPath of LOGIN_UI_PATHS) {
 }
 
 // Static assets proxy for UI (when either proxy is enabled)
+// This handles /geo/* paths for WorldMap GeoJSON data (Admin UI only)
+app.get('/geo/*', async (c) => {
+  if (c.env.ENABLE_ADMIN_UI_PROXY === 'true' && c.env.AR_ADMIN_UI_URL) {
+    return proxyToPages(c.req.raw, c.env.AR_ADMIN_UI_URL, c.req.path);
+  }
+  return c.json({ error: 'not_found', message: 'Admin UI proxy is not enabled' }, 404);
+});
+
 // This handles /_app/* paths for SvelteKit static assets
 app.all('/_app/*', async (c) => {
   // Determine which UI to serve static assets from based on Referer

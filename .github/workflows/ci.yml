@@ -9,6 +9,10 @@ on:
     branches:
       - main
 
+# Restrict GITHUB_TOKEN permissions (OpenSSF Scorecard)
+permissions:
+  contents: read
+
 jobs:
   lint-and-test:
     name: Lint, Type Check, and Test

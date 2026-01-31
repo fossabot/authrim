@@ -50,6 +50,10 @@ env:
   NODE_VERSION: '22'
   PNPM_VERSION: '9.0.0'
 
+# Restrict GITHUB_TOKEN permissions (OpenSSF Scorecard)
+permissions:
+  contents: read
+
 jobs:
   conformance-test:
     name: Run Conformance Tests
