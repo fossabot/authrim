@@ -18,5 +18,6 @@ export default defineConfig({
     alias: {
       'cloudflare:workers': path.resolve(__dirname, '../../test/mocks/cloudflare-workers.ts'),
     },
+    conditions: ['node', 'import', 'module', 'default'],
   },
 });

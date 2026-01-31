@@ -6,8 +6,6 @@
  * - nanoid: NanoID (URL-safe, 21 chars, default for user IDs)
  */
 
-import { nanoid } from 'nanoid';
-
 /**
  * Supported user ID formats
  */
@@ -22,6 +20,25 @@ export const DEFAULT_USER_ID_FORMAT: UserIdFormat = 'nanoid';
  * NanoID length (21 characters = 126 bits of entropy, similar to UUID v4's 122 bits)
  */
 const NANOID_LENGTH = 21;
+
+/**
+ * NanoID alphabet for URL-safe IDs (same as nanoid default)
+ */
+const NANOID_ALPHABET = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict';
+
+/**
+ * Generate a NanoID using Web Crypto API
+ * This implementation matches the nanoid package output format
+ */
+function generateNanoId(size: number = NANOID_LENGTH): string {
+  const bytes = new Uint8Array(size);
+  crypto.getRandomValues(bytes);
+  let id = '';
+  for (let i = 0; i < size; i++) {
+    id += NANOID_ALPHABET[bytes[i] & 63];
+  }
+  return id;
+}
 
 /**
  * Generate a unique ID using UUID v4
@@ -43,12 +60,12 @@ export function generateId(): string {
 export function generateUserId(format: UserIdFormat = DEFAULT_USER_ID_FORMAT): string {
   switch (format) {
     case 'nanoid':
-      return nanoid(NANOID_LENGTH);
+      return generateNanoId(NANOID_LENGTH);
     case 'uuid':
       return crypto.randomUUID();
     default:
       // Fallback to default format for unknown values
-      return nanoid(NANOID_LENGTH);
+      return generateNanoId(NANOID_LENGTH);
   }
 }
 

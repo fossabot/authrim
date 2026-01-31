@@ -5,7 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-// Direct import from TypeScript source (vitest handles TS natively)
+// Direct import from TypeScript source with explicit .ts extension
+// Note: The .ts extension is required for vitest to correctly resolve the module
 import {
   generateId,
   generateUserId,
@@ -14,7 +15,7 @@ import {
   generateUserIdFromSettings,
   DEFAULT_USER_ID_FORMAT,
   type UserIdFormat,
-} from '../id';
+} from '../id.ts';
 
 describe('ID Generation Utilities', () => {
   describe('generateId', () => {
