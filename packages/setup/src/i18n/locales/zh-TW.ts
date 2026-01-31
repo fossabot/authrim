@@ -385,6 +385,16 @@ const zhTW: Translations = {
   'tenant.loginUiDomain': '登入 UI 網域（例如：login.example.com）',
   'tenant.adminUiDomain': '管理 UI 網域（例如：admin.example.com）',
 
+  // User ID format
+  'userId.title': '使用者 ID 格式',
+  'userId.prompt': '選擇使用者 ID 格式',
+  'userId.nanoid': 'NanoID（推薦）',
+  'userId.nanoidDesc': 'URL 安全的 21 字元 ID，緊湊且安全',
+  'userId.uuid': 'UUID v4',
+  'userId.uuidDesc': '帶連字號的標準 36 字元 UUID',
+  'userId.note': '注意：此設定在建立使用者後無法變更。',
+  'userId.selected': '使用者 ID 格式：{{format}}',
+
   // Optional components
   'components.title': '選用元件',
   'components.note': '注意：社交登入和政策引擎是標準元件',
@@ -820,6 +830,10 @@ const zhTW: Translations = {
   'web.form.tenantDisplay': '租戶顯示名稱',
   'web.form.tenantDisplayPlaceholder': '我的公司',
   'web.form.tenantDisplayHint': '顯示在登入頁面和同意畫面上的名稱',
+  'web.form.userIdFormat': '使用者 ID 格式',
+  'web.form.userIdNanoid': 'NanoID（推薦）',
+  'web.form.userIdUuid': 'UUID v4',
+  'web.form.userIdFormatHint': '使用者 ID 生成格式。建立使用者後無法變更。',
   'web.form.loginDomainPlaceholder': 'login.example.com',
   'web.form.adminDomainPlaceholder': 'admin.example.com',
 

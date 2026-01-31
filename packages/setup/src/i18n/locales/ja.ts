@@ -838,6 +838,10 @@ const ja: Translations = {
   'web.form.tenantDisplay': 'テナント表示名',
   'web.form.tenantDisplayPlaceholder': 'My Company',
   'web.form.tenantDisplayHint': 'ログインページと同意画面に表示される名前',
+  'web.form.userIdFormat': 'ユーザーID形式',
+  'web.form.userIdNanoid': 'NanoID（推奨）',
+  'web.form.userIdUuid': 'UUID v4',
+  'web.form.userIdFormatHint': 'ユーザーID生成形式。ユーザー作成後は変更できません。',
   'web.form.loginDomainPlaceholder': 'login.example.com',
   'web.form.adminDomainPlaceholder': 'admin.example.com',
 

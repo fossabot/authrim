@@ -391,6 +391,16 @@ const ru: Translations = {
   'tenant.loginUiDomain': 'Домен UI для входа (например, login.example.com)',
   'tenant.adminUiDomain': 'Домен панели администратора (например, admin.example.com)',
 
+  // User ID format
+  'userId.title': 'Формат ID пользователя',
+  'userId.prompt': 'Выберите формат ID пользователя',
+  'userId.nanoid': 'NanoID (рекомендуется)',
+  'userId.nanoidDesc': 'URL-безопасные 21-символьные ID, компактные и надёжные',
+  'userId.uuid': 'UUID v4',
+  'userId.uuidDesc': 'Стандартные 36-символьные UUID с дефисами',
+  'userId.note': 'Примечание: Этот параметр нельзя изменить после создания пользователей.',
+  'userId.selected': 'Формат ID пользователя: {{format}}',
+
   // Optional components
   'components.title': 'Дополнительные компоненты',
   'components.note':
@@ -838,6 +848,10 @@ const ru: Translations = {
   'web.form.tenantDisplay': 'Отображаемое имя тенанта',
   'web.form.tenantDisplayPlaceholder': 'Моя компания',
   'web.form.tenantDisplayHint': 'Имя, отображаемое на странице входа и экране согласия',
+  'web.form.userIdFormat': 'Формат ID пользователя',
+  'web.form.userIdNanoid': 'NanoID (рекомендуется)',
+  'web.form.userIdUuid': 'UUID v4',
+  'web.form.userIdFormatHint': 'Формат генерации ID пользователей. Нельзя изменить после создания пользователей.',
   'web.form.loginDomainPlaceholder': 'login.example.com',
   'web.form.adminDomainPlaceholder': 'admin.example.com',
 

@@ -842,6 +842,10 @@ const en: Translations = {
   'web.form.tenantDisplay': 'Tenant Display Name',
   'web.form.tenantDisplayPlaceholder': 'My Company',
   'web.form.tenantDisplayHint': 'Name shown on login page and consent screen',
+  'web.form.userIdFormat': 'User ID Format',
+  'web.form.userIdNanoid': 'NanoID (recommended)',
+  'web.form.userIdUuid': 'UUID v4',
+  'web.form.userIdFormatHint': 'Format for generating user IDs. Cannot be changed after users are created.',
   'web.form.loginDomainPlaceholder': 'login.example.com',
   'web.form.adminDomainPlaceholder': 'admin.example.com',
 

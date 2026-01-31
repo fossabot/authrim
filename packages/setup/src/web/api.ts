@@ -367,6 +367,7 @@ export function createApiRoutes(): Hono {
             name: tenant.name || 'default',
             displayName: tenant.displayName || 'Default Tenant',
             multiTenant: tenant.multiTenant || false,
+            userIdFormat: tenant.userIdFormat || 'nanoid',
             baseDomain: tenant.baseDomain,
           };
         }

@@ -390,6 +390,16 @@ const id: Translations = {
   'tenant.loginUiDomain': 'Domain UI Login (contoh: login.example.com)',
   'tenant.adminUiDomain': 'Domain UI Admin (contoh: admin.example.com)',
 
+  // User ID format
+  'userId.title': 'Format ID Pengguna',
+  'userId.prompt': 'Pilih format ID pengguna',
+  'userId.nanoid': 'NanoID (disarankan)',
+  'userId.nanoidDesc': 'ID 21 karakter yang aman untuk URL, ringkas dan aman',
+  'userId.uuid': 'UUID v4',
+  'userId.uuidDesc': 'UUID standar 36 karakter dengan tanda hubung',
+  'userId.note': 'Catatan: Pengaturan ini tidak dapat diubah setelah pengguna dibuat.',
+  'userId.selected': 'Format ID pengguna: {{format}}',
+
   // Optional components
   'components.title': 'Komponen Opsional',
   'components.note': 'Catatan: Login Sosial dan Policy Engine adalah komponen standar',
@@ -834,6 +844,10 @@ const id: Translations = {
   'web.form.tenantDisplay': 'Nama Tampilan Tenant',
   'web.form.tenantDisplayPlaceholder': 'Perusahaan Saya',
   'web.form.tenantDisplayHint': 'Nama yang ditampilkan di halaman login dan layar persetujuan',
+  'web.form.userIdFormat': 'Format ID Pengguna',
+  'web.form.userIdNanoid': 'NanoID (disarankan)',
+  'web.form.userIdUuid': 'UUID v4',
+  'web.form.userIdFormatHint': 'Format untuk membuat ID pengguna. Tidak dapat diubah setelah pengguna dibuat.',
   'web.form.loginDomainPlaceholder': 'login.example.com',
   'web.form.adminDomainPlaceholder': 'admin.example.com',
 

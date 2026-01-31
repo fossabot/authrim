@@ -393,6 +393,16 @@ const pt: Translations = {
   'tenant.loginUiDomain': 'Domínio de UI de login (ex: login.exemplo.com)',
   'tenant.adminUiDomain': 'Domínio de UI de admin (ex: admin.exemplo.com)',
 
+  // User ID format
+  'userId.title': 'Formato de ID de Usuário',
+  'userId.prompt': 'Selecione o formato de ID de usuário',
+  'userId.nanoid': 'NanoID (recomendado)',
+  'userId.nanoidDesc': 'IDs de 21 caracteres seguros para URL, compactos e seguros',
+  'userId.uuid': 'UUID v4',
+  'userId.uuidDesc': 'UUIDs padrão de 36 caracteres com hífens',
+  'userId.note': 'Nota: Esta configuração não pode ser alterada após a criação de usuários.',
+  'userId.selected': 'Formato de ID de usuário: {{format}}',
+
   // Optional components
   'components.title': 'Componentes Opcionais',
   'components.note': 'Nota: Login Social e Motor de Políticas são componentes padrão',
@@ -842,6 +852,10 @@ const pt: Translations = {
   'web.form.tenantDisplay': 'Nome de Exibição do Tenant',
   'web.form.tenantDisplayPlaceholder': 'Minha Empresa',
   'web.form.tenantDisplayHint': 'Nome mostrado na página de login e tela de consentimento',
+  'web.form.userIdFormat': 'Formato de ID de Usuário',
+  'web.form.userIdNanoid': 'NanoID (recomendado)',
+  'web.form.userIdUuid': 'UUID v4',
+  'web.form.userIdFormatHint': 'Formato para gerar IDs de usuário. Não pode ser alterado após a criação de usuários.',
   'web.form.loginDomainPlaceholder': 'login.exemplo.com',
   'web.form.adminDomainPlaceholder': 'admin.exemplo.com',
 

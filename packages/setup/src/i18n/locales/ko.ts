@@ -386,6 +386,16 @@ const ko: Translations = {
   'tenant.loginUiDomain': '로그인 UI 도메인 (예: login.example.com)',
   'tenant.adminUiDomain': '관리자 UI 도메인 (예: admin.example.com)',
 
+  // User ID format
+  'userId.title': '사용자 ID 형식',
+  'userId.prompt': '사용자 ID 형식을 선택하세요',
+  'userId.nanoid': 'NanoID (권장)',
+  'userId.nanoidDesc': 'URL 안전한 21자 ID, 컴팩트하고 안전함',
+  'userId.uuid': 'UUID v4',
+  'userId.uuidDesc': '하이픈이 있는 표준 36자 UUID',
+  'userId.note': '참고: 이 설정은 사용자 생성 후 변경할 수 없습니다.',
+  'userId.selected': '사용자 ID 형식: {{format}}',
+
   // Optional components
   'components.title': '선택적 컴포넌트',
   'components.note': '참고: 소셜 로그인과 정책 엔진은 표준 컴포넌트입니다',
@@ -827,6 +837,10 @@ const ko: Translations = {
   'web.form.tenantDisplay': '테넌트 표시 이름',
   'web.form.tenantDisplayPlaceholder': '내 회사',
   'web.form.tenantDisplayHint': '로그인 페이지와 동의 화면에 표시되는 이름',
+  'web.form.userIdFormat': '사용자 ID 형식',
+  'web.form.userIdNanoid': 'NanoID (권장)',
+  'web.form.userIdUuid': 'UUID v4',
+  'web.form.userIdFormatHint': '사용자 ID 생성 형식. 사용자 생성 후 변경할 수 없습니다.',
   'web.form.loginDomainPlaceholder': 'login.example.com',
   'web.form.adminDomainPlaceholder': 'admin.example.com',
 

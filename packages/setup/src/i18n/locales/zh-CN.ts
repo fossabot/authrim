@@ -385,6 +385,16 @@ const zhCN: Translations = {
   'tenant.loginUiDomain': '登录 UI 域名（例如：login.example.com）',
   'tenant.adminUiDomain': '管理 UI 域名（例如：admin.example.com）',
 
+  // User ID format
+  'userId.title': '用户 ID 格式',
+  'userId.prompt': '选择用户 ID 格式',
+  'userId.nanoid': 'NanoID（推荐）',
+  'userId.nanoidDesc': 'URL 安全的 21 字符 ID，紧凑且安全',
+  'userId.uuid': 'UUID v4',
+  'userId.uuidDesc': '带连字符的标准 36 字符 UUID',
+  'userId.note': '注意：此设置在创建用户后无法更改。',
+  'userId.selected': '用户 ID 格式：{{format}}',
+
   // Optional components
   'components.title': '可选组件',
   'components.note': '注意：社交登录和策略引擎是标准组件',
@@ -820,6 +830,10 @@ const zhCN: Translations = {
   'web.form.tenantDisplay': '租户显示名称',
   'web.form.tenantDisplayPlaceholder': '我的公司',
   'web.form.tenantDisplayHint': '在登录页面和同意屏幕上显示的名称',
+  'web.form.userIdFormat': '用户 ID 格式',
+  'web.form.userIdNanoid': 'NanoID（推荐）',
+  'web.form.userIdUuid': 'UUID v4',
+  'web.form.userIdFormatHint': '用户 ID 生成格式。创建用户后无法更改。',
   'web.form.loginDomainPlaceholder': 'login.example.com',
   'web.form.adminDomainPlaceholder': 'admin.example.com',
 

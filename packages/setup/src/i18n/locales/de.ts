@@ -394,6 +394,16 @@ const de: Translations = {
   'tenant.loginUiDomain': 'Login-UI-Domain (z.B. login.beispiel.de)',
   'tenant.adminUiDomain': 'Admin-UI-Domain (z.B. admin.beispiel.de)',
 
+  // User ID format
+  'userId.title': 'Benutzer-ID-Format',
+  'userId.prompt': 'Benutzer-ID-Format auswählen',
+  'userId.nanoid': 'NanoID (empfohlen)',
+  'userId.nanoidDesc': 'URL-sichere 21-Zeichen-IDs, kompakt und sicher',
+  'userId.uuid': 'UUID v4',
+  'userId.uuidDesc': 'Standard-36-Zeichen-UUIDs mit Bindestrichen',
+  'userId.note': 'Hinweis: Diese Einstellung kann nach der Benutzererstellung nicht geändert werden.',
+  'userId.selected': 'Benutzer-ID-Format: {{format}}',
+
   // Optional components
   'components.title': 'Optionale Komponenten',
   'components.note': 'Hinweis: Social Login und Policy Engine sind Standardkomponenten',
@@ -840,6 +850,10 @@ const de: Translations = {
   'web.form.tenantDisplay': 'Tenant-Anzeigename',
   'web.form.tenantDisplayPlaceholder': 'Meine Firma',
   'web.form.tenantDisplayHint': 'Name auf Login-Seite und Einwilligungsbildschirm',
+  'web.form.userIdFormat': 'Benutzer-ID-Format',
+  'web.form.userIdNanoid': 'NanoID (empfohlen)',
+  'web.form.userIdUuid': 'UUID v4',
+  'web.form.userIdFormatHint': 'Format für die Benutzer-ID-Generierung. Kann nach der Benutzererstellung nicht geändert werden.',
   'web.form.loginDomainPlaceholder': 'login.beispiel.de',
   'web.form.adminDomainPlaceholder': 'admin.beispiel.de',
 
