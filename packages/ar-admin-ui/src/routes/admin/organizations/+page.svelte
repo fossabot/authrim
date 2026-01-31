@@ -20,9 +20,9 @@
 	let hierarchyData: OrganizationHierarchyResponse | null = $state(null);
 	let hierarchyLoading = $state(false);
 	let hierarchyError = $state('');
-	let expandedNodes = $state<Set<string>>(new SvelteSet());
+	let expandedNodes = new SvelteSet<string>();
 	let searchQuery = $state('');
-	let highlightedIds = $state<Set<string>>(new SvelteSet());
+	let highlightedIds = new SvelteSet<string>();
 
 	// Domain mappings state
 	let mappings: OrgDomainMapping[] = $state([]);
@@ -92,7 +92,8 @@
 		try {
 			hierarchyData = await adminOrganizationsAPI.getHierarchy(org.id);
 			// Expand root by default
-			expandedNodes = new Set([org.id]);
+			expandedNodes.clear();
+			expandedNodes.add(org.id);
 		} catch (err) {
 			console.error('Failed to load hierarchy:', err);
 			hierarchyError = err instanceof Error ? err.message : 'Failed to load hierarchy';
@@ -102,41 +103,38 @@
 	}
 
 	function handleToggleNode(nodeId: string, expanded: boolean) {
-		const newSet = new SvelteSet(expandedNodes);
 		if (expanded) {
-			newSet.add(nodeId);
+			expandedNodes.add(nodeId);
 		} else {
-			newSet.delete(nodeId);
+			expandedNodes.delete(nodeId);
 		}
-		expandedNodes = newSet;
 	}
 
 	function expandAll() {
 		if (!hierarchyData) return;
-		const allIds = new SvelteSet<string>();
 		function collectIds(node: OrganizationNode) {
-			allIds.add(node.id);
+			expandedNodes.add(node.id);
 			node.children.forEach(collectIds);
 		}
 		collectIds(hierarchyData.organization);
-		expandedNodes = allIds;
 	}
 
 	function collapseAll() {
 		if (!hierarchyData) return;
-		expandedNodes = new SvelteSet([hierarchyData.organization.id]);
+		expandedNodes.clear();
+		expandedNodes.add(hierarchyData.organization.id);
 	}
 
 	async function handleSearch() {
 		if (!searchQuery.trim()) {
-			highlightedIds = new SvelteSet();
+			highlightedIds.clear();
 			await loadOrganizations();
 			return;
 		}
 
 		// Search in the current hierarchy
 		if (hierarchyData) {
-			const matchingIds = new SvelteSet<string>();
+			highlightedIds.clear();
 			const query = searchQuery.toLowerCase();
 
 			function searchNode(node: OrganizationNode) {
@@ -144,16 +142,15 @@
 					node.name.toLowerCase().includes(query) ||
 					(node.display_name && node.display_name.toLowerCase().includes(query))
 				) {
-					matchingIds.add(node.id);
+					highlightedIds.add(node.id);
 				}
 				node.children.forEach(searchNode);
 			}
 
 			searchNode(hierarchyData.organization);
-			highlightedIds = matchingIds;
 
 			// Expand all to show matches
-			if (matchingIds.size > 0) {
+			if (highlightedIds.size > 0) {
 				expandAll();
 			}
 		}

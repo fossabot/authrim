@@ -22,10 +22,10 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let hierarchyData = $state<OrganizationHierarchyResponse | null>(null);
-	let expandedNodes = $state<Set<string>>(new SvelteSet());
+	let expandedNodes = new SvelteSet<string>();
 	let selectedOrg = $state<OrganizationNode | null>(null);
 	let searchQuery = $state('');
-	let highlightIds = $state<Set<string>>(new SvelteSet());
+	let highlightIds = new SvelteSet<string>();
 
 	// Load hierarchy when dialog opens
 	$effect(() => {
@@ -35,7 +35,7 @@
 			// Reset state when closed
 			selectedOrg = null;
 			searchQuery = '';
-			highlightIds = new Set();
+			highlightIds.clear();
 		}
 	});
 
@@ -60,7 +60,8 @@
 			hierarchyData = await adminOrganizationsAPI.getHierarchy(rootOrg.id);
 
 			// Expand first level by default
-			expandedNodes = new Set([hierarchyData.organization.id]);
+			expandedNodes.clear();
+			expandedNodes.add(hierarchyData.organization.id);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load organizations';
 		} finally {
@@ -70,7 +71,7 @@
 
 	async function handleSearch() {
 		if (!searchQuery.trim()) {
-			highlightIds = new Set();
+			highlightIds.clear();
 			return;
 		}
 
@@ -81,15 +82,16 @@
 			});
 
 			// Highlight matching organizations
-			highlightIds = new Set(results.organizations.map((org) => org.id));
+			highlightIds.clear();
+			for (const org of results.organizations) {
+				highlightIds.add(org.id);
+			}
 
 			// Expand paths to highlighted nodes
 			if (hierarchyData) {
-				const newExpanded = new Set(expandedNodes);
 				for (const org of results.organizations) {
-					expandPathToNode(hierarchyData.organization, org.id, newExpanded);
+					expandPathToNode(hierarchyData.organization, org.id, expandedNodes);
 				}
-				expandedNodes = newExpanded;
 			}
 		} catch {
 			// Silently fail search
@@ -118,13 +120,11 @@
 	}
 
 	function handleToggle(nodeId: string, isExpanded: boolean) {
-		const newSet = new SvelteSet(expandedNodes);
 		if (isExpanded) {
-			newSet.add(nodeId);
+			expandedNodes.add(nodeId);
 		} else {
-			newSet.delete(nodeId);
+			expandedNodes.delete(nodeId);
 		}
-		expandedNodes = newSet;
 	}
 
 	function handleNodeSelect(node: OrganizationNode) {
