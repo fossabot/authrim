@@ -234,7 +234,13 @@ export const internalUserArb: fc.Arbitrary<InternalUser> = fc.record({
   picture: fc.option(fc.webUrl(), { nil: null }),
   website: fc.option(fc.webUrl(), { nil: null }),
   gender: fc.option(fc.constantFrom('male', 'female', 'other'), { nil: null }),
-  birthdate: fc.option(fc.date({ min: new Date('1950-01-01'), max: new Date('2010-01-01') }).map(d => d.toISOString().slice(0, 10)), { nil: null }),
+  birthdate: fc.option(
+    fc.integer({
+      min: new Date('1950-01-01T00:00:00.000Z').getTime(),
+      max: new Date('2010-01-01T00:00:00.000Z').getTime(),
+    }).map((timestamp) => new Date(timestamp).toISOString().slice(0, 10)),
+    { nil: null }
+  ),
   zoneinfo: fc.option(fc.constantFrom('Asia/Tokyo', 'America/New_York', 'Europe/London'), { nil: null }),
   locale: fc.option(fc.constantFrom('en-US', 'ja-JP', 'de-DE'), { nil: null }),
   phone_number: fc.option(fc.string({ unit: fc.constantFrom(...'0123456789+-'.split('')), minLength: 10, maxLength: 15 }), { nil: null }),
