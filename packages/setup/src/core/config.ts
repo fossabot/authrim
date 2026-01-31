@@ -71,6 +71,13 @@ export const EnvironmentConfigSchema = z.object({
 // Tenant Configuration
 // =============================================================================
 
+/**
+ * User ID format options
+ * - nanoid: URL-safe 21-character IDs (default, recommended)
+ * - uuid: Standard UUID v4 format
+ */
+export const UserIdFormatSchema = z.enum(['nanoid', 'uuid']).default('nanoid');
+
 export const TenantConfigSchema = z.object({
   /** Default tenant identifier (used in single-tenant mode) */
   name: z.string().default('default'),
@@ -87,6 +94,14 @@ export const TenantConfigSchema = z.object({
    * Issuer URL will be: https://{tenant}.{baseDomain}
    */
   baseDomain: z.string().optional(),
+  /**
+   * User ID format for new users
+   * - nanoid: URL-safe 21-character IDs (default, recommended)
+   * - uuid: Standard UUID v4 format (36 characters with hyphens)
+   *
+   * Note: This setting cannot be changed after users are created.
+   */
+  userIdFormat: UserIdFormatSchema,
 });
 
 // =============================================================================

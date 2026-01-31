@@ -27,6 +27,7 @@ import {
   getChallengeStoreByChallengeId,
   getTenantIdFromContext,
   generateId,
+  generateUserIdFromSettings,
   createAuthContextFromHono,
   createErrorResponse,
   AR_ERROR_CODES,
@@ -422,7 +423,7 @@ export async function anonLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
       // Create new anonymous user if not found
       if (!userId) {
         isNewUser = true;
-        const newUserId = generateId();
+        const newUserId = await generateUserIdFromSettings(c.env.AUTHRIM_CONFIG, tenantId);
 
         // Load client contract for expiration settings
         const clientContract = await loadClientContractCached(

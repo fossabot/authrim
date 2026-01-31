@@ -389,6 +389,16 @@ const en: Translations = {
   'tenant.loginUiDomain': 'Login UI domain (e.g., login.example.com)',
   'tenant.adminUiDomain': 'Admin UI domain (e.g., admin.example.com)',
 
+  // User ID format
+  'userId.title': 'User ID Format',
+  'userId.prompt': 'Select user ID format',
+  'userId.nanoid': 'NanoID (recommended)',
+  'userId.nanoidDesc': 'URL-safe 21-character IDs, compact and secure',
+  'userId.uuid': 'UUID v4',
+  'userId.uuidDesc': 'Standard 36-character UUIDs with hyphens',
+  'userId.note': 'Note: This setting cannot be changed after users are created.',
+  'userId.selected': 'User ID format: {{format}}',
+
   // Optional components
   'components.title': 'Optional Components',
   'components.note': 'Note: Social Login and Policy Engine are standard components',

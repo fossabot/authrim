@@ -14,6 +14,7 @@ import {
   getChallengeStoreByUserId,
   getTenantIdFromContext,
   generateId,
+  generateUserIdFromSettings,
   createAuthContextFromHono,
   createPIIContextFromHono,
   createErrorResponse,
@@ -221,7 +222,7 @@ export async function passkeyRegisterOptionsHandler(c: Context<{ Bindings: Env }
 
     // If user doesn't exist, create a new user via Repository
     if (!user) {
-      const newUserId = generateId();
+      const newUserId = await generateUserIdFromSettings(c.env.AUTHRIM_CONFIG, tenantId);
       const now = Date.now();
       const defaultName = name || null;
       const preferredUsername = email.split('@')[0];

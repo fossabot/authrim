@@ -40,6 +40,16 @@ export {
   type RepositoryConfig,
 } from './base';
 
+// User ID generation utilities
+export {
+  generateUserId,
+  isValidUserId,
+  getUserIdFormatFromSettings,
+  generateUserIdFromSettings,
+  DEFAULT_USER_ID_FORMAT,
+  type UserIdFormat,
+} from '../utils/id';
+
 // Core repositories (Non-PII)
 export {
   UserCoreRepository,

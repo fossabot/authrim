@@ -436,6 +436,9 @@ function generateEnvVars(
   if (component === 'ar-auth' || component === 'ar-management' || component === 'ar-router') {
     vars['DEFAULT_TENANT_ID'] = config.tenant?.name || 'default';
 
+    // User ID format (nanoid or uuid)
+    vars['USER_ID_FORMAT'] = config.tenant?.userIdFormat || 'nanoid';
+
     if (config.tenant?.multiTenant && config.tenant?.baseDomain) {
       vars['BASE_DOMAIN'] = config.tenant.baseDomain;
       vars['ENABLE_TENANT_ISOLATION'] = 'true';

@@ -30,7 +30,7 @@ import {
   createPIIContextFromHono,
   getLogger,
 } from '@authrim/ar-lib-core';
-import { D1Adapter, type DatabaseAdapter, generateId, hashPassword } from '@authrim/ar-lib-core';
+import { D1Adapter, type DatabaseAdapter, generateId, generateUserIdFromSettings, hashPassword } from '@authrim/ar-lib-core';
 import { logScimAudit } from '@authrim/ar-lib-scim';
 
 /**
@@ -1234,7 +1234,7 @@ app.post('/Users', async (c) => {
     const internalUser = scimToUser(scimUser);
 
     // Generate ID
-    const userId = generateId();
+    const userId = await generateUserIdFromSettings(c.env.AUTHRIM_CONFIG, tenantId);
 
     // Hash password if provided
     if (scimUser.password) {
@@ -2551,7 +2551,7 @@ async function processUserOperation(
 
       // Convert and create
       const internalUser = scimToUser(scimUser);
-      const userId = generateId();
+      const userId = await generateUserIdFromSettings(c.env.AUTHRIM_CONFIG, tenantId);
       const now = new Date().toISOString();
       const nowUnix = Math.floor(Date.now() / 1000);
       internalUser.created_at = now;

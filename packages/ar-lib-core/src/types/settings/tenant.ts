@@ -7,6 +7,7 @@
  */
 
 import type { CategoryMeta, SettingMeta } from '../../utils/settings-manager';
+import type { UserIdFormat } from '../../utils/id';
 
 /**
  * Tenant Settings Interface
@@ -16,6 +17,7 @@ export interface TenantSettings {
   'tenant.base_domain': string;
   'tenant.default_id': string;
   'tenant.isolation_enabled': boolean;
+  'tenant.user_id_format': UserIdFormat;
 
   // CORS Settings
   'tenant.allowed_origins': string;
@@ -65,6 +67,17 @@ export const TENANT_SETTINGS_META: Record<keyof TenantSettings, SettingMeta> = {
     label: 'Tenant Isolation',
     description: 'Enable strict tenant isolation',
     visibility: 'admin',
+  },
+  'tenant.user_id_format': {
+    key: 'tenant.user_id_format',
+    type: 'enum',
+    default: 'nanoid',
+    envKey: 'USER_ID_FORMAT',
+    label: 'User ID Format',
+    description:
+      'Format for generating user IDs. "nanoid" (default) generates URL-safe 21-character IDs. "uuid" generates standard UUID v4 format. This setting is configured during setup and cannot be changed after users are created.',
+    enum: ['nanoid', 'uuid'],
+    visibility: 'internal',
   },
 
   // CORS Settings
@@ -182,6 +195,7 @@ export const TENANT_DEFAULTS: TenantSettings = {
   'tenant.base_domain': '',
   'tenant.default_id': 'default',
   'tenant.isolation_enabled': false,
+  'tenant.user_id_format': 'nanoid',
   // CORS Settings
   'tenant.allowed_origins': '',
   // Branding

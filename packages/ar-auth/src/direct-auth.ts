@@ -30,6 +30,7 @@ import {
   getChallengeStoreByUserId,
   getTenantIdFromContext,
   generateId,
+  generateUserIdFromSettings,
   createAuthContextFromHono,
   createPIIContextFromHono,
   createErrorResponse,
@@ -792,7 +793,7 @@ export async function directPasskeySignupStartHandler(c: Context<{ Bindings: Env
 
     if (!user) {
       // Create new user
-      const newUserId = generateId();
+      const newUserId = await generateUserIdFromSettings(c.env.AUTHRIM_CONFIG, tenantId);
       const defaultName = display_name || null;
       const preferredUsername = email.split('@')[0];
 
@@ -1173,7 +1174,7 @@ export async function directEmailCodeSendHandler(c: Context<{ Bindings: Env }>) 
     }
 
     if (!user) {
-      const userId = generateId();
+      const userId = await generateUserIdFromSettings(c.env.AUTHRIM_CONFIG, tenantId);
       const preferredUsername = email.split('@')[0];
 
       await authCtx.repositories.userCore.createUser({
