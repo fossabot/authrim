@@ -41,32 +41,31 @@ export function sanitizeText(str: string): string {
 	if (!str || typeof str !== 'string') return '';
 
 	let result = str;
-	let previousResult = '';
 
-	// Multi-pass sanitization to handle nested patterns
-	// Loop until no more changes are made (handles recursive injection attempts)
-	while (result !== previousResult) {
-		previousResult = result;
-		result = result
-			// Remove null bytes that could bypass filters
-			.replace(/\0/g, '')
-			// Remove all < and > characters to completely neutralize HTML tags
-			// This is the most robust approach as it prevents any tag injection
-			// including script, iframe, object, embed, svg, math, etc.
-			.replace(/</g, '')
-			.replace(/>/g, '')
-			// Remove event handlers (handles whitespace and encoding variations)
-			.replace(/\s*on\w+\s*=\s*(['"])[^'"]*\1/gi, '')
-			.replace(/\s*on\w+\s*=\s*[^\s]+/gi, '')
-			// Remove javascript: URLs (handles whitespace, case, and encoding)
-			.replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '')
-			// Remove vbscript: URLs
-			.replace(/v\s*b\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '')
-			// Remove data: URLs that could contain scripts
-			.replace(/data\s*:[^,]*text\/html[^,]*/gi, '')
-			// Normalize whitespace
-			.replace(/[\r\n]+/g, ' ');
+	// Step 1: Remove all < and > characters to completely neutralize HTML tags
+	// This is the most robust approach as it prevents any tag injection
+	result = result.replace(/[<>]/g, '');
+
+	// Step 2: Remove null bytes that could bypass filters
+	result = result.replace(/\0/g, '');
+
+	// Step 3: Neutralize dangerous URL schemes by removing the colon
+	// This handles javascript:, vbscript:, data: schemes
+	// Process character-by-character to avoid multi-character replacement issues
+	const dangerousSchemes = ['javascript', 'vbscript', 'data'];
+	for (const scheme of dangerousSchemes) {
+		// Build regex that matches the scheme followed by optional whitespace and colon
+		// Replace only the colon to break the URL scheme
+		const regex = new RegExp(`(${scheme})\\s*:`, 'gi');
+		result = result.replace(regex, '$1');
 	}
+
+	// Step 4: Remove event handler attributes
+	result = result.replace(/\s*on\w+\s*=\s*(['"])[^'"]*\1/gi, '');
+	result = result.replace(/\s*on\w+\s*=\s*[^\s]+/gi, '');
+
+	// Step 5: Normalize whitespace
+	result = result.replace(/[\r\n]+/g, ' ');
 
 	return result.trim();
 }
