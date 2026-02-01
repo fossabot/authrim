@@ -1207,7 +1207,9 @@ describe('Webhook Admin API - List Deliveries', () => {
       const mockAdapter = {
         query: vi.fn().mockResolvedValue([]),
       };
-      vi.mocked(D1Adapter).mockImplementation(function () { return mockAdapter as any; });
+      vi.mocked(D1Adapter).mockImplementation(function () {
+        return mockAdapter as any;
+      });
 
       await listWebhookDeliveries(c);
 
@@ -1300,7 +1302,9 @@ describe('Webhook Admin API - Replay Delivery', () => {
           request_body: '{}',
         }),
       };
-      vi.mocked(D1Adapter).mockImplementation(function () { return mockAdapter as any; });
+      vi.mocked(D1Adapter).mockImplementation(function () {
+        return mockAdapter as any;
+      });
 
       await replayWebhookDelivery(c);
 
@@ -1338,7 +1342,9 @@ describe('Webhook Admin API - Replay Delivery', () => {
         }),
         execute: vi.fn().mockResolvedValue({ success: true }),
       };
-      vi.mocked(D1Adapter).mockImplementation(function () { return mockAdapter as any; });
+      vi.mocked(D1Adapter).mockImplementation(function () {
+        return mockAdapter as any;
+      });
 
       const mockFetch = vi.mocked(fetch);
       mockFetch.mockResolvedValue(new Response('OK', { status: 200 }));
