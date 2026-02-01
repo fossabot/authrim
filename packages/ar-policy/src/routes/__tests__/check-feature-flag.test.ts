@@ -35,12 +35,14 @@ function createMockKV(data: Record<string, string | null> = {}): KVNamespace {
  */
 function createMockD1(): D1Database {
   return {
-    prepare: vi.fn().mockImplementation(() => ({
-      bind: vi.fn().mockReturnThis(),
-      all: vi.fn().mockResolvedValue({ results: [] }),
-      first: vi.fn().mockResolvedValue(null),
-      run: vi.fn().mockResolvedValue({ success: true, meta: { changes: 0 } }),
-    })),
+    prepare: vi.fn().mockImplementation(function () {
+      return {
+        bind: vi.fn().mockReturnThis(),
+        all: vi.fn().mockResolvedValue({ results: [] }),
+        first: vi.fn().mockResolvedValue(null),
+        run: vi.fn().mockResolvedValue({ success: true, meta: { changes: 0 } }),
+      };
+    }),
   } as unknown as D1Database;
 }
 

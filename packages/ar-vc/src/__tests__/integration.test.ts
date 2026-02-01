@@ -54,14 +54,16 @@ vi.mock('@authrim/ar-lib-core', async () => {
       requireStatusCheck: false,
       allowedAlgorithms: ['ES256', 'ES384', 'ES512'],
     }),
-    HaipPolicyEvaluator: vi.fn().mockImplementation(() => ({
-      validateVerificationResult: vi.fn().mockReturnValue({
-        valid: true,
-        haipCompliant: true,
-        errors: [],
-        warnings: [],
-      }),
-    })),
+    HaipPolicyEvaluator: vi.fn().mockImplementation(function () {
+      return {
+        validateVerificationResult: vi.fn().mockReturnValue({
+          valid: true,
+          haipCompliant: true,
+          errors: [],
+          warnings: [],
+        }),
+      };
+    }),
     createSDJWTVC: vi.fn().mockResolvedValue({
       combined: 'mock-sd-jwt-vc~disclosure1~disclosure2~',
       issuerSignedJwt: 'mock-jwt',

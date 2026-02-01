@@ -28,44 +28,46 @@ function createTenantAwareD1(
   roleAssignments: Map<string, Map<string, string[]>> // tenant_id -> (subject_id -> permissions[])
 ): D1Database {
   return {
-    prepare: vi.fn().mockImplementation(() => ({
-      bind: vi.fn().mockImplementation((...args: unknown[]) => {
-        // Capture the bound parameters for tenant_id checking
-        const boundParams = args;
-        return {
-          bind: vi.fn().mockReturnThis(),
-          all: vi.fn().mockImplementation(() => {
-            // Extract subject_id (first param) and tenant_id (second param)
-            const subjectId = boundParams[0] as string;
-            const tenantId = boundParams[1] as string;
+    prepare: vi.fn().mockImplementation(function () {
+      return {
+        bind: vi.fn().mockImplementation((...args: unknown[]) => {
+          // Capture the bound parameters for tenant_id checking
+          const boundParams = args;
+          return {
+            bind: vi.fn().mockReturnThis(),
+            all: vi.fn().mockImplementation(() => {
+              // Extract subject_id (first param) and tenant_id (second param)
+              const subjectId = boundParams[0] as string;
+              const tenantId = boundParams[1] as string;
 
-            const tenantRoles = roleAssignments.get(tenantId);
-            if (!tenantRoles) {
-              return Promise.resolve({ results: [] });
-            }
+              const tenantRoles = roleAssignments.get(tenantId);
+              if (!tenantRoles) {
+                return Promise.resolve({ results: [] });
+              }
 
-            const permissions = tenantRoles.get(subjectId);
-            if (!permissions) {
-              return Promise.resolve({ results: [] });
-            }
+              const permissions = tenantRoles.get(subjectId);
+              if (!permissions) {
+                return Promise.resolve({ results: [] });
+              }
 
-            return Promise.resolve({
-              results: [
-                {
-                  name: 'user_role',
-                  permissions_json: JSON.stringify(permissions),
-                },
-              ],
-            });
-          }),
-          first: vi.fn().mockResolvedValue(null),
-          run: vi.fn().mockResolvedValue({ success: true }),
-        };
-      }),
-      all: vi.fn().mockResolvedValue({ results: [] }),
-      first: vi.fn().mockResolvedValue(null),
-      run: vi.fn().mockResolvedValue({ success: true }),
-    })),
+              return Promise.resolve({
+                results: [
+                  {
+                    name: 'user_role',
+                    permissions_json: JSON.stringify(permissions),
+                  },
+                ],
+              });
+            }),
+            first: vi.fn().mockResolvedValue(null),
+            run: vi.fn().mockResolvedValue({ success: true }),
+          };
+        }),
+        all: vi.fn().mockResolvedValue({ results: [] }),
+        first: vi.fn().mockResolvedValue(null),
+        run: vi.fn().mockResolvedValue({ success: true }),
+      };
+    }),
   } as unknown as D1Database;
 }
 

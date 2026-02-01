@@ -162,18 +162,22 @@ describe('Conditions Validation - SAML 2.0 Core Section 2.5', () => {
       ISSUER_URL: 'https://auth.example.com',
       UI_URL: 'https://ui.example.com',
       DB: {
-        prepare: vi.fn().mockImplementation(() => ({
-          bind: vi.fn().mockReturnThis(),
-          first: vi.fn().mockResolvedValue(null),
-          run: vi.fn().mockResolvedValue({ success: true }),
-        })),
+        prepare: vi.fn().mockImplementation(function () {
+          return {
+            bind: vi.fn().mockReturnThis(),
+            first: vi.fn().mockResolvedValue(null),
+            run: vi.fn().mockResolvedValue({ success: true }),
+          };
+        }),
       } as unknown as Env['DB'],
       DB_PII: {
-        prepare: vi.fn().mockImplementation(() => ({
-          bind: vi.fn().mockReturnThis(),
-          first: vi.fn().mockResolvedValue(null),
-          run: vi.fn().mockResolvedValue({ success: true }),
-        })),
+        prepare: vi.fn().mockImplementation(function () {
+          return {
+            bind: vi.fn().mockReturnThis(),
+            first: vi.fn().mockResolvedValue(null),
+            run: vi.fn().mockResolvedValue({ success: true }),
+          };
+        }),
       } as unknown as Env['DB_PII'],
       SAML_REQUEST_STORE: {
         idFromName: vi.fn().mockReturnValue('mock-store-id'),

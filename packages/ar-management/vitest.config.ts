@@ -6,6 +6,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: [resolve(__dirname, '../../test/setup.ts')],
+    // Exclude dist/ to prevent running compiled tests alongside source tests
+    exclude: ['**/node_modules/**', '**/dist/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

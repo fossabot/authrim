@@ -61,13 +61,23 @@ const {
 }));
 
 // Helper to reset all mocks to their default implementation
+// Note: vitest 4.x requires separate calls for mockReset() and mockReturnValue()
 function resetMocks() {
-  mockCreateAuditLogFromContext.mockReset().mockResolvedValue(undefined);
+  mockCreateAuditLogFromContext.mockReset();
+  mockCreateAuditLogFromContext.mockResolvedValue(undefined);
+
   mockValidateEventPattern.mockReset();
+
   mockEncryptValue.mockReset();
+  mockEncryptValue.mockResolvedValue({ encrypted: 'encrypted-value', iv: 'iv' });
+
   mockDecryptValue.mockReset();
-  mockGetTenantIdFromContext.mockReset().mockReturnValue('test-tenant');
-  mockGetLogger.mockReset().mockReturnValue({
+
+  mockGetTenantIdFromContext.mockReset();
+  mockGetTenantIdFromContext.mockReturnValue('test-tenant');
+
+  mockGetLogger.mockReset();
+  mockGetLogger.mockReturnValue({
     module: vi.fn().mockReturnValue({
       info: vi.fn(),
       warn: vi.fn(),
@@ -75,11 +85,13 @@ function resetMocks() {
       debug: vi.fn(),
     }),
   });
+
   mockWebhookRegistry.register.mockReset();
   mockWebhookRegistry.get.mockReset();
   mockWebhookRegistry.list.mockReset();
   mockWebhookRegistry.update.mockReset();
   mockWebhookRegistry.remove.mockReset();
+
   mockD1AdapterQuery.mockReset();
   mockD1AdapterQueryOne.mockReset();
   mockD1AdapterExecute.mockReset();
@@ -95,12 +107,16 @@ vi.mock('@authrim/ar-lib-core', async (importOriginal) => {
     decryptValue: mockDecryptValue,
     getTenantIdFromContext: mockGetTenantIdFromContext,
     getLogger: mockGetLogger,
-    D1Adapter: vi.fn().mockImplementation(() => ({
-      query: mockD1AdapterQuery,
-      queryOne: mockD1AdapterQueryOne,
-      execute: mockD1AdapterExecute,
-    })),
-    createWebhookRegistry: vi.fn().mockImplementation(() => mockWebhookRegistry),
+    D1Adapter: vi.fn().mockImplementation(function () {
+      return {
+        query: mockD1AdapterQuery,
+        queryOne: mockD1AdapterQueryOne,
+        execute: mockD1AdapterExecute,
+      };
+    }),
+    createWebhookRegistry: vi.fn().mockImplementation(function () {
+      return mockWebhookRegistry;
+    }),
   };
 });
 
@@ -1191,7 +1207,7 @@ describe('Webhook Admin API - List Deliveries', () => {
       const mockAdapter = {
         query: vi.fn().mockResolvedValue([]),
       };
-      vi.mocked(D1Adapter).mockImplementation(() => mockAdapter as any);
+      vi.mocked(D1Adapter).mockImplementation(function () { return mockAdapter as any; });
 
       await listWebhookDeliveries(c);
 
@@ -1284,7 +1300,7 @@ describe('Webhook Admin API - Replay Delivery', () => {
           request_body: '{}',
         }),
       };
-      vi.mocked(D1Adapter).mockImplementation(() => mockAdapter as any);
+      vi.mocked(D1Adapter).mockImplementation(function () { return mockAdapter as any; });
 
       await replayWebhookDelivery(c);
 
@@ -1322,7 +1338,7 @@ describe('Webhook Admin API - Replay Delivery', () => {
         }),
         execute: vi.fn().mockResolvedValue({ success: true }),
       };
-      vi.mocked(D1Adapter).mockImplementation(() => mockAdapter as any);
+      vi.mocked(D1Adapter).mockImplementation(function () { return mockAdapter as any; });
 
       const mockFetch = vi.mocked(fetch);
       mockFetch.mockResolvedValue(new Response('OK', { status: 200 }));
@@ -1676,7 +1692,7 @@ describe('Webhook Event Pattern Validation', () => {
     await createWebhook(c);
 
     expect(mockValidateEventPattern).toHaveBeenCalledWith('user.created');
-    const [response, status] = c.json.mock.calls[0];
+    const [, status] = c.json.mock.calls[0];
     expect(status).toBe(201);
   });
 

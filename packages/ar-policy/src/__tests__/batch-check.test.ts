@@ -23,22 +23,24 @@ import type { D1Database } from '@cloudflare/workers-types';
  */
 function createMockD1(rolePermissions: Map<string, string[]> = new Map()): D1Database {
   return {
-    prepare: vi.fn().mockImplementation(() => ({
-      bind: vi.fn().mockReturnThis(),
-      all: vi.fn().mockImplementation(() => {
-        // Return roles based on configured permissions
-        const results: Array<{ name: string; permissions_json: string }> = [];
-        for (const [roleName, perms] of rolePermissions) {
-          results.push({
-            name: roleName,
-            permissions_json: JSON.stringify(perms),
-          });
-        }
-        return Promise.resolve({ results });
-      }),
-      first: vi.fn().mockResolvedValue(null),
-      run: vi.fn().mockResolvedValue({ success: true }),
-    })),
+    prepare: vi.fn().mockImplementation(function () {
+      return {
+        bind: vi.fn().mockReturnThis(),
+        all: vi.fn().mockImplementation(() => {
+          // Return roles based on configured permissions
+          const results: Array<{ name: string; permissions_json: string }> = [];
+          for (const [roleName, perms] of rolePermissions) {
+            results.push({
+              name: roleName,
+              permissions_json: JSON.stringify(perms),
+            });
+          }
+          return Promise.resolve({ results });
+        }),
+        first: vi.fn().mockResolvedValue(null),
+        run: vi.fn().mockResolvedValue({ success: true }),
+      };
+    }),
   } as unknown as D1Database;
 }
 

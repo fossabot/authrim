@@ -232,7 +232,7 @@ describe('migrate.ts', () => {
         expect(existsSync(newKeysDir)).toBe(true);
         expect(existsSync(join(newKeysDir, 'private.pem'))).toBe(true);
       },
-      { timeout: 30000 }
+      30000
     );
 
     it(
@@ -248,7 +248,7 @@ describe('migrate.ts', () => {
         expect(result.backupPath).toBeDefined();
         expect(existsSync(result.backupPath!)).toBe(true);
       },
-      { timeout: 30000 }
+      30000
     );
 
     it('should handle dry run mode', async () => {
@@ -292,7 +292,7 @@ describe('migrate.ts', () => {
         const config = JSON.parse(readFileSync(newConfigPath, 'utf-8'));
         expect(config.keys.secretsPath).toBe('./keys/');
       },
-      { timeout: 30000 }
+      30000
     );
   });
 
@@ -314,7 +314,7 @@ describe('migrate.ts', () => {
         expect(result.valid).toBe(true);
         expect(result.issues).toEqual([]);
       },
-      { timeout: 30000 }
+      30000
     );
 
     it('should detect missing config.json', async () => {

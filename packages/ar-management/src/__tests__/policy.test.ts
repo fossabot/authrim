@@ -67,21 +67,30 @@ const {
 }));
 
 // Helper to reset all mocks to their default implementation
+// Note: vitest 4.x requires separate calls for mockReset() and mockReturnValue()
 function resetMocks() {
-  mockGetTenantIdFromContext.mockReset().mockReturnValue('test-tenant');
-  mockRequireAnyRole.mockReset().mockImplementation(() => {
+  mockGetTenantIdFromContext.mockReset();
+  mockGetTenantIdFromContext.mockReturnValue('test-tenant');
+
+  mockRequireAnyRole.mockReset();
+  mockRequireAnyRole.mockImplementation(() => {
     return async (c: any, next: () => Promise<void>) => {
       await next();
     };
   });
+
   mockD1AdapterQueryOne.mockReset();
   mockD1AdapterQuery.mockReset();
   mockCreatePolicyResolver.mockReset();
-  mockCreateAuditLogEntry.mockReset().mockReturnValue({
+
+  mockCreateAuditLogEntry.mockReset();
+  mockCreateAuditLogEntry.mockReturnValue({
     timestamp: new Date().toISOString(),
     eventType: 'contract.updated',
   });
-  mockCreateLogger.mockReset().mockReturnValue({
+
+  mockCreateLogger.mockReset();
+  mockCreateLogger.mockReturnValue({
     module: vi.fn().mockReturnValue({
       info: vi.fn(),
       warn: vi.fn(),
@@ -89,6 +98,7 @@ function resetMocks() {
       debug: vi.fn(),
     }),
   });
+
   mockIsValidTransition.mockReset();
   mockGetAllowedTransitions.mockReset();
 }
@@ -99,10 +109,12 @@ vi.mock('@authrim/ar-lib-core', async (importOriginal) => {
     ...actual,
     getTenantIdFromContext: mockGetTenantIdFromContext,
     requireAnyRole: mockRequireAnyRole,
-    D1Adapter: vi.fn().mockImplementation(() => ({
-      queryOne: mockD1AdapterQueryOne,
-      query: mockD1AdapterQuery,
-    })),
+    D1Adapter: vi.fn().mockImplementation(function () {
+      return {
+        queryOne: mockD1AdapterQueryOne,
+        query: mockD1AdapterQuery,
+      };
+    }),
     createPolicyResolver: mockCreatePolicyResolver,
     createAuditLogEntry: mockCreateAuditLogEntry,
     createLogger: mockCreateLogger,
