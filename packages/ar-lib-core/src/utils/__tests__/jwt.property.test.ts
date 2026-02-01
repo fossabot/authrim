@@ -350,11 +350,14 @@ describe('JWT Verification Properties', () => {
         const token = await createIDToken(claims, privateKey, kid, 3600);
         const parts = token.split('.');
 
-        // Tamper with one part by changing a character
+        // Tamper with one part by changing multiple characters near the middle
+        // This ensures the tampering is significant enough to affect the decoded bytes
         const originalPart = parts[partIndex];
+        const midPoint = Math.floor(originalPart.length / 2);
         const tamperedPart =
-          originalPart.substring(0, originalPart.length - 1) +
-          (originalPart.endsWith('a') ? 'b' : 'a');
+          originalPart.substring(0, midPoint) +
+          'XXXX' + // Insert clearly invalid characters
+          originalPart.substring(midPoint + 4);
         parts[partIndex] = tamperedPart;
         const tamperedToken = parts.join('.');
 
