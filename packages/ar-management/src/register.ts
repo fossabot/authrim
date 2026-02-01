@@ -1128,9 +1128,15 @@ export async function registerHandler(c: Context<{ Bindings: Env }>): Promise<Re
     }
 
     // OIDC Conformance Test: Detect certification.openid.net
-    const isCertificationTest = request.redirect_uris.some((uri) =>
-      uri.includes('certification.openid.net')
-    );
+    const isCertificationTest = request.redirect_uris.some((uri) => {
+      try {
+        const parsed = new URL(uri);
+        const host = parsed.hostname.toLowerCase();
+        return host === 'certification.openid.net' || host.endsWith('.certification.openid.net');
+      } catch {
+        return false;
+      }
+    });
 
     // Hash client secret for secure storage
     const clientSecretHash = await hashClientSecret(clientSecret);

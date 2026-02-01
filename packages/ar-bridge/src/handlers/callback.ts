@@ -638,6 +638,33 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
 }
 
 // =============================================================================
+// URL Host Checking Helper
+// =============================================================================
+
+/**
+ * Safely check if a URL's host matches expected hosts
+ * This prevents URL substring attacks like "evil.com/api.github.com"
+ *
+ * @param url - The URL string to check
+ * @param allowedHosts - Array of allowed hostnames (exact match or subdomain)
+ * @returns true if the URL's host matches one of the allowed hosts
+ */
+function urlHostMatches(url: string | undefined, allowedHosts: string[]): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    return allowedHosts.some((allowed) => {
+      const normalizedAllowed = allowed.toLowerCase();
+      // Exact match or subdomain match (e.g., "api.github.com" matches "github.com")
+      return host === normalizedAllowed || host.endsWith('.' + normalizedAllowed);
+    });
+  } catch {
+    return false;
+  }
+}
+
+// =============================================================================
 // GitHub-specific helpers
 // =============================================================================
 
@@ -645,15 +672,12 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
  * Check if a provider is GitHub (by checking endpoints or name)
  */
 function isGitHubProvider(provider: UpstreamProvider): boolean {
-  // Check by userinfo endpoint
-  if (
-    provider.userinfoEndpoint?.includes('api.github.com') ||
-    provider.userinfoEndpoint?.includes('/api/v3/user')
-  ) {
+  // Check by userinfo endpoint - must be github.com domain
+  if (urlHostMatches(provider.userinfoEndpoint, ['api.github.com', 'github.com'])) {
     return true;
   }
-  // Check by authorization endpoint
-  if (provider.authorizationEndpoint?.includes('github.com/login/oauth')) {
+  // Check by authorization endpoint - must be github.com domain
+  if (urlHostMatches(provider.authorizationEndpoint, ['github.com'])) {
     return true;
   }
   // Check by name (case insensitive)
@@ -734,12 +758,12 @@ async function fetchGitHubPrimaryEmail(
  * Check if a provider is Facebook
  */
 function isFacebookProvider(provider: UpstreamProvider): boolean {
-  // Check by authorization endpoint
-  if (provider.authorizationEndpoint?.includes('facebook.com')) {
+  // Check by authorization endpoint - must be facebook.com domain
+  if (urlHostMatches(provider.authorizationEndpoint, ['facebook.com', 'www.facebook.com'])) {
     return true;
   }
-  // Check by token endpoint
-  if (provider.tokenEndpoint?.includes('graph.facebook.com')) {
+  // Check by token endpoint - must be graph.facebook.com domain
+  if (urlHostMatches(provider.tokenEndpoint, ['graph.facebook.com'])) {
     return true;
   }
   // Check by name (case insensitive)
@@ -801,15 +825,12 @@ async function fetchFacebookUserInfo(
  * Check if a provider is Twitter/X
  */
 function isTwitterProvider(provider: UpstreamProvider): boolean {
-  // Check by authorization endpoint
-  if (provider.authorizationEndpoint?.includes('twitter.com')) {
+  // Check by authorization endpoint - must be twitter.com or x.com domain
+  if (urlHostMatches(provider.authorizationEndpoint, ['twitter.com', 'x.com'])) {
     return true;
   }
-  // Check by token endpoint
-  if (
-    provider.tokenEndpoint?.includes('api.twitter.com') ||
-    provider.tokenEndpoint?.includes('api.x.com')
-  ) {
+  // Check by token endpoint - must be api.twitter.com or api.x.com domain
+  if (urlHostMatches(provider.tokenEndpoint, ['api.twitter.com', 'api.x.com'])) {
     return true;
   }
   // Check by name (case insensitive)

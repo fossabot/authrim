@@ -368,7 +368,8 @@ describe('Open Redirect Prevention', () => {
       const result = validateRedirectUri('https://auth.example.com\\@evil.com', mockEnv);
       // Node's URL parser normalizes this to https://auth.example.com/@evil.com (same origin, allowed)
       // This is actually safe because the origin remains the same
-      expect(result.startsWith('https://auth.example.com')).toBe(true);
+      const parsed = new URL(result);
+      expect(parsed.hostname).toBe('auth.example.com');
     });
 
     it('should block @ symbol URL confusion', () => {

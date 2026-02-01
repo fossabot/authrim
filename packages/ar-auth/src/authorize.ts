@@ -3656,9 +3656,16 @@ export async function authorizeLoginHandler(c: Context<{ Bindings: Env }>) {
   if (client_id) {
     const clientMetadata = await getClientCached(c, c.env, client_id);
     if (clientMetadata?.redirect_uris && Array.isArray(clientMetadata.redirect_uris)) {
-      isCertificationTest = (clientMetadata.redirect_uris as string[]).some((uri: string) =>
-        uri.includes('certification.openid.net')
-      );
+      isCertificationTest = (clientMetadata.redirect_uris as string[]).some((uri: string) => {
+        try {
+          const parsed = new URL(uri);
+          const host = parsed.hostname.toLowerCase();
+          // Check for exact match or subdomain of certification.openid.net
+          return host === 'certification.openid.net' || host.endsWith('.certification.openid.net');
+        } catch {
+          return false;
+        }
+      });
     }
   }
 

@@ -288,10 +288,17 @@ async function generateBatch(privateKey, kid, issuer, scope, batchSize, startInd
   return Promise.all(promises);
 }
 
+// Helper to mask sensitive values in logs
+function maskValue(value, visibleChars = 8) {
+  if (!value || value.length <= visibleChars) return value;
+  return value.slice(0, visibleChars) + '...';
+}
+
 async function main() {
-  console.log("🚀 Parallel Refresh Token Generator (V3 - Sharding)");
-  console.log(`   BASE_URL       : ${BASE_URL}`);
-  console.log(`   CLIENT_ID      : ${CLIENT_ID}`);
+  console.log('🚀 Parallel Refresh Token Generator (V3 - Sharding)');
+  // Mask potentially sensitive values to prevent accidental exposure
+  console.log(`   BASE_URL       : ${maskValue(BASE_URL, 30)}`);
+  console.log(`   CLIENT_ID      : ${maskValue(CLIENT_ID)}`);
   console.log(`   USER_ID_PREFIX : ${USER_ID_PREFIX}`);
   console.log(`   COUNT          : ${COUNT}`);
   console.log(`   CONCURRENCY    : ${CONCURRENCY}`);

@@ -221,6 +221,24 @@ export function validateAppleConfig(provider: Partial<UpstreamProvider>): string
 }
 
 /**
+ * Safely check if a URL's host matches expected hosts
+ * This prevents URL substring attacks
+ */
+function urlHostMatches(url: string | undefined, allowedHosts: string[]): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    return allowedHosts.some((allowed) => {
+      const normalizedAllowed = allowed.toLowerCase();
+      return host === normalizedAllowed || host.endsWith('.' + normalizedAllowed);
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Check if a provider is Apple (by checking issuer or endpoints)
  */
 export function isAppleProvider(provider: Partial<UpstreamProvider>): boolean {
@@ -229,13 +247,13 @@ export function isAppleProvider(provider: Partial<UpstreamProvider>): boolean {
     return true;
   }
 
-  // Check by authorization endpoint
-  if (provider.authorizationEndpoint?.includes('appleid.apple.com')) {
+  // Check by authorization endpoint - must be appleid.apple.com domain
+  if (urlHostMatches(provider.authorizationEndpoint, ['appleid.apple.com'])) {
     return true;
   }
 
-  // Check by token endpoint
-  if (provider.tokenEndpoint?.includes('appleid.apple.com')) {
+  // Check by token endpoint - must be appleid.apple.com domain
+  if (urlHostMatches(provider.tokenEndpoint, ['appleid.apple.com'])) {
     return true;
   }
 
