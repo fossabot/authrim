@@ -189,6 +189,8 @@
 
 <style>
 	.header {
+		position: relative;
+		z-index: var(--z-sticky);
 		display: flex;
 		align-items: center;
 		justify-content: space-between;

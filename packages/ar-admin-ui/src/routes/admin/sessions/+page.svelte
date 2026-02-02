@@ -308,7 +308,12 @@
 </div>
 
 <!-- Revoke Confirmation Dialog -->
-<Modal open={showRevokeDialog && !!sessionToRevoke} onClose={closeRevokeDialog} title="Revoke Session" size="md">
+<Modal
+	open={showRevokeDialog && !!sessionToRevoke}
+	onClose={closeRevokeDialog}
+	title="Revoke Session"
+	size="md"
+>
 	{#if sessionToRevoke}
 		<p class="modal-description">
 			This will immediately log out the user from this session. Are you sure?

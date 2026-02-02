@@ -117,12 +117,7 @@
 					{@render header()}
 				{:else}
 					<h2 id={titleId} class="modal-title">{title}</h2>
-					<button
-						type="button"
-						class="modal-close-btn"
-						onclick={onClose}
-						aria-label="Close modal"
-					>
+					<button type="button" class="modal-close-btn" onclick={onClose} aria-label="Close modal">
 						<svg
 							width="20"
 							height="20"

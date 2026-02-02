@@ -66,6 +66,7 @@
 		// Authentication
 		authentication: [
 			{ path: '/admin/flows', label: 'Flows', icon: 'i-ph-flow-arrow' },
+			{ path: '/admin/consents', label: 'Consents', icon: 'i-ph-handshake' },
 			{ path: '/admin/external-idp', label: 'External IdP', icon: 'i-ph-globe' }
 		],
 		// Configuration

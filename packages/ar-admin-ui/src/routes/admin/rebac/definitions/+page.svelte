@@ -341,7 +341,12 @@
 </div>
 
 <!-- Create Dialog -->
-<Modal open={showCreateDialog} onClose={() => (showCreateDialog = false)} title="Create Relation Definition" size="md">
+<Modal
+	open={showCreateDialog}
+	onClose={() => (showCreateDialog = false)}
+	title="Create Relation Definition"
+	size="md"
+>
 	{#if createError}
 		<div class="alert alert-error">{createError}</div>
 	{/if}
@@ -423,7 +428,12 @@
 </Modal>
 
 <!-- Delete Dialog -->
-<Modal open={showDeleteDialog && !!definitionToDelete} onClose={() => (showDeleteDialog = false)} title="Delete Relation Definition" size="sm">
+<Modal
+	open={showDeleteDialog && !!definitionToDelete}
+	onClose={() => (showDeleteDialog = false)}
+	title="Delete Relation Definition"
+	size="sm"
+>
 	{#if deleteError}
 		<div class="alert alert-error">{deleteError}</div>
 	{/if}

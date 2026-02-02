@@ -708,13 +708,16 @@
 <!-- Confirmation Dialog -->
 {#if showConfirmDialog}
 	{@const dialogContent = getConfirmDialogContent()}
-	<Modal open={showConfirmDialog} onClose={closeConfirmDialog} title={revokedSessionsCount !== null ? 'Sessions Revoked' : dialogContent.title} size="sm">
+	<Modal
+		open={showConfirmDialog}
+		onClose={closeConfirmDialog}
+		title={revokedSessionsCount !== null ? 'Sessions Revoked' : dialogContent.title}
+		size="sm"
+	>
 		{#if revokedSessionsCount !== null}
 			<!-- Success message for revoke-sessions -->
 			<div class="alert alert-success">
-				Successfully revoked {revokedSessionsCount} session{revokedSessionsCount === 1
-					? ''
-					: 's'}.
+				Successfully revoked {revokedSessionsCount} session{revokedSessionsCount === 1 ? '' : 's'}.
 				{#if revokedSessionsCount > 0}
 					Active sessions in memory will expire naturally.
 				{/if}
@@ -829,7 +832,12 @@
 </Modal>
 
 <!-- Remove Role Confirmation Dialog -->
-<Modal open={showRemoveRoleDialog && !!roleToRemove} onClose={closeRemoveRoleDialog} title="Remove Role" size="sm">
+<Modal
+	open={showRemoveRoleDialog && !!roleToRemove}
+	onClose={closeRemoveRoleDialog}
+	title="Remove Role"
+	size="sm"
+>
 	<p class="modal-description">
 		Are you sure you want to remove the role <strong
 			>{sanitizeText(roleToRemove?.role_display_name || roleToRemove?.role_name || '')}</strong
@@ -840,11 +848,7 @@
 		from this user?
 	</p>
 	{#snippet footer()}
-		<button
-			class="btn btn-secondary"
-			onclick={closeRemoveRoleDialog}
-			disabled={removeRoleLoading}
-		>
+		<button class="btn btn-secondary" onclick={closeRemoveRoleDialog} disabled={removeRoleLoading}>
 			Cancel
 		</button>
 		<button class="btn btn-danger" onclick={removeRole} disabled={removeRoleLoading}>

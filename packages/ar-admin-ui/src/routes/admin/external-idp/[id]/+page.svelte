@@ -539,11 +539,7 @@
 					<div class="form-group">
 						<label for="buttonColor" class="form-label">Button Color (Light Theme)</label>
 						<div class="color-picker-row">
-							<input
-								type="color"
-								bind:value={buttonColor}
-								class="color-picker-input"
-							/>
+							<input type="color" bind:value={buttonColor} class="color-picker-input" />
 							<input
 								id="buttonColor"
 								type="text"
@@ -557,11 +553,7 @@
 					<div class="form-group">
 						<label for="buttonColorDark" class="form-label">Button Color (Dark Theme)</label>
 						<div class="color-picker-row">
-							<input
-								type="color"
-								bind:value={buttonColorDark}
-								class="color-picker-input"
-							/>
+							<input type="color" bind:value={buttonColorDark} class="color-picker-input" />
 							<input
 								id="buttonColorDark"
 								type="text"

@@ -289,7 +289,12 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-<Modal open={showDeleteDialog && !!roleToDelete} onClose={closeDeleteDialog} title="Delete Role" size="md">
+<Modal
+	open={showDeleteDialog && !!roleToDelete}
+	onClose={closeDeleteDialog}
+	title="Delete Role"
+	size="md"
+>
 	{#if roleToDelete}
 		<p class="modal-description">
 			Are you sure you want to delete the role <strong>{roleToDelete.name}</strong>?

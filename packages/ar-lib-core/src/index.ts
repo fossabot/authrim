@@ -199,6 +199,11 @@ export * from './services/policy-resolver';
 // Audit Logging (Phase 10 - Unified Audit System)
 export * from './services/audit';
 
+// Diagnostic Logging (Debugging, Troubleshooting, OIDF Conformance)
+export * from './services/diagnostic';
+export * from './utils/diagnostic-security';
+export * from './utils/diagnostic-log-formatter';
+
 // Event System (Unified Event System)
 // Note: types/events exports are namespaced to avoid conflicts with types/contracts
 export * as Events from './types/events';
@@ -264,6 +269,7 @@ export * from './middleware/api-version';
 export * from './middleware/deprecation-headers';
 export * from './middleware/sdk-compatibility';
 export * from './middleware/idempotency';
+export * from './middleware/diagnostic-logging-middleware';
 
 // Plugin Context (Phase 9 - Plugin Architecture)
 export * from './middleware/plugin-context';

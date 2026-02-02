@@ -333,7 +333,12 @@
 </div>
 
 <!-- Create Dialog -->
-<Modal open={showCreateDialog} onClose={() => (showCreateDialog = false)} title="Create Relationship Tuple" size="lg">
+<Modal
+	open={showCreateDialog}
+	onClose={() => (showCreateDialog = false)}
+	title="Create Relationship Tuple"
+	size="lg"
+>
 	{#if createError}
 		<div class="alert alert-error">{createError}</div>
 	{/if}
@@ -406,11 +411,7 @@
 		<h3>Options</h3>
 		<div class="form-group">
 			<label for="permission-level" class="form-label">Permission Level</label>
-			<select
-				id="permission-level"
-				class="form-select"
-				bind:value={createForm.permission_level}
-			>
+			<select id="permission-level" class="form-select" bind:value={createForm.permission_level}>
 				<option value="full">Full</option>
 				<option value="limited">Limited</option>
 				<option value="read_only">Read Only</option>
@@ -447,7 +448,12 @@
 </Modal>
 
 <!-- Delete Dialog -->
-<Modal open={showDeleteDialog && !!tupleToDelete} onClose={() => (showDeleteDialog = false)} title="Delete Relationship Tuple" size="sm">
+<Modal
+	open={showDeleteDialog && !!tupleToDelete}
+	onClose={() => (showDeleteDialog = false)}
+	title="Delete Relationship Tuple"
+	size="sm"
+>
 	{#if deleteError}
 		<div class="alert alert-error">{deleteError}</div>
 	{/if}

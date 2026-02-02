@@ -1153,7 +1153,9 @@
 				</div>
 				<button class="btn-add" onclick={addDecisionBranch} type="button">+ Add Branch</button>
 				<div class="form-group" style="margin-top: 12px;">
-					<label for="decision-default-branch">Default Branch ID <span class="hint">(fallback if no match)</span></label>
+					<label for="decision-default-branch"
+						>Default Branch ID <span class="hint">(fallback if no match)</span></label
+					>
 					<input
 						type="text"
 						id="decision-default-branch"
@@ -1213,7 +1215,9 @@
 				</div>
 				<button class="btn-add" onclick={addSwitchCase} type="button">+ Add Case</button>
 				<div class="form-group" style="margin-top: 12px;">
-					<label for="switch-default-case">Default Case ID <span class="hint">(fallback if no match)</span></label>
+					<label for="switch-default-case"
+						>Default Case ID <span class="hint">(fallback if no match)</span></label
+					>
 					<input
 						type="text"
 						id="switch-default-case"

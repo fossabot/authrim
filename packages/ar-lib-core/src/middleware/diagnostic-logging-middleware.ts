@@ -1,0 +1,230 @@
+/**
+ * Diagnostic Logging Middleware
+ *
+ * Middleware for logging HTTP requests and responses for diagnostic purposes.
+ * Used for debugging, troubleshooting, and OIDF conformance testing.
+ *
+ * Features:
+ * - Semantic HTTP logging (not raw dumps)
+ * - Respects diagnostic-logging settings
+ * - Integrates with DiagnosticLogger service
+ * - Handles X-Diagnostic-Session-Id header
+ */
+
+import type { Context, Next } from 'hono';
+import type { Env } from '../types/env';
+import {
+  createDiagnosticLogger,
+  type DiagnosticLogger,
+} from '../services/diagnostic/diagnostic-logger';
+import { createSettingsManager } from '../utils/settings-manager';
+import type { DiagnosticLoggingSettings } from '../types/settings/diagnostic-logging';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger().module('DiagnosticLoggingMiddleware');
+
+/**
+ * Diagnostic logging middleware configuration
+ */
+export interface DiagnosticLoggingMiddlewareConfig {
+  /** Tenant ID */
+  tenantId: string;
+
+  /** Client ID (optional) */
+  clientId?: string;
+
+  /** Path patterns to exclude from logging (e.g., health checks) */
+  excludePatterns?: RegExp[];
+}
+
+/**
+ * Context variable name for diagnostic session ID
+ */
+const DIAGNOSTIC_SESSION_ID_VAR = 'diagnosticSessionId';
+
+/**
+ * Diagnostic logging middleware
+ *
+ * Logs HTTP requests and responses using the DiagnosticLogger service.
+ *
+ * @param config - Middleware configuration
+ * @returns Hono middleware
+ */
+export function diagnosticLoggingMiddleware(config: DiagnosticLoggingMiddlewareConfig) {
+  return async (
+    c: Context<{ Bindings: Env; Variables: { [DIAGNOSTIC_SESSION_ID_VAR]?: string } }>,
+    next: Next
+  ) => {
+    const startTime = Date.now();
+
+    // Check if path should be excluded
+    if (config.excludePatterns) {
+      const path = new URL(c.req.url).pathname;
+      if (config.excludePatterns.some((pattern) => pattern.test(path))) {
+        return next();
+      }
+    }
+
+    // Get diagnostic session ID from header (if provided by SDK)
+    const diagnosticSessionId = c.req.header('X-Diagnostic-Session-Id');
+    if (diagnosticSessionId) {
+      c.set(DIAGNOSTIC_SESSION_ID_VAR as any, diagnosticSessionId);
+    }
+
+    // Load diagnostic logging settings
+    const settings = await loadDiagnosticSettings(c.env, config.tenantId);
+
+    // Check if diagnostic logging is enabled
+    if (!settings['diagnostic-logging.enabled']) {
+      return next();
+    }
+
+    // Create diagnostic logger
+    const logger = createDiagnosticLogger({
+      env: c.env,
+      tenantId: config.tenantId,
+      clientId: config.clientId,
+      settings,
+      ctx: c.executionCtx,
+    });
+
+    if (!logger) {
+      return next();
+    }
+
+    // Generate request ID if not present
+    const requestId = c.req.header('X-Request-Id') || crypto.randomUUID();
+
+    // Log HTTP request
+    try {
+      await logger.logHttpRequest({
+        diagnosticSessionId,
+        request: c.req.raw,
+        requestId,
+      });
+    } catch (error) {
+      log.warn('Failed to log HTTP request', { error: String(error) });
+    }
+
+    // Execute next middleware/handler
+    await next();
+
+    // Log HTTP response
+    try {
+      const durationMs = Date.now() - startTime;
+      await logger.logHttpResponse({
+        diagnosticSessionId,
+        response: c.res,
+        requestId,
+        durationMs,
+      });
+    } catch (error) {
+      log.warn('Failed to log HTTP response', { error: String(error) });
+    }
+
+    // Cleanup logger (flush buffer)
+    try {
+      await logger.cleanup();
+    } catch (error) {
+      log.warn('Failed to cleanup diagnostic logger', { error: String(error) });
+    }
+  };
+}
+
+/**
+ * Load diagnostic logging settings for a tenant
+ *
+ * @param env - Environment bindings
+ * @param tenantId - Tenant ID
+ * @returns Diagnostic logging settings
+ */
+async function loadDiagnosticSettings(
+  env: Env,
+  tenantId: string
+): Promise<DiagnosticLoggingSettings> {
+  try {
+    const manager = createSettingsManager({
+      env: env as unknown as Record<string, string | undefined>,
+      kv: env.AUTHRIM_CONFIG ?? null,
+      cacheTTL: 5000,
+    });
+
+    // Register diagnostic-logging category (if not already registered)
+    // Note: In production, categories should be registered at startup
+    const result = await manager.getAll('diagnostic-logging', {
+      type: 'tenant',
+      id: tenantId,
+    });
+
+    return result.values as unknown as DiagnosticLoggingSettings;
+  } catch (error) {
+    log.warn('Failed to load diagnostic logging settings, using defaults', {
+      error: String(error),
+    });
+
+    // Return default settings (disabled)
+    return {
+      'diagnostic-logging.enabled': false,
+      'diagnostic-logging.log_level': 'debug',
+      'diagnostic-logging.http_request_enabled': true,
+      'diagnostic-logging.http_response_enabled': true,
+      'diagnostic-logging.token_validation_enabled': true,
+      'diagnostic-logging.auth_decision_enabled': true,
+      'diagnostic-logging.r2_output_enabled': false,
+      'diagnostic-logging.r2_bucket_binding': 'DIAGNOSTIC_LOGS',
+      'diagnostic-logging.r2_path_prefix': 'diagnostic-logs',
+      'diagnostic-logging.output_format': 'jsonl',
+      'diagnostic-logging.buffer_strategy': 'queue',
+      'diagnostic-logging.batch_size': 100,
+      'diagnostic-logging.batch_interval_ms': 5000,
+      'diagnostic-logging.filter_pii': true,
+      'diagnostic-logging.filter_tokens': true,
+      'diagnostic-logging.token_hash_prefix_length': 12,
+      'diagnostic-logging.http_safe_headers':
+        'content-type,accept,user-agent,x-correlation-id,x-diagnostic-session-id',
+      'diagnostic-logging.http_body_schema_aware': true,
+      'diagnostic-logging.retention_days': 30,
+    };
+  }
+}
+
+/**
+ * Get diagnostic session ID from context
+ *
+ * @param c - Hono context
+ * @returns Diagnostic session ID or undefined
+ */
+export function getDiagnosticSessionId(c: Context): string | undefined {
+  return c.get(DIAGNOSTIC_SESSION_ID_VAR) as string | undefined;
+}
+
+/**
+ * Create a diagnostic logger helper for manual logging
+ *
+ * Use this helper to manually log diagnostic events outside of the middleware.
+ *
+ * @param c - Hono context
+ * @param config - Logger configuration
+ * @returns DiagnosticLogger instance or null if disabled
+ */
+export async function createDiagnosticLoggerFromContext(
+  c: Context<{ Bindings: Env }>,
+  config: {
+    tenantId: string;
+    clientId?: string;
+  }
+): Promise<DiagnosticLogger | null> {
+  const settings = await loadDiagnosticSettings(c.env, config.tenantId);
+
+  if (!settings['diagnostic-logging.enabled']) {
+    return null;
+  }
+
+  return createDiagnosticLogger({
+    env: c.env,
+    tenantId: config.tenantId,
+    clientId: config.clientId,
+    settings,
+    ctx: c.executionCtx,
+  });
+}

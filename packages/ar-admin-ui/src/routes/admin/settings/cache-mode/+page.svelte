@@ -84,8 +84,8 @@
 		</a>
 		<h1 class="page-title">Cache Mode Settings</h1>
 		<p class="page-description">
-			Configure caching behavior for client metadata and related data.
-			Maintenance mode uses shorter TTLs for development and testing.
+			Configure caching behavior for client metadata and related data. Maintenance mode uses shorter
+			TTLs for development and testing.
 		</p>
 	</div>
 
@@ -258,7 +258,9 @@
 									<span class="data-type-desc">Basic client info</span>
 								</div>
 							</td>
-							<td class="ttl-value">{formatTTL(modeInfo.modes.maintenance.ttl_config.clientMetadata)}</td>
+							<td class="ttl-value"
+								>{formatTTL(modeInfo.modes.maintenance.ttl_config.clientMetadata)}</td
+							>
 							<td class="ttl-value">{formatTTL(modeInfo.modes.fixed.ttl_config.clientMetadata)}</td>
 						</tr>
 						<tr>
@@ -268,7 +270,9 @@
 									<span class="data-type-desc">OAuth callback URLs</span>
 								</div>
 							</td>
-							<td class="ttl-value">{formatTTL(modeInfo.modes.maintenance.ttl_config.redirectUris)}</td>
+							<td class="ttl-value"
+								>{formatTTL(modeInfo.modes.maintenance.ttl_config.redirectUris)}</td
+							>
 							<td class="ttl-value">{formatTTL(modeInfo.modes.fixed.ttl_config.redirectUris)}</td>
 						</tr>
 						<tr>
@@ -278,7 +282,9 @@
 									<span class="data-type-desc">Allowed OAuth flows</span>
 								</div>
 							</td>
-							<td class="ttl-value">{formatTTL(modeInfo.modes.maintenance.ttl_config.grantTypes)}</td>
+							<td class="ttl-value"
+								>{formatTTL(modeInfo.modes.maintenance.ttl_config.grantTypes)}</td
+							>
 							<td class="ttl-value">{formatTTL(modeInfo.modes.fixed.ttl_config.grantTypes)}</td>
 						</tr>
 						<tr>
@@ -308,7 +314,9 @@
 									<span class="data-type-desc">Authentication credentials</span>
 								</div>
 							</td>
-							<td class="ttl-value">{formatTTL(modeInfo.modes.maintenance.ttl_config.clientSecret)}</td>
+							<td class="ttl-value"
+								>{formatTTL(modeInfo.modes.maintenance.ttl_config.clientSecret)}</td
+							>
 							<td class="ttl-value">{formatTTL(modeInfo.modes.fixed.ttl_config.clientSecret)}</td>
 						</tr>
 						<tr>
@@ -345,10 +353,12 @@
 				<h4>About Cache Modes</h4>
 				<p>{modeInfo.hierarchy.description}</p>
 				<p class="info-box-note">
-					<strong>Evaluation order:</strong> {modeInfo.hierarchy.order.join(' → ')}
+					<strong>Evaluation order:</strong>
+					{modeInfo.hierarchy.order.join(' → ')}
 				</p>
 				<p class="info-box-note">
-					<strong>KV Key Version:</strong> {modeInfo.kv_key_version}
+					<strong>KV Key Version:</strong>
+					{modeInfo.kv_key_version}
 				</p>
 			</div>
 		</div>

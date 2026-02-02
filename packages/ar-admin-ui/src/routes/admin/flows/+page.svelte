@@ -404,7 +404,12 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-<Modal open={showDeleteDialog && !!flowToDelete} onClose={closeDeleteDialog} title="Delete Flow" size="md">
+<Modal
+	open={showDeleteDialog && !!flowToDelete}
+	onClose={closeDeleteDialog}
+	title="Delete Flow"
+	size="md"
+>
 	{#if deleteError}
 		<div class="alert alert-error">{deleteError}</div>
 	{/if}

@@ -95,7 +95,7 @@
 	}
 
 	// Categories that have dedicated pages (excluded from settings list)
-	const DEDICATED_PAGE_CATEGORIES = ['login-ui'];
+	const DEDICATED_PAGE_CATEGORIES = ['login-ui', 'consent'];
 
 	// Filter categories based on current scope and exclude dedicated page categories
 	let filteredCategories = $derived(
@@ -218,7 +218,9 @@
 							</span>
 						</div>
 					</div>
-					<p class="icon-card-description">Configure cache TTL for client metadata and related data</p>
+					<p class="icon-card-description">
+						Configure cache TTL for client metadata and related data
+					</p>
 				</a>
 			{/if}
 

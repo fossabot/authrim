@@ -467,8 +467,8 @@
 	{/if}
 
 	<p class="text-secondary">
-		Are you sure you want to delete this role assignment rule? Users will no longer be
-		automatically assigned the specified role based on this rule.
+		Are you sure you want to delete this role assignment rule? Users will no longer be automatically
+		assigned the specified role based on this rule.
 	</p>
 
 	{#if ruleToDelete}

@@ -41,6 +41,7 @@ export interface Env {
 
   // R2 Buckets
   AVATARS: R2Bucket;
+  DIAGNOSTIC_LOGS?: R2Bucket; // Diagnostic logs for debugging and OIDF conformance testing
 
   // KV Namespaces
   STATE_STORE: KVNamespace;

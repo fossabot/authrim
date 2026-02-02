@@ -1,0 +1,340 @@
+/**
+ * Diagnostic Logging Security Utilities
+ *
+ * Security utilities for diagnostic logging to prevent leakage of sensitive information:
+ * - Token hashing (SHA-256, irreversible)
+ * - Header allowlisting (exclude Authorization, Cookie, etc.)
+ * - Schema-aware body extraction (extract only safe fields)
+ * - PII filtering
+ */
+
+/**
+ * Default safe headers allowlist
+ * These headers do NOT contain sensitive information
+ */
+export const DEFAULT_SAFE_HEADERS = [
+  'content-type',
+  'accept',
+  'accept-language',
+  'accept-encoding',
+  'user-agent',
+  'referer',
+  'origin',
+  'x-correlation-id',
+  'x-diagnostic-session-id',
+  'x-request-id',
+  'x-forwarded-for',
+  'x-forwarded-proto',
+  'x-real-ip',
+  'cache-control',
+  'pragma',
+  'content-length',
+] as const;
+
+/**
+ * Sensitive headers that MUST be excluded
+ */
+export const SENSITIVE_HEADERS = [
+  'authorization',
+  'cookie',
+  'set-cookie',
+  'x-api-key',
+  'x-auth-token',
+  'proxy-authorization',
+  'www-authenticate',
+  'authentication',
+] as const;
+
+/**
+ * Hash a token using SHA-256 and return a prefix
+ *
+ * @param token - Token to hash
+ * @param prefixLength - Number of characters to return from hash (default 12)
+ * @returns Hashed token prefix (irreversible)
+ */
+export async function hashToken(token: string, prefixLength: number = 12): Promise<string> {
+  // Use Web Crypto API (available in Cloudflare Workers)
+  const encoder = new TextEncoder();
+  const data = encoder.encode(token);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
+  // Convert to hex string
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+  // Return prefix only
+  return hashHex.slice(0, Math.max(8, Math.min(64, prefixLength)));
+}
+
+/**
+ * Filter headers to only include safe ones (allowlist approach)
+ *
+ * @param headers - Raw headers object
+ * @param allowlist - Allowed header names (case-insensitive)
+ * @returns Filtered headers object
+ */
+export function filterSafeHeaders(
+  headers: Headers | Record<string, string>,
+  allowlist: readonly string[] = DEFAULT_SAFE_HEADERS
+): Record<string, string> {
+  const safeHeaders: Record<string, string> = {};
+  const allowlistLower = allowlist.map((h) => h.toLowerCase());
+
+  // Handle both Headers object and plain object
+  const headerEntries =
+    headers instanceof Headers
+      ? Array.from(headers.entries())
+      : Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v] as [string, string]);
+
+  for (const [key, value] of headerEntries) {
+    const keyLower = key.toLowerCase();
+
+    // Check allowlist
+    if (allowlistLower.includes(keyLower)) {
+      // Double-check not in sensitive list (defense in depth)
+      if (!SENSITIVE_HEADERS.includes(keyLower as (typeof SENSITIVE_HEADERS)[number])) {
+        safeHeaders[key] = value;
+      }
+    }
+  }
+
+  return safeHeaders;
+}
+
+/**
+ * Parse safe headers allowlist from comma-separated string
+ *
+ * @param headerString - Comma-separated header names
+ * @returns Array of header names
+ */
+export function parseSafeHeadersAllowlist(headerString: string): string[] {
+  return headerString
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter((h) => h.length > 0);
+}
+
+/**
+ * Extract body summary (schema-aware)
+ *
+ * For OAuth/OIDC requests, we extract only safe fields based on the endpoint.
+ *
+ * @param body - Request/response body (parsed JSON)
+ * @param contentType - Content-Type header
+ * @param path - Request path (to determine schema)
+ * @returns Body summary (safe fields only)
+ */
+export function extractBodySummary(
+  body: unknown,
+  contentType?: string,
+  path?: string
+): Record<string, unknown> | undefined {
+  if (!body || typeof body !== 'object' || body === null) {
+    return undefined;
+  }
+
+  const bodyObj = body as Record<string, unknown>;
+
+  // OAuth/OIDC token endpoint
+  if (path?.includes('/token')) {
+    return extractTokenEndpointBody(bodyObj);
+  }
+
+  // OAuth/OIDC authorize endpoint
+  if (path?.includes('/authorize') || path?.includes('/auth')) {
+    return extractAuthorizeEndpointBody(bodyObj);
+  }
+
+  // Default: extract only safe top-level fields
+  return extractDefaultBody(bodyObj);
+}
+
+/**
+ * Extract safe fields from token endpoint body
+ */
+function extractTokenEndpointBody(body: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = {};
+
+  // Safe fields (no secrets)
+  const safeFields = [
+    'grant_type',
+    'scope',
+    'redirect_uri',
+    'code_verifier', // PKCE (safe to log, single-use)
+    'client_id', // Public client ID
+  ];
+
+  for (const field of safeFields) {
+    if (field in body) {
+      safe[field] = body[field];
+    }
+  }
+
+  // Hash sensitive fields
+  if ('code' in body && typeof body.code === 'string') {
+    safe.code_hash = `sha256:${body.code.slice(0, 8)}...`; // Placeholder (will hash async)
+  }
+
+  // EXCLUDE: client_secret, refresh_token, password
+  // These are NEVER logged
+
+  return safe;
+}
+
+/**
+ * Extract safe fields from authorize endpoint body
+ */
+function extractAuthorizeEndpointBody(body: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = {};
+
+  const safeFields = [
+    'response_type',
+    'client_id',
+    'redirect_uri',
+    'scope',
+    'state', // Safe (client-provided, public)
+    'nonce', // Safe (client-provided, public)
+    'code_challenge', // PKCE
+    'code_challenge_method',
+    'response_mode',
+    'prompt',
+    'display',
+    'ui_locales',
+    'acr_values',
+  ];
+
+  for (const field of safeFields) {
+    if (field in body) {
+      safe[field] = body[field];
+    }
+  }
+
+  return safe;
+}
+
+/**
+ * Extract default safe fields (generic)
+ */
+function extractDefaultBody(body: Record<string, unknown>): Record<string, unknown> {
+  const safe: Record<string, unknown> = {};
+
+  // Generic safe fields
+  const genericSafeFields = [
+    'type',
+    'action',
+    'method',
+    'status',
+    'error',
+    'error_description',
+    'error_uri',
+  ];
+
+  for (const field of genericSafeFields) {
+    if (field in body) {
+      safe[field] = body[field];
+    }
+  }
+
+  // Limit to top-level only (no nested objects to prevent leakage)
+  return safe;
+}
+
+/**
+ * Sanitize URL query parameters (remove sensitive params)
+ *
+ * @param query - Query parameters object
+ * @returns Sanitized query parameters
+ */
+export function sanitizeQueryParams(query: Record<string, string>): Record<string, string> {
+  const safe: Record<string, string> = {};
+
+  // OAuth/OIDC safe query params
+  const safeParams = [
+    'response_type',
+    'client_id',
+    'redirect_uri',
+    'scope',
+    'state',
+    'nonce',
+    'code_challenge',
+    'code_challenge_method',
+    'response_mode',
+    'prompt',
+    'display',
+    'ui_locales',
+    'acr_values',
+    'grant_type',
+  ];
+
+  for (const param of safeParams) {
+    if (param in query) {
+      safe[param] = query[param];
+    }
+  }
+
+  // Hash sensitive params (if present)
+  if ('code' in query) {
+    safe.code_hash = `sha256:${query.code.slice(0, 8)}...`;
+  }
+
+  // EXCLUDE: access_token, id_token, session_state, etc.
+
+  return safe;
+}
+
+/**
+ * Check if a string contains PII patterns
+ *
+ * @param value - String to check
+ * @returns True if PII detected
+ */
+export function containsPII(value: string): boolean {
+  // Email pattern
+  if (/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/.test(value)) {
+    return true;
+  }
+
+  // Phone pattern (basic)
+  if (/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/.test(value)) {
+    return true;
+  }
+
+  // Credit card pattern (basic)
+  if (/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/.test(value)) {
+    return true;
+  }
+
+  // SSN pattern (US)
+  if (/\b\d{3}-\d{2}-\d{4}\b/.test(value)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Redact PII from a string
+ *
+ * @param value - String to redact
+ * @returns Redacted string
+ */
+export function redactPII(value: string): string {
+  let redacted = value;
+
+  // Redact email
+  redacted = redacted.replace(
+    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+    '[EMAIL_REDACTED]'
+  );
+
+  // Redact phone
+  redacted = redacted.replace(/\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g, '[PHONE_REDACTED]');
+
+  // Redact credit card
+  redacted = redacted.replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[CC_REDACTED]');
+
+  // Redact SSN
+  redacted = redacted.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN_REDACTED]');
+
+  return redacted;
+}

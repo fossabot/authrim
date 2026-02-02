@@ -449,7 +449,12 @@
 </div>
 
 <!-- Create Report Dialog -->
-<Modal open={showCreateReportDialog} onClose={closeCreateReportDialog} title="Generate Report" size="md">
+<Modal
+	open={showCreateReportDialog}
+	onClose={closeCreateReportDialog}
+	title="Generate Report"
+	size="md"
+>
 	{#if createReportError}
 		<div class="alert alert-error">{createReportError}</div>
 	{/if}
@@ -476,10 +481,8 @@
 	</div>
 
 	{#snippet footer()}
-		<button
-			class="btn btn-secondary"
-			onclick={closeCreateReportDialog}
-			disabled={creatingReport}>Cancel</button
+		<button class="btn btn-secondary" onclick={closeCreateReportDialog} disabled={creatingReport}
+			>Cancel</button
 		>
 		<button class="btn btn-primary" onclick={handleCreateReport} disabled={creatingReport}>
 			{creatingReport ? 'Creating...' : 'Generate Report'}
@@ -488,7 +491,12 @@
 </Modal>
 
 <!-- Job Detail Dialog -->
-<Modal open={showJobDetailDialog && !!selectedJob} onClose={closeJobDetailDialog} title={getJobTypeDisplayName(selectedJob?.type ?? 'report_generation')} size="lg">
+<Modal
+	open={showJobDetailDialog && !!selectedJob}
+	onClose={closeJobDetailDialog}
+	title={getJobTypeDisplayName(selectedJob?.type ?? 'report_generation')}
+	size="lg"
+>
 	{#snippet header()}
 		<div>
 			<h2 class="modal-title">

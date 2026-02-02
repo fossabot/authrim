@@ -390,7 +390,12 @@
 </div>
 
 <!-- Detail Dialog -->
-<Modal open={showDetailDialog && !!selectedDelivery} onClose={closeDetailDialog} title="Delivery Details" size="lg">
+<Modal
+	open={showDetailDialog && !!selectedDelivery}
+	onClose={closeDetailDialog}
+	title="Delivery Details"
+	size="lg"
+>
 	{#if selectedDelivery}
 		<div class="detail-content">
 			<div class="detail-info">

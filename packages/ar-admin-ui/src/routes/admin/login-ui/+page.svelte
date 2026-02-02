@@ -329,11 +329,14 @@
 				</div>
 				<div class="coming-soon-item">
 					<span class="coming-soon-label">Background Image URL</span>
-					<span class="coming-soon-desc">URL to the background image displayed on the Login UI</span>
+					<span class="coming-soon-desc">URL to the background image displayed on the Login UI</span
+					>
 				</div>
 				<div class="coming-soon-item">
 					<span class="coming-soon-label">Custom CSS</span>
-					<span class="coming-soon-desc">Custom CSS to apply to the Login UI (restricted properties only)</span>
+					<span class="coming-soon-desc"
+						>Custom CSS to apply to the Login UI (restricted properties only)</span
+					>
 				</div>
 				<div class="coming-soon-item">
 					<span class="coming-soon-label">Header Text</span>
@@ -341,15 +344,23 @@
 				</div>
 				<div class="coming-soon-item">
 					<span class="coming-soon-label">Footer Text</span>
-					<span class="coming-soon-desc">Footer text displayed below the login form (e.g., copyright notice)</span>
+					<span class="coming-soon-desc"
+						>Footer text displayed below the login form (e.g., copyright notice)</span
+					>
 				</div>
 				<div class="coming-soon-item">
 					<span class="coming-soon-label">Footer Links</span>
-					<span class="coming-soon-desc">JSON array of footer links. Format: [&#123;"label":"Privacy Policy","url":"https://..."&#125;]</span>
+					<span class="coming-soon-desc"
+						>JSON array of footer links. Format: [&#123;"label":"Privacy
+						Policy","url":"https://..."&#125;]</span
+					>
 				</div>
 				<div class="coming-soon-item">
 					<span class="coming-soon-label">Custom Blocks</span>
-					<span class="coming-soon-desc">JSON array of custom content blocks. Format: [&#123;"position":"above-form"|"below-form"|"above-header"|"below-footer","type":"text"|"html"|"image"|"link","content":"..."&#125;]</span>
+					<span class="coming-soon-desc"
+						>JSON array of custom content blocks. Format:
+						[&#123;"position":"above-form"|"below-form"|"above-header"|"below-footer","type":"text"|"html"|"image"|"link","content":"..."&#125;]</span
+					>
 				</div>
 			</div>
 		</div>

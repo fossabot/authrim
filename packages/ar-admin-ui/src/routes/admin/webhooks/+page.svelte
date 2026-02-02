@@ -352,9 +352,7 @@
 	</div>
 
 	<div class="form-group">
-		<label for="webhook-secret" class="form-label"
-			>Secret (optional, for HMAC signature)</label
-		>
+		<label for="webhook-secret" class="form-label">Secret (optional, for HMAC signature)</label>
 		<input
 			id="webhook-secret"
 			type="password"
@@ -363,8 +361,7 @@
 			placeholder="Enter a secret for webhook signing"
 		/>
 		<p class="form-hint">
-			If set, webhooks will include an HMAC-SHA256 signature in the X-Webhook-Signature
-			header.
+			If set, webhooks will include an HMAC-SHA256 signature in the X-Webhook-Signature header.
 		</p>
 	</div>
 
@@ -403,9 +400,7 @@
 					{#each selectedEvents as event (event)}
 						<span class="tag removable">
 							{event}
-							<button type="button" class="tag-remove" onclick={() => toggleEvent(event)}
-								>×</button
-							>
+							<button type="button" class="tag-remove" onclick={() => toggleEvent(event)}>×</button>
 						</span>
 					{/each}
 				</div>
@@ -414,8 +409,7 @@
 	</div>
 
 	{#snippet footer()}
-		<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}
-			>Cancel</button
+		<button class="btn btn-secondary" onclick={closeCreateDialog} disabled={creating}>Cancel</button
 		>
 		<button class="btn btn-primary" onclick={confirmCreate} disabled={creating}>
 			{creating ? 'Creating...' : 'Create Webhook'}
@@ -424,7 +418,12 @@
 </Modal>
 
 <!-- Test Dialog -->
-<Modal open={showTestDialog && !!webhookToTest} onClose={closeTestDialog} title="Test Webhook: {webhookToTest?.name ?? ''}" size="md">
+<Modal
+	open={showTestDialog && !!webhookToTest}
+	onClose={closeTestDialog}
+	title="Test Webhook: {webhookToTest?.name ?? ''}"
+	size="md"
+>
 	{#if testError}
 		<div class="alert alert-error">{testError}</div>
 	{/if}
@@ -473,14 +472,19 @@
 </Modal>
 
 <!-- Delete Confirmation Dialog -->
-<Modal open={showDeleteDialog && !!webhookToDelete} onClose={closeDeleteDialog} title="Delete Webhook" size="md">
+<Modal
+	open={showDeleteDialog && !!webhookToDelete}
+	onClose={closeDeleteDialog}
+	title="Delete Webhook"
+	size="md"
+>
 	{#if deleteError}
 		<div class="alert alert-error">{deleteError}</div>
 	{/if}
 
 	<p class="modal-description">
-		Are you sure you want to delete this webhook? Event notifications will no longer be sent
-		to this endpoint.
+		Are you sure you want to delete this webhook? Event notifications will no longer be sent to this
+		endpoint.
 	</p>
 
 	<div class="info-box">
@@ -499,8 +503,7 @@
 	</div>
 
 	{#snippet footer()}
-		<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}
-			>Cancel</button
+		<button class="btn btn-secondary" onclick={closeDeleteDialog} disabled={deleting}>Cancel</button
 		>
 		<button class="btn btn-danger" onclick={confirmDelete} disabled={deleting}>
 			{deleting ? 'Deleting...' : 'Delete Webhook'}

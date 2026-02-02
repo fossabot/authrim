@@ -253,7 +253,13 @@
 </Modal>
 
 <!-- Token Created Success Dialog -->
-<Modal open={showTokenCreatedDialog && !!createdToken} onClose={closeTokenCreatedDialog} title="Token Created Successfully" size="lg" closeOnOutsideClick={false}>
+<Modal
+	open={showTokenCreatedDialog && !!createdToken}
+	onClose={closeTokenCreatedDialog}
+	title="Token Created Successfully"
+	size="lg"
+	closeOnOutsideClick={false}
+>
 	<div class="alert alert-warning">
 		<i class="i-ph-warning"></i>
 		<span>Save this token now - it will not be shown again!</span>
@@ -290,7 +296,12 @@
 </Modal>
 
 <!-- Revoke Confirmation Dialog -->
-<Modal open={showRevokeDialog && !!tokenToRevoke} onClose={closeRevokeDialog} title="Revoke SCIM Token" size="md">
+<Modal
+	open={showRevokeDialog && !!tokenToRevoke}
+	onClose={closeRevokeDialog}
+	title="Revoke SCIM Token"
+	size="md"
+>
 	{#if revokeError}
 		<div class="alert alert-error">{revokeError}</div>
 	{/if}

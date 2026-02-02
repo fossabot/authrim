@@ -436,6 +436,7 @@ import { getEncryptionStatus } from './routes/settings/encryption-config';
 import settingsV2 from './routes/settings-v2';
 import policyRouter from './routes/policy';
 import adminManagementRouter from './routes/admin-management';
+import diagnosticLoggingRouter from './routes/diagnostic-logging';
 import {
   revokeCredentialHandler,
   suspendCredentialHandler,
@@ -955,6 +956,13 @@ app.route('/api/admin', policyRouter);
 // - GET/PATCH/DELETE /api/admin/ip-allowlist/:id - IP entry CRUD
 // - GET /api/admin/admin-audit-log - Admin audit log viewing
 app.route('/api/admin', adminManagementRouter);
+
+// =============================================================================
+// Diagnostic Logging API (Debugging, Troubleshooting, OIDF Conformance)
+// =============================================================================
+// Routes:
+// - POST /api/admin/diagnostic-logging/test-connection - Test R2 connectivity
+app.route('/api/admin/diagnostic-logging', diagnosticLoggingRouter);
 
 // Admin Certification Profile endpoints (OpenID Certification)
 // NOTE: Profiles apply predefined settings - kept for certification testing

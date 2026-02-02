@@ -363,7 +363,12 @@
 </div>
 
 <!-- Bulk Delete Confirmation Dialog -->
-<Modal open={showBulkDeleteDialog} onClose={closeBulkDeleteDialog} title="Delete {selectedIds.size} User{selectedIds.size === 1 ? '' : 's'}" size="md">
+<Modal
+	open={showBulkDeleteDialog}
+	onClose={closeBulkDeleteDialog}
+	title="Delete {selectedIds.size} User{selectedIds.size === 1 ? '' : 's'}"
+	size="md"
+>
 	<div class="alert alert-error" style="margin-bottom: 16px;">
 		<p style="margin: 0; font-weight: 500;">This action cannot be undone</p>
 		<p style="margin: 8px 0 0 0; font-size: 0.875rem;">

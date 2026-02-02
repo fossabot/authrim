@@ -167,7 +167,7 @@
 	});
 </script>
 
-<Modal {open} onClose={onClose} {title} size="md">
+<Modal {open} {onClose} {title} size="md">
 	<!-- Search -->
 	<div class="search-box">
 		<input

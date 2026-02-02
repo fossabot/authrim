@@ -436,7 +436,12 @@
 </div>
 
 <!-- Detail Dialog -->
-<Modal open={showDetailDialog && !!selectedPlugin} onClose={closeDetailDialog} title={selectedPlugin?.meta?.name ?? selectedPlugin?.id ?? ''} size="lg">
+<Modal
+	open={showDetailDialog && !!selectedPlugin}
+	onClose={closeDetailDialog}
+	title={selectedPlugin?.meta?.name ?? selectedPlugin?.id ?? ''}
+	size="lg"
+>
 	{#snippet header()}
 		<div class="plugin-dialog-header">
 			<div class="plugin-dialog-info">
@@ -580,8 +585,7 @@
 									type="checkbox"
 									checked={Boolean(editedConfig[key] ?? prop.default)}
 									disabled={!isEditMode}
-									onchange={(e) =>
-										updateConfigValue(key, (e.target as HTMLInputElement).checked)}
+									onchange={(e) => updateConfigValue(key, (e.target as HTMLInputElement).checked)}
 								/>
 								<span class="plugin-config-checkbox-label">
 									{(editedConfig[key] ?? prop.default) ? 'Enabled' : 'Disabled'}
