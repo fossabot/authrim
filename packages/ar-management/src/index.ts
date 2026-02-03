@@ -612,6 +612,7 @@ app.use('*', async (c, next) => {
       'DPoP',
       'If-Match',
       'If-None-Match',
+      'X-Diagnostic-Session-Id',
       'X-Session-Id',
     ],
     exposeHeaders: [
