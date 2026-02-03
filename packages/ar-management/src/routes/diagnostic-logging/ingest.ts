@@ -14,9 +14,12 @@ import {
   D1Adapter,
   ClientRepository,
   DiagnosticLogR2Adapter,
-  SettingsManager,
+  createSettingsManager,
   DIAGNOSTIC_LOGGING_CATEGORY_META,
+  applyPrivacyModeToEntry,
   type DiagnosticLogEntry,
+  type DiagnosticLogPrivacyMode,
+  type DiagnosticLoggingSettings,
   type OAuthClient,
 } from '@authrim/ar-lib-core';
 
@@ -85,31 +88,34 @@ async function validateClient(
 }
 
 /**
- * Filter sensitive data from logs
+ * Resolve storage mode for a client (tenant default + client overrides)
  */
-function filterSensitiveData(logs: DiagnosticLogEntry[]): DiagnosticLogEntry[] {
-  return logs.map((entry) => {
-    // Create a shallow copy
-    const filtered = { ...entry };
+function resolveStorageMode(
+  settings: DiagnosticLoggingSettings,
+  clientId: string | undefined
+): DiagnosticLogPrivacyMode {
+  const defaultMode =
+    (settings['diagnostic-logging.storage_mode.default'] as DiagnosticLogPrivacyMode) || 'masked';
+  if (!clientId) return defaultMode;
 
-    // Remove or hash tokens from details (only for token-validation entries)
-    if (filtered.category === 'token-validation' && filtered.details) {
-      const details = { ...filtered.details };
-
-      // Hash tokens
-      const tokenFields = ['token', 'id_token', 'access_token', 'refresh_token'];
-      for (const field of tokenFields) {
-        if (details[field]) {
-          // Hash the token using SHA-256 (simplified)
-          details[field] = `[HASHED:${String(details[field]).substring(0, 8)}...]`;
-        }
+  const rawOverrides = settings['diagnostic-logging.storage_mode.by_client'];
+  if (typeof rawOverrides === 'string' && rawOverrides.trim()) {
+    try {
+      const parsed = JSON.parse(rawOverrides) as Record<string, unknown>;
+      const override = parsed[clientId];
+      if (override === 'full' || override === 'masked' || override === 'minimal') {
+        return override;
       }
-
-      filtered.details = details;
+    } catch {
+      // Ignore invalid JSON overrides
     }
+  }
+  return defaultMode;
+}
 
-    return filtered;
-  });
+function resolveHashSecret(env: Env, tenantId: string): string {
+  const base = env.OTP_HMAC_SECRET || env.ISSUER_URL || tenantId || 'authrim';
+  return `${base}:${tenantId}`;
 }
 
 /**
@@ -118,36 +124,6 @@ function filterSensitiveData(logs: DiagnosticLogEntry[]): DiagnosticLogEntry[] {
  * Ingest diagnostic logs from SDK
  */
 app.post('/', async (c) => {
-  // Check if SDK ingestion is enabled
-  // This is controlled via Admin UI: Settings > Diagnostic Logging > SDK Log Ingestion
-  // Setting key: diagnostic-logging.sdk_ingest_enabled
-  try {
-    const settingsManager = new SettingsManager({
-      env: c.env as unknown as Record<string, string | undefined>,
-      kv: c.env.KV,
-    });
-    settingsManager.registerCategory(DIAGNOSTIC_LOGGING_CATEGORY_META);
-
-    const sdkIngestEnabled = await settingsManager.get('diagnostic-logging.sdk_ingest_enabled', {
-      type: 'tenant',
-      id: 'default',
-    });
-
-    if (!sdkIngestEnabled) {
-      return c.json(
-        {
-          error: 'feature_disabled',
-          error_description: 'SDK log ingestion is disabled',
-        },
-        403
-      );
-    }
-  } catch (error) {
-    log.error('Failed to check SDK ingest setting', { error: String(error) });
-    // Fail open: if we can't check the setting, allow the request
-    // This prevents complete service disruption if KV is unavailable
-  }
-
   // Check R2 bucket binding
   const r2 = c.env.DIAGNOSTIC_LOGS;
   if (!r2) {
@@ -227,13 +203,90 @@ app.post('/', async (c) => {
     );
   }
 
+  const tenantId = validation.client?.tenant_id || 'default';
+  let diagnosticSettings: DiagnosticLoggingSettings | null = null;
+
   try {
-    // Filter sensitive data
-    const filteredLogs = filterSensitiveData(body.logs);
+    const manager = createSettingsManager({
+      env: c.env as unknown as Record<string, string | undefined>,
+      kv: c.env.AUTHRIM_CONFIG ?? c.env.KV ?? null,
+      cacheTTL: 5000,
+    });
+    manager.registerCategory(DIAGNOSTIC_LOGGING_CATEGORY_META);
+
+    const result = await manager.getAll('diagnostic-logging', {
+      type: 'tenant',
+      id: tenantId,
+    });
+    diagnosticSettings = result.values as DiagnosticLoggingSettings;
+
+    if (!diagnosticSettings['diagnostic-logging.sdk_ingest_enabled']) {
+      return c.json(
+        {
+          error: 'feature_disabled',
+          error_description: 'SDK log ingestion is disabled',
+        },
+        403
+      );
+    }
+  } catch (error) {
+    log.error('Failed to load diagnostic logging settings', { error: String(error) });
+    // Fail open: if we can't check the setting, allow the request
+  }
+
+  try {
+    const settingsFallback: DiagnosticLoggingSettings = {
+      'diagnostic-logging.enabled': true,
+      'diagnostic-logging.log_level': 'debug',
+      'diagnostic-logging.http_request_enabled': true,
+      'diagnostic-logging.http_response_enabled': true,
+      'diagnostic-logging.token_validation_enabled': true,
+      'diagnostic-logging.auth_decision_enabled': true,
+      'diagnostic-logging.r2_output_enabled': true,
+      'diagnostic-logging.r2_bucket_binding': 'DIAGNOSTIC_LOGS',
+      'diagnostic-logging.r2_path_prefix': 'diagnostic-logs',
+      'diagnostic-logging.output_format': 'jsonl',
+      'diagnostic-logging.buffer_strategy': 'queue',
+      'diagnostic-logging.batch_size': 100,
+      'diagnostic-logging.batch_interval_ms': 5000,
+      'diagnostic-logging.filter_pii': true,
+      'diagnostic-logging.filter_tokens': true,
+      'diagnostic-logging.token_hash_prefix_length': 12,
+      'diagnostic-logging.http_safe_headers':
+        'content-type,accept,user-agent,x-correlation-id,x-diagnostic-session-id',
+      'diagnostic-logging.http_body_schema_aware': true,
+      'diagnostic-logging.retention_days': 30,
+      'diagnostic-logging.storage_mode.default': 'masked',
+      'diagnostic-logging.storage_mode.by_client': '{}',
+      'diagnostic-logging.sdk_ingest_enabled': true,
+      'diagnostic-logging.merged_output_enabled': false,
+    };
+
+    const effectiveSettings = diagnosticSettings ?? settingsFallback;
+    const storageMode = resolveStorageMode(effectiveSettings, body.client_id);
+    const hashSecret = resolveHashSecret(c.env, tenantId);
+    const tokenHashPrefixLength =
+      effectiveSettings['diagnostic-logging.token_hash_prefix_length'] ?? 12;
+
+    const sanitizedLogs = await Promise.all(
+      body.logs.map(async (entry) => {
+        const normalized: DiagnosticLogEntry = {
+          ...entry,
+          tenantId,
+          clientId: body.client_id,
+          storageMode,
+        };
+        return applyPrivacyModeToEntry(normalized, {
+          mode: storageMode,
+          secret: hashSecret,
+          tokenHashPrefixLength,
+        });
+      })
+    );
 
     // Group logs by category and write to R2
     const logsByCategory = new Map<string, DiagnosticLogEntry[]>();
-    for (const entry of filteredLogs) {
+    for (const entry of sanitizedLogs) {
       const category = entry.category;
       if (!logsByCategory.has(category)) {
         logsByCategory.set(category, []);
@@ -247,7 +300,7 @@ app.post('/', async (c) => {
       const adapter = new DiagnosticLogR2Adapter({
         bucket: r2,
         pathPrefix: 'diagnostic-logs',
-        tenantId: 'default',
+        tenantId,
         clientId: body.client_id,
       });
 

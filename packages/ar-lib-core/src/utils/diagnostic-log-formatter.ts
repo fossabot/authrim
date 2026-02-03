@@ -161,6 +161,8 @@ export function toOIDFFormat(log: DiagnosticLogEntry): OIDFLogEntry {
   if (log.category === 'http-request') {
     base.event = 'http_request';
     base.details = {
+      flowId: log.flowId,
+      storageMode: log.storageMode,
       method: log.method,
       path: log.path,
       query: log.query,
@@ -172,6 +174,8 @@ export function toOIDFFormat(log: DiagnosticLogEntry): OIDFLogEntry {
   } else if (log.category === 'http-response') {
     base.event = 'http_response';
     base.details = {
+      flowId: log.flowId,
+      storageMode: log.storageMode,
       status: log.status,
       headers: log.headers,
       bodySummary: log.bodySummary,
@@ -182,6 +186,8 @@ export function toOIDFFormat(log: DiagnosticLogEntry): OIDFLogEntry {
     const tokenLog = log as TokenValidationLogEntry;
     base.event = `token_validation_${tokenLog.step}`;
     base.details = {
+      flowId: log.flowId,
+      storageMode: log.storageMode,
       tokenType: tokenLog.tokenType,
       result: tokenLog.result,
       expected: tokenLog.expected,
@@ -193,6 +199,8 @@ export function toOIDFFormat(log: DiagnosticLogEntry): OIDFLogEntry {
     const authLog = log as AuthDecisionLogEntry;
     base.event = `auth_decision_${authLog.decision}`;
     base.details = {
+      flowId: log.flowId,
+      storageMode: log.storageMode,
       reason: authLog.reason,
       flow: authLog.flow,
       ...authLog.context,

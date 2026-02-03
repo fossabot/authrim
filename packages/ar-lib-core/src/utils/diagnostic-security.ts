@@ -6,7 +6,10 @@
  * - Header allowlisting (exclude Authorization, Cookie, etc.)
  * - Schema-aware body extraction (extract only safe fields)
  * - PII filtering
+ * - Privacy mode transformations (full/masked/minimal)
  */
+
+import type { DiagnosticLogEntry, DiagnosticLogPrivacyMode } from '../services/diagnostic/types';
 
 /**
  * Default safe headers allowlist
@@ -64,6 +67,429 @@ export async function hashToken(token: string, prefixLength: number = 12): Promi
 
   // Return prefix only
   return hashHex.slice(0, Math.max(8, Math.min(64, prefixLength)));
+}
+
+/**
+ * HMAC-SHA256 hash (hex)
+ */
+export async function hmacSha256Hex(value: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(value));
+  const hashArray = Array.from(new Uint8Array(signature));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Mask a value with prefix/suffix and HMAC fingerprint
+ */
+export async function maskWithHmac(
+  value: string,
+  secret: string,
+  prefixLength: number = 6,
+  suffixLength: number = 4,
+  hashPrefixLength: number = 12
+): Promise<string> {
+  const prefix = value.slice(0, Math.max(0, prefixLength));
+  const suffix = value.slice(Math.max(0, value.length - suffixLength));
+  const hash = await hmacSha256Hex(value, secret);
+  const hashPrefix = hash.slice(0, Math.max(8, Math.min(64, hashPrefixLength)));
+  return `${prefix}...${suffix} (hmac:${hashPrefix})`;
+}
+
+/**
+ * Mask email address and append HMAC fingerprint
+ */
+export async function maskEmail(
+  email: string,
+  secret: string,
+  hashPrefixLength: number = 12
+): Promise<string> {
+  const [local, domain] = email.split('@');
+  if (!domain) {
+    return maskWithHmac(email, secret, 2, 2, hashPrefixLength);
+  }
+  const maskedLocal = local.length > 0 ? `${local[0]}***` : '***';
+  const hash = await hmacSha256Hex(email, secret);
+  const hashPrefix = hash.slice(0, Math.max(8, Math.min(64, hashPrefixLength)));
+  return `${maskedLocal}@${domain} (hmac:${hashPrefix})`;
+}
+
+/**
+ * Mask phone number and append HMAC fingerprint
+ */
+export async function maskPhone(
+  phone: string,
+  secret: string,
+  hashPrefixLength: number = 12
+): Promise<string> {
+  const digits = phone.replace(/\D/g, '');
+  const last4 = digits.slice(-4);
+  const hash = await hmacSha256Hex(phone, secret);
+  const hashPrefix = hash.slice(0, Math.max(8, Math.min(64, hashPrefixLength)));
+  return `***-***-${last4} (hmac:${hashPrefix})`;
+}
+
+/**
+ * Mask IP address
+ */
+export function maskIp(ip: string): string {
+  if (ip.includes(':')) {
+    // IPv6: keep first 4 segments
+    const parts = ip.split(':');
+    return `${parts.slice(0, 4).join(':')}::/48`;
+  }
+  // IPv4: keep /24
+  const parts = ip.split('.');
+  if (parts.length === 4) {
+    return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+  }
+  return ip;
+}
+
+/**
+ * Simplify user-agent string
+ */
+export function maskUserAgent(ua: string): string {
+  const patterns = [
+    /(Chrome)\\/(\d+)/i,
+    /(Firefox)\\/(\d+)/i,
+    /(Safari)\\/(\d+)/i,
+    /(Edge)\\/(\d+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = ua.match(pattern);
+    if (match) {
+      return `${match[1]}/${match[2]}`;
+    }
+  }
+  return 'unknown';
+}
+
+/**
+ * Privacy transform options
+ */
+export interface PrivacyTransformOptions {
+  mode: DiagnosticLogPrivacyMode;
+  secret: string;
+  tokenHashPrefixLength?: number;
+}
+
+/**
+ * Apply privacy mode transformation to a diagnostic log entry
+ */
+export async function applyPrivacyModeToEntry(
+  entry: DiagnosticLogEntry,
+  options: PrivacyTransformOptions
+): Promise<DiagnosticLogEntry> {
+  if (options.mode === 'full') {
+    return entry;
+  }
+
+  const hashPrefixLength = options.tokenHashPrefixLength ?? 12;
+  const sanitized = JSON.parse(JSON.stringify(entry)) as DiagnosticLogEntry;
+
+  if ('errorMessage' in sanitized && typeof sanitized.errorMessage === 'string') {
+    sanitized.errorMessage = redactPII(sanitized.errorMessage);
+  }
+  if ('reason' in sanitized && typeof sanitized.reason === 'string') {
+    sanitized.reason = redactPII(sanitized.reason);
+  }
+  if (sanitized.metadata && typeof sanitized.metadata === 'object') {
+    sanitized.metadata = redactObjectFields(sanitized.metadata as Record<string, unknown>);
+  }
+
+  if (sanitized.category === 'http-request') {
+    // Mask query params
+    if (sanitized.query) {
+      for (const [key, value] of Object.entries(sanitized.query)) {
+        if (options.mode === 'minimal') {
+          const allowlist = new Set([
+            'response_type',
+            'scope',
+            'client_id',
+            'redirect_uri',
+            'code_challenge_method',
+          ]);
+          if (!allowlist.has(key)) {
+            delete sanitized.query[key];
+          }
+        } else if (value) {
+          const sensitiveKeys = new Set([
+            'state',
+            'nonce',
+            'code',
+            'code_verifier',
+            'access_token',
+            'id_token',
+            'refresh_token',
+          ]);
+          if (sensitiveKeys.has(key)) {
+            sanitized.query[key] = await maskWithHmac(value, options.secret, 6, 4, hashPrefixLength);
+          }
+        }
+      }
+    }
+
+    // Mask body summary
+    if (sanitized.bodySummary && typeof sanitized.bodySummary === 'object') {
+      const summary = sanitized.bodySummary as Record<string, unknown>;
+      for (const [key, value] of Object.entries(summary)) {
+        if (options.mode === 'minimal') {
+          const allowlist = new Set([
+            'grant_type',
+            'scope',
+            'client_id',
+            'redirect_uri',
+            'response_type',
+            'code_challenge_method',
+          ]);
+          if (!allowlist.has(key)) {
+            delete summary[key];
+          }
+          continue;
+        }
+        if (typeof value === 'string') {
+          const sensitiveKeys = new Set([
+            'code',
+            'code_verifier',
+            'access_token',
+            'id_token',
+            'refresh_token',
+            'state',
+            'nonce',
+          ]);
+          if (sensitiveKeys.has(key)) {
+            summary[key] = await maskWithHmac(value, options.secret, 6, 4, hashPrefixLength);
+          }
+        }
+      }
+      sanitized.bodySummary = summary;
+    }
+
+    if (sanitized.remoteAddress) {
+      sanitized.remoteAddress = options.mode === 'minimal' ? undefined : maskIp(sanitized.remoteAddress);
+    }
+
+    if (sanitized.headers && options.mode === 'minimal') {
+      const minimalHeaders: Record<string, string> = {};
+      if (sanitized.headers['content-type']) {
+        minimalHeaders['content-type'] = sanitized.headers['content-type'];
+      }
+      sanitized.headers = minimalHeaders;
+    } else if (sanitized.headers && options.mode === 'masked') {
+      if (sanitized.headers['user-agent']) {
+        sanitized.headers['user-agent'] = maskUserAgent(sanitized.headers['user-agent']);
+      }
+    }
+  }
+
+  if (sanitized.category === 'http-response') {
+    if (options.mode === 'minimal') {
+      sanitized.headers = {};
+      sanitized.bodySummary = undefined;
+    } else if (sanitized.bodySummary && typeof sanitized.bodySummary === 'object') {
+      sanitized.bodySummary = redactObjectFields(
+        sanitized.bodySummary as Record<string, unknown>
+      );
+    }
+  }
+
+  if (sanitized.category === 'token-validation') {
+    if (sanitized.details && typeof sanitized.details === 'object') {
+      sanitized.details = await applyTokenDetailsPrivacy(
+        sanitized.step,
+        sanitized.details as Record<string, unknown>,
+        options.mode,
+        options.secret,
+        hashPrefixLength
+      );
+    }
+
+    if (sanitized.tokenHash && options.mode === 'minimal') {
+      sanitized.tokenHash = undefined;
+    }
+  }
+
+  if (sanitized.category === 'auth-decision') {
+    if (sanitized.context && typeof sanitized.context === 'object') {
+      sanitized.context = await applyAuthContextPrivacy(
+        sanitized.context as Record<string, unknown>,
+        options.mode,
+        options.secret,
+        hashPrefixLength
+      );
+    }
+  }
+
+  return sanitized;
+}
+
+function redactObjectFields(obj: Record<string, unknown>): Record<string, unknown> {
+  const redacted: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      redacted[key] = redactPII(value);
+    } else {
+      redacted[key] = value;
+    }
+  }
+  return redacted;
+}
+
+async function applyTokenDetailsPrivacy(
+  step: string,
+  details: Record<string, unknown>,
+  mode: DiagnosticLogPrivacyMode,
+  secret: string,
+  hashPrefixLength: number
+): Promise<Record<string, unknown>> {
+  if (mode === 'full') return details;
+
+  const sanitized: Record<string, unknown> = { ...details };
+
+  const maskField = async (key: string, value: unknown) => {
+    if (typeof value !== 'string') return value;
+    return maskWithHmac(value, secret, 6, 4, hashPrefixLength);
+  };
+
+  if (step === 'token-request') {
+    if (mode === 'minimal') {
+      delete sanitized.code;
+      delete sanitized.code_verifier;
+      delete sanitized.redirect_uri;
+    } else {
+      if (sanitized.code) sanitized.code = await maskField('code', sanitized.code);
+      if (sanitized.code_verifier)
+        sanitized.code_verifier = await maskField('code_verifier', sanitized.code_verifier);
+    }
+  }
+
+  if (step === 'token-response') {
+    if (mode === 'minimal') {
+      sanitized.has_access_token = Boolean(sanitized.access_token);
+      sanitized.has_id_token = Boolean(sanitized.id_token);
+      delete sanitized.access_token;
+      delete sanitized.id_token;
+      delete sanitized.refresh_token;
+    } else {
+      if (sanitized.access_token)
+        sanitized.access_token = await maskField('access_token', sanitized.access_token);
+      if (sanitized.id_token)
+        sanitized.id_token = await maskField('id_token', sanitized.id_token);
+      if (sanitized.refresh_token)
+        sanitized.refresh_token = await maskField('refresh_token', sanitized.refresh_token);
+    }
+  }
+
+  if (step === 'id-token-validation') {
+    if (mode === 'minimal') {
+      delete sanitized.claims;
+    } else if (sanitized.claims && typeof sanitized.claims === 'object') {
+      const claims = { ...(sanitized.claims as Record<string, unknown>) };
+      if (claims.sub && typeof claims.sub === 'string') {
+        claims.sub = await maskWithHmac(claims.sub, secret, 4, 2, hashPrefixLength);
+      }
+      if (claims.nonce && typeof claims.nonce === 'string') {
+        claims.nonce = await maskWithHmac(claims.nonce, secret, 4, 2, hashPrefixLength);
+      }
+      sanitized.claims = claims;
+    }
+  }
+
+  if (step === 'userinfo-request') {
+    if (mode === 'minimal') {
+      delete sanitized.endpoint;
+    }
+  }
+
+  if (step === 'userinfo-response') {
+    if (mode === 'minimal') {
+      sanitized.has_sub = Boolean((sanitized.claims as Record<string, unknown> | undefined)?.sub);
+      sanitized.has_email = Boolean((sanitized.claims as Record<string, unknown> | undefined)?.email);
+      delete sanitized.claims;
+    } else if (sanitized.claims && typeof sanitized.claims === 'object') {
+      const claims = { ...(sanitized.claims as Record<string, unknown>) };
+      if (claims.sub && typeof claims.sub === 'string') {
+        claims.sub = await maskWithHmac(claims.sub, secret, 4, 2, hashPrefixLength);
+      }
+      if (claims.email && typeof claims.email === 'string') {
+        claims.email = await maskEmail(claims.email, secret, hashPrefixLength);
+      }
+      if (claims.phone_number && typeof claims.phone_number === 'string') {
+        claims.phone_number = await maskPhone(claims.phone_number, secret, hashPrefixLength);
+      }
+      if (claims.name && typeof claims.name === 'string') {
+        claims.name = await maskWithHmac(claims.name, secret, 2, 1, hashPrefixLength);
+      }
+      sanitized.claims = claims;
+    }
+  }
+
+  if (step === 'userinfo-mismatch') {
+    if (mode === 'minimal') {
+      delete sanitized.expected_sub;
+      delete sanitized.actual_sub;
+    } else {
+      if (sanitized.expected_sub && typeof sanitized.expected_sub === 'string') {
+        sanitized.expected_sub = await maskWithHmac(
+          sanitized.expected_sub,
+          secret,
+          4,
+          2,
+          hashPrefixLength
+        );
+      }
+      if (sanitized.actual_sub && typeof sanitized.actual_sub === 'string') {
+        sanitized.actual_sub = await maskWithHmac(
+          sanitized.actual_sub,
+          secret,
+          4,
+          2,
+          hashPrefixLength
+        );
+      }
+    }
+  }
+
+  return sanitized;
+}
+
+async function applyAuthContextPrivacy(
+  context: Record<string, unknown>,
+  mode: DiagnosticLogPrivacyMode,
+  secret: string,
+  hashPrefixLength: number
+): Promise<Record<string, unknown>> {
+  if (mode === 'full') return context;
+
+  const sanitized: Record<string, unknown> = { ...context };
+  const sensitiveKeys = new Set([
+    'code',
+    'state',
+    'nonce',
+    'code_verifier',
+    'access_token',
+    'id_token',
+  ]);
+
+  for (const [key, value] of Object.entries(context)) {
+    if (mode === 'minimal') {
+      if (sensitiveKeys.has(key)) {
+        delete sanitized[key];
+      }
+    } else if (sensitiveKeys.has(key) && typeof value === 'string') {
+      sanitized[key] = await maskWithHmac(value, secret, 6, 4, hashPrefixLength);
+    }
+  }
+
+  return sanitized;
 }
 
 /**

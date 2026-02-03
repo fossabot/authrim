@@ -12,7 +12,7 @@
 import * as jose from 'jose';
 import type { ProviderMetadata, TokenResponse, UserInfo, UpstreamProvider } from '../types';
 import { generateCodeChallenge } from '../utils/pkce';
-import { createLogger } from '@authrim/ar-lib-core';
+import { createLogger, type DiagnosticLogger } from '@authrim/ar-lib-core';
 
 const log = createLogger().module('OIDC-CLIENT');
 
@@ -22,6 +22,7 @@ export interface OIDCRPClientConfig {
   clientSecret: string;
   redirectUri: string;
   scopes: string[];
+  tokenEndpointAuthMethod?: 'client_secret_basic' | 'client_secret_post';
   // Optional overrides for non-standard providers
   authorizationEndpoint?: string;
   tokenEndpoint?: string;
@@ -53,6 +54,19 @@ export interface ValidateIdTokenOptions {
   maxAge?: number;
   /** acr_values parameter sent in authorization request, for acr validation (space-separated) */
   acrValues?: string;
+}
+
+export interface TokenRequestContext {
+  tokenEndpoint: string;
+  authMethod: 'client_secret_basic' | 'client_secret_post';
+  authHeaderPresent: boolean;
+}
+
+interface DiagnosticContext {
+  logger: DiagnosticLogger;
+  flowId?: string;
+  requestId?: string;
+  diagnosticSessionId?: string;
 }
 
 /**
@@ -97,6 +111,7 @@ export class OIDCRPClient {
       tokenEndpoint: provider.tokenEndpoint,
       userinfoEndpoint: provider.userinfoEndpoint,
       jwksUri: provider.jwksUri,
+      tokenEndpointAuthMethod: provider.tokenEndpointAuthMethod,
       providerQuirks: provider.providerQuirks,
       // Request Object settings
       useRequestObject: provider.useRequestObject,
@@ -315,25 +330,39 @@ export class OIDCRPClient {
    * The authentication mode is determined by providerQuirks.useBasicAuth
    */
   async handleCallback(code: string, codeVerifier: string): Promise<TokenResponse> {
+    const { tokens } = await this.exchangeCode(code, codeVerifier);
+    return tokens;
+  }
+
+  /**
+   * Exchange authorization code for tokens (with request context)
+   */
+  async exchangeCode(
+    code: string,
+    codeVerifier: string
+  ): Promise<{ tokens: TokenResponse; requestContext: TokenRequestContext }> {
     const tokenEndpoint = await this.getTokenEndpoint();
 
     // Determine client authentication method for token endpoint
-    // Priority: explicit providerQuirks -> discovery metadata -> default (post)
+    // Priority: provider config -> providerQuirks -> discovery metadata -> default (post)
     const quirks = this.config.providerQuirks as { useBasicAuth?: boolean } | undefined;
-    let useBasicAuth = quirks?.useBasicAuth === true;
+    let authMethod: TokenRequestContext['authMethod'] = 'client_secret_post';
 
-    if (quirks?.useBasicAuth !== true && quirks?.useBasicAuth !== false) {
+    if (this.config.tokenEndpointAuthMethod) {
+      authMethod = this.config.tokenEndpointAuthMethod;
+    } else if (quirks?.useBasicAuth === true) {
+      authMethod = 'client_secret_basic';
+    } else if (quirks?.useBasicAuth === false) {
+      authMethod = 'client_secret_post';
+    } else {
       try {
         const metadata = await this.discover();
         const methods = metadata.token_endpoint_auth_methods_supported || [];
 
-        if (methods.includes('client_secret_basic') && !methods.includes('client_secret_post')) {
-          useBasicAuth = true;
-        } else if (
-          methods.includes('client_secret_post') &&
-          !methods.includes('client_secret_basic')
-        ) {
-          useBasicAuth = false;
+        if (methods.includes('client_secret_basic')) {
+          authMethod = 'client_secret_basic';
+        } else if (methods.includes('client_secret_post')) {
+          authMethod = 'client_secret_post';
         }
       } catch {
         // Discovery may be unavailable for some OAuth2 providers; fall back to default
@@ -353,7 +382,7 @@ export class OIDCRPClient {
       'Content-Type': 'application/x-www-form-urlencoded',
     };
 
-    if (useBasicAuth) {
+    if (authMethod === 'client_secret_basic') {
       // RFC 6749 Section 2.3.1: HTTP Basic authentication
       // The client_id and client_secret MUST be URL-encoded BEFORE Base64 encoding
       // (per RFC 6749 Appendix B: application/x-www-form-urlencoded encoding)
@@ -383,7 +412,14 @@ export class OIDCRPClient {
     }
 
     const tokens: TokenResponse = await response.json();
-    return tokens;
+    return {
+      tokens,
+      requestContext: {
+        tokenEndpoint,
+        authMethod,
+        authHeaderPresent: authMethod === 'client_secret_basic',
+      },
+    };
   }
 
   /**
@@ -432,21 +468,38 @@ export class OIDCRPClient {
    * @param idToken - The ID token to validate
    * @param options - Validation options including nonce, accessToken, code, maxAge
    */
-  async validateIdToken(idToken: string, options: ValidateIdTokenOptions): Promise<UserInfo>;
+  async validateIdToken(
+    idToken: string,
+    options: ValidateIdTokenOptions,
+    diagnostics?: DiagnosticContext
+  ): Promise<UserInfo>;
   /**
    * @deprecated Use validateIdToken(idToken, options) instead
    */
   async validateIdToken(idToken: string, nonce: string): Promise<UserInfo>;
   async validateIdToken(
     idToken: string,
-    optionsOrNonce: ValidateIdTokenOptions | string
+    optionsOrNonce: ValidateIdTokenOptions | string,
+    diagnostics?: DiagnosticContext
   ): Promise<UserInfo> {
     // Support legacy signature for backwards compatibility
     const options: ValidateIdTokenOptions =
       typeof optionsOrNonce === 'string' ? { nonce: optionsOrNonce } : optionsOrNonce;
 
     try {
-      return await this.validateIdTokenInternal(idToken, options, false);
+      const result = await this.validateIdTokenInternal(idToken, options, false);
+      if (diagnostics) {
+        await diagnostics.logger.logTokenValidation({
+          diagnosticSessionId: diagnostics.diagnosticSessionId,
+          flowId: diagnostics.flowId,
+          requestId: diagnostics.requestId,
+          step: 'id-token-validation',
+          tokenType: 'id_token',
+          result: 'pass',
+          details: result.validation,
+        });
+      }
+      return result.userInfo;
     } catch (error) {
       // If signature verification fails, try refreshing JWKS (key rotation support)
       if (
@@ -457,7 +510,30 @@ export class OIDCRPClient {
       ) {
         log.warn('ID token signature verification failed, refreshing JWKS and retrying...');
         this.clearJWKSCache();
-        return await this.validateIdTokenInternal(idToken, options, true);
+        const result = await this.validateIdTokenInternal(idToken, options, true);
+        if (diagnostics) {
+          await diagnostics.logger.logTokenValidation({
+            diagnosticSessionId: diagnostics.diagnosticSessionId,
+            flowId: diagnostics.flowId,
+            requestId: diagnostics.requestId,
+            step: 'id-token-validation',
+            tokenType: 'id_token',
+            result: 'pass',
+            details: result.validation,
+          });
+        }
+        return result.userInfo;
+      }
+      if (diagnostics) {
+        await diagnostics.logger.logTokenValidation({
+          diagnosticSessionId: diagnostics.diagnosticSessionId,
+          flowId: diagnostics.flowId,
+          requestId: diagnostics.requestId,
+          step: 'id-token-validation',
+          tokenType: 'id_token',
+          result: 'fail',
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
       }
       throw error;
     }
@@ -470,7 +546,7 @@ export class OIDCRPClient {
     idToken: string,
     options: ValidateIdTokenOptions,
     forceJwksRefresh: boolean
-  ): Promise<UserInfo> {
+  ): Promise<{ userInfo: UserInfo; validation: Record<string, unknown> }> {
     const jwks = await this.fetchJWKS(forceJwksRefresh);
     const JWKS = jose.createLocalJWKSet(jwks);
 
@@ -482,10 +558,16 @@ export class OIDCRPClient {
       issuer: usePatternValidation ? undefined : this.config.issuer,
       audience: this.config.clientId,
     });
+    const validation: Record<string, unknown> = {
+      signature_ok: true,
+      issuer_ok: true,
+      audience_ok: true,
+    };
 
     // Perform pattern-based issuer validation for Microsoft multi-tenant
     if (usePatternValidation) {
       this.validateMicrosoftIssuer(payload.iss);
+      validation.issuer_ok = true;
     }
 
     // Explicit validation of REQUIRED claims (OIDC Core Section 2)
@@ -502,6 +584,7 @@ export class OIDCRPClient {
     if (payload.nonce !== options.nonce) {
       throw new Error('ID token nonce mismatch');
     }
+    validation.nonce_ok = true;
 
     const now = Math.floor(Date.now() / 1000);
 
@@ -513,6 +596,7 @@ export class OIDCRPClient {
     if (payload.exp < now) {
       throw new Error('ID token expired');
     }
+    validation.exp_ok = true;
 
     // 3. Validate iat (issued at) - REQUIRED claim (OIDC Core Section 2)
     if (payload.iat === undefined || payload.iat === null) {
@@ -522,13 +606,16 @@ export class OIDCRPClient {
     if (payload.iat > now + OIDCRPClient.CLOCK_SKEW_SECONDS) {
       throw new Error('ID token issued in the future');
     }
+    validation.iat_ok = true;
 
     // 4. Validate azp (authorized party) - OIDC Core 3.1.3.7 step 5, 6
     this.validateAzp(payload);
+    validation.azp_ok = true;
 
     // 5. Validate auth_time if max_age was requested (OIDC Core 3.1.3.7 step 11)
     if (options.maxAge !== undefined) {
       this.validateAuthTime(payload, options.maxAge, now);
+      validation.auth_time_ok = true;
     }
 
     // 6. Validate at_hash if access_token provided (OIDC Core 3.3.2.11)
@@ -539,6 +626,7 @@ export class OIDCRPClient {
         protectedHeader.alg,
         'at_hash'
       );
+      validation.at_hash_ok = true;
     }
 
     // 7. Validate c_hash if code provided (OIDC Core 3.3.2.12)
@@ -549,19 +637,32 @@ export class OIDCRPClient {
         protectedHeader.alg,
         'c_hash'
       );
+      validation.c_hash_ok = true;
     }
 
     // 8. Validate acr if acr_values was requested (OIDC Core 3.1.2.1)
     if (options.acrValues) {
       this.validateAcr(payload, options.acrValues);
+      validation.acr_ok = true;
     }
 
     // 9. Validate sub claim is present (OIDC Core Section 2 - REQUIRED)
     if (!payload.sub || typeof payload.sub !== 'string' || payload.sub.trim() === '') {
       throw new Error('ID token missing required sub claim');
     }
+    validation.sub_ok = true;
+    validation.claims = {
+      iss: payload.iss,
+      aud: payload.aud,
+      sub: payload.sub,
+      nonce: payload.nonce,
+      exp: payload.exp,
+      iat: payload.iat,
+      at_hash: payload.at_hash,
+      c_hash: payload.c_hash,
+    };
 
-    return {
+    const userInfo: UserInfo = {
       sub: payload.sub,
       email: payload.email as string | undefined,
       email_verified: payload.email_verified as boolean | undefined,
@@ -575,6 +676,7 @@ export class OIDCRPClient {
       amr: payload.amr as string[] | undefined,
       ...payload,
     };
+    return { userInfo, validation };
   }
 
   /**
@@ -783,6 +885,16 @@ export class OIDCRPClient {
    * Fetch user info from userinfo endpoint
    */
   async fetchUserInfo(accessToken: string): Promise<UserInfo> {
+    const { userInfo } = await this.fetchUserInfoWithMeta(accessToken);
+    return userInfo;
+  }
+
+  /**
+   * Fetch user info with endpoint metadata (for diagnostics)
+   */
+  async fetchUserInfoWithMeta(
+    accessToken: string
+  ): Promise<{ userInfo: UserInfo; endpoint: string }> {
     const userinfoEndpoint = await this.getUserinfoEndpoint();
 
     if (!userinfoEndpoint) {
@@ -810,7 +922,7 @@ export class OIDCRPClient {
       throw new Error('Userinfo response missing required sub claim');
     }
 
-    return {
+    const normalized: UserInfo = {
       sub: userInfo.sub as string,
       email: userInfo.email as string | undefined,
       email_verified: userInfo.email_verified as boolean | undefined,
@@ -821,6 +933,7 @@ export class OIDCRPClient {
       locale: userInfo.locale as string | undefined,
       ...userInfo,
     };
+    return { userInfo: normalized, endpoint: userinfoEndpoint };
   }
 
   /**

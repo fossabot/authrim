@@ -11,10 +11,15 @@ import type { Env, DiagnosticLogEntry } from '@authrim/ar-lib-core';
 import {
   adminAuthMiddleware,
   createLogger,
+  createSettingsManager,
   formatAsJSON,
   formatAsJSONL,
   formatAsText,
   getLogStatistics,
+  DIAGNOSTIC_LOGGING_CATEGORY_META,
+  applyPrivacyModeToEntry,
+  type DiagnosticLogPrivacyMode,
+  type DiagnosticLoggingSettings,
   type ExportOptions,
 } from '@authrim/ar-lib-core';
 
@@ -46,6 +51,8 @@ interface ExportQuery {
   includeStats?: string;
   /** Sort mode */
   sortMode?: 'session' | 'category' | 'timeline';
+  /** Export privacy mode */
+  exportMode?: 'full' | 'masked' | 'minimal';
 }
 
 /**
@@ -95,6 +102,29 @@ function parseDateWithBoundary(dateStr: string, boundary: 'start' | 'end'): numb
     return boundary === 'end' ? base + 24 * 60 * 60 * 1000 - 1 : base;
   }
   return parseDate(dateStr);
+}
+
+function resolveHashSecret(env: Env, tenantId: string): string {
+  const base = env.OTP_HMAC_SECRET || env.ISSUER_URL || tenantId || 'authrim';
+  return `${base}:${tenantId}`;
+}
+
+function normalizeMode(value?: string): DiagnosticLogPrivacyMode | undefined {
+  if (value === 'full' || value === 'masked' || value === 'minimal') return value;
+  return undefined;
+}
+
+function resolveEffectiveMode(
+  storedMode: DiagnosticLogPrivacyMode,
+  requestedMode?: DiagnosticLogPrivacyMode
+): DiagnosticLogPrivacyMode {
+  if (!requestedMode) return storedMode;
+  const rank: Record<DiagnosticLogPrivacyMode, number> = {
+    minimal: 0,
+    masked: 1,
+    full: 2,
+  };
+  return rank[storedMode] <= rank[requestedMode] ? storedMode : requestedMode;
 }
 
 /**
@@ -197,6 +227,7 @@ app.get(
     const format = query.format || 'json';
     const includeStats = query.includeStats === 'true';
     const sortMode = query.sortMode;
+    const exportMode = normalizeMode(query.exportMode);
 
     // Parse date range
     let startTime: number | undefined;
@@ -249,6 +280,54 @@ app.get(
     }
 
     try {
+      const settingsFallback: DiagnosticLoggingSettings = {
+        'diagnostic-logging.enabled': true,
+        'diagnostic-logging.log_level': 'debug',
+        'diagnostic-logging.http_request_enabled': true,
+        'diagnostic-logging.http_response_enabled': true,
+        'diagnostic-logging.token_validation_enabled': true,
+        'diagnostic-logging.auth_decision_enabled': true,
+        'diagnostic-logging.r2_output_enabled': true,
+        'diagnostic-logging.r2_bucket_binding': 'DIAGNOSTIC_LOGS',
+        'diagnostic-logging.r2_path_prefix': 'diagnostic-logs',
+        'diagnostic-logging.output_format': 'jsonl',
+        'diagnostic-logging.buffer_strategy': 'queue',
+        'diagnostic-logging.batch_size': 100,
+        'diagnostic-logging.batch_interval_ms': 5000,
+        'diagnostic-logging.filter_pii': true,
+        'diagnostic-logging.filter_tokens': true,
+        'diagnostic-logging.token_hash_prefix_length': 12,
+        'diagnostic-logging.http_safe_headers':
+          'content-type,accept,user-agent,x-correlation-id,x-diagnostic-session-id',
+        'diagnostic-logging.http_body_schema_aware': true,
+        'diagnostic-logging.retention_days': 30,
+        'diagnostic-logging.storage_mode.default': 'masked',
+        'diagnostic-logging.storage_mode.by_client': '{}',
+        'diagnostic-logging.sdk_ingest_enabled': true,
+        'diagnostic-logging.merged_output_enabled': false,
+      };
+
+      let diagnosticSettings = settingsFallback;
+      try {
+        const manager = createSettingsManager({
+          env: c.env as unknown as Record<string, string | undefined>,
+          kv: c.env.AUTHRIM_CONFIG ?? null,
+          cacheTTL: 5000,
+        });
+        manager.registerCategory(DIAGNOSTIC_LOGGING_CATEGORY_META);
+        const result = await manager.getAll('diagnostic-logging', {
+          type: 'tenant',
+          id: tenantId,
+        });
+        diagnosticSettings = result.values as DiagnosticLoggingSettings;
+      } catch (error) {
+        log.warn('Failed to load diagnostic settings for export', { error: String(error) });
+      }
+
+      const hashSecret = resolveHashSecret(c.env, tenantId);
+      const tokenHashPrefixLength =
+        diagnosticSettings['diagnostic-logging.token_hash_prefix_length'] ?? 12;
+
       // Build R2 prefix
       const logTypes = categories || ['token-validation', 'auth-decision'];
       const allLogs: DiagnosticLogEntry[] = [];
@@ -278,10 +357,28 @@ app.get(
       const logs = await fetchLogsFromR2(r2, Array.from(keySet));
       allLogs.push(...logs);
 
+      const processedLogs = await Promise.all(
+        allLogs.map(async (entry) => {
+          const storedMode = normalizeMode(entry.storageMode) ?? 'masked';
+          const effectiveMode = resolveEffectiveMode(storedMode, exportMode);
+          if (effectiveMode === storedMode) {
+            return entry;
+          }
+          return applyPrivacyModeToEntry(
+            { ...entry, storageMode: storedMode },
+            {
+              mode: effectiveMode,
+              secret: hashSecret,
+              tokenHashPrefixLength,
+            }
+          );
+        })
+      );
+
       log.info('Fetched diagnostic logs', {
         tenantId,
         clientIds,
-        totalLogs: allLogs.length,
+        totalLogs: processedLogs.length,
       });
 
       // Build export options
@@ -300,21 +397,21 @@ app.get(
       let filename: string;
 
       if (format === 'jsonl') {
-        output = formatAsJSONL(allLogs, exportOptions);
+        output = formatAsJSONL(processedLogs, exportOptions);
         contentType = 'application/x-ndjson';
         filename = `diagnostic-logs-${tenantId}-${Date.now()}.jsonl`;
       } else if (format === 'text') {
-        output = formatAsText(allLogs, exportOptions);
+        output = formatAsText(processedLogs, exportOptions);
         contentType = 'text/plain';
         filename = `diagnostic-logs-${tenantId}-${Date.now()}.txt`;
       } else {
         // Default: JSON
         const jsonData: Record<string, unknown> = {
-          logs: JSON.parse(formatAsJSON(allLogs, exportOptions)),
+          logs: JSON.parse(formatAsJSON(processedLogs, exportOptions)),
         };
 
         if (includeStats) {
-          jsonData.statistics = getLogStatistics(allLogs);
+          jsonData.statistics = getLogStatistics(processedLogs);
         }
 
         output = JSON.stringify(jsonData, null, 2);

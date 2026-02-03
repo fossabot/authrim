@@ -16,6 +16,8 @@ import {
   buildIssuerUrl,
   shouldUseBuiltinForms,
   getTenantIdFromContext,
+  createDiagnosticLoggerFromContext,
+  getDiagnosticSessionId,
   // Challenge Store for auth_code generation
   getChallengeStoreByChallengeId,
   // Event System
@@ -133,6 +135,7 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
   const log = getLogger(c).module('CALLBACK');
   const providerIdOrSlug = c.req.param('provider');
   const { code, state, error, errorDescription, tenantId, user } = await getCallbackParams(c);
+  let diagnosticLogger: Awaited<ReturnType<typeof createDiagnosticLoggerFromContext>> = null;
 
   // Handle provider errors
   if (error) {
@@ -166,6 +169,14 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       return redirectWithError(c, 'invalid_state', 'Provider mismatch');
     }
 
+    // Create diagnostic logger (OIDF conformance)
+    diagnosticLogger = await createDiagnosticLoggerFromContext(c, {
+      tenantId: authState.tenantId || tenantId,
+      clientId: provider.clientId,
+    });
+    const diagnosticSessionId = getDiagnosticSessionId(c);
+    const flowId = authState.flowId;
+
     // 3. Get client secret (Apple requires dynamic JWT generation)
     let clientSecret: string;
     if (isAppleProvider(provider)) {
@@ -192,26 +203,147 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
     const providerIdentifier = provider.slug || provider.id;
     const callbackUri = `${c.env.ISSUER_URL}/auth/external/${providerIdentifier}/callback`;
 
+    // 4b. Log authorization response (OIDF conformance)
+    if (diagnosticLogger) {
+      await diagnosticLogger.logAuthDecision({
+        diagnosticSessionId,
+        flowId,
+        decision: 'allow',
+        reason: 'authorization_response',
+        flow: 'external_idp',
+        context: {
+          provider: provider.slug ?? provider.id,
+          client_id: provider.clientId,
+          authrim_client_id: authState.clientId,
+          redirect_uri: callbackUri,
+          state,
+          code,
+        },
+      });
+    }
+
     // 5. Exchange code for tokens
     const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret);
-    const tokens = await client.handleCallback(code, authState.codeVerifier || '');
+    if (!authState.codeVerifier) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.CALLBACK_FAILED,
+        'Missing code_verifier in auth state'
+      );
+    }
+
+    const { tokens, requestContext } = await client.exchangeCode(code, authState.codeVerifier);
+
+    if (diagnosticLogger) {
+      await diagnosticLogger.logTokenValidation({
+        diagnosticSessionId,
+        flowId,
+        step: 'token-request',
+        tokenType: 'authorization_code',
+        result: 'pass',
+        details: {
+          token_endpoint: requestContext.tokenEndpoint,
+          auth_method: requestContext.authMethod,
+          auth_header_present: requestContext.authHeaderPresent,
+          grant_type: 'authorization_code',
+          redirect_uri: callbackUri,
+          client_id: provider.clientId,
+          code,
+          code_verifier: authState.codeVerifier,
+        },
+      });
+
+      await diagnosticLogger.logTokenValidation({
+        diagnosticSessionId,
+        flowId,
+        step: 'token-response',
+        tokenType: 'token',
+        token: tokens.access_token,
+        result: 'pass',
+        details: {
+          token_endpoint: requestContext.tokenEndpoint,
+          token_type: tokens.token_type,
+          expires_in: tokens.expires_in,
+          scope: tokens.scope,
+          access_token: tokens.access_token,
+          id_token: tokens.id_token,
+          refresh_token: tokens.refresh_token,
+        },
+      });
+    }
 
     // 6. Validate ID token and/or fetch user info
     let userInfo;
+    let idTokenSub: string | undefined;
+    const diagnostics = diagnosticLogger
+      ? {
+          logger: diagnosticLogger,
+          flowId,
+          diagnosticSessionId,
+        }
+      : undefined;
     if (provider.providerType === 'oidc' && tokens.id_token && authState.nonce) {
       // Use the new options-based signature for comprehensive OIDC validation
-      userInfo = await client.validateIdToken(tokens.id_token, {
-        nonce: authState.nonce,
-        accessToken: tokens.access_token, // For at_hash validation if present
-        maxAge: authState.maxAge, // For auth_time validation if max_age was requested
-        acrValues: authState.acrValues, // For acr validation if acr_values was requested
-      });
+      userInfo = await client.validateIdToken(
+        tokens.id_token,
+        {
+          nonce: authState.nonce,
+          accessToken: tokens.access_token, // For at_hash validation if present
+          maxAge: authState.maxAge, // For auth_time validation if max_age was requested
+          acrValues: authState.acrValues, // For acr validation if acr_values was requested
+        },
+        diagnostics
+      );
+      idTokenSub = userInfo.sub;
 
       // Optionally fetch userinfo even when id_token is present
       // Enable this for OIDC RP certification testing or when userinfo has additional claims
       if (provider.alwaysFetchUserinfo) {
         try {
-          const userinfoData = await client.fetchUserInfo(tokens.access_token);
+          const { userInfo: userinfoData, endpoint } = await client.fetchUserInfoWithMeta(
+            tokens.access_token
+          );
+          if (diagnosticLogger) {
+            await diagnosticLogger.logTokenValidation({
+              diagnosticSessionId,
+              flowId,
+              step: 'userinfo-request',
+              tokenType: 'access_token',
+              token: tokens.access_token,
+              result: 'pass',
+              details: {
+                endpoint,
+              },
+            });
+            await diagnosticLogger.logTokenValidation({
+              diagnosticSessionId,
+              flowId,
+              step: 'userinfo-response',
+              tokenType: 'access_token',
+              token: tokens.access_token,
+              result: 'pass',
+              details: {
+                endpoint,
+                claims: userinfoData,
+              },
+            });
+          }
+          if (idTokenSub && userinfoData.sub && userinfoData.sub !== idTokenSub) {
+            if (diagnosticLogger) {
+              await diagnosticLogger.logTokenValidation({
+                diagnosticSessionId,
+                flowId,
+                step: 'userinfo-mismatch',
+                tokenType: 'id_token',
+                result: 'fail',
+                errorMessage: 'Userinfo sub claim does not match ID token sub',
+                details: {
+                  expected_sub: idTokenSub,
+                  actual_sub: userinfoData.sub,
+                },
+              });
+            }
+            throw new Error('Userinfo sub claim mismatch');
+          }
           // Merge userinfo data (userinfo may have additional claims not in id_token)
           userInfo = { ...userInfo, ...userinfoData };
         } catch {
@@ -220,7 +352,35 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
         }
       }
     } else {
-      userInfo = await client.fetchUserInfo(tokens.access_token);
+      const { userInfo: userinfoData, endpoint } = await client.fetchUserInfoWithMeta(
+        tokens.access_token
+      );
+      if (diagnosticLogger) {
+        await diagnosticLogger.logTokenValidation({
+          diagnosticSessionId,
+          flowId,
+          step: 'userinfo-request',
+          tokenType: 'access_token',
+          token: tokens.access_token,
+          result: 'pass',
+          details: {
+            endpoint,
+          },
+        });
+        await diagnosticLogger.logTokenValidation({
+          diagnosticSessionId,
+          flowId,
+          step: 'userinfo-response',
+          tokenType: 'access_token',
+          token: tokens.access_token,
+          result: 'pass',
+          details: {
+            endpoint,
+            claims: userinfoData,
+          },
+        });
+      }
+      userInfo = userinfoData;
     }
 
     // 6.2. Apple-specific: Parse user data from POST body (first authorization only)
@@ -413,6 +573,10 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       ExternalIdPErrorCode.CALLBACK_FAILED,
       'Authentication failed. Please try again.'
     );
+  } finally {
+    if (diagnosticLogger) {
+      await diagnosticLogger.cleanup();
+    }
   }
 }
 

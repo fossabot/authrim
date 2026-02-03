@@ -341,6 +341,7 @@ CREATE TABLE external_idp_auth_states (
   nonce TEXT,                            -- OIDC nonce for ID token validation
   code_verifier TEXT,                    -- PKCE code verifier
   code_challenge TEXT,                   -- PKCE code challenge (client-side)
+  flow_id TEXT,                          -- Diagnostic flow correlation ID
   redirect_uri TEXT NOT NULL,            -- Where to redirect after auth
 
   -- For linking flow

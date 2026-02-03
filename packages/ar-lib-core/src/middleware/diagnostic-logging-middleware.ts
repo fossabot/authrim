@@ -235,6 +235,8 @@ async function loadDiagnosticSettings(
         'content-type,accept,user-agent,x-correlation-id,x-diagnostic-session-id',
       'diagnostic-logging.http_body_schema_aware': true,
       'diagnostic-logging.retention_days': 30,
+      'diagnostic-logging.storage_mode.default': 'masked',
+      'diagnostic-logging.storage_mode.by_client': '{}',
       'diagnostic-logging.sdk_ingest_enabled': true,
       'diagnostic-logging.merged_output_enabled': false,
     };

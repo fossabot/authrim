@@ -8,6 +8,7 @@
 	type ExportFormat = 'json' | 'jsonl' | 'text';
 	type SortMode = 'category' | 'timeline' | 'session';
 	type StorageMode = 'full' | 'masked' | 'minimal';
+	type ExportMode = 'full' | 'masked' | 'minimal';
 
 	// Export form state
 	let tenantId = $state('default');
@@ -22,6 +23,7 @@
 	});
 	let format = $state<ExportFormat>('json');
 	let sortMode = $state<SortMode>('timeline');
+	let exportMode = $state<ExportMode>('masked');
 	let storageModeDefault = $state<StorageMode>('masked');
 	let storageModeOverrides = $state<Record<string, StorageMode>>({});
 	let includeStats = $state(false);
@@ -431,6 +433,7 @@
 
 			params.append('format', format);
 			params.append('sortMode', sortMode);
+			params.append('exportMode', exportMode);
 			if (includeStats) params.append('includeStats', 'true');
 
 			const response = await fetch(`/api/admin/diagnostic-logging/export?${params.toString()}`, {
@@ -481,6 +484,7 @@
 		};
 		format = 'json';
 		sortMode = 'timeline';
+		exportMode = 'masked';
 		includeStats = false;
 		error = '';
 		success = '';
@@ -840,6 +844,14 @@
 						<option value="timeline">Timeline (mixed)</option>
 						<option value="category">Category (grouped)</option>
 						<option value="session">Session (grouped)</option>
+					</select>
+				</div>
+				<div class="form-group">
+					<label for="exportMode">Export privacy</label>
+					<select id="exportMode" class="settings-select" bind:value={exportMode}>
+						<option value="full">Full (if stored)</option>
+						<option value="masked">Masked</option>
+						<option value="minimal">Minimal</option>
 					</select>
 				</div>
 				<div class="form-group">

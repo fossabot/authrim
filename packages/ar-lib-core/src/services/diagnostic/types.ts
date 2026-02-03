@@ -15,6 +15,11 @@ export type DiagnosticLogCategory =
   | 'auth-decision';
 
 /**
+ * Diagnostic log privacy mode
+ */
+export type DiagnosticLogPrivacyMode = 'full' | 'masked' | 'minimal';
+
+/**
  * Log level
  */
 export type DiagnosticLogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -28,6 +33,9 @@ export interface BaseDiagnosticLogEntry {
 
   /** Diagnostic session ID (for correlation across SDK and server) */
   diagnosticSessionId?: string;
+
+  /** Flow ID for cross-category correlation */
+  flowId?: string;
 
   /** Tenant ID */
   tenantId: string;
@@ -46,6 +54,9 @@ export interface BaseDiagnosticLogEntry {
 
   /** Request ID for correlation */
   requestId?: string;
+
+  /** Storage privacy mode applied at ingestion */
+  storageMode?: DiagnosticLogPrivacyMode;
 
   /** User ID (anonymized if PII filtering enabled) */
   anonymizedUserId?: string;
@@ -107,7 +118,13 @@ export type TokenValidationStep =
   | 'expiry-check'
   | 'nonce-check'
   | 'signature-check'
-  | 'hash-check'; // s_hash, c_hash, at_hash
+  | 'hash-check' // s_hash, c_hash, at_hash
+  | 'token-request'
+  | 'token-response'
+  | 'id-token-validation'
+  | 'userinfo-request'
+  | 'userinfo-response'
+  | 'userinfo-mismatch';
 
 /**
  * Token Validation Log Entry
@@ -119,7 +136,7 @@ export interface TokenValidationLogEntry extends BaseDiagnosticLogEntry {
   step: TokenValidationStep;
 
   /** Token type (id_token, access_token, refresh_token) */
-  tokenType: string;
+  tokenType?: string;
 
   /** Token hash (SHA-256, prefix only) */
   tokenHash?: string;

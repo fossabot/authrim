@@ -18,6 +18,7 @@ import {
   getTenantIdFromContext,
   getLogger,
   createLogger,
+  createDiagnosticLoggerFromContext,
 } from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
@@ -157,9 +158,10 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       );
     }
 
-    // 4. Generate state and nonce
+    // 4. Generate state, nonce, and flowId
     const state = generateState();
     const nonce = generateNonce();
+    const flowId = crypto.randomUUID();
 
     // 5. Decrypt client secret
     const clientSecret = await decryptClientSecret(c.env, provider.clientSecretEncrypted);
@@ -188,6 +190,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       nonce,
       codeVerifier: externalIdpPKCE.codeVerifier,
       codeChallenge,
+      flowId,
       redirectUri,
       userId,
       sessionId,
@@ -221,6 +224,41 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       acrValues,
       responseMode,
     });
+
+    // Diagnostic logging (OIDF conformance)
+    const diagnosticLogger = await createDiagnosticLoggerFromContext(c, {
+      tenantId,
+      clientId: provider.clientId,
+    });
+
+    if (diagnosticLogger) {
+      const authUrlParsed = new URL(authUrl);
+      await diagnosticLogger.logAuthDecision({
+        decision: 'allow',
+        reason: 'authorization_request',
+        flow: 'external_idp',
+        flowId,
+        context: {
+          provider: provider.slug ?? provider.id,
+          client_id: provider.clientId,
+          authrim_client_id: clientId,
+          authorization_endpoint: authUrlParsed.origin + authUrlParsed.pathname,
+          redirect_uri: callbackUri,
+          response_type: 'code',
+          scope: provider.scopes,
+          state,
+          nonce,
+          code_challenge: authUrlParsed.searchParams.get('code_challenge'),
+          code_challenge_method: authUrlParsed.searchParams.get('code_challenge_method'),
+          response_mode: responseMode,
+          prompt,
+          login_hint: loginHint,
+          max_age: maxAge,
+          acr_values: acrValues,
+        },
+      });
+      await diagnosticLogger.cleanup();
+    }
 
     // 10. Redirect to provider
     return c.redirect(authUrl);

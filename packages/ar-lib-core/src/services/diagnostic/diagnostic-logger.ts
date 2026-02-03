@@ -29,7 +29,9 @@ import {
   sanitizeQueryParams,
   hashToken,
   redactPII,
+  applyPrivacyModeToEntry,
 } from '../../utils/diagnostic-security';
+import type { DiagnosticLogPrivacyMode } from './types';
 
 const log = createLogger().module('DIAGNOSTIC_LOGGER');
 
@@ -63,6 +65,9 @@ export class DiagnosticLogger {
   private readonly settings: DiagnosticLoggingSettings;
   private readonly ctx?: ExecutionContext;
   private r2Adapter?: DiagnosticLogR2Adapter;
+  private readonly storageMode: DiagnosticLogPrivacyMode;
+  private readonly hashSecret: string;
+  private readonly tokenHashPrefixLength: number;
 
   // In-memory buffer for batch mode
   private buffer: DiagnosticLogEntry[] = [];
@@ -74,6 +79,9 @@ export class DiagnosticLogger {
     this.clientId = config.clientId;
     this.settings = config.settings;
     this.ctx = config.ctx;
+    this.storageMode = this.resolveStorageMode();
+    this.hashSecret = this.resolveHashSecret();
+    this.tokenHashPrefixLength = this.settings['diagnostic-logging.token_hash_prefix_length'] ?? 12;
 
     // Initialize R2 adapter if enabled
     if (this.settings['diagnostic-logging.r2_output_enabled']) {
@@ -121,6 +129,41 @@ export class DiagnosticLogger {
   }
 
   /**
+   * Resolve storage mode (tenant default + client overrides)
+   */
+  private resolveStorageMode(): DiagnosticLogPrivacyMode {
+    const rawOverrides = this.settings['diagnostic-logging.storage_mode.by_client'];
+    const defaultMode =
+      (this.settings['diagnostic-logging.storage_mode.default'] as DiagnosticLogPrivacyMode) ||
+      'masked';
+
+    if (!this.clientId) return defaultMode;
+
+    if (typeof rawOverrides === 'string' && rawOverrides.trim()) {
+      try {
+        const parsed = JSON.parse(rawOverrides) as Record<string, unknown>;
+        const override = parsed[this.clientId];
+        if (override === 'full' || override === 'masked' || override === 'minimal') {
+          return override;
+        }
+      } catch {
+        // Ignore invalid JSON overrides
+      }
+    }
+
+    return defaultMode;
+  }
+
+  /**
+   * Resolve hash secret for masked mode (HMAC)
+   */
+  private resolveHashSecret(): string {
+    const baseSecret =
+      this.env.OTP_HMAC_SECRET || this.env.ISSUER_URL || this.tenantId || 'authrim';
+    return `${baseSecret}:${this.tenantId}`;
+  }
+
+  /**
    * Log HTTP request (Semantic HTTP Log)
    */
   async logHttpRequest(options: {
@@ -128,6 +171,7 @@ export class DiagnosticLogger {
     request: Request;
     requestId?: string;
     anonymizedUserId?: string;
+    flowId?: string;
   }): Promise<void> {
     if (!this.isCategoryEnabled('http-request')) return;
 
@@ -158,12 +202,14 @@ export class DiagnosticLogger {
     const entry: HttpRequestLogEntry = {
       id: crypto.randomUUID(),
       diagnosticSessionId: options.diagnosticSessionId,
+      flowId: options.flowId,
       tenantId: this.tenantId,
       clientId: this.clientId,
       category: 'http-request',
       level: 'debug',
       timestamp: Date.now(),
       requestId: options.requestId,
+      storageMode: this.storageMode,
       anonymizedUserId: options.anonymizedUserId,
       method: options.request.method,
       path: url.pathname,
@@ -184,6 +230,7 @@ export class DiagnosticLogger {
     response: Response;
     requestId?: string;
     durationMs?: number;
+    flowId?: string;
   }): Promise<void> {
     if (!this.isCategoryEnabled('http-response')) return;
 
@@ -209,12 +256,14 @@ export class DiagnosticLogger {
     const entry: HttpResponseLogEntry = {
       id: crypto.randomUUID(),
       diagnosticSessionId: options.diagnosticSessionId,
+      flowId: options.flowId,
       tenantId: this.tenantId,
       clientId: this.clientId,
       category: 'http-response',
       level: 'debug',
       timestamp: Date.now(),
       requestId: options.requestId,
+      storageMode: this.storageMode,
       status: options.response.status,
       headers: filterSafeHeaders(options.response.headers, safeHeadersList),
       bodySummary,
@@ -230,7 +279,7 @@ export class DiagnosticLogger {
   async logTokenValidation(options: {
     diagnosticSessionId?: string;
     step: TokenValidationStep;
-    tokenType: string;
+    tokenType?: string;
     token?: string;
     result: 'pass' | 'fail';
     expected?: unknown;
@@ -238,25 +287,27 @@ export class DiagnosticLogger {
     errorMessage?: string;
     details?: Record<string, unknown>;
     requestId?: string;
+    flowId?: string;
   }): Promise<void> {
     if (!this.isCategoryEnabled('token-validation')) return;
 
-    // Hash token if provided
+    // Hash token if provided (used for legacy validation logs)
     let tokenHash: string | undefined;
-    if (options.token && this.settings['diagnostic-logging.filter_tokens']) {
-      const prefixLength = this.settings['diagnostic-logging.token_hash_prefix_length'];
-      tokenHash = await hashToken(options.token, prefixLength);
+    if (options.token && this.storageMode !== 'full') {
+      tokenHash = await hashToken(options.token, this.tokenHashPrefixLength);
     }
 
     const entry: TokenValidationLogEntry = {
       id: crypto.randomUUID(),
       diagnosticSessionId: options.diagnosticSessionId,
+      flowId: options.flowId,
       tenantId: this.tenantId,
       clientId: this.clientId,
       category: 'token-validation',
       level: options.result === 'fail' ? 'error' : 'debug',
       timestamp: Date.now(),
       requestId: options.requestId,
+      storageMode: this.storageMode,
       step: options.step,
       tokenType: options.tokenType,
       tokenHash,
@@ -281,18 +332,21 @@ export class DiagnosticLogger {
     grantType?: string;
     context?: Record<string, unknown>;
     requestId?: string;
+    flowId?: string;
   }): Promise<void> {
     if (!this.isCategoryEnabled('auth-decision')) return;
 
     const entry: AuthDecisionLogEntry = {
       id: crypto.randomUUID(),
       diagnosticSessionId: options.diagnosticSessionId,
+      flowId: options.flowId,
       tenantId: this.tenantId,
       clientId: this.clientId,
       category: 'auth-decision',
       level: options.decision === 'deny' ? 'warn' : 'info',
       timestamp: Date.now(),
       requestId: options.requestId,
+      storageMode: this.storageMode,
       decision: options.decision,
       reason: options.reason,
       flow: options.flow,
@@ -307,17 +361,18 @@ export class DiagnosticLogger {
    * Write log entry (internal)
    */
   private async writeLog(entry: DiagnosticLogEntry): Promise<void> {
-    // PII filtering
-    if (this.settings['diagnostic-logging.filter_pii']) {
-      this.applyPIIFilter(entry);
-    }
+    const sanitized = await applyPrivacyModeToEntry(entry, {
+      mode: this.storageMode,
+      secret: this.hashSecret,
+      tokenHashPrefixLength: this.tokenHashPrefixLength,
+    });
 
     // Console output (always enabled)
-    this.writeToConsole(entry);
+    this.writeToConsole(sanitized);
 
     // R2 output (if enabled)
     if (this.r2Adapter) {
-      await this.writeToR2(entry);
+      await this.writeToR2(sanitized);
     }
   }
 

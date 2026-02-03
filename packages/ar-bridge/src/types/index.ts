@@ -129,6 +129,8 @@ export interface ExternalIdpAuthState {
   codeVerifier?: string;
   /** Code challenge for PKCE (client-side or server-side) */
   codeChallenge?: string;
+  /** Flow ID for diagnostic correlation */
+  flowId?: string;
   redirectUri: string;
   userId?: string; // Set if linking to existing account
   sessionId?: string;
