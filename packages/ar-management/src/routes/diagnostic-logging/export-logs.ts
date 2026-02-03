@@ -319,7 +319,7 @@ app.get(
           type: 'tenant',
           id: tenantId,
         });
-        diagnosticSettings = result.values as DiagnosticLoggingSettings;
+        diagnosticSettings = result.values as unknown as DiagnosticLoggingSettings;
       } catch (error) {
         log.warn('Failed to load diagnostic settings for export', { error: String(error) });
       }

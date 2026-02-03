@@ -218,7 +218,7 @@ app.post('/', async (c) => {
       type: 'tenant',
       id: tenantId,
     });
-    diagnosticSettings = result.values as DiagnosticLoggingSettings;
+    diagnosticSettings = result.values as unknown as DiagnosticLoggingSettings;
 
     if (!diagnosticSettings['diagnostic-logging.sdk_ingest_enabled']) {
       return c.json(
