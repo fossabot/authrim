@@ -317,9 +317,28 @@ export class OIDCRPClient {
   async handleCallback(code: string, codeVerifier: string): Promise<TokenResponse> {
     const tokenEndpoint = await this.getTokenEndpoint();
 
-    // Check if provider requires Basic authentication (e.g., Twitter)
+    // Determine client authentication method for token endpoint
+    // Priority: explicit providerQuirks -> discovery metadata -> default (post)
     const quirks = this.config.providerQuirks as { useBasicAuth?: boolean } | undefined;
-    const useBasicAuth = quirks?.useBasicAuth === true;
+    let useBasicAuth = quirks?.useBasicAuth === true;
+
+    if (quirks?.useBasicAuth !== true && quirks?.useBasicAuth !== false) {
+      try {
+        const metadata = await this.discover();
+        const methods = metadata.token_endpoint_auth_methods_supported || [];
+
+        if (methods.includes('client_secret_basic') && !methods.includes('client_secret_post')) {
+          useBasicAuth = true;
+        } else if (
+          methods.includes('client_secret_post') &&
+          !methods.includes('client_secret_basic')
+        ) {
+          useBasicAuth = false;
+        }
+      } catch {
+        // Discovery may be unavailable for some OAuth2 providers; fall back to default
+      }
+    }
 
     // Build request body
     const body = new URLSearchParams({
