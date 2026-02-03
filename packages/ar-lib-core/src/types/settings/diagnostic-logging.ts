@@ -5,7 +5,7 @@
  * OIDF RP Conformance testing, and compliance audits.
  *
  * API: GET/PATCH /api/admin/tenants/:tenantId/settings/diagnostic-logging
- * Config Level: tenant (Phase 1), tenant + client (future)
+ * Config Level: tenant (Phase 1), tenant with client-level storage overrides
  *
  * Security-first design:
  * - Semantic HTTP Log: Meaningful data extraction, not raw HTTP dumps
@@ -31,6 +31,11 @@ export type DiagnosticLogBufferStrategy = 'realtime' | 'batch' | 'queue';
  * Log level (settings type)
  */
 export type DiagnosticLoggingLogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+/**
+ * Diagnostic log storage privacy mode
+ */
+export type DiagnosticLoggingStorageMode = 'full' | 'masked' | 'minimal';
 
 /**
  * Diagnostic Logging Settings Interface
@@ -90,6 +95,12 @@ export interface DiagnosticLoggingSettings {
   // Retention settings
   /** Retention period for diagnostic logs in days */
   'diagnostic-logging.retention_days': number;
+
+  // Privacy mode settings
+  /** Default storage mode for diagnostic logs */
+  'diagnostic-logging.storage_mode.default': DiagnosticLoggingStorageMode;
+  /** Per-client storage mode overrides (JSON map: { client_id: mode }) */
+  'diagnostic-logging.storage_mode.by_client': string;
 
   // SDK integration settings
   /** Enable SDK log ingestion from client SDKs */
@@ -290,6 +301,23 @@ export const DIAGNOSTIC_LOGGING_SETTINGS_META: Record<
     min: 1,
     max: 365,
   },
+  'diagnostic-logging.storage_mode.default': {
+    key: 'diagnostic-logging.storage_mode.default',
+    type: 'enum',
+    default: 'masked',
+    label: 'Default Storage Mode',
+    description: 'Default privacy mode for diagnostic logs (full, masked, minimal)',
+    visibility: 'admin',
+    enum: ['full', 'masked', 'minimal'],
+  },
+  'diagnostic-logging.storage_mode.by_client': {
+    key: 'diagnostic-logging.storage_mode.by_client',
+    type: 'string',
+    default: '{}',
+    label: 'Client Storage Mode Overrides',
+    description: 'JSON map of client_id to storage mode overrides',
+    visibility: 'admin',
+  },
   'diagnostic-logging.sdk_ingest_enabled': {
     key: 'diagnostic-logging.sdk_ingest_enabled',
     type: 'boolean',
@@ -346,6 +374,8 @@ export const DIAGNOSTIC_LOGGING_DEFAULTS: DiagnosticLoggingSettings = {
     'content-type,accept,user-agent,x-correlation-id,x-diagnostic-session-id',
   'diagnostic-logging.http_body_schema_aware': true,
   'diagnostic-logging.retention_days': 30,
+  'diagnostic-logging.storage_mode.default': 'masked',
+  'diagnostic-logging.storage_mode.by_client': '{}',
   'diagnostic-logging.sdk_ingest_enabled': true,
   'diagnostic-logging.merged_output_enabled': false,
 };

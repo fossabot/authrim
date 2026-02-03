@@ -7,6 +7,7 @@
 
 	type ExportFormat = 'json' | 'jsonl' | 'text';
 	type SortMode = 'category' | 'timeline' | 'session';
+	type StorageMode = 'full' | 'masked' | 'minimal';
 
 	// Export form state
 	let tenantId = $state('default');
@@ -21,6 +22,8 @@
 	});
 	let format = $state<ExportFormat>('json');
 	let sortMode = $state<SortMode>('timeline');
+	let storageModeDefault = $state<StorageMode>('masked');
+	let storageModeOverrides = $state<Record<string, StorageMode>>({});
 	let includeStats = $state(false);
 	let selectedClientIds = $state<string[]>([]);
 
@@ -77,6 +80,13 @@
 			r2OutputEnabled = Boolean(result.values['diagnostic-logging.r2_output_enabled']);
 			sdkIngestEnabled = Boolean(result.values['diagnostic-logging.sdk_ingest_enabled']);
 			mergedOutputEnabled = Boolean(result.values['diagnostic-logging.merged_output_enabled']);
+			storageModeDefault = normalizeStorageMode(
+				result.values['diagnostic-logging.storage_mode.default'],
+				'masked'
+			);
+			storageModeOverrides = parseStorageModeOverrides(
+				result.values['diagnostic-logging.storage_mode.by_client']
+			);
 		} catch (err) {
 			settingsError = err instanceof Error ? err.message : 'Failed to load diagnostic settings';
 		} finally {
@@ -294,6 +304,92 @@
 			}
 		} else {
 			selectedClientIds = selectedClientIds.filter((id) => id !== clientId);
+		}
+	}
+
+	function normalizeStorageMode(value: unknown, fallback: StorageMode): StorageMode {
+		if (value === 'full' || value === 'masked' || value === 'minimal') return value;
+		return fallback;
+	}
+
+	function parseStorageModeOverrides(raw: unknown): Record<string, StorageMode> {
+		if (!raw) return {};
+		const source = typeof raw === 'string' ? raw.trim() : raw;
+		let parsed: unknown = source;
+
+		if (typeof source === 'string') {
+			if (!source) return {};
+			try {
+				parsed = JSON.parse(source);
+			} catch {
+				return {};
+			}
+		}
+
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+			return {};
+		}
+
+		const result: Record<string, StorageMode> = {};
+		for (const [clientId, mode] of Object.entries(parsed as Record<string, unknown>)) {
+			if (mode === 'full' || mode === 'masked' || mode === 'minimal') {
+				result[clientId] = mode;
+			}
+		}
+
+		return result;
+	}
+
+	function setClientStorageMode(clientId: string, value: string) {
+		if (value === 'inherit') {
+			const { [clientId]: _, ...rest } = storageModeOverrides;
+			storageModeOverrides = rest;
+			return;
+		}
+
+		if (value === 'full' || value === 'masked' || value === 'minimal') {
+			storageModeOverrides = { ...storageModeOverrides, [clientId]: value };
+		}
+	}
+
+	function getClientStorageMode(clientId: string): string {
+		return storageModeOverrides[clientId] ?? 'inherit';
+	}
+
+	async function handleSaveStorageModes() {
+		if (!loggingSettings || settingsSaving || !canEdit) return;
+
+		settingsSaving = true;
+		settingsError = '';
+
+		try {
+			const overridesPayload = JSON.stringify(storageModeOverrides);
+			const result = await adminSettingsAPI.updateSettings(
+				'diagnostic-logging',
+				{
+					ifMatch: loggingSettings.version,
+					set: {
+						'diagnostic-logging.storage_mode.default': storageModeDefault,
+						'diagnostic-logging.storage_mode.by_client': overridesPayload
+					}
+				},
+				tenantId
+			);
+
+			loggingSettings = {
+				...loggingSettings,
+				version: result.newVersion,
+				values: {
+					...loggingSettings.values,
+					'diagnostic-logging.storage_mode.default': storageModeDefault,
+					'diagnostic-logging.storage_mode.by_client': overridesPayload
+				}
+			};
+			success = 'Storage mode settings updated.';
+		} catch (err) {
+			settingsError = err instanceof Error ? err.message : 'Failed to update storage mode settings';
+		} finally {
+			settingsSaving = false;
 		}
 	}
 
@@ -545,6 +641,80 @@
 				{:else if settingsSaving}
 					<span class="inline-muted">Saving...</span>
 				{/if}
+			</div>
+		</div>
+
+		<div class="card-section">
+			<h3 class="card-title-sm">Storage Mode</h3>
+			<p class="card-subtitle">
+				Choose how much sensitive data is stored for each client. Stored logs cannot be exported at
+				a higher fidelity than they were recorded.
+			</p>
+			<div class="form-grid">
+				<div class="form-group">
+					<label for="storageModeDefault">Default storage mode</label>
+					<select
+						id="storageModeDefault"
+						class="settings-select"
+						bind:value={storageModeDefault}
+						disabled={!canEdit || settingsLoading || settingsSaving}
+					>
+						<option value="full">Full (PII + tokens)</option>
+						<option value="masked">Masked / hashed</option>
+						<option value="minimal">Minimal (non-PII only)</option>
+					</select>
+				</div>
+			</div>
+
+			<h4 class="card-title-sm" style="margin-top: 16px;">Client overrides</h4>
+			{#if clientsLoading}
+				<p class="empty-state">Loading clients...</p>
+			{:else if clientsError}
+				<p class="empty-state">{clientsError}</p>
+			{:else if clientOptions.length === 0}
+				<p class="empty-state">No clients found for this tenant.</p>
+			{:else}
+				<div class="override-grid">
+					{#each clientOptions as client (client.id)}
+						<div class="override-row">
+							<div class="override-label">{client.name}</div>
+							<select
+								class="settings-select"
+								value={getClientStorageMode(client.id)}
+								onchange={(event) => setClientStorageMode(client.id, event.currentTarget.value)}
+								disabled={!canEdit || settingsLoading || settingsSaving}
+							>
+								<option value="inherit">Inherit default</option>
+								<option value="full">Full</option>
+								<option value="masked">Masked</option>
+								<option value="minimal">Minimal</option>
+							</select>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			<div class="settings-actions">
+				<button
+					class="btn btn-secondary"
+					type="button"
+					onclick={() => (storageModeOverrides = {})}
+					disabled={!canEdit || settingsSaving}
+				>
+					Clear Overrides
+				</button>
+				<button
+					class="btn btn-primary"
+					type="button"
+					onclick={handleSaveStorageModes}
+					disabled={!canEdit || settingsSaving}
+				>
+					{#if settingsSaving}
+						Saving...
+					{:else}
+						Save Storage Modes
+					{/if}
+				</button>
 			</div>
 		</div>
 
@@ -853,6 +1023,26 @@
 		display: grid;
 		gap: 10px 16px;
 		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	}
+
+	.override-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		margin-top: 12px;
+	}
+
+	.override-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.override-label {
+		flex: 1;
+		font-size: 0.875rem;
+		color: var(--text-primary);
 	}
 
 	.empty-state {
