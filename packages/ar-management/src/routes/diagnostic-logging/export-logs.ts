@@ -30,6 +30,8 @@ interface ExportQuery {
   tenantId: string;
   /** Client ID (optional) */
   clientId?: string;
+  /** Client IDs (comma-separated) */
+  clientIds?: string;
   /** Start date (ISO 8601 or Unix timestamp) */
   startDate?: string;
   /** End date (ISO 8601 or Unix timestamp) */
@@ -42,6 +44,18 @@ interface ExportQuery {
   format?: 'json' | 'jsonl' | 'text';
   /** Include statistics */
   includeStats?: string;
+}
+
+/**
+ * Parse client IDs from query
+ */
+function parseClientIds(value?: string): string[] | undefined {
+  if (!value) return undefined;
+  const ids = value
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+  return ids.length > 0 ? Array.from(new Set(ids)) : undefined;
 }
 
 /**
@@ -68,6 +82,17 @@ function parseDate(dateStr: string): number {
   }
 
   throw new Error(`Invalid date format: ${dateStr}`);
+}
+
+/**
+ * Parse date string with day-boundary handling for date-only inputs.
+ */
+function parseDateWithBoundary(dateStr: string, boundary: 'start' | 'end'): number {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const base = new Date(`${dateStr}T00:00:00.000Z`).getTime();
+    return boundary === 'end' ? base + 24 * 60 * 60 * 1000 - 1 : base;
+  }
+  return parseDate(dateStr);
 }
 
 /**
@@ -166,7 +191,7 @@ app.get(
 
     // Parse query parameters
     const tenantId = query.tenantId;
-    const clientId = query.clientId;
+    const clientIds = parseClientIds(query.clientIds ?? query.clientId);
     const format = query.format || 'json';
     const includeStats = query.includeStats === 'true';
 
@@ -176,10 +201,10 @@ app.get(
 
     try {
       if (query.startDate) {
-        startTime = parseDate(query.startDate);
+        startTime = parseDateWithBoundary(query.startDate, 'start');
       }
       if (query.endDate) {
-        endTime = parseDate(query.endDate);
+        endTime = parseDateWithBoundary(query.endDate, 'end');
       }
     } catch (error) {
       return c.json(
@@ -225,24 +250,34 @@ app.get(
       const logTypes = categories || ['token-validation', 'auth-decision'];
       const allLogs: DiagnosticLogEntry[] = [];
 
-      for (const logType of logTypes) {
-        let prefix = `diagnostic-logs/${logType}/${tenantId}`;
-        if (clientId) {
-          prefix += `/${clientId}`;
-        }
+      const prefixes: string[] = [];
 
-        // List R2 objects in date range
+      for (const logType of logTypes) {
+        if (clientIds && clientIds.length > 0) {
+          for (const clientId of clientIds) {
+            prefixes.push(`diagnostic-logs/${logType}/${tenantId}/${clientId}`);
+          }
+        } else {
+          prefixes.push(`diagnostic-logs/${logType}/${tenantId}`);
+        }
+      }
+
+      const keySet = new Set<string>();
+
+      for (const prefix of prefixes) {
         const keys = await listR2Objects(r2, prefix, startDate, endDate);
         log.debug('Listed R2 objects', { prefix, keyCount: keys.length });
-
-        // Fetch and parse logs
-        const logs = await fetchLogsFromR2(r2, keys);
-        allLogs.push(...logs);
+        for (const key of keys) {
+          keySet.add(key);
+        }
       }
+
+      const logs = await fetchLogsFromR2(r2, Array.from(keySet));
+      allLogs.push(...logs);
 
       log.info('Fetched diagnostic logs', {
         tenantId,
-        clientId,
+        clientIds,
         totalLogs: allLogs.length,
       });
 

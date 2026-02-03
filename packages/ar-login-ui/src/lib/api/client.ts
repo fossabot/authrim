@@ -118,6 +118,30 @@ function getApiBaseUrl(): string {
 export const API_BASE_URL = getApiBaseUrl();
 
 const DEFAULT_API_TIMEOUT = 30000; // 30 seconds
+const DIAGNOSTIC_SESSION_KEY = 'authrim_diagnostic_session_id';
+
+export function getDiagnosticSessionId(): string | undefined {
+	if (!browser) return undefined;
+	let sessionId = sessionStorage.getItem(DIAGNOSTIC_SESSION_KEY);
+	if (!sessionId) {
+		try {
+			sessionId = crypto.randomUUID();
+		} catch {
+			sessionId = `diag_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+		}
+		sessionStorage.setItem(DIAGNOSTIC_SESSION_KEY, sessionId);
+	}
+	return sessionId;
+}
+
+export function buildDiagnosticHeaders(headers?: HeadersInit): Headers {
+	const merged = new Headers(headers);
+	const sessionId = getDiagnosticSessionId();
+	if (sessionId) {
+		merged.set('X-Diagnostic-Session-Id', sessionId);
+	}
+	return merged;
+}
 
 /**
  * Generic fetch wrapper with error handling
@@ -131,13 +155,14 @@ async function apiFetch<T>(
 
 	try {
 		const url = `${API_BASE_URL}${endpoint}`;
+		const headers = buildDiagnosticHeaders(options.headers);
+		if (!headers.has('Content-Type')) {
+			headers.set('Content-Type', 'application/json');
+		}
 		const response = await fetch(url, {
 			...options,
 			signal: controller.signal,
-			headers: {
-				'Content-Type': 'application/json',
-				...options.headers
-			}
+			headers
 		});
 
 		// Handle empty response body (e.g., 204 No Content)
@@ -615,9 +640,7 @@ export const loginChallengeAPI = {
 				`${apiBaseUrl}/api/auth/login-challenges?challenge_id=${challengeId}`,
 				{
 					method: 'GET',
-					headers: {
-						Accept: 'application/json'
-					},
+					headers: buildDiagnosticHeaders({ Accept: 'application/json' }),
 					credentials: 'include'
 				}
 			);
@@ -924,7 +947,7 @@ export const cibaAPI = {
 		try {
 			const response = await fetch(`${apiBaseUrl}/api/ciba/requests/${requestId}`, {
 				method: 'GET',
-				headers: { Accept: 'application/json' },
+				headers: buildDiagnosticHeaders({ Accept: 'application/json' }),
 				credentials: 'include'
 			});
 			if (!response.ok) {
@@ -956,7 +979,7 @@ export const cibaAPI = {
 		try {
 			const response = await fetch(`${apiBaseUrl}/api/ciba/requests/pending`, {
 				method: 'GET',
-				headers: { Accept: 'application/json' },
+				headers: buildDiagnosticHeaders({ Accept: 'application/json' }),
 				credentials: 'include'
 			});
 			if (!response.ok) {
@@ -1322,9 +1345,7 @@ export const consentAPI = {
 		try {
 			const response = await fetch(`${apiBaseUrl}/api/auth/consents?challenge_id=${challengeId}`, {
 				method: 'GET',
-				headers: {
-					Accept: 'application/json'
-				},
+				headers: buildDiagnosticHeaders({ Accept: 'application/json' }),
 				credentials: 'include'
 			});
 
@@ -1361,9 +1382,7 @@ export const consentAPI = {
 		try {
 			const response = await fetch(`${apiBaseUrl}/api/auth/consents`, {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
+				headers: buildDiagnosticHeaders({ 'Content-Type': 'application/json' }),
 				credentials: 'include',
 				body: JSON.stringify(submission)
 			});

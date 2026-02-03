@@ -150,7 +150,27 @@ export function toOIDFFormat(log: DiagnosticLogEntry): OIDFLogEntry {
     details: {},
   };
 
-  if (log.category === 'token-validation') {
+  if (log.category === 'http-request') {
+    base.event = 'http_request';
+    base.details = {
+      method: log.method,
+      path: log.path,
+      query: log.query,
+      headers: log.headers,
+      bodySummary: log.bodySummary,
+      remoteAddress: log.remoteAddress,
+      requestId: log.requestId,
+    };
+  } else if (log.category === 'http-response') {
+    base.event = 'http_response';
+    base.details = {
+      status: log.status,
+      headers: log.headers,
+      bodySummary: log.bodySummary,
+      durationMs: log.durationMs,
+      requestId: log.requestId,
+    };
+  } else if (log.category === 'token-validation') {
     const tokenLog = log as TokenValidationLogEntry;
     base.event = `token_validation_${tokenLog.step}`;
     base.details = {

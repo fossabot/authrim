@@ -2785,14 +2785,6 @@
 	}
 
 	/* Admin Toggle */
-	.admin-toggle-wrapper {
-		margin-bottom: 1.5rem;
-		padding: 1rem;
-		background-color: var(--bg-card, #ffffff);
-		border-radius: 8px;
-		border: 1px solid var(--border, #e5e7eb);
-	}
-
 	.admin-toggle-inline {
 		display: flex;
 		align-items: center;
@@ -2901,11 +2893,6 @@
 		background: color-mix(in srgb, var(--primary, #c8b8a8) 22%, var(--bg-card, #2d2824));
 		border-color: color-mix(in srgb, var(--primary, #c8b8a8) 40%, var(--border, #334155));
 		box-shadow: 0 12px 28px color-mix(in srgb, var(--primary, #c8b8a8) 28%, rgba(0, 0, 0, 0.4));
-	}
-
-	:global(.dark) .admin-toggle-wrapper {
-		background-color: var(--bg-card, #2d2824);
-		border-color: var(--border, #374151);
 	}
 
 	:global(.dark) .danger-zone {

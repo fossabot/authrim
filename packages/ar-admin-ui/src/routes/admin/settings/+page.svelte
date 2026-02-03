@@ -110,6 +110,7 @@
 	let showSigningKeys = $derived(currentScope === 'tenant');
 	let showSharding = $derived(currentScope === 'platform');
 	let showCacheMode = $derived(currentScope === 'platform');
+	let showDiagnosticLogging = $derived(currentScope === 'tenant');
 
 	// Get style for category
 	function getStyle(category: string) {
@@ -220,6 +221,27 @@
 					</div>
 					<p class="icon-card-description">
 						Configure cache TTL for client metadata and related data
+					</p>
+				</a>
+			{/if}
+
+			<!-- Diagnostic Logging (special card) - Tenant scope only -->
+			{#if showDiagnosticLogging}
+				<a href="/admin/settings/diagnostic-logging" class="icon-card">
+					<div class="icon-card-header">
+						<span class="icon-card-icon">🧪</span>
+						<div>
+							<h2 class="icon-card-title">Diagnostic Logging</h2>
+							<span
+								class="icon-card-badge"
+								style="background: var(--warning-light); color: var(--warning);"
+							>
+								Special
+							</span>
+						</div>
+					</div>
+					<p class="icon-card-description">
+						Export conformance and diagnostic logs for audits and debugging
 					</p>
 				</a>
 			{/if}

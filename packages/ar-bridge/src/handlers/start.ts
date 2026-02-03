@@ -83,6 +83,8 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     const maxAgeParam = c.req.query('max_age');
     const acrValues = c.req.query('acr_values');
     const tenantId = c.req.query('tenant_id') || 'default';
+    const codeChallenge = c.req.query('code_challenge');
+    const codeChallengeMethod = c.req.query('code_challenge_method');
 
     // Parse max_age parameter (OIDC Core)
     const maxAge = maxAgeParam ? parseInt(maxAgeParam, 10) : undefined;
@@ -133,32 +135,42 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       sessionId = session.id;
     }
 
-    // 3. Generate PKCE, state, nonce
-    const { codeVerifier } = await generatePKCE();
+    // 3. Validate PKCE parameters from client
+    if (!codeChallenge || codeChallengeMethod !== 'S256') {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'code_challenge and code_challenge_method=S256 are required',
+        },
+        400
+      );
+    }
+
+    // 4. Generate state and nonce
     const state = generateState();
     const nonce = generateNonce();
 
-    // 4. Decrypt client secret
+    // 5. Decrypt client secret
     const clientSecret = await decryptClientSecret(c.env, provider.clientSecretEncrypted);
 
-    // 4b. Decrypt private key for request object signing (if configured)
+    // 5b. Decrypt private key for request object signing (if configured)
     let privateKeyJwk: Record<string, unknown> | undefined;
     if (provider.useRequestObject && provider.privateKeyJwkEncrypted) {
       const decryptedPrivateKey = await decryptClientSecret(c.env, provider.privateKeyJwkEncrypted);
       privateKeyJwk = JSON.parse(decryptedPrivateKey);
     }
 
-    // 5. Build callback URL (use slug if available for cleaner URLs)
+    // 6. Build callback URL (use slug if available for cleaner URLs)
     const providerIdentifier = provider.slug || provider.id;
     const callbackUri = `${c.env.ISSUER_URL}/auth/external/${providerIdentifier}/callback`;
 
-    // 6. Store state in D1 (including max_age for auth_time validation, acr_values for acr validation)
+    // 7. Store state in D1 (including code_challenge for PKCE verification)
     await storeAuthState(c.env, {
       tenantId,
       providerId: provider.id,
       state,
       nonce,
-      codeVerifier,
+      codeChallenge,
       redirectUri,
       userId,
       sessionId,
@@ -167,7 +179,11 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       expiresAt: getStateExpiresAt(),
     });
 
-    // 7. Create OIDC client and generate authorization URL
+    // 8. Generate PKCE for Authrim ↔ External IdP flow
+    // This is separate from the client ↔ Authrim PKCE flow
+    const externalIdpPKCE = await generatePKCE();
+
+    // 9. Create OIDC client and generate authorization URL
     const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret, privateKeyJwk);
 
     // Apple Sign In requires response_mode=form_post when requesting name or email scope
@@ -185,7 +201,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     const authUrl = await client.createAuthorizationUrl({
       state,
       nonce,
-      codeVerifier,
+      codeVerifier: externalIdpPKCE.codeVerifier, // For Authrim ↔ External IdP PKCE
       prompt,
       loginHint,
       maxAge,
@@ -193,7 +209,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       responseMode,
     });
 
-    // 8. Redirect to provider
+    // 10. Redirect to provider
     return c.redirect(authUrl);
   } catch (error) {
     log.error('External start error', {}, error as Error);

@@ -123,7 +123,10 @@ export interface ExternalIdpAuthState {
   providerId: string;
   state: string;
   nonce?: string;
+  /** @deprecated Use codeChallenge for client-side PKCE */
   codeVerifier?: string;
+  /** Code challenge for PKCE (client-side or server-side) */
+  codeChallenge?: string;
   redirectUri: string;
   userId?: string; // Set if linking to existing account
   sessionId?: string;

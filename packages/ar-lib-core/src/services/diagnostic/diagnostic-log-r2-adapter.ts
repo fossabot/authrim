@@ -6,7 +6,7 @@
  *
  * Path structure:
  * - {prefix}/{logType}/{tenantId}/{YYYY-MM-DD}/{HH}.jsonl
- * - Future: {prefix}/{logType}/{tenantId}/{clientId}/{YYYY-MM-DD}/{HH}.jsonl
+ * - {prefix}/{logType}/{tenantId}/{clientId}/{YYYY-MM-DD}/{HH}.jsonl
  */
 
 import type {
@@ -37,8 +37,7 @@ export interface DiagnosticLogR2AdapterConfig {
 /**
  * Build R2 object key for diagnostic logs
  *
- * Phase 1: tenant-only path
- * Future: tenant + client path
+ * Tenant path by default; include clientId when available.
  *
  * @param options - Path construction options
  * @returns R2 object key
@@ -54,12 +53,12 @@ export function buildDiagnosticLogPath(options: {
   const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
   const hour = date.getUTCHours().toString().padStart(2, '0');
 
-  // Phase 1: tenant only
+  // Tenant only
   if (!options.clientId) {
     return `${options.pathPrefix}/${options.category}/${options.tenantId}/${dateStr}/${hour}.jsonl`;
   }
 
-  // Future: tenant + client
+  // Tenant + client
   return `${options.pathPrefix}/${options.category}/${options.tenantId}/${options.clientId}/${dateStr}/${hour}.jsonl`;
 }
 

@@ -19,7 +19,11 @@ import {
 } from '../services/diagnostic/diagnostic-logger';
 import { createSettingsManager } from '../utils/settings-manager';
 import type { DiagnosticLoggingSettings } from '../types/settings/diagnostic-logging';
+import { DIAGNOSTIC_LOGGING_CATEGORY_META } from '../types/settings/diagnostic-logging';
 import { createLogger } from '../utils/logger';
+import { parseBasicAuth } from '../utils/basic-auth';
+import { DEFAULT_TENANT_ID } from '../utils/tenant-context';
+import { getTenantIdFromContext } from './request-context';
 
 const log = createLogger().module('DiagnosticLoggingMiddleware');
 
@@ -28,7 +32,7 @@ const log = createLogger().module('DiagnosticLoggingMiddleware');
  */
 export interface DiagnosticLoggingMiddlewareConfig {
   /** Tenant ID */
-  tenantId: string;
+  tenantId?: string;
 
   /** Client ID (optional) */
   clientId?: string;
@@ -71,8 +75,12 @@ export function diagnosticLoggingMiddleware(config: DiagnosticLoggingMiddlewareC
       c.set(DIAGNOSTIC_SESSION_ID_VAR as any, diagnosticSessionId);
     }
 
+    const tenantId =
+      config.tenantId ?? getTenantIdFromContext(c) ?? c.req.header('X-Tenant-Id') ?? DEFAULT_TENANT_ID;
+    const clientId = config.clientId ?? (await resolveClientIdFromRequest(c));
+
     // Load diagnostic logging settings
-    const settings = await loadDiagnosticSettings(c.env, config.tenantId);
+    const settings = await loadDiagnosticSettings(c.env, tenantId);
 
     // Check if diagnostic logging is enabled
     if (!settings['diagnostic-logging.enabled']) {
@@ -82,8 +90,8 @@ export function diagnosticLoggingMiddleware(config: DiagnosticLoggingMiddlewareC
     // Create diagnostic logger
     const logger = createDiagnosticLogger({
       env: c.env,
-      tenantId: config.tenantId,
-      clientId: config.clientId,
+      tenantId,
+      clientId,
       settings,
       ctx: c.executionCtx,
     });
@@ -131,6 +139,48 @@ export function diagnosticLoggingMiddleware(config: DiagnosticLoggingMiddlewareC
   };
 }
 
+async function resolveClientIdFromRequest(c: Context): Promise<string | undefined> {
+  const url = new URL(c.req.url);
+
+  const queryClientId =
+    url.searchParams.get('client_id') ??
+    url.searchParams.get('clientId') ??
+    url.searchParams.get('client');
+
+  if (queryClientId) {
+    return queryClientId;
+  }
+
+  const authHeader = c.req.header('Authorization');
+  const basicAuth = parseBasicAuth(authHeader);
+  if (basicAuth.success) {
+    return basicAuth.credentials.username;
+  }
+
+  const contentType = c.req.header('Content-Type') || '';
+  if (c.req.method !== 'POST') return undefined;
+
+  try {
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      const bodyText = await c.req.raw.clone().text();
+      const params = new URLSearchParams(bodyText);
+      return params.get('client_id') ?? params.get('clientId') ?? undefined;
+    }
+
+    if (contentType.includes('application/json')) {
+      const body = await c.req.raw.clone().json().catch(() => null);
+      if (body && typeof body === 'object') {
+        const maybeClientId = (body as Record<string, unknown>).client_id ?? (body as Record<string, unknown>).clientId;
+        return typeof maybeClientId === 'string' ? maybeClientId : undefined;
+      }
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
 /**
  * Load diagnostic logging settings for a tenant
  *
@@ -151,6 +201,7 @@ async function loadDiagnosticSettings(
 
     // Register diagnostic-logging category (if not already registered)
     // Note: In production, categories should be registered at startup
+    manager.registerCategory(DIAGNOSTIC_LOGGING_CATEGORY_META);
     const result = await manager.getAll('diagnostic-logging', {
       type: 'tenant',
       id: tenantId,
@@ -184,6 +235,8 @@ async function loadDiagnosticSettings(
         'content-type,accept,user-agent,x-correlation-id,x-diagnostic-session-id',
       'diagnostic-logging.http_body_schema_aware': true,
       'diagnostic-logging.retention_days': 30,
+      'diagnostic-logging.sdk_ingest_enabled': true,
+      'diagnostic-logging.merged_output_enabled': false,
     };
   }
 }

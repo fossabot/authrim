@@ -313,13 +313,31 @@ export function generateWranglerConfig(
 
   // R2 Buckets (optional)
   if (config.features.r2?.enabled && resourceIds.r2) {
+    const r2Buckets: Array<{ binding: string; bucket_name: string }> = [];
+
     if (component === 'ar-auth' || component === 'ar-management') {
-      wranglerConfig.r2_buckets = [
-        {
-          binding: 'AVATARS',
-          bucket_name: resourceIds.r2['AVATARS']?.name || `${env}-authrim-avatars`,
-        },
-      ];
+      r2Buckets.push({
+        binding: 'AVATARS',
+        bucket_name: resourceIds.r2['AVATARS']?.name || `${env}-authrim-avatars`,
+      });
+    }
+
+    if (
+      component === 'ar-auth' ||
+      component === 'ar-token' ||
+      component === 'ar-async' ||
+      component === 'ar-saml' ||
+      component === 'ar-vc' ||
+      component === 'ar-management'
+    ) {
+      r2Buckets.push({
+        binding: 'DIAGNOSTIC_LOGS',
+        bucket_name: resourceIds.r2['DIAGNOSTIC_LOGS']?.name || `${env}-diagnostic-logs`,
+      });
+    }
+
+    if (r2Buckets.length > 0) {
+      wranglerConfig.r2_buckets = r2Buckets;
     }
   }
 

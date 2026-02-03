@@ -2,6 +2,7 @@
 	import { LL, getLocale, setLocale } from '$i18n/i18n-svelte';
 	import type { Locales } from '$i18n/i18n-types';
 	import { themeStore } from '$lib/stores/theme.svelte';
+	import { buildDiagnosticHeaders } from '$lib/api/client';
 
 	const availableLocales: Locales[] = ['en', 'ja'];
 	let currentLang = $state<Locales>(getLocale());
@@ -11,9 +12,9 @@
 		try {
 			await fetch('/api/set-language', {
 				method: 'POST',
-				headers: {
+				headers: buildDiagnosticHeaders({
 					'Content-Type': 'application/json'
-				},
+				}),
 				body: JSON.stringify({ language: lang })
 			});
 

@@ -90,6 +90,12 @@ export interface DiagnosticLoggingSettings {
   // Retention settings
   /** Retention period for diagnostic logs in days */
   'diagnostic-logging.retention_days': number;
+
+  // SDK integration settings
+  /** Enable SDK log ingestion from client SDKs */
+  'diagnostic-logging.sdk_ingest_enabled': boolean;
+  /** Enable merged output (server + SDK logs) */
+  'diagnostic-logging.merged_output_enabled': boolean;
 }
 
 /**
@@ -284,6 +290,25 @@ export const DIAGNOSTIC_LOGGING_SETTINGS_META: Record<
     min: 1,
     max: 365,
   },
+  'diagnostic-logging.sdk_ingest_enabled': {
+    key: 'diagnostic-logging.sdk_ingest_enabled',
+    type: 'boolean',
+    default: true,
+    envKey: 'SDK_INGEST_ENABLED',
+    label: 'Enable SDK Log Ingestion',
+    description: 'Accept diagnostic logs from client SDKs via the public ingest API',
+    visibility: 'admin',
+  },
+  'diagnostic-logging.merged_output_enabled': {
+    key: 'diagnostic-logging.merged_output_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'MERGED_OUTPUT_ENABLED',
+    label: 'Enable Merged Log Output',
+    description:
+      'Export server and SDK logs in a single merged timeline using diagnosticSessionId correlation',
+    visibility: 'admin',
+  },
 };
 
 /**
@@ -321,4 +346,6 @@ export const DIAGNOSTIC_LOGGING_DEFAULTS: DiagnosticLoggingSettings = {
     'content-type,accept,user-agent,x-correlation-id,x-diagnostic-session-id',
   'diagnostic-logging.http_body_schema_aware': true,
   'diagnostic-logging.retention_days': 30,
+  'diagnostic-logging.sdk_ingest_enabled': true,
+  'diagnostic-logging.merged_output_enabled': false,
 };

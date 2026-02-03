@@ -27,6 +27,8 @@ import {
   // Logger
   getLogger,
   createLogger,
+  isAllowedOrigin,
+  parseAllowedOrigins,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -555,24 +557,44 @@ app.use(
  * - Admin endpoints (/api/admin/*) should have ALLOWED_ORIGINS configured in production
  */
 app.use('*', async (c, next) => {
-  const allowedOriginsEnv = c.env.ALLOWED_ORIGINS;
+  let allowedOriginsStr: string | null = null;
 
-  // Parse allowed origins from environment (comma-separated)
-  const allowedOrigins = allowedOriginsEnv
-    ? allowedOriginsEnv.split(',').map((o: string) => o.trim())
-    : null;
+  // 1. Try to get from KV (tenant settings)
+  if (c.env.AUTHRIM_CONFIG) {
+    try {
+      const kvData = await c.env.AUTHRIM_CONFIG.get('settings:tenant:default:tenant');
+      if (kvData) {
+        const parsed = JSON.parse(kvData) as Record<string, unknown>;
+        const kvValue = parsed['tenant.allowed_origins'];
+        if (typeof kvValue === 'string' && kvValue.length > 0) {
+          allowedOriginsStr = kvValue;
+        }
+      }
+    } catch {
+      // KV read error - continue with env fallback
+      // Fail-safe: don't block requests due to KV issues
+    }
+  }
+
+  // 2. Fallback to environment variable
+  if (!allowedOriginsStr && c.env.ALLOWED_ORIGINS) {
+    allowedOriginsStr = c.env.ALLOWED_ORIGINS;
+  }
+
+  // 3. Parse allowed origins (supports wildcards)
+  const allowedOrigins = allowedOriginsStr ? parseAllowedOrigins(allowedOriginsStr) : null;
 
   // Only allow credentials when specific origins are configured
-  const allowCredentials = !!allowedOrigins;
+  const allowCredentials = !!allowedOrigins && allowedOrigins.length > 0;
 
-  // Origin validation function
+  // Origin validation function (supports wildcards)
   const validateOrigin = (origin: string): string | undefined | null => {
-    if (!allowedOrigins) {
+    if (!allowedOrigins || allowedOrigins.length === 0) {
       // No whitelist configured: allow all origins but without credentials
       return origin;
     }
-    // Check against whitelist
-    if (allowedOrigins.includes(origin)) {
+    // Check against whitelist with wildcard support
+    if (isAllowedOrigin(origin, allowedOrigins)) {
       return origin;
     }
     // Origin not in whitelist
@@ -960,9 +982,14 @@ app.route('/api/admin', adminManagementRouter);
 // =============================================================================
 // Diagnostic Logging API (Debugging, Troubleshooting, OIDF Conformance)
 // =============================================================================
-// Routes:
+// Admin routes:
 // - POST /api/admin/diagnostic-logging/test-connection - Test R2 connectivity
+// - GET /api/admin/diagnostic-logging/export - Export diagnostic logs
 app.route('/api/admin/diagnostic-logging', diagnosticLoggingRouter);
+
+// Public API routes:
+// - POST /api/v1/diagnostic-logs/ingest - Ingest logs from SDK (public API with client auth)
+app.route('/api/v1/diagnostic-logs', diagnosticLoggingRouter);
 
 // Admin Certification Profile endpoints (OpenID Certification)
 // NOTE: Profiles apply predefined settings - kept for certification testing

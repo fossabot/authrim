@@ -16,6 +16,8 @@ import {
   buildIssuerUrl,
   shouldUseBuiltinForms,
   getTenantIdFromContext,
+  // Challenge Store for auth_code generation
+  getChallengeStoreByChallengeId,
   // Event System
   publishEvent,
   AUTH_EVENTS,
@@ -87,6 +89,34 @@ async function getCallbackParams(c: Context<{ Bindings: Env }>): Promise<{
   }
 
   return { code, state, error, errorDescription, tenantId, user };
+}
+
+/**
+ * Generate authorization code for Direct Auth token exchange
+ * TTL: 60 seconds, single-use
+ */
+async function generateAuthCode(
+  env: Env,
+  userId: string,
+  codeChallenge: string,
+  metadata?: Record<string, unknown>
+): Promise<string> {
+  const authCode = crypto.randomUUID();
+  const challengeStore = await getChallengeStoreByChallengeId(env, authCode);
+
+  await challengeStore.storeChallengeRpc({
+    id: `direct_auth:${authCode}`,
+    type: 'direct_auth_code',
+    userId,
+    challenge: codeChallenge, // Store code_challenge for verification
+    ttl: 60, // 60 seconds
+    metadata: {
+      ...metadata,
+      created_at: Date.now(),
+    },
+  });
+
+  return authCode;
 }
 
 /**
@@ -273,15 +303,8 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       tenantId: authState.tenantId,
     });
 
-    // 8. Create Authrim session with external provider info for backchannel logout
-    const sessionId = await createSession(c.env, {
-      userId: result.userId,
-      externalProviderId: provider.id,
-      externalProviderSub: userInfo.sub,
-      acr: userInfo.acr, // Pass ACR if provider returned it
-    });
-
-    // 9. Publish authentication success events (non-blocking)
+    // 8. Publish authentication success event (non-blocking)
+    // Note: Session will be created during token exchange, not here
     publishEvent(c, {
       type: AUTH_EVENTS.EXTERNAL_IDP_SUCCEEDED,
       tenantId: authState.tenantId,
@@ -289,70 +312,38 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
         userId: result.userId,
         method: 'external_idp',
         clientId: provider.id,
-        sessionId,
-      } satisfies AuthEventData,
+      } satisfies Omit<AuthEventData, 'sessionId'>,
     }).catch((err: unknown) => {
       log.error('Failed to publish auth.external_idp.succeeded', {}, err as Error);
     });
 
-    publishEvent(c, {
-      type: SESSION_EVENTS.USER_CREATED,
-      tenantId: authState.tenantId,
-      data: {
-        sessionId,
-        userId: result.userId,
-        ttlSeconds: 3600,
-      } satisfies SessionEventData,
-    }).catch((err: unknown) => {
-      log.error('Failed to publish session.user.created', {}, err as Error);
-    });
-
-    // Write audit log for external IdP login (non-blocking)
-    const ipAddress =
-      c.req.header('CF-Connecting-IP') ||
-      c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() ||
-      c.req.header('X-Real-IP') ||
-      'unknown';
-    const userAgent = c.req.header('User-Agent') || 'unknown';
-
-    // Schedule audit log with waitUntil to ensure it completes after response
-    const auditPromise = createAuditLog(c.env, {
-      tenantId: authState.tenantId,
-      userId: result.userId,
-      action: 'user.login',
-      resource: 'session',
-      resourceId: sessionId,
-      ipAddress,
-      userAgent,
-      metadata: JSON.stringify({
-        method: 'external_idp',
-        provider: provider.id,
-        is_new_user: result.isNewUser,
-      }),
-      severity: 'info',
-    }).catch((err: unknown) => {
-      log.error('Failed to create audit log for external idp login', {}, err as Error);
-    });
-    c.executionCtx?.waitUntil(auditPromise);
-
-    // 10. Build redirect URL with success
-    const redirectUrl = new URL(authState.redirectUri);
-
-    // Add success indicator
-    if (result.isNewUser) {
-      redirectUrl.searchParams.set('external_auth', 'registered');
-    } else if (result.stitchedFromExisting) {
-      redirectUrl.searchParams.set('external_auth', 'linked');
-    } else {
-      redirectUrl.searchParams.set('external_auth', 'success');
+    // 9. Generate authorization code for Direct Auth token exchange
+    // Use code_challenge from authState (client-side PKCE)
+    const codeChallenge = authState.codeChallenge;
+    if (!codeChallenge) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.CALLBACK_FAILED,
+        'Missing code_challenge in auth state'
+      );
     }
 
-    // 11. Return redirect with session cookie
+    const authCode = await generateAuthCode(c.env, result.userId, codeChallenge, {
+      method: 'external_idp',
+      provider: provider.id,
+      client_id: authState.providerId,
+      is_new_user: result.isNewUser,
+      stitched_from_existing: result.stitchedFromExisting,
+    });
+
+    // 11. Build redirect URL with authorization code
+    const redirectUrl = new URL(authState.redirectUri);
+    redirectUrl.searchParams.set('code', authCode);
+
+    // 12. Return redirect (no session cookie - client will exchange code for session)
     return new Response(null, {
       status: 302,
       headers: {
         Location: redirectUrl.toString(),
-        'Set-Cookie': buildSessionCookie(sessionId, c.env.ISSUER_URL),
       },
     });
   } catch (error) {
