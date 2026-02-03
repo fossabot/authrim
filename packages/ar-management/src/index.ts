@@ -576,9 +576,11 @@ app.use('*', async (c, next) => {
     }
   }
 
-  // 2. Fallback to environment variable
-  if (!allowedOriginsStr && c.env.ALLOWED_ORIGINS) {
-    allowedOriginsStr = c.env.ALLOWED_ORIGINS;
+  // 2. Merge with environment variable (do not override tenant settings)
+  if (c.env.ALLOWED_ORIGINS) {
+    allowedOriginsStr = allowedOriginsStr
+      ? `${allowedOriginsStr},${c.env.ALLOWED_ORIGINS}`
+      : c.env.ALLOWED_ORIGINS;
   }
 
   // 3. Parse allowed origins (supports wildcards)
