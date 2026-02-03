@@ -16,7 +16,7 @@
 	};
 	let format: 'json' | 'jsonl' | 'text' = 'json';
 	let includeStats = false;
-	let sortMode: 'category' | 'timeline' = 'category';
+	let sortMode: 'category' | 'timeline' = 'timeline';
 
 	// UI state
 	let loading = false;
@@ -127,7 +127,7 @@
 		};
 		format = 'json';
 		includeStats = false;
-		sortMode = 'category';
+		sortMode = 'timeline';
 		error = '';
 		success = '';
 
