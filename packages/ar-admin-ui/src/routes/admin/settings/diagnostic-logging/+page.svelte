@@ -6,6 +6,7 @@
 	import { settingsContext } from '$lib/stores/settings-context.svelte';
 
 	type ExportFormat = 'json' | 'jsonl' | 'text';
+	type SortMode = 'category' | 'timeline' | 'session';
 
 	// Export form state
 	let tenantId = $state('default');
@@ -19,6 +20,7 @@
 		'auth-decision': true
 	});
 	let format = $state<ExportFormat>('json');
+	let sortMode = $state<SortMode>('timeline');
 	let includeStats = $state(false);
 	let selectedClientIds = $state<string[]>([]);
 
@@ -332,6 +334,7 @@
 			}
 
 			params.append('format', format);
+			params.append('sortMode', sortMode);
 			if (includeStats) params.append('includeStats', 'true');
 
 			const response = await fetch(`/api/admin/diagnostic-logging/export?${params.toString()}`, {
@@ -381,6 +384,7 @@
 			'auth-decision': true
 		};
 		format = 'json';
+		sortMode = 'timeline';
 		includeStats = false;
 		error = '';
 		success = '';
@@ -658,6 +662,14 @@
 						<option value="json">JSON (pretty)</option>
 						<option value="jsonl">JSONL (streaming)</option>
 						<option value="text">Text (grouped)</option>
+					</select>
+				</div>
+				<div class="form-group">
+					<label for="sortMode">Sort mode</label>
+					<select id="sortMode" class="settings-select" bind:value={sortMode}>
+						<option value="timeline">Timeline (mixed)</option>
+						<option value="category">Category (grouped)</option>
+						<option value="session">Session (grouped)</option>
 					</select>
 				</div>
 				<div class="form-group">
