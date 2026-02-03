@@ -158,10 +158,10 @@ export function maskIp(ip: string): string {
  */
 export function maskUserAgent(ua: string): string {
   const patterns = [
-    /(Chrome)\\/(\d+)/i,
-    /(Firefox)\\/(\d+)/i,
-    /(Safari)\\/(\d+)/i,
-    /(Edge)\\/(\d+)/i,
+    /(Chrome)\/(\d+)/i,
+    /(Firefox)\/(\d+)/i,
+    /(Safari)\/(\d+)/i,
+    /(Edge)\/(\d+)/i,
   ];
   for (const pattern of patterns) {
     const match = ua.match(pattern);
