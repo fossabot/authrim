@@ -376,7 +376,8 @@ async function decryptClientSecret(env: Env, encrypted: string): Promise<string>
  * Only allows redirects to:
  * 1. Same origin as UI URL (from configuration)
  * 2. Same origin as Issuer URL
- * 3. Relative paths (converted to absolute using UI URL)
+ * 3. Origins listed in ALLOWED_ORIGINS environment variable
+ * 4. Relative paths (converted to absolute using UI URL)
  *
  * Falls back to UI URL or Issuer URL if redirect_uri is invalid or not provided
  */
@@ -408,8 +409,23 @@ async function validateRedirectUri(
     const baseUrlParsed = new URL(baseUrl);
     const issuerUrlParsed = new URL(issuerUrl);
 
-    // Extract allowed origins
+    // Extract allowed origins from configuration
     const allowedOrigins = new Set([baseUrlParsed.origin, issuerUrlParsed.origin]);
+
+    // Add origins from ALLOWED_ORIGINS environment variable
+    if (env.ALLOWED_ORIGINS) {
+      const additionalOrigins = env.ALLOWED_ORIGINS.split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0);
+      additionalOrigins.forEach((origin) => {
+        try {
+          const parsed = new URL(origin);
+          allowedOrigins.add(parsed.origin);
+        } catch {
+          // Ignore invalid origins
+        }
+      });
+    }
 
     // Check if the requested origin is allowed
     if (allowedOrigins.has(requestedUrl.origin)) {
