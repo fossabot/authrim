@@ -16,6 +16,7 @@
 	};
 	let format: 'json' | 'jsonl' | 'text' = 'json';
 	let includeStats = false;
+	let sortMode: 'category' | 'timeline' = 'category';
 
 	// UI state
 	let loading = false;
@@ -68,6 +69,7 @@
 			}
 
 			params.append('format', format);
+			params.append('sortMode', sortMode);
 
 			if (includeStats) {
 				params.append('includeStats', 'true');
@@ -125,6 +127,7 @@
 		};
 		format = 'json';
 		includeStats = false;
+		sortMode = 'category';
 		error = '';
 		success = '';
 
@@ -255,6 +258,14 @@
 							<option value="json">JSON (pretty-printed)</option>
 							<option value="jsonl">JSONL (line-delimited)</option>
 							<option value="text">Text (human-readable)</option>
+						</select>
+					</div>
+
+					<div class="form-group">
+						<label for="sortMode">Sort Order</label>
+						<select id="sortMode" bind:value={sortMode} disabled={loading}>
+							<option value="category">By Category (time-ordered within category)</option>
+							<option value="timeline">Timeline (all categories mixed)</option>
 						</select>
 					</div>
 

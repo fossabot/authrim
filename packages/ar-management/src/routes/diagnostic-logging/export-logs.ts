@@ -44,6 +44,8 @@ interface ExportQuery {
   format?: 'json' | 'jsonl' | 'text';
   /** Include statistics */
   includeStats?: string;
+  /** Sort mode */
+  sortMode?: 'session' | 'category' | 'timeline';
 }
 
 /**
@@ -194,6 +196,7 @@ app.get(
     const clientIds = parseClientIds(query.clientIds ?? query.clientId);
     const format = query.format || 'json';
     const includeStats = query.includeStats === 'true';
+    const sortMode = query.sortMode;
 
     // Parse date range
     let startTime: number | undefined;
@@ -288,6 +291,7 @@ app.get(
         endTime,
         categories,
         sortOrder: 'asc',
+        sortMode,
       };
 
       // Format logs

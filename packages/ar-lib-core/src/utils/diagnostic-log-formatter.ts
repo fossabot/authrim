@@ -50,6 +50,8 @@ export interface ExportOptions {
   categories?: string[];
   /** Sort order */
   sortOrder?: 'asc' | 'desc';
+  /** Sort mode */
+  sortMode?: 'session' | 'category' | 'timeline';
 }
 
 /**
@@ -57,19 +59,25 @@ export interface ExportOptions {
  *
  * @param logs - Diagnostic log entries
  * @param order - Sort order (default: 'asc')
+ * @param mode - Sort mode (default: 'session')
  * @returns Sorted logs
  */
 export function sortLogsByTimestamp(
   logs: DiagnosticLogEntry[],
-  order: 'asc' | 'desc' = 'asc'
+  order: 'asc' | 'desc' = 'asc',
+  mode: 'session' | 'category' | 'timeline' = 'session'
 ): DiagnosticLogEntry[] {
   const sorted = [...logs].sort((a, b) => {
-    // First sort by diagnosticSessionId
-    const sessionIdA = a.diagnosticSessionId || '';
-    const sessionIdB = b.diagnosticSessionId || '';
-
-    if (sessionIdA !== sessionIdB) {
-      return sessionIdA.localeCompare(sessionIdB);
+    if (mode === 'category') {
+      if (a.category !== b.category) {
+        return a.category.localeCompare(b.category);
+      }
+    } else if (mode === 'session') {
+      const sessionIdA = a.diagnosticSessionId || '';
+      const sessionIdB = b.diagnosticSessionId || '';
+      if (sessionIdA !== sessionIdB) {
+        return sessionIdA.localeCompare(sessionIdB);
+      }
     }
     // Then sort by timestamp
     return a.timestamp - b.timestamp;
@@ -209,7 +217,7 @@ export function toOIDFFormatBatch(
   const filtered = filterLogs(logs, options);
 
   // Sort logs
-  const sorted = sortLogsByTimestamp(filtered, options.sortOrder);
+  const sorted = sortLogsByTimestamp(filtered, options.sortOrder, options.sortMode);
 
   // Convert to OIDF format
   return sorted.map(toOIDFFormat);
@@ -264,21 +272,8 @@ export function formatAsText(
   lines.push('='.repeat(80));
   lines.push('');
 
-  // Group by session
-  const grouped = oidfLogs.reduce((acc, log) => {
-    const sessionId = log.sessionId || 'unknown';
-    if (!acc[sessionId]) {
-      acc[sessionId] = [];
-    }
-    acc[sessionId].push(log);
-    return acc;
-  }, {} as Record<string, OIDFLogEntry[]>);
-
-  for (const [sessionId, sessionLogs] of Object.entries(grouped)) {
-    lines.push(`Session: ${sessionId}`);
-    lines.push('-'.repeat(80));
-
-    for (const log of sessionLogs) {
+  if (options.sortMode === 'timeline') {
+    for (const log of oidfLogs) {
       lines.push(`[${log.timestamp}] ${log.level.toUpperCase()} - ${log.event}`);
       lines.push(`  Category: ${log.category}`);
 
@@ -292,8 +287,68 @@ export function formatAsText(
       }
       lines.push('');
     }
+  } else if (options.sortMode === 'category') {
+    const grouped = oidfLogs.reduce((acc, log) => {
+      const category = log.category || 'unknown';
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(log);
+      return acc;
+    }, {} as Record<string, OIDFLogEntry[]>);
 
-    lines.push('');
+    for (const [category, categoryLogs] of Object.entries(grouped)) {
+      lines.push(`Category: ${category}`);
+      lines.push('-'.repeat(80));
+
+      for (const log of categoryLogs) {
+        lines.push(`[${log.timestamp}] ${log.level.toUpperCase()} - ${log.event}`);
+
+        if (Object.keys(log.details).length > 0) {
+          lines.push('  Details:');
+          for (const [key, value] of Object.entries(log.details)) {
+            if (value !== undefined && value !== null) {
+              lines.push(`    ${key}: ${JSON.stringify(value)}`);
+            }
+          }
+        }
+        lines.push('');
+      }
+
+      lines.push('');
+    }
+  } else {
+    // Default: group by session
+    const grouped = oidfLogs.reduce((acc, log) => {
+      const sessionId = log.sessionId || 'unknown';
+      if (!acc[sessionId]) {
+        acc[sessionId] = [];
+      }
+      acc[sessionId].push(log);
+      return acc;
+    }, {} as Record<string, OIDFLogEntry[]>);
+
+    for (const [sessionId, sessionLogs] of Object.entries(grouped)) {
+      lines.push(`Session: ${sessionId}`);
+      lines.push('-'.repeat(80));
+
+      for (const log of sessionLogs) {
+        lines.push(`[${log.timestamp}] ${log.level.toUpperCase()} - ${log.event}`);
+        lines.push(`  Category: ${log.category}`);
+
+        if (Object.keys(log.details).length > 0) {
+          lines.push('  Details:');
+          for (const [key, value] of Object.entries(log.details)) {
+            if (value !== undefined && value !== null) {
+              lines.push(`    ${key}: ${JSON.stringify(value)}`);
+            }
+          }
+        }
+        lines.push('');
+      }
+
+      lines.push('');
+    }
   }
 
   return lines.join('\n');
