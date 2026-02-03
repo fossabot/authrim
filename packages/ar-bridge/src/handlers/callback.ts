@@ -338,6 +338,8 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
     const authCode = await generateAuthCode(c.env, result.userId, codeChallenge, {
       method: 'external_idp',
       provider: provider.id,
+      provider_id: provider.id,
+      provider_slug: provider.slug ?? provider.id,
       client_id: clientId,
       is_new_user: result.isNewUser,
       stitched_from_existing: result.stitchedFromExisting,

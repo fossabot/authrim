@@ -1493,8 +1493,12 @@ export async function directTokenHandler(c: Context<{ Bindings: Env }>) {
     }
 
     // Verify provider_id matches when code is bound to an external provider
-    if (metadata?.provider) {
-      if (!provider_id || metadata.provider !== provider_id) {
+    const allowedProviders = new Set<string>();
+    if (metadata?.provider_id) allowedProviders.add(String(metadata.provider_id));
+    if (metadata?.provider_slug) allowedProviders.add(String(metadata.provider_slug));
+    if (metadata?.provider) allowedProviders.add(String(metadata.provider));
+    if (allowedProviders.size > 0) {
+      if (!provider_id || !allowedProviders.has(provider_id)) {
         return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
       }
     }
