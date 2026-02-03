@@ -335,10 +335,12 @@ CREATE TABLE did_document_cache (
 CREATE TABLE external_idp_auth_states (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL DEFAULT 'default',
+  client_id TEXT,                        -- Authrim client ID initiating flow
   provider_id TEXT NOT NULL,             -- References upstream_providers(id)
   state TEXT UNIQUE NOT NULL,            -- OAuth state parameter
   nonce TEXT,                            -- OIDC nonce for ID token validation
   code_verifier TEXT,                    -- PKCE code verifier
+  code_challenge TEXT,                   -- PKCE code challenge (client-side)
   redirect_uri TEXT NOT NULL,            -- Where to redirect after auth
 
   -- For linking flow
@@ -1964,4 +1966,3 @@ CREATE INDEX idx_ws_subs_connection
 
 CREATE INDEX idx_ws_subs_subject
     ON websocket_subscriptions(subject_id, is_active);
-

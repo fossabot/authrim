@@ -77,10 +77,12 @@ describe('Auth State Management', () => {
 
       const stateData = {
         tenantId: 'test-tenant',
+        clientId: 'authrim-client',
         providerId: 'google-provider',
         state: 'random-state-value',
         nonce: 'random-nonce',
         codeVerifier: 'pkce-verifier',
+        codeChallenge: 'pkce-challenge',
         redirectUri: 'https://example.com/callback',
         expiresAt: Date.now() + 600000,
       };
@@ -99,10 +101,12 @@ describe('Auth State Management', () => {
 
       // Check params contain expected values
       expect(insertCall!.params).toContain('test-tenant');
+      expect(insertCall!.params).toContain('authrim-client');
       expect(insertCall!.params).toContain('google-provider');
       expect(insertCall!.params).toContain('random-state-value');
       expect(insertCall!.params).toContain('random-nonce');
       expect(insertCall!.params).toContain('pkce-verifier');
+      expect(insertCall!.params).toContain('pkce-challenge');
     });
 
     it('should store auth state with optional fields as null', async () => {
@@ -165,10 +169,12 @@ describe('Auth State Management', () => {
       mockQueryOne.mockResolvedValueOnce({
         id: 'state-id',
         tenant_id: 'default',
+        client_id: 'authrim-client',
         provider_id: 'google',
         state: 'valid-state',
         nonce: 'nonce',
         code_verifier: 'verifier',
+        code_challenge: 'challenge',
         redirect_uri: 'https://example.com/callback',
         user_id: null,
         session_id: null,
@@ -184,8 +190,10 @@ describe('Auth State Management', () => {
 
       expect(result).not.toBeNull();
       expect(result?.state).toBe('valid-state');
+      expect(result?.clientId).toBe('authrim-client');
       expect(result?.nonce).toBe('nonce');
       expect(result?.codeVerifier).toBe('verifier');
+      expect(result?.codeChallenge).toBe('challenge');
 
       // Verify UPDATE was called with correct conditions
       const updateCall = sqlTracker.calls.find((c) =>

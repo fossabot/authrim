@@ -29,17 +29,19 @@ export async function storeAuthState(
   const coreAdapter: DatabaseAdapter = new D1Adapter({ db: env.DB });
   await coreAdapter.execute(
     `INSERT INTO external_idp_auth_states (
-      id, tenant_id, provider_id, state, nonce, code_verifier,
+      id, tenant_id, client_id, provider_id, state, nonce, code_verifier, code_challenge,
       redirect_uri, user_id, session_id, original_auth_request,
       max_age, acr_values, expires_at, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       state.tenantId || 'default',
+      state.clientId || null,
       state.providerId,
       state.state,
       state.nonce || null,
       state.codeVerifier || null,
+      state.codeChallenge || null,
       state.redirectUri,
       state.userId || null,
       state.sessionId || null,
@@ -60,10 +62,12 @@ export async function storeAuthState(
 interface DbAuthState {
   id: string;
   tenant_id: string;
+  client_id: string | null;
   provider_id: string;
   state: string;
   nonce: string | null;
   code_verifier: string | null;
+  code_challenge: string | null;
   redirect_uri: string;
   user_id: string | null;
   session_id: string | null;
@@ -133,10 +137,12 @@ function mapDbToAuthState(db: DbAuthState): ExternalIdpAuthState {
   return {
     id: db.id,
     tenantId: db.tenant_id,
+    clientId: db.client_id || undefined,
     providerId: db.provider_id,
     state: db.state,
     nonce: db.nonce || undefined,
     codeVerifier: db.code_verifier || undefined,
+    codeChallenge: db.code_challenge || undefined,
     redirectUri: db.redirect_uri,
     userId: db.user_id || undefined,
     sessionId: db.session_id || undefined,

@@ -83,6 +83,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     const maxAgeParam = c.req.query('max_age');
     const acrValues = c.req.query('acr_values');
     const tenantId = c.req.query('tenant_id') || 'default';
+    const clientId = c.req.query('client_id');
     const codeChallenge = c.req.query('code_challenge');
     const codeChallengeMethod = c.req.query('code_challenge_method');
 
@@ -136,6 +137,16 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     }
 
     // 3. Validate PKCE parameters from client
+    if (!clientId) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'client_id is required',
+        },
+        400
+      );
+    }
+
     if (!codeChallenge || codeChallengeMethod !== 'S256') {
       return c.json(
         {
@@ -164,12 +175,18 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     const providerIdentifier = provider.slug || provider.id;
     const callbackUri = `${c.env.ISSUER_URL}/auth/external/${providerIdentifier}/callback`;
 
-    // 7. Store state in D1 (including code_challenge for PKCE verification)
+    // 7. Generate PKCE for Authrim ↔ External IdP flow
+    // This is separate from the client ↔ Authrim PKCE flow
+    const externalIdpPKCE = await generatePKCE();
+
+    // 8. Store state in D1 (including code_challenge for client-side PKCE)
     await storeAuthState(c.env, {
       tenantId,
+      clientId,
       providerId: provider.id,
       state,
       nonce,
+      codeVerifier: externalIdpPKCE.codeVerifier,
       codeChallenge,
       redirectUri,
       userId,
@@ -178,10 +195,6 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       acrValues,
       expiresAt: getStateExpiresAt(),
     });
-
-    // 8. Generate PKCE for Authrim ↔ External IdP flow
-    // This is separate from the client ↔ Authrim PKCE flow
-    const externalIdpPKCE = await generatePKCE();
 
     // 9. Create OIDC client and generate authorization URL
     const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret, privateKeyJwk);

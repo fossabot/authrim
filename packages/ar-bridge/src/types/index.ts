@@ -120,6 +120,8 @@ export interface LinkedIdentity {
 export interface ExternalIdpAuthState {
   id: string;
   tenantId: string;
+  /** Authrim client ID initiating the external IdP flow */
+  clientId?: string;
   providerId: string;
   state: string;
   nonce?: string;

@@ -327,10 +327,18 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       );
     }
 
+    const clientId = authState.clientId;
+    if (!clientId) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.CALLBACK_FAILED,
+        'Missing client_id in auth state'
+      );
+    }
+
     const authCode = await generateAuthCode(c.env, result.userId, codeChallenge, {
       method: 'external_idp',
       provider: provider.id,
-      client_id: authState.providerId,
+      client_id: clientId,
       is_new_user: result.isNewUser,
       stitched_from_existing: result.stitchedFromExisting,
     });
