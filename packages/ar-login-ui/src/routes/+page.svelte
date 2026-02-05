@@ -68,7 +68,11 @@
 						<span class="landing__user-email">
 							{$currentUser?.email || $currentUser?.name || 'User'}
 						</span>
-						<button class="landing__logout-btn" onclick={handleLogout} aria-label={$LL.header_logout()}>
+						<button
+							class="landing__logout-btn"
+							onclick={handleLogout}
+							aria-label={$LL.header_logout()}
+						>
 							<div class="i-heroicons-arrow-right-on-rectangle h-4 w-4"></div>
 							<span class="landing__logout-text">{$LL.header_logout()}</span>
 						</button>
@@ -123,7 +127,10 @@
 							</div>
 						</div>
 						<div class="landing__auth-card-actions">
-							<button class="landing__auth-card-btn landing__auth-card-btn--logout" onclick={handleLogout}>
+							<button
+								class="landing__auth-card-btn landing__auth-card-btn--logout"
+								onclick={handleLogout}
+							>
 								<div class="i-heroicons-arrow-right-on-rectangle h-4 w-4"></div>
 								{$LL.header_logout()}
 							</button>
@@ -142,7 +149,6 @@
 					</div>
 				{/if}
 			</div>
-
 		</div>
 	</main>
 
@@ -376,8 +382,13 @@
 	}
 
 	@keyframes pulse-dot {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0.4; }
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.4;
+		}
 	}
 
 	/* === Title === */
@@ -435,12 +446,16 @@
 		font-size: 0.9375rem;
 		text-decoration: none;
 		transition: all var(--transition-fast);
-		box-shadow: var(--shadow-md), 0 0 0 0 var(--primary-glow);
+		box-shadow:
+			var(--shadow-md),
+			0 0 0 0 var(--primary-glow);
 	}
 
 	.landing__cta-primary:hover {
 		transform: translateY(-1px);
-		box-shadow: var(--shadow-lg), 0 0 24px var(--primary-glow);
+		box-shadow:
+			var(--shadow-lg),
+			0 0 24px var(--primary-glow);
 		color: var(--text-inverse);
 	}
 

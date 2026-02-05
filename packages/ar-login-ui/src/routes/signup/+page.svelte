@@ -189,10 +189,28 @@
 	async function handleExternalLogin(providerId: string) {
 		externalIdpLoading = providerId;
 		try {
-			const { url } = await externalIdpAPI.startLogin(providerId);
+			const redirectUri = `${window.location.origin}/callback`;
+			const { url, codeVerifier } = await externalIdpAPI.startLogin(providerId, redirectUri);
+
 			if (!isValidRedirectUrl(url)) {
 				throw new Error('Invalid redirect URL from identity provider');
 			}
+
+			// Store code_verifier in sessionStorage for callback
+			try {
+				sessionStorage.setItem('pkce_code_verifier', codeVerifier);
+			} catch (storageError) {
+				console.error('Failed to store PKCE verifier:', storageError);
+				if (storageError instanceof DOMException && storageError.name === 'QuotaExceededError') {
+					error = $LL.callback_errorStorageQuotaExceeded();
+				} else {
+					error = $LL.callback_errorStorageUnavailable();
+				}
+				externalIdpLoading = null;
+				return;
+			}
+
+			// Redirect to external IdP
 			window.location.href = url;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to start external login';
@@ -208,10 +226,8 @@
 		if (providerName.includes('microsoft') || providerName.includes('azure'))
 			return 'i-ph-windows-logo';
 		if (providerName.includes('apple')) return 'i-ph-apple-logo';
-		if (providerName.includes('facebook') || providerName.includes('meta'))
-			return 'i-ph-meta-logo';
-		if (providerName.includes('twitter') || providerName.includes('x.com'))
-			return 'i-ph-x-logo';
+		if (providerName.includes('facebook') || providerName.includes('meta')) return 'i-ph-meta-logo';
+		if (providerName.includes('twitter') || providerName.includes('x.com')) return 'i-ph-x-logo';
 		if (providerName.includes('linkedin')) return 'i-ph-linkedin-logo';
 		return 'i-ph-sign-in';
 	}
@@ -361,9 +377,10 @@
 
 					<div class="space-y-3">
 						{#each socialProviders as provider (provider.id)}
-							{@const safeColor = isDarkMode && provider.buttonColorDark
-								? sanitizeColor(provider.buttonColorDark)
-								: sanitizeColor(provider.buttonColor)}
+							{@const safeColor =
+								isDarkMode && provider.buttonColorDark
+									? sanitizeColor(provider.buttonColorDark)
+									: sanitizeColor(provider.buttonColor)}
 							<Button
 								variant="secondary"
 								class="w-full justify-center"

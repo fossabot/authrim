@@ -227,7 +227,7 @@
 
 			<!-- Diagnostic Logging (special card) - Tenant scope only -->
 			{#if showDiagnosticLogging}
-				<a href="/admin/settings/diagnostic-logging" class="icon-card">
+				<a href="/admin/diagnostic-logging" class="icon-card">
 					<div class="icon-card-header">
 						<span class="icon-card-icon">🧪</span>
 						<div>

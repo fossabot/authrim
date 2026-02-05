@@ -165,6 +165,11 @@ const ja = {
 	callback_errorStateMismatch: 'セキュリティ検証に失敗しました。再度サインインしてください。',
 	callback_errorExchangeFailed: '認証の完了に失敗しました。再度お試しください。',
 	callback_errorNetwork: 'ネットワークエラーが発生しました。接続を確認して再度お試しください。',
+	callback_errorMissingCodeVerifier: '認証に失敗しました。再度ログインしてください。',
+	callback_errorStorageUnavailable:
+		'ブラウザの設定により認証できません。CookieとストレージL有効にしてください。',
+	callback_errorStorageQuotaExceeded:
+		'ブラウザのストレージが満杯です。一部のデータを削除して再度お試しください。',
 
 	common_backToHome: 'ホームに戻る',
 

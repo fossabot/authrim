@@ -335,10 +335,13 @@ CREATE TABLE did_document_cache (
 CREATE TABLE external_idp_auth_states (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL DEFAULT 'default',
+  client_id TEXT,                        -- Client ID from the original auth request
   provider_id TEXT NOT NULL,             -- References upstream_providers(id)
   state TEXT UNIQUE NOT NULL,            -- OAuth state parameter
   nonce TEXT,                            -- OIDC nonce for ID token validation
-  code_verifier TEXT,                    -- PKCE code verifier
+  code_verifier TEXT,                    -- PKCE code verifier for Authrim ↔ External IdP
+  code_challenge TEXT,                   -- PKCE code challenge from client ↔ Authrim
+  flow_id TEXT,                          -- Flow ID for diagnostic logging correlation
   redirect_uri TEXT NOT NULL,            -- Where to redirect after auth
 
   -- For linking flow

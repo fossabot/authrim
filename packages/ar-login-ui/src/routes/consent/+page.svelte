@@ -195,9 +195,7 @@
 	function handleSwitchAccount() {
 		// Only preserve challenge_id to prevent parameter injection
 		const cid = new URLSearchParams(window.location.search).get('challenge_id');
-		const returnPath = cid
-			? `/consent?challenge_id=${encodeURIComponent(cid)}`
-			: '/consent';
+		const returnPath = cid ? `/consent?challenge_id=${encodeURIComponent(cid)}` : '/consent';
 		window.location.href = '/logout?redirect_uri=' + encodeURIComponent(returnPath);
 	}
 
@@ -213,7 +211,8 @@
 
 <svelte:head>
 	<title
-		>{$LL.consent_title({ clientName: consentData?.client.client_name || '' })} - {brandingStore.brandName || $LL.app_title()}</title
+		>{$LL.consent_title({ clientName: consentData?.client.client_name || '' })} - {brandingStore.brandName ||
+			$LL.app_title()}</title
 	>
 </svelte:head>
 

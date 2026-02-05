@@ -4,6 +4,8 @@
  */
 
 import { browser } from '$app/environment';
+import { getAuthConfig } from '$lib/auth';
+import { generatePKCE } from '$lib/utils/pkce';
 
 // Type definitions
 interface User {
@@ -1104,16 +1106,47 @@ export const externalIdpAPI = {
 	 * Start external IdP login flow
 	 * Returns authorization URL to redirect user to
 	 */
-	async startLogin(providerId: string, redirectUri?: string) {
+	async startLogin(
+		providerId: string,
+		redirectUri?: string
+	): Promise<{
+		url: string;
+		codeVerifier: string;
+	}> {
+		// Generate PKCE parameters (using static import)
+		let pkceParams;
+		try {
+			pkceParams = await generatePKCE();
+		} catch (error) {
+			console.error('Failed to generate PKCE parameters:', error);
+			throw new Error(
+				'PKCE generation failed. Your browser may not support required security features.'
+			);
+		}
+
 		const params = new URLSearchParams();
+
+		// Add client_id from auth config
+		const authConfig = getAuthConfig();
+		params.set('client_id', authConfig.clientId);
+
+		// Add PKCE parameters
+		params.set('code_challenge', pkceParams.codeChallenge);
+		params.set('code_challenge_method', pkceParams.codeChallengeMethod);
+
 		if (redirectUri) {
 			params.set('redirect_uri', redirectUri);
 		}
+
 		const query = params.toString();
 
 		// This returns a redirect, so we need to handle it differently
 		const url = `${API_BASE_URL}/api/external/${providerId}/start${query ? '?' + query : ''}`;
-		return { url };
+
+		return {
+			url,
+			codeVerifier: pkceParams.codeVerifier
+		};
 	}
 };
 

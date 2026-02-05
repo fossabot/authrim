@@ -165,6 +165,11 @@ const en = {
 	callback_errorStateMismatch: 'Security validation failed. Please try signing in again.',
 	callback_errorExchangeFailed: 'Failed to complete authentication. Please try again.',
 	callback_errorNetwork: 'A network error occurred. Please check your connection and try again.',
+	callback_errorMissingCodeVerifier: 'Authentication failed. Please try logging in again.',
+	callback_errorStorageUnavailable:
+		'Your browser settings prevent authentication. Please enable cookies and storage.',
+	callback_errorStorageQuotaExceeded:
+		'Your browser storage is full. Please clear some storage and try again.',
 
 	common_backToHome: 'Back to home',
 

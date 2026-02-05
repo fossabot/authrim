@@ -96,7 +96,7 @@
 
 	.input-icon :global(i),
 	.input-icon :global(svg),
-	.input-icon :global([class*="i-"]) {
+	.input-icon :global([class*='i-']) {
 		width: 18px;
 		height: 18px;
 	}
