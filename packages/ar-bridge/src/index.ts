@@ -50,6 +50,7 @@ import {
   handleUnlinkIdentity,
   handleListLinkedIdentities,
 } from './handlers/link';
+import { handleHandoffVerify } from './handlers/handoff';
 
 // Import admin handlers
 import {
@@ -170,6 +171,9 @@ app.post('/auth/external/:provider/callback', handleExternalCallback);
 // Handle backchannel logout from external IdP (OpenID Connect Back-Channel Logout 1.0)
 app.post('/api/external/:provider/backchannel-logout', handleBackchannelLogout);
 app.post('/auth/external/:provider/backchannel-logout', handleBackchannelLogout);
+
+// Handoff token verification (for SSO across multiple RPs)
+app.post('/api/v1/auth/handoff/verify', handleHandoffVerify);
 
 // =============================================================================
 // Authenticated Endpoints (require session)

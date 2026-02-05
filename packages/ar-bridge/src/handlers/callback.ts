@@ -7,6 +7,7 @@
  */
 
 import type { Context } from 'hono';
+import { setCookie } from 'hono/cookie';
 import type { Env } from '@authrim/ar-lib-core';
 import {
   D1Adapter,
@@ -18,6 +19,7 @@ import {
   getTenantIdFromContext,
   createDiagnosticLoggerFromContext,
   getDiagnosticSessionId,
+  createAuthContextFromHono,
   // Challenge Store for auth_code generation
   getChallengeStoreByChallengeId,
   // Event System
@@ -31,6 +33,9 @@ import {
   createLogger,
   // Audit Log
   createAuditLog,
+  // Errors
+  AR_ERROR_CODES,
+  createErrorResponse,
 } from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
@@ -495,27 +500,100 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       );
     }
 
-    const authCode = await generateAuthCode(c.env, result.userId, codeChallenge, {
-      method: 'external_idp',
-      provider: provider.id,
-      provider_id: provider.id,
-      provider_slug: provider.slug ?? provider.id,
-      client_id: clientId,
-      is_new_user: result.isNewUser,
-      stitched_from_existing: result.stitchedFromExisting,
-    });
+    // 11. SSO判定: デフォルトはSSO有効（ハンドオフフロー）
+    // 将来: authState.enableSso フラグで制御可能に
+    const enableSso = true; // authState.enableSso ?? true;
 
-    // 11. Build redirect URL with authorization code
-    const redirectUrl = new URL(authState.redirectUri);
-    redirectUrl.searchParams.set('code', authCode);
+    if (enableSso) {
+      // SSO有効: ハンドオフフロー
 
-    // 12. Return redirect (no session cookie - client will exchange code for session)
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: redirectUrl.toString(),
-      },
-    });
+      // 11a. ユーザー検証（セッション作成前に実施）
+      const tenantId = getTenantIdFromContext(c);
+      const authCtx = createAuthContextFromHono(c, tenantId);
+      const userCore = await authCtx.repositories.userCore.findById(result.userId);
+
+      if (!userCore || !userCore.is_active) {
+        return createErrorResponse(c, AR_ERROR_CODES.USER_INACTIVE);
+      }
+
+      // 11b. セッション作成（SSOセッション）
+      const { stub: sessionStore, sessionId } = await getSessionStoreForNewSession(c.env);
+      const sessionTTL = 24 * 60 * 60; // 24 hours
+
+      await sessionStore.createSessionRpc(sessionId, result.userId, sessionTTL, {
+        email: userInfo.email || null,
+        name: userInfo.name || null,
+        amr: ['external_idp'],
+        acr: 'urn:mace:incommon:iap:bronze',
+        client_id: clientId,
+        external_idp: provider.id,
+      });
+
+      // セッションCookie設定
+      const issuerUrl = buildIssuerUrl(c.env);
+      const isSecure = issuerUrl.startsWith('https://');
+
+      setCookie(c, 'authrim_session', sessionId, {
+        path: '/',
+        httpOnly: true,
+        secure: isSecure,
+        sameSite: 'Lax',
+        maxAge: sessionTTL,
+      });
+
+      // 11c. ハンドオフトークン生成
+      const handoffToken = crypto.randomUUID();
+      const handoffStore = await getChallengeStoreByChallengeId(c.env, handoffToken);
+
+      await handoffStore.storeChallengeRpc({
+        id: `handoff:${handoffToken}`,
+        type: 'handoff',
+        userId: result.userId,
+        challenge: sessionId, // sessionIdを格納
+        ttl: 30, // 30秒（リダイレクト+JS実行で十分）
+        metadata: {
+          client_id: clientId,
+          state: authState.state,
+          aud: 'handoff', // トークン再利用事故防止
+          created_at: Date.now(),
+        },
+      });
+
+      // 11d. RPへリダイレクト（ハンドオフトークン付き + Referrer対策）
+      const redirectUrl = new URL(authState.redirectUri);
+      redirectUrl.searchParams.set('handoff_token', handoffToken);
+      redirectUrl.searchParams.set('state', authState.state);
+
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: redirectUrl.toString(),
+          'Referrer-Policy': 'no-referrer', // ブラウザ履歴・リファラ漏洩対策
+          'Cache-Control': 'no-store', // キャッシュ防止
+        },
+      });
+    } else {
+      // SSO無効: 従来のDirect Auth フロー（authCodeを返す）
+      const authCode = await generateAuthCode(c.env, result.userId, codeChallenge, {
+        method: 'external_idp',
+        provider: provider.id,
+        provider_id: provider.id,
+        provider_slug: provider.slug ?? provider.id,
+        client_id: clientId,
+        is_new_user: result.isNewUser,
+        stitched_from_existing: result.stitchedFromExisting,
+      });
+
+      const redirectUrl = new URL(authState.redirectUri);
+      redirectUrl.searchParams.set('code', authCode);
+
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: redirectUrl.toString(),
+        },
+      });
+    }
   } catch (error) {
     log.error('Callback error', {}, error as Error);
 
