@@ -108,7 +108,7 @@ export async function handleHandoffVerify(c: Context<{ Bindings: Env }>): Promis
       return createErrorResponse(c, AR_ERROR_CODES.AUTH_CLIENT_NOT_FOUND);
     }
 
-    // Parse redirect_uris from JSON string
+    // Parse redirect_uris from JSON string or plain string
     let redirectUris: string[];
     try {
       // Check if redirect_uris exists
@@ -120,10 +120,15 @@ export async function handleHandoffVerify(c: Context<{ Bindings: Env }>): Promis
       if (Array.isArray(client.redirect_uris)) {
         redirectUris = client.redirect_uris;
       } else if (typeof client.redirect_uris === 'string') {
-        // Parse JSON string
-        redirectUris = JSON.parse(client.redirect_uris);
-        if (!Array.isArray(redirectUris)) {
-          throw new Error('redirect_uris is not an array after parsing');
+        // Try to parse as JSON array first
+        if (client.redirect_uris.trim().startsWith('[')) {
+          redirectUris = JSON.parse(client.redirect_uris);
+          if (!Array.isArray(redirectUris)) {
+            throw new Error('redirect_uris is not an array after parsing');
+          }
+        } else {
+          // Treat as single URL string (legacy format or misconfigured client)
+          redirectUris = [client.redirect_uris];
         }
       } else {
         throw new Error(`redirect_uris has unexpected type: ${typeof client.redirect_uris}`);
