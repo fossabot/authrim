@@ -229,6 +229,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       sessionId,
       maxAge,
       acrValues,
+      enableSso: provider.enableSso !== false,
       expiresAt: getStateExpiresAt(),
     });
 
@@ -297,12 +298,16 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     return c.redirect(authUrl);
   } catch (error) {
     const err = error as Error;
-    log.error('External start error', {
-      errorName: err.name,
-      errorMessage: err.message,
-      errorStack: err.stack,
-      provider: c.req.param('provider'),
-    }, err);
+    log.error(
+      'External start error',
+      {
+        errorName: err.name,
+        errorMessage: err.message,
+        errorStack: err.stack,
+        provider: c.req.param('provider'),
+      },
+      err
+    );
 
     // Include error details in development/conformance mode
     const isDev = c.env.ENABLE_CONFORMANCE_MODE === 'true';

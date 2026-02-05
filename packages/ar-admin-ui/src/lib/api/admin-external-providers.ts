@@ -31,6 +31,7 @@ export interface ExternalIdPProvider {
 	jitProvisioning: boolean;
 	requireEmailVerified: boolean;
 	alwaysFetchUserinfo?: boolean;
+	enableSso?: boolean;
 	iconUrl?: string;
 	buttonColor?: string;
 	buttonColorDark?: string;
@@ -187,6 +188,7 @@ export interface UpdateProviderRequest {
 	jit_provisioning?: boolean;
 	require_email_verified?: boolean;
 	always_fetch_userinfo?: boolean;
+	enable_sso?: boolean;
 	icon_url?: string;
 	button_color?: string;
 	button_color_dark?: string;

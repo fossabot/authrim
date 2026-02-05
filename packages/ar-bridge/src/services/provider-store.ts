@@ -116,11 +116,11 @@ export async function createProvider(
       id, tenant_id, slug, name, provider_type, enabled, priority,
       issuer, client_id, client_secret_encrypted,
       authorization_endpoint, token_endpoint, userinfo_endpoint, jwks_uri,
-      scopes, token_endpoint_auth_method, attribute_mapping, auto_link_email, jit_provisioning, require_email_verified, always_fetch_userinfo,
+      scopes, token_endpoint_auth_method, attribute_mapping, auto_link_email, jit_provisioning, require_email_verified, always_fetch_userinfo, enable_sso,
       provider_quirks, icon_url, button_color, button_color_dark, button_text,
       use_request_object, request_object_signing_alg, private_key_jwk_encrypted, public_key_jwk,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       provider.tenantId || 'default',
@@ -143,6 +143,7 @@ export async function createProvider(
       provider.jitProvisioning ? 1 : 0,
       provider.requireEmailVerified ? 1 : 0,
       provider.alwaysFetchUserinfo ? 1 : 0,
+      provider.enableSso !== false ? 1 : 0,
       JSON.stringify(provider.providerQuirks || {}),
       provider.iconUrl || null,
       provider.buttonColor || null,
@@ -186,7 +187,7 @@ export async function updateProvider(
       slug = ?, name = ?, provider_type = ?, enabled = ?, priority = ?,
       issuer = ?, client_id = ?, client_secret_encrypted = ?,
       authorization_endpoint = ?, token_endpoint = ?, userinfo_endpoint = ?, jwks_uri = ?,
-      scopes = ?, token_endpoint_auth_method = ?, attribute_mapping = ?, auto_link_email = ?, jit_provisioning = ?, require_email_verified = ?, always_fetch_userinfo = ?,
+      scopes = ?, token_endpoint_auth_method = ?, attribute_mapping = ?, auto_link_email = ?, jit_provisioning = ?, require_email_verified = ?, always_fetch_userinfo = ?, enable_sso = ?,
       provider_quirks = ?, icon_url = ?, button_color = ?, button_color_dark = ?, button_text = ?,
       use_request_object = ?, request_object_signing_alg = ?, private_key_jwk_encrypted = ?, public_key_jwk = ?,
       updated_at = ?
@@ -211,6 +212,7 @@ export async function updateProvider(
       updated.jitProvisioning ? 1 : 0,
       updated.requireEmailVerified ? 1 : 0,
       updated.alwaysFetchUserinfo ? 1 : 0,
+      updated.enableSso !== false ? 1 : 0,
       JSON.stringify(updated.providerQuirks || {}),
       updated.iconUrl || null,
       updated.buttonColor || null,
@@ -263,6 +265,7 @@ interface DbUpstreamProvider {
   jit_provisioning: number;
   require_email_verified: number;
   always_fetch_userinfo: number;
+  enable_sso: number;
   provider_quirks: string;
   icon_url: string | null;
   button_color: string | null;
@@ -301,6 +304,7 @@ function mapDbToProvider(db: DbUpstreamProvider): UpstreamProvider {
     jitProvisioning: db.jit_provisioning === 1,
     requireEmailVerified: db.require_email_verified === 1,
     alwaysFetchUserinfo: db.always_fetch_userinfo === 1,
+    enableSso: db.enable_sso === 1,
     providerQuirks: JSON.parse(db.provider_quirks || '{}'),
     iconUrl: db.icon_url || undefined,
     buttonColor: db.button_color || undefined,

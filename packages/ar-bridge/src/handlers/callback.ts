@@ -501,8 +501,7 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
     }
 
     // 11. SSO判定: デフォルトはSSO有効（ハンドオフフロー）
-    // 将来: authState.enableSso フラグで制御可能に
-    const enableSso = true; // authState.enableSso ?? true;
+    const enableSso = authState.enableSso !== false; // デフォルト: true
 
     if (enableSso) {
       // SSO有効: ハンドオフフロー

@@ -34,6 +34,7 @@
 	let jitProvisioning = $state(true);
 	let requireEmailVerified = $state(true);
 	let alwaysFetchUserinfo = $state(false);
+	let enableSso = $state(true);
 	let iconUrl = $state('');
 	let buttonColor = $state('');
 	let buttonColorDark = $state('');
@@ -146,6 +147,7 @@
 			jitProvisioning = data.jitProvisioning;
 			requireEmailVerified = data.requireEmailVerified;
 			alwaysFetchUserinfo = data.alwaysFetchUserinfo || false;
+			enableSso = data.enableSso !== false;
 			iconUrl = data.iconUrl || '';
 			buttonColor = data.buttonColor || '';
 			buttonColorDark = data.buttonColorDark || '';
@@ -194,6 +196,7 @@
 				jit_provisioning: jitProvisioning,
 				require_email_verified: requireEmailVerified,
 				always_fetch_userinfo: alwaysFetchUserinfo,
+				enable_sso: enableSso,
 				icon_url: iconUrl || undefined,
 				button_color: buttonColor || undefined,
 				button_color_dark: buttonColorDark || undefined,
@@ -263,6 +266,15 @@
 					bind:checked={enabled}
 					label="Provider Status"
 					description="Enable or disable this identity provider. When disabled, users cannot sign in using this provider."
+				/>
+			</div>
+
+			<!-- SSO Toggle -->
+			<div class="panel">
+				<ToggleSwitch
+					bind:checked={enableSso}
+					label="Enable SSO"
+					description="When enabled, users are automatically signed in with a session after external IdP authentication (handoff flow). When disabled, the client receives an authorization code for token exchange (Direct Auth flow)."
 				/>
 			</div>
 

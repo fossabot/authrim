@@ -1197,7 +1197,7 @@ CREATE TABLE upstream_providers (
   -- Metadata
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
-, slug TEXT, token_endpoint_auth_method TEXT DEFAULT 'client_secret_post', always_fetch_userinfo INTEGER DEFAULT 0, use_request_object INTEGER DEFAULT 0, request_object_signing_alg TEXT, private_key_jwk_encrypted TEXT, public_key_jwk TEXT);
+, slug TEXT, token_endpoint_auth_method TEXT DEFAULT 'client_secret_post', always_fetch_userinfo INTEGER DEFAULT 0, enable_sso INTEGER NOT NULL DEFAULT 1, use_request_object INTEGER DEFAULT 0, request_object_signing_alg TEXT, private_key_jwk_encrypted TEXT, public_key_jwk TEXT);
 
 CREATE TABLE "user_custom_fields" (
   user_id TEXT NOT NULL,
@@ -1890,6 +1890,9 @@ CREATE UNIQUE INDEX idx_upstream_providers_tenant_name
 CREATE UNIQUE INDEX idx_upstream_providers_tenant_slug
   ON upstream_providers(tenant_id, slug)
   WHERE slug IS NOT NULL;
+
+CREATE INDEX idx_upstream_providers_enable_sso
+  ON upstream_providers(tenant_id, enable_sso);
 
 CREATE INDEX idx_user_verified_attributes_name ON user_verified_attributes(tenant_id, attribute_name);
 

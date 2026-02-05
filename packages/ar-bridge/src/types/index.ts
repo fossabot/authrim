@@ -49,6 +49,12 @@ export interface UpstreamProvider {
    * Default: false
    */
   alwaysFetchUserinfo?: boolean;
+  /**
+   * Whether to enable SSO (Single Sign-On) for this provider.
+   * - true (default): Use handoff flow (redirect with handoff_token)
+   * - false: Use Direct Auth flow (redirect with authorization code)
+   */
+  enableSso?: boolean;
 
   // Provider-specific settings
   providerQuirks: Record<string, unknown>;
@@ -139,6 +145,8 @@ export interface ExternalIdpAuthState {
   maxAge?: number;
   /** acr_values parameter sent in authorization request (for acr validation) */
   acrValues?: string;
+  /** Whether SSO is enabled for this authentication flow */
+  enableSso?: boolean;
   expiresAt: number;
   createdAt: number;
 }
