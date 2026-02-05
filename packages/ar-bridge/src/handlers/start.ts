@@ -19,6 +19,7 @@ import {
   getLogger,
   createLogger,
   createDiagnosticLoggerFromContext,
+  createAuthContextFromHono,
 } from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
@@ -100,11 +101,43 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       );
     }
 
-    // Validate and sanitize redirect_uri to prevent Open Redirect attacks
+    // 1. Get client configuration (to validate redirect_uri)
     const tenantIdResolved = getTenantIdFromContext(c);
-    const redirectUri = await validateRedirectUri(requestedRedirectUri, c.env, tenantIdResolved);
+    let clientRedirectUris: string[] | undefined;
 
-    // 1. Get provider configuration (by slug or ID)
+    if (clientId) {
+      try {
+        const authCtx = createAuthContextFromHono(c, tenantIdResolved);
+        const client = await authCtx.repositories.client.findByClientId(clientId);
+
+        if (client && client.redirect_uris) {
+          // Parse redirect_uris (handle both JSON array and single string)
+          if (typeof client.redirect_uris === 'string') {
+            if (client.redirect_uris.trim().startsWith('[')) {
+              clientRedirectUris = JSON.parse(client.redirect_uris);
+            } else {
+              clientRedirectUris = [client.redirect_uris];
+            }
+          } else if (Array.isArray(client.redirect_uris)) {
+            clientRedirectUris = client.redirect_uris;
+          }
+        }
+      } catch (error) {
+        // Client lookup failed - continue without client redirect_uris
+        log.warn('Failed to load client for redirect_uri validation', { clientId });
+      }
+    }
+
+    // Validate and sanitize redirect_uri to prevent Open Redirect attacks
+    const redirectUri = await validateRedirectUri(
+      requestedRedirectUri,
+      c.env,
+      tenantIdResolved,
+      clientId,
+      clientRedirectUris
+    );
+
+    // 2. Get provider configuration (by slug or ID)
     const provider = await getProviderByIdOrSlug(c.env, providerIdOrName, tenantId);
 
     if (!provider || !provider.enabled) {
@@ -263,11 +296,23 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     // 10. Redirect to provider
     return c.redirect(authUrl);
   } catch (error) {
-    log.error('External start error', {}, error as Error);
+    const err = error as Error;
+    log.error('External start error', {
+      errorName: err.name,
+      errorMessage: err.message,
+      errorStack: err.stack,
+      provider: c.req.param('provider'),
+    }, err);
+
+    // Include error details in development/conformance mode
+    const isDev = c.env.ENABLE_CONFORMANCE_MODE === 'true';
+
     return c.json(
       {
         error: 'server_error',
-        error_description: 'Failed to start external login',
+        error_description: isDev
+          ? `Failed to start external login: ${err.message}`
+          : 'Failed to start external login',
       },
       500
     );
@@ -438,20 +483,37 @@ async function decryptClientSecret(env: Env, encrypted: string): Promise<string>
 }
 
 /**
+ * Default allowed redirect paths (when origin matches)
+ * These are standard OAuth/OIDC callback and flow endpoints
+ */
+const DEFAULT_ALLOWED_REDIRECT_PATHS = [
+  '/',
+  '/callback',
+  '/consent',
+  '/reauth',
+  '/device',
+  '/ciba',
+];
+
+/**
  * Validate redirect_uri to prevent Open Redirect attacks
  *
- * Only allows redirects to:
- * 1. Same origin as UI URL (from configuration)
- * 2. Same origin as Issuer URL
- * 3. Origins listed in ALLOWED_ORIGINS environment variable
- * 4. Relative paths (converted to absolute using UI URL)
+ * Uses whitelist-based validation with exact path matching:
+ * 1. Origin must match UI URL or Issuer URL
+ * 2. Path must be in the allowed list (exact match)
+ * 3. OR: redirect_uri must match client's registered redirect_uris
  *
- * Falls back to UI URL or Issuer URL if redirect_uri is invalid or not provided
+ * Falls back to UI URL if redirect_uri is invalid or not provided
+ *
+ * SECURITY: This prevents Open Redirect attacks by rejecting arbitrary paths
+ * even if they share the same origin (e.g., /malicious-page?redirect=evil.com)
  */
 async function validateRedirectUri(
   requestedUri: string | undefined,
   env: Env,
-  tenantId: string
+  tenantId: string,
+  clientId?: string,
+  clientRedirectUris?: string[]
 ): Promise<string> {
   // Get UI config and build base URL
   const uiConfig = await getUIConfig(env);
@@ -465,10 +527,14 @@ async function validateRedirectUri(
     return defaultRedirect;
   }
 
+  const log = createLogger().module('START');
+
   try {
-    // Handle relative paths
+    // Handle relative paths - convert to absolute and re-validate
     if (requestedUri.startsWith('/')) {
-      return new URL(requestedUri, baseUrl).toString();
+      const absoluteUri = new URL(requestedUri, baseUrl).toString();
+      // Recursively validate the absolute URI
+      return validateRedirectUri(absoluteUri, env, tenantId, clientId, clientRedirectUris);
     }
 
     // Parse the requested URI
@@ -494,22 +560,56 @@ async function validateRedirectUri(
       });
     }
 
-    // Check if the requested origin is allowed
-    if (allowedOrigins.has(requestedUrl.origin)) {
-      return requestedUri;
+    // SECURITY: Check both origin AND path (whitelist-based exact match)
+    if (!allowedOrigins.has(requestedUrl.origin)) {
+      log.warn('Blocked redirect to unauthorized origin', {
+        requestedOrigin: requestedUrl.origin,
+        allowedOrigins: Array.from(allowedOrigins),
+      });
+      return defaultRedirect;
     }
 
-    // Log blocked redirect attempt for security monitoring
-    const log = createLogger().module('START');
-    log.warn('Blocked redirect to unauthorized origin', {
-      requestedOrigin: requestedUrl.origin,
-      allowedOrigins: Array.from(allowedOrigins),
-    });
+    // Origin is allowed, now check the path
+    const requestedPath = requestedUrl.pathname;
 
-    return defaultRedirect;
+    // First, check if redirect_uri matches client's registered redirect_uris
+    if (clientRedirectUris && clientRedirectUris.length > 0) {
+      // Check if requested URI matches any registered redirect_uri
+      // Remove query params and hash for comparison
+      const requestedUriBase = requestedUrl.origin + requestedUrl.pathname;
+      for (const registeredUri of clientRedirectUris) {
+        try {
+          const registeredUrl = new URL(registeredUri);
+          const registeredUriBase = registeredUrl.origin + registeredUrl.pathname;
+
+          if (requestedUriBase === registeredUriBase) {
+            // Match found - allow the redirect_uri
+            return requestedUri;
+          }
+        } catch {
+          // Invalid registered URI - skip
+        }
+      }
+    }
+
+    // Fallback: Check against default allowed paths (for same-origin UI)
+    const allowedPaths = DEFAULT_ALLOWED_REDIRECT_PATHS;
+
+    if (!allowedPaths.includes(requestedPath)) {
+      log.warn('Blocked redirect to unauthorized path', {
+        requestedPath,
+        requestedOrigin: requestedUrl.origin,
+        allowedPaths,
+        clientId,
+      });
+      return defaultRedirect;
+    }
+
+    // Both origin and path are allowed - accept the redirect_uri
+    // Note: Query parameters are preserved and passed through
+    return requestedUri;
   } catch {
     // Invalid URL format - use default
-    const log = createLogger().module('START');
     log.warn('Invalid redirect_uri format', { requestedUri });
     return defaultRedirect;
   }
