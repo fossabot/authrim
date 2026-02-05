@@ -157,12 +157,7 @@ export function maskIp(ip: string): string {
  * Simplify user-agent string
  */
 export function maskUserAgent(ua: string): string {
-  const patterns = [
-    /(Chrome)\/(\d+)/i,
-    /(Firefox)\/(\d+)/i,
-    /(Safari)\/(\d+)/i,
-    /(Edge)\/(\d+)/i,
-  ];
+  const patterns = [/(Chrome)\/(\d+)/i, /(Firefox)\/(\d+)/i, /(Safari)\/(\d+)/i, /(Edge)\/(\d+)/i];
   for (const pattern of patterns) {
     const match = ua.match(pattern);
     if (match) {
@@ -231,7 +226,13 @@ export async function applyPrivacyModeToEntry(
             'refresh_token',
           ]);
           if (sensitiveKeys.has(key)) {
-            sanitized.query[key] = await maskWithHmac(value, options.secret, 6, 4, hashPrefixLength);
+            sanitized.query[key] = await maskWithHmac(
+              value,
+              options.secret,
+              6,
+              4,
+              hashPrefixLength
+            );
           }
         }
       }
@@ -274,7 +275,8 @@ export async function applyPrivacyModeToEntry(
     }
 
     if (sanitized.remoteAddress) {
-      sanitized.remoteAddress = options.mode === 'minimal' ? undefined : maskIp(sanitized.remoteAddress);
+      sanitized.remoteAddress =
+        options.mode === 'minimal' ? undefined : maskIp(sanitized.remoteAddress);
     }
 
     if (sanitized.headers && options.mode === 'minimal') {
@@ -295,9 +297,7 @@ export async function applyPrivacyModeToEntry(
       sanitized.headers = {};
       sanitized.bodySummary = undefined;
     } else if (sanitized.bodySummary && typeof sanitized.bodySummary === 'object') {
-      sanitized.bodySummary = redactObjectFields(
-        sanitized.bodySummary as Record<string, unknown>
-      );
+      sanitized.bodySummary = redactObjectFields(sanitized.bodySummary as Record<string, unknown>);
     }
   }
 
@@ -381,8 +381,7 @@ async function applyTokenDetailsPrivacy(
     } else {
       if (sanitized.access_token)
         sanitized.access_token = await maskField('access_token', sanitized.access_token);
-      if (sanitized.id_token)
-        sanitized.id_token = await maskField('id_token', sanitized.id_token);
+      if (sanitized.id_token) sanitized.id_token = await maskField('id_token', sanitized.id_token);
       if (sanitized.refresh_token)
         sanitized.refresh_token = await maskField('refresh_token', sanitized.refresh_token);
     }
@@ -412,7 +411,9 @@ async function applyTokenDetailsPrivacy(
   if (step === 'userinfo-response') {
     if (mode === 'minimal') {
       sanitized.has_sub = Boolean((sanitized.claims as Record<string, unknown> | undefined)?.sub);
-      sanitized.has_email = Boolean((sanitized.claims as Record<string, unknown> | undefined)?.email);
+      sanitized.has_email = Boolean(
+        (sanitized.claims as Record<string, unknown> | undefined)?.email
+      );
       delete sanitized.claims;
     } else if (sanitized.claims && typeof sanitized.claims === 'object') {
       const claims = { ...(sanitized.claims as Record<string, unknown>) };

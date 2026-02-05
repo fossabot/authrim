@@ -277,9 +277,7 @@ export class DiagnosticLogR2Adapter {
   // Helper Methods
   // ---------------------------------------------------------------------------
 
-  private groupEntriesByHour(
-    entries: DiagnosticLogEntry[]
-  ): Map<string, DiagnosticLogEntry[]> {
+  private groupEntriesByHour(entries: DiagnosticLogEntry[]): Map<string, DiagnosticLogEntry[]> {
     const grouped = new Map<string, DiagnosticLogEntry[]>();
 
     for (const entry of entries) {
@@ -342,10 +340,7 @@ export class DiagnosticLogR2Adapter {
     if (options.endTime && entry.timestamp >= options.endTime) return false;
 
     // Diagnostic session ID filter
-    if (
-      options.diagnosticSessionId &&
-      entry.diagnosticSessionId !== options.diagnosticSessionId
-    ) {
+    if (options.diagnosticSessionId && entry.diagnosticSessionId !== options.diagnosticSessionId) {
       return false;
     }
 

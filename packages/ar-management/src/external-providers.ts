@@ -295,7 +295,8 @@ export async function adminExternalProvidersDiscoverOidcHandler(c: Context<{ Bin
       return c.json({ error: 'URL not allowed for security reasons' }, 400);
     }
 
-    const normalizeHost = (host: string): string => (host.startsWith('www.') ? host.slice(4) : host);
+    const normalizeHost = (host: string): string =>
+      host.startsWith('www.') ? host.slice(4) : host;
     const baseHost = normalizeHost(parsedUrl.hostname);
 
     log.info('Fetching OIDC discovery', { url: discoveryUrl });

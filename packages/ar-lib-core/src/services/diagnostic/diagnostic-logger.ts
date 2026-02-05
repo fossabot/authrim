@@ -536,9 +536,7 @@ export class DiagnosticLogger {
 /**
  * Create a diagnostic logger instance
  */
-export function createDiagnosticLogger(
-  config: DiagnosticLoggerConfig
-): DiagnosticLogger | null {
+export function createDiagnosticLogger(config: DiagnosticLoggerConfig): DiagnosticLogger | null {
   // Only create if enabled
   if (!config.settings['diagnostic-logging.enabled']) {
     return null;

@@ -268,8 +268,9 @@ export async function handleHandoffVerify(c: Context<{ Bindings: Env }>): Promis
 
     // 8. RP専用のAccess Token（Session）を新規発行
     // ⚠️ 重要: AS SessionIDを直接返さない（XSS対策）
-    const { stub: rpSessionStore, sessionId: rpAccessToken } =
-      await getSessionStoreForNewSession(c.env);
+    const { stub: rpSessionStore, sessionId: rpAccessToken } = await getSessionStoreForNewSession(
+      c.env
+    );
     const rpTokenTTL = 60 * 60; // 1時間（短命化）
 
     await rpSessionStore.createSessionRpc(rpAccessToken, handoffData.userId, rpTokenTTL, {

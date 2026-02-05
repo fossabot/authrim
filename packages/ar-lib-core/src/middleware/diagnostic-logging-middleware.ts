@@ -76,7 +76,10 @@ export function diagnosticLoggingMiddleware(config: DiagnosticLoggingMiddlewareC
     }
 
     const tenantId =
-      config.tenantId ?? getTenantIdFromContext(c) ?? c.req.header('X-Tenant-Id') ?? DEFAULT_TENANT_ID;
+      config.tenantId ??
+      getTenantIdFromContext(c) ??
+      c.req.header('X-Tenant-Id') ??
+      DEFAULT_TENANT_ID;
     const clientId = config.clientId ?? (await resolveClientIdFromRequest(c));
 
     // Load diagnostic logging settings
@@ -168,9 +171,13 @@ async function resolveClientIdFromRequest(c: Context): Promise<string | undefine
     }
 
     if (contentType.includes('application/json')) {
-      const body = await c.req.raw.clone().json().catch(() => null);
+      const body = await c.req.raw
+        .clone()
+        .json()
+        .catch(() => null);
       if (body && typeof body === 'object') {
-        const maybeClientId = (body as Record<string, unknown>).client_id ?? (body as Record<string, unknown>).clientId;
+        const maybeClientId =
+          (body as Record<string, unknown>).client_id ?? (body as Record<string, unknown>).clientId;
         return typeof maybeClientId === 'string' ? maybeClientId : undefined;
       }
     }

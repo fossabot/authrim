@@ -238,10 +238,7 @@ export function toOIDFFormatBatch(
  * @param options - Export options
  * @returns JSON string
  */
-export function formatAsJSON(
-  logs: DiagnosticLogEntry[],
-  options: ExportOptions = {}
-): string {
+export function formatAsJSON(logs: DiagnosticLogEntry[], options: ExportOptions = {}): string {
   const oidfLogs = toOIDFFormatBatch(logs, options);
   return JSON.stringify(oidfLogs, null, 2);
 }
@@ -253,10 +250,7 @@ export function formatAsJSON(
  * @param options - Export options
  * @returns JSONL string
  */
-export function formatAsJSONL(
-  logs: DiagnosticLogEntry[],
-  options: ExportOptions = {}
-): string {
+export function formatAsJSONL(logs: DiagnosticLogEntry[], options: ExportOptions = {}): string {
   const oidfLogs = toOIDFFormatBatch(logs, options);
   return oidfLogs.map((log) => JSON.stringify(log)).join('\n');
 }
@@ -268,10 +262,7 @@ export function formatAsJSONL(
  * @param options - Export options
  * @returns Text string
  */
-export function formatAsText(
-  logs: DiagnosticLogEntry[],
-  options: ExportOptions = {}
-): string {
+export function formatAsText(logs: DiagnosticLogEntry[], options: ExportOptions = {}): string {
   const oidfLogs = toOIDFFormatBatch(logs, options);
 
   const lines: string[] = [];
@@ -296,14 +287,17 @@ export function formatAsText(
       lines.push('');
     }
   } else if (options.sortMode === 'category') {
-    const grouped = oidfLogs.reduce((acc, log) => {
-      const category = log.category || 'unknown';
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(log);
-      return acc;
-    }, {} as Record<string, OIDFLogEntry[]>);
+    const grouped = oidfLogs.reduce(
+      (acc, log) => {
+        const category = log.category || 'unknown';
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(log);
+        return acc;
+      },
+      {} as Record<string, OIDFLogEntry[]>
+    );
 
     for (const [category, categoryLogs] of Object.entries(grouped)) {
       lines.push(`Category: ${category}`);
@@ -327,14 +321,17 @@ export function formatAsText(
     }
   } else {
     // Default: group by session
-    const grouped = oidfLogs.reduce((acc, log) => {
-      const sessionId = log.sessionId || 'unknown';
-      if (!acc[sessionId]) {
-        acc[sessionId] = [];
-      }
-      acc[sessionId].push(log);
-      return acc;
-    }, {} as Record<string, OIDFLogEntry[]>);
+    const grouped = oidfLogs.reduce(
+      (acc, log) => {
+        const sessionId = log.sessionId || 'unknown';
+        if (!acc[sessionId]) {
+          acc[sessionId] = [];
+        }
+        acc[sessionId].push(log);
+        return acc;
+      },
+      {} as Record<string, OIDFLogEntry[]>
+    );
 
     for (const [sessionId, sessionLogs] of Object.entries(grouped)) {
       lines.push(`Session: ${sessionId}`);

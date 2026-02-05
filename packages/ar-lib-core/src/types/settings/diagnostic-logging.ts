@@ -122,8 +122,7 @@ export const DIAGNOSTIC_LOGGING_SETTINGS_META: Record<
     default: false,
     envKey: 'DIAGNOSTIC_LOGGING_ENABLED',
     label: 'Enable Diagnostic Logging',
-    description:
-      'Enable diagnostic logging for debugging, troubleshooting, and compliance testing',
+    description: 'Enable diagnostic logging for debugging, troubleshooting, and compliance testing',
     visibility: 'admin',
   },
   'diagnostic-logging.log_level': {
@@ -277,8 +276,7 @@ export const DIAGNOSTIC_LOGGING_SETTINGS_META: Record<
     default: 'content-type,accept,user-agent,x-correlation-id,x-diagnostic-session-id',
     envKey: 'DIAGNOSTIC_LOGGING_HTTP_SAFE_HEADERS',
     label: 'Safe Headers Allowlist',
-    description:
-      'Comma-separated list of safe headers to include (Authorization, Cookie excluded)',
+    description: 'Comma-separated list of safe headers to include (Authorization, Cookie excluded)',
     visibility: 'admin',
   },
   'diagnostic-logging.http_body_schema_aware': {
