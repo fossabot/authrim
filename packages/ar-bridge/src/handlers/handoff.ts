@@ -111,14 +111,28 @@ export async function handleHandoffVerify(c: Context<{ Bindings: Env }>): Promis
     // Parse redirect_uris from JSON string
     let redirectUris: string[];
     try {
-      redirectUris = JSON.parse(client.redirect_uris);
-      if (!Array.isArray(redirectUris)) {
-        throw new Error('redirect_uris is not an array');
+      // Check if redirect_uris exists
+      if (!client.redirect_uris) {
+        throw new Error('redirect_uris is missing or null');
+      }
+
+      // Check if redirect_uris is already an array (shouldn't happen, but defensive)
+      if (Array.isArray(client.redirect_uris)) {
+        redirectUris = client.redirect_uris;
+      } else if (typeof client.redirect_uris === 'string') {
+        // Parse JSON string
+        redirectUris = JSON.parse(client.redirect_uris);
+        if (!Array.isArray(redirectUris)) {
+          throw new Error('redirect_uris is not an array after parsing');
+        }
+      } else {
+        throw new Error(`redirect_uris has unexpected type: ${typeof client.redirect_uris}`);
       }
     } catch (parseError) {
       log.error('Invalid redirect_uris format', {
         client_id,
-        redirect_uris: client.redirect_uris,
+        redirect_uris_type: typeof client.redirect_uris,
+        redirect_uris_length: client.redirect_uris?.length || 0,
         error: parseError instanceof Error ? parseError.message : 'Unknown',
       });
       return createErrorResponse(c, AR_ERROR_CODES.CLIENT_METADATA_INVALID);
