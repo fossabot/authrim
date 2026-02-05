@@ -34,8 +34,8 @@
 		try {
 			const authConfig = getAuthConfig();
 
-			// Verify handoff token with Authrim AS
-			const response = await fetch(`${API_BASE_URL}/api/v1/auth/handoff/verify`, {
+			// Verify handoff token with Authrim AS (via EXTERNAL_IDP worker)
+			const response = await fetch(`${API_BASE_URL}/auth/external/handoff/verify`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'

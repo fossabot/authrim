@@ -173,7 +173,8 @@ app.post('/api/external/:provider/backchannel-logout', handleBackchannelLogout);
 app.post('/auth/external/:provider/backchannel-logout', handleBackchannelLogout);
 
 // Handoff token verification (for SSO across multiple RPs)
-app.post('/api/v1/auth/handoff/verify', handleHandoffVerify);
+app.post('/auth/external/handoff/verify', handleHandoffVerify);
+app.post('/api/external/handoff/verify', handleHandoffVerify); // Alternative path
 
 // =============================================================================
 // Authenticated Endpoints (require session)
