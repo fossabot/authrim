@@ -36,6 +36,12 @@ export {
   type AdminRelationship,
   type AdminRelationshipCreateInput,
 } from './admin-relationship';
+export {
+  AdminRebacDefinitionRepository,
+  type AdminRebacDefinition,
+  type AdminRebacDefinitionCreateInput,
+  type AdminRebacDefinitionUpdateInput,
+} from './admin-rebac-definition';
 
 // Admin Policies (Combined RBAC/ABAC/ReBAC)
 export {

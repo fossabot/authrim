@@ -184,6 +184,7 @@ adminRolesRouter.post('/', async (c) => {
       description?: string;
       permissions: string[];
       hierarchy_level?: number;
+      inherits_from?: string | null;
     }>();
 
     // Validate required fields
@@ -224,6 +225,7 @@ adminRolesRouter.post('/', async (c) => {
       permissions: body.permissions,
       hierarchy_level: hierarchyLevel,
       role_type: 'custom',
+      inherits_from: body.inherits_from,
     });
 
     // Create audit log
@@ -277,6 +279,7 @@ adminRolesRouter.patch('/:id', async (c) => {
       description?: string;
       permissions?: string[];
       hierarchy_level?: number;
+      inherits_from?: string | null;
     }>();
 
     // Validate permissions if being updated
@@ -306,6 +309,7 @@ adminRolesRouter.patch('/:id', async (c) => {
       description: body.description,
       permissions: body.permissions,
       hierarchy_level: body.hierarchy_level,
+      inherits_from: body.inherits_from,
     });
 
     if (!role) {
@@ -376,6 +380,43 @@ adminRolesRouter.delete('/:id', async (c) => {
     if (error instanceof Error && error.message.includes('Cannot delete')) {
       return createErrorResponse(c, AR_ERROR_CODES.ADMIN_INSUFFICIENT_PERMISSIONS);
     }
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+  }
+});
+
+/**
+ * GET /api/admin/admin-roles/:id/effective-permissions
+ * Get effective permissions for a role (including inherited permissions)
+ */
+adminRolesRouter.get('/:id/effective-permissions', async (c) => {
+  try {
+    const adapter = getAdminAdapter(c);
+    const roleRepo = new AdminRoleRepository(adapter);
+    const tenantId = getTenantIdFromContext(c);
+
+    const id = c.req.param('id');
+
+    const role = await roleRepo.getRole(id);
+    if (!role) {
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
+    }
+
+    // Tenant boundary check
+    if (role.tenant_id !== tenantId && !role.is_system) {
+      return createErrorResponse(c, AR_ERROR_CODES.ADMIN_RESOURCE_NOT_FOUND);
+    }
+
+    // Get effective permissions (including inherited)
+    const effectivePermissions = await roleRepo.getEffectivePermissions(id);
+
+    return c.json({
+      role_id: role.id,
+      role_name: role.name,
+      direct_permissions: role.permissions,
+      effective_permissions: effectivePermissions,
+      inherits_from: role.inherits_from,
+    });
+  } catch (error) {
     return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
   }
 });

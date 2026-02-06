@@ -7,6 +7,7 @@ import {
   rateLimitMiddleware,
   getRateLimitProfileAsync,
   requestContextMiddleware,
+  diagnosticLoggingMiddleware,
   // Plugin Context (Phase 9 - Plugin Architecture)
   pluginContextMiddleware,
   // Health Check
@@ -23,6 +24,12 @@ const app = new Hono<{ Bindings: Env }>();
 // Middleware
 app.use('*', logger());
 app.use('*', requestContextMiddleware());
+app.use(
+  '*',
+  diagnosticLoggingMiddleware({
+    excludePatterns: [/^\/api\/health/, /^\/health\//, /^\/internal\//],
+  })
+);
 
 // Plugin Context - provides access to notifiers, idp handlers, authenticators
 // Plugins are loaded lazily on first request and cached per Worker lifecycle

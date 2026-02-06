@@ -285,6 +285,8 @@ export function createCheckAuditService(
  */
 export function generateAuditId(): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
+  const randomBytes = new Uint8Array(5);
+  crypto.getRandomValues(randomBytes);
+  const random = Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('');
   return `aud_${timestamp}${random}`;
 }

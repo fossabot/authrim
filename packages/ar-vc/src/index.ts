@@ -22,6 +22,7 @@ import { cors } from 'hono/cors';
 import {
   requestContextMiddleware,
   pluginContextMiddleware,
+  diagnosticLoggingMiddleware,
   createErrorResponse,
   AR_ERROR_CODES,
   // Health Check
@@ -56,6 +57,12 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Middleware
 app.use('*', requestContextMiddleware());
+app.use(
+  '*',
+  diagnosticLoggingMiddleware({
+    excludePatterns: [/^\/api\/health/, /^\/health\//],
+  })
+);
 app.use('*', pluginContextMiddleware());
 app.use('*', cors());
 

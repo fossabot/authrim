@@ -356,12 +356,7 @@
 	<p>Enter a name for the new flow:</p>
 
 	<div class="form-group">
-		<input
-			type="text"
-			bind:value={copyName}
-			placeholder="Enter flow name"
-			class="form-input"
-		/>
+		<input type="text" bind:value={copyName} placeholder="Enter flow name" class="form-input" />
 	</div>
 
 	{#if copyError}
@@ -370,11 +365,7 @@
 
 	{#snippet footer()}
 		<button class="btn btn-secondary" onclick={closeCopyDialog} disabled={copying}>Cancel</button>
-		<button
-			class="btn btn-primary"
-			onclick={confirmCopy}
-			disabled={copying || !copyName.trim()}
-		>
+		<button class="btn btn-primary" onclick={confirmCopy} disabled={copying || !copyName.trim()}>
 			{copying ? 'Copying...' : 'Copy'}
 		</button>
 	{/snippet}

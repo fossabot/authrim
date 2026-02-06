@@ -102,6 +102,16 @@ const ja = {
 	consent_noOrganization: '組織なし',
 	consent_trustedClient: '信頼済みアプリケーション',
 
+	consent_items_required_title: '必須の同意項目',
+	consent_items_optional_title: '任意の同意項目',
+	consent_item_view_document: 'ドキュメントを表示',
+	consent_item_version_updated: '{oldVersion} → {newVersion} に更新',
+	consent_item_required_badge: '必須',
+	consent_item_optional_badge: '任意',
+	consent_delete_account_link: 'アカウント削除をリクエスト',
+	consent_block_message:
+		'続行するには、すべての必須同意項目に同意する必要があります。同意しない場合は、アカウント削除をリクエストできます。',
+
 	error_title: 'エラーが発生しました',
 	error_subtitle: 'リクエストの処理中にエラーが発生しました',
 	error_contactSupport: 'この問題が解決しない場合は、サポートまでお問い合わせください',
@@ -114,6 +124,7 @@ const ja = {
 	error_invalid_scope: 'リクエストされたスコープが無効、不明、または形式が正しくありません',
 	error_server_error: '認可サーバーで予期しないエラーが発生しました',
 	error_temporarily_unavailable: '認可サーバーは一時的にリクエストを処理できません',
+	error_login_required: '認証が必要です。続行するにはサインインしてください。',
 	error_unknown: '不明なエラーが発生しました',
 
 	device_title: 'デバイス認証',
@@ -165,6 +176,11 @@ const ja = {
 	callback_errorStateMismatch: 'セキュリティ検証に失敗しました。再度サインインしてください。',
 	callback_errorExchangeFailed: '認証の完了に失敗しました。再度お試しください。',
 	callback_errorNetwork: 'ネットワークエラーが発生しました。接続を確認して再度お試しください。',
+	callback_errorMissingCodeVerifier: '認証に失敗しました。再度ログインしてください。',
+	callback_errorStorageUnavailable:
+		'ブラウザの設定により認証できません。CookieとストレージL有効にしてください。',
+	callback_errorStorageQuotaExceeded:
+		'ブラウザのストレージが満杯です。一部のデータを削除して再度お試しください。',
 
 	common_backToHome: 'ホームに戻る',
 

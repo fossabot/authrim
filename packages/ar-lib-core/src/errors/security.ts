@@ -166,7 +166,9 @@ export function generateErrorId(
  */
 function createTraceId(): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
+  const randomBytes = new Uint8Array(3);
+  crypto.getRandomValues(randomBytes);
+  const random = Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('');
   return `${timestamp}${random}`;
 }
 

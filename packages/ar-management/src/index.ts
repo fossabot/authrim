@@ -27,6 +27,8 @@ import {
   // Logger
   getLogger,
   createLogger,
+  isAllowedOrigin,
+  parseAllowedOrigins,
 } from '@authrim/ar-lib-core';
 
 // Import handlers
@@ -36,12 +38,38 @@ import {
   clientConfigUpdateHandler,
   clientConfigDeleteHandler,
 } from './client-config';
+import { clientPublicConfigHandler } from './client-public-config';
 import {
   adminSigningKeysStatusHandler,
   adminSigningKeysRotateHandler,
   adminSigningKeysEmergencyRotateHandler,
 } from './signing-keys';
 import { introspectHandler } from './introspect';
+import {
+  adminConsentStatementsListHandler,
+  adminConsentStatementCreateHandler,
+  adminConsentStatementGetHandler,
+  adminConsentStatementUpdateHandler,
+  adminConsentStatementDeleteHandler,
+  adminConsentVersionsListHandler,
+  adminConsentVersionCreateHandler,
+  adminConsentVersionGetHandler,
+  adminConsentVersionUpdateHandler,
+  adminConsentVersionActivateHandler,
+  adminConsentVersionDeleteHandler,
+  adminConsentLocalizationsListHandler,
+  adminConsentLocalizationUpsertHandler,
+  adminConsentLocalizationDeleteHandler,
+  adminConsentRequirementsListHandler,
+  adminConsentRequirementUpsertHandler,
+  adminConsentRequirementDeleteHandler,
+  adminConsentOverridesListHandler,
+  adminConsentOverrideUpsertHandler,
+  adminConsentOverrideDeleteHandler,
+  adminUserConsentRecordsListHandler,
+  adminUserConsentHistoryHandler,
+  adminUserConsentWithdrawHandler,
+} from './admin-consent-statements';
 import { revokeHandler, batchRevokeHandler } from './revoke';
 import {
   serveAvatarHandler,
@@ -436,6 +464,7 @@ import { getEncryptionStatus } from './routes/settings/encryption-config';
 import settingsV2 from './routes/settings-v2';
 import policyRouter from './routes/policy';
 import adminManagementRouter from './routes/admin-management';
+import diagnosticLoggingRouter from './routes/diagnostic-logging';
 import {
   revokeCredentialHandler,
   suspendCredentialHandler,
@@ -554,24 +583,46 @@ app.use(
  * - Admin endpoints (/api/admin/*) should have ALLOWED_ORIGINS configured in production
  */
 app.use('*', async (c, next) => {
-  const allowedOriginsEnv = c.env.ALLOWED_ORIGINS;
+  let allowedOriginsStr: string | null = null;
 
-  // Parse allowed origins from environment (comma-separated)
-  const allowedOrigins = allowedOriginsEnv
-    ? allowedOriginsEnv.split(',').map((o: string) => o.trim())
-    : null;
+  // 1. Try to get from KV (tenant settings)
+  if (c.env.AUTHRIM_CONFIG) {
+    try {
+      const kvData = await c.env.AUTHRIM_CONFIG.get('settings:tenant:default:tenant');
+      if (kvData) {
+        const parsed = JSON.parse(kvData) as Record<string, unknown>;
+        const kvValue = parsed['tenant.allowed_origins'];
+        if (typeof kvValue === 'string' && kvValue.length > 0) {
+          allowedOriginsStr = kvValue;
+        }
+      }
+    } catch {
+      // KV read error - continue with env fallback
+      // Fail-safe: don't block requests due to KV issues
+    }
+  }
+
+  // 2. Merge with environment variable (do not override tenant settings)
+  if (c.env.ALLOWED_ORIGINS) {
+    allowedOriginsStr = allowedOriginsStr
+      ? `${allowedOriginsStr},${c.env.ALLOWED_ORIGINS}`
+      : c.env.ALLOWED_ORIGINS;
+  }
+
+  // 3. Parse allowed origins (supports wildcards)
+  const allowedOrigins = allowedOriginsStr ? parseAllowedOrigins(allowedOriginsStr) : null;
 
   // Only allow credentials when specific origins are configured
-  const allowCredentials = !!allowedOrigins;
+  const allowCredentials = !!allowedOrigins && allowedOrigins.length > 0;
 
-  // Origin validation function
+  // Origin validation function (supports wildcards)
   const validateOrigin = (origin: string): string | undefined | null => {
-    if (!allowedOrigins) {
+    if (!allowedOrigins || allowedOrigins.length === 0) {
       // No whitelist configured: allow all origins but without credentials
       return origin;
     }
-    // Check against whitelist
-    if (allowedOrigins.includes(origin)) {
+    // Check against whitelist with wildcard support
+    if (isAllowedOrigin(origin, allowedOrigins)) {
       return origin;
     }
     // Origin not in whitelist
@@ -587,6 +638,7 @@ app.use('*', async (c, next) => {
       'DPoP',
       'If-Match',
       'If-None-Match',
+      'X-Diagnostic-Session-Id',
       'X-Session-Id',
     ],
     exposeHeaders: [
@@ -733,6 +785,13 @@ app.delete(
   '/clients/:client_id',
   rateLimitMiddleware(RateLimitProfiles.moderate),
   clientConfigDeleteHandler
+);
+
+// Public Client Configuration endpoint (no authentication required)
+app.get(
+  '/clients/:client_id/config',
+  rateLimitMiddleware(RateLimitProfiles.moderate),
+  clientPublicConfigHandler
 );
 
 // Token Introspection endpoint - RFC 7662
@@ -955,6 +1014,18 @@ app.route('/api/admin', policyRouter);
 // - GET/PATCH/DELETE /api/admin/ip-allowlist/:id - IP entry CRUD
 // - GET /api/admin/admin-audit-log - Admin audit log viewing
 app.route('/api/admin', adminManagementRouter);
+
+// =============================================================================
+// Diagnostic Logging API (Debugging, Troubleshooting, OIDF Conformance)
+// =============================================================================
+// Admin routes:
+// - POST /api/admin/diagnostic-logging/test-connection - Test R2 connectivity
+// - GET /api/admin/diagnostic-logging/export - Export diagnostic logs
+app.route('/api/admin/diagnostic-logging', diagnosticLoggingRouter);
+
+// Public API routes:
+// - POST /api/v1/diagnostic-logs/ingest - Ingest logs from SDK (public API with client auth)
+app.route('/api/v1/diagnostic-logs', diagnosticLoggingRouter);
 
 // Admin Certification Profile endpoints (OpenID Certification)
 // NOTE: Profiles apply predefined settings - kept for certification testing
@@ -1947,6 +2018,86 @@ app.get('/api/user/data-export/:id/download', dataExportDownloadHandler);
 
 app.get('/api/admin/users/:userId/consents', adminUserConsentsListHandler);
 app.delete('/api/admin/users/:userId/consents/:clientId', adminUserConsentRevokeHandler);
+
+// =============================================================================
+// Admin Consent Statement Management API
+// =============================================================================
+// Rate limiting for consent management endpoints (moderate profile)
+app.use('/api/admin/consent-statements/*', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware(profile)(c, next);
+});
+app.use('/api/admin/consent-requirements/*', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware(profile)(c, next);
+});
+app.use('/api/admin/clients/:clientId/consent-overrides/*', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware(profile)(c, next);
+});
+app.use('/api/admin/users/:userId/consent-records/*', async (c, next) => {
+  const profile = await getRateLimitProfileAsync(c.env, 'moderate');
+  return rateLimitMiddleware(profile)(c, next);
+});
+
+// Consent items CRUD
+app.get('/api/admin/consent-statements', adminConsentStatementsListHandler);
+app.post('/api/admin/consent-statements', adminConsentStatementCreateHandler);
+app.get('/api/admin/consent-statements/:id', adminConsentStatementGetHandler);
+app.put('/api/admin/consent-statements/:id', adminConsentStatementUpdateHandler);
+app.delete('/api/admin/consent-statements/:id', adminConsentStatementDeleteHandler);
+
+// Version management
+app.get('/api/admin/consent-statements/:sid/versions', adminConsentVersionsListHandler);
+app.post('/api/admin/consent-statements/:sid/versions', adminConsentVersionCreateHandler);
+app.get('/api/admin/consent-statements/:sid/versions/:vid', adminConsentVersionGetHandler);
+app.put('/api/admin/consent-statements/:sid/versions/:vid', adminConsentVersionUpdateHandler);
+app.post(
+  '/api/admin/consent-statements/:sid/versions/:vid/activate',
+  adminConsentVersionActivateHandler
+);
+app.delete('/api/admin/consent-statements/:sid/versions/:vid', adminConsentVersionDeleteHandler);
+
+// Localizations
+app.get(
+  '/api/admin/consent-statements/:sid/versions/:vid/localizations',
+  adminConsentLocalizationsListHandler
+);
+app.put(
+  '/api/admin/consent-statements/:sid/versions/:vid/localizations/:lang',
+  adminConsentLocalizationUpsertHandler
+);
+app.delete(
+  '/api/admin/consent-statements/:sid/versions/:vid/localizations/:lang',
+  adminConsentLocalizationDeleteHandler
+);
+
+// Tenant requirements
+app.get('/api/admin/consent-requirements', adminConsentRequirementsListHandler);
+app.put('/api/admin/consent-requirements/:statementId', adminConsentRequirementUpsertHandler);
+app.delete('/api/admin/consent-requirements/:statementId', adminConsentRequirementDeleteHandler);
+
+// Client overrides
+app.get('/api/admin/clients/:clientId/consent-overrides', adminConsentOverridesListHandler);
+app.put(
+  '/api/admin/clients/:clientId/consent-overrides/:statementId',
+  adminConsentOverrideUpsertHandler
+);
+app.delete(
+  '/api/admin/clients/:clientId/consent-overrides/:statementId',
+  adminConsentOverrideDeleteHandler
+);
+
+// User consent records (admin view)
+app.get('/api/admin/users/:userId/consent-records', adminUserConsentRecordsListHandler);
+app.get(
+  '/api/admin/users/:userId/consent-records/:statementId/history',
+  adminUserConsentHistoryHandler
+);
+app.post(
+  '/api/admin/users/:userId/consent-records/:statementId/withdraw',
+  adminUserConsentWithdrawHandler
+);
 
 // SCIM 2.0 endpoints - RFC 7643, 7644
 // Rate limited with moderate profile for standard operations, stricter for bulk

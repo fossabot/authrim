@@ -312,7 +312,12 @@
 </Modal>
 
 <!-- Edit Role Dialog -->
-<Modal open={showEditDialog && !!editingRole} onClose={closeEditDialog} title="Edit Role: {editingRole?.name || ''}" size="lg">
+<Modal
+	open={showEditDialog && !!editingRole}
+	onClose={closeEditDialog}
+	title="Edit Role: {editingRole?.name || ''}"
+	size="lg"
+>
 	<div class="form-group">
 		<label for="editDisplayName">Display Name</label>
 		<input
@@ -352,9 +357,7 @@
 	</div>
 
 	{#snippet footer()}
-		<button class="btn btn-secondary" onclick={closeEditDialog} disabled={saving}>
-			Cancel
-		</button>
+		<button class="btn btn-secondary" onclick={closeEditDialog} disabled={saving}> Cancel </button>
 		<button class="btn btn-primary" onclick={handleSave} disabled={saving}>
 			{saving ? 'Saving...' : 'Save'}
 		</button>

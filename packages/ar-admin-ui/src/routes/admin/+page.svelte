@@ -1,10 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { adminStatsAPI, type DashboardStats } from '$lib/api/admin-stats';
-	import {
-		adminCacheModeAPI,
-		type PlatformCacheModeResponse
-	} from '$lib/api/admin-cache-mode';
+	import { adminCacheModeAPI, type PlatformCacheModeResponse } from '$lib/api/admin-cache-mode';
 	import Card from '$lib/components/Card.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -16,9 +13,7 @@
 	let error = $state('');
 
 	// Check if cache is in maintenance mode (short TTL)
-	const isMaintenanceMode = $derived(
-		cacheMode !== null && cacheMode.effective === 'maintenance'
-	);
+	const isMaintenanceMode = $derived(cacheMode !== null && cacheMode.effective === 'maintenance');
 
 	onMount(async () => {
 		try {

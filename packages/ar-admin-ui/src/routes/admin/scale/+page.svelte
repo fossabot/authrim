@@ -446,9 +446,8 @@
 					<span class="help-tooltip scale-tooltip">
 						<i class="i-ph-question help-icon-cyber"></i>
 						<span class="tooltip-content tooltip-below">
-							Set shards based on your service's maximum expected load.
-							Too few may cause errors under high traffic;
-							too many may increase response latency.
+							Set shards based on your service's maximum expected load. Too few may cause errors
+							under high traffic; too many may increase response latency.
 						</span>
 					</span>
 				</div>
@@ -506,16 +505,16 @@
 
 		<!-- Section 3: Region Distribution -->
 		<section class="config-section">
-				<h2 class="section-title">
+			<h2 class="section-title">
 				Region Distribution
 				<span class="help-tooltip">
 					<span class="help-icon-circle">
 						<i class="i-ph-question help-icon-inner"></i>
 					</span>
 					<span class="tooltip-content">
-						Configure where authentication data (sessions, tokens) is stored.
-						Set percentages based on your users' geographic distribution.
-						Example: If 50% of users are in Asia, set APAC to ~50%.
+						Configure where authentication data (sessions, tokens) is stored. Set percentages based
+						on your users' geographic distribution. Example: If 50% of users are in Asia, set APAC
+						to ~50%.
 					</span>
 				</span>
 			</h2>
@@ -676,7 +675,12 @@
 	{/if}
 
 	<!-- Diff Confirmation Dialog -->
-	<Modal open={showDiffDialog} onClose={() => (showDiffDialog = false)} title="Confirm Changes" size="sm">
+	<Modal
+		open={showDiffDialog}
+		onClose={() => (showDiffDialog = false)}
+		title="Confirm Changes"
+		size="sm"
+	>
 		<p class="dialog-subtitle">You are about to change:</p>
 
 		<ul class="diff-list">

@@ -460,6 +460,13 @@ describe('OIDCRPClient', () => {
         expires_in: 3600,
       };
 
+      // Mock discovery (even though tokenEndpoint is explicit, discovery may still be called)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockDiscoveryDoc,
+      });
+
+      // Mock token exchange
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => mockTokenResponse,
@@ -607,6 +614,7 @@ describe('OIDCRPClient', () => {
         authorizationEndpoint: 'https://custom/authorize',
         tokenEndpoint: 'https://custom/token',
         userinfoEndpoint: 'https://custom/userinfo',
+        tokenEndpointAuthMethod: 'client_secret_post' as const, // Prevent discovery call
       };
 
       const client = new OIDCRPClient(configWithAllEndpoints);
@@ -619,7 +627,7 @@ describe('OIDCRPClient', () => {
       });
       expect(authUrl).toContain('https://custom/authorize');
 
-      // Mock token response
+      // Mock token response (no discovery mock - explicit endpoints should skip discovery)
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ access_token: 'token', token_type: 'Bearer' }),

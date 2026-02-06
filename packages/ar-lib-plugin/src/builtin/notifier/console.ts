@@ -169,7 +169,9 @@ function createConsoleNotifierHandler(config: ConsoleNotifierConfig) {
   return {
     async send(notification: Notification): Promise<SendResult> {
       const timestamp = config.includeTimestamp ? new Date().toISOString() : '';
-      const messageId = `console-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const randomBytes = new Uint8Array(4);
+      crypto.getRandomValues(randomBytes);
+      const messageId = `console-${Date.now()}-${Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
 
       // Simulate delay if configured
       if (config.simulateDelayMs > 0) {

@@ -22,7 +22,10 @@
 		...restProps
 	}: Props = $props();
 
-	const inputId = $derived(id || `input-${Math.random().toString(36).substring(2, 9)}`);
+	const inputId = $derived(
+		id ||
+			`input-${Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('')}`
+	);
 	const hasError = $derived(!!error);
 </script>
 
@@ -96,7 +99,7 @@
 
 	.input-icon :global(i),
 	.input-icon :global(svg),
-	.input-icon :global([class*="i-"]) {
+	.input-icon :global([class*='i-']) {
 		width: 18px;
 		height: 18px;
 	}

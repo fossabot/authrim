@@ -68,6 +68,21 @@
 </svelte:head>
 
 <div class="admin-page">
+	<!-- Info Banner -->
+	<div class="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+		<div class="flex items-start">
+			<span class="i-ph-info text-blue-600 text-xl mr-3 mt-0.5"></span>
+			<div>
+				<h3 class="font-semibold text-blue-900 mb-1">End User Access Control</h3>
+				<p class="text-sm text-blue-800">
+					This page manages access control for <strong>End Users</strong> (your application's users).
+					For <strong>Admin Operator</strong> access control, visit
+					<a href="/admin/admin-access-control" class="underline hover:text-blue-900">Admin Access Control Hub</a>.
+				</p>
+			</div>
+		</div>
+	</div>
+
 	<!-- Page Header -->
 	<div class="page-header">
 		<div>
@@ -186,18 +201,19 @@
 		flex-direction: column;
 		gap: 12px;
 		padding: 24px;
-		background: var(--bg-secondary);
-		border: 1px solid var(--border-primary);
-		border-radius: var(--radius-lg);
+		background: var(--bg-secondary, var(--bg-card, #ffffff));
+		border: 1px solid var(--border-primary, var(--border, #e5e7eb));
+		border-radius: var(--radius-lg, 12px);
 		cursor: pointer;
-		transition: all var(--transition-fast);
+		transition: all var(--transition-fast, 0.2s ease);
 		text-align: left;
 		width: 100%;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 	}
 
 	.hub-card:hover {
-		border-color: var(--border-hover);
-		box-shadow: var(--shadow-md);
+		border-color: var(--border-hover, var(--primary, #2c2724));
+		box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.15));
 		transform: translateY(-2px);
 	}
 
@@ -306,9 +322,9 @@
 		align-items: center;
 		gap: 8px;
 		font-size: 0.8125rem;
-		color: var(--text-tertiary);
+		color: var(--text-tertiary, var(--text-secondary, #64748b));
 		padding-top: 8px;
-		border-top: 1px solid var(--border-primary);
+		border-top: 1px solid var(--border-primary, var(--border, #e5e7eb));
 	}
 
 	.hub-card-stats :global(i) {
@@ -345,16 +361,18 @@
 		align-items: center;
 		gap: 12px;
 		padding: 16px;
-		background: var(--bg-secondary);
-		border: 1px solid var(--border-primary);
-		border-radius: var(--radius-md);
+		background: var(--bg-secondary, var(--bg-card, #ffffff));
+		border: 1px solid var(--border-primary, var(--border, #e5e7eb));
+		border-radius: var(--radius-md, 8px);
 		text-decoration: none;
-		transition: all var(--transition-fast);
+		transition: all var(--transition-fast, 0.2s ease);
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	}
 
 	.quick-link:hover {
-		border-color: var(--border-hover);
-		background: var(--bg-tertiary);
+		border-color: var(--border-hover, var(--primary, #2c2724));
+		background: var(--bg-tertiary, var(--bg-hover, #f9fafb));
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 
 	.quick-link :global(i:first-child) {
@@ -371,6 +389,87 @@
 	.quick-link-desc {
 		margin-left: auto;
 		font-size: 0.8125rem;
-		color: var(--text-tertiary);
+		color: var(--text-tertiary, var(--text-secondary, #64748b));
+	}
+
+	/* === Dark Mode Support === */
+	:global(.dark) .hub-card {
+		background: var(--bg-secondary, #1e1e1e);
+		border-color: var(--border-primary, #374151);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+	}
+
+	:global(.dark) .hub-card:hover {
+		border-color: var(--border-hover, #4b5563);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	}
+
+	:global(.dark) .hub-card.purple:hover {
+		border-color: rgba(139, 92, 246, 0.6);
+	}
+
+	:global(.dark) .hub-card.green:hover {
+		border-color: rgba(34, 197, 94, 0.6);
+	}
+
+	:global(.dark) .hub-card.orange:hover {
+		border-color: rgba(249, 115, 22, 0.6);
+	}
+
+	:global(.dark) .hub-card.blue:hover {
+		border-color: rgba(59, 130, 246, 0.6);
+	}
+
+	:global(.dark) .hub-card-title {
+		color: var(--text-primary, #f5f5f5);
+	}
+
+	:global(.dark) .hub-card-subtitle {
+		color: var(--text-secondary, #a3a3a3);
+	}
+
+	:global(.dark) .hub-card-description {
+		color: var(--text-secondary, #a3a3a3);
+	}
+
+	:global(.dark) .hub-card-stats {
+		color: var(--text-tertiary, #737373);
+		border-top-color: var(--border-primary, #374151);
+	}
+
+	:global(.dark) .hub-card-arrow {
+		color: var(--text-tertiary, #737373);
+	}
+
+	:global(.dark) .hub-card:hover .hub-card-arrow {
+		color: var(--text-primary, #f5f5f5);
+	}
+
+	:global(.dark) .quick-link {
+		background: var(--bg-secondary, #1e1e1e);
+		border-color: var(--border-primary, #374151);
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+	}
+
+	:global(.dark) .quick-link:hover {
+		border-color: var(--border-hover, #4b5563);
+		background: var(--bg-tertiary, #2a2a2a);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+	}
+
+	:global(.dark) .quick-link span:first-of-type {
+		color: var(--text-primary, #f5f5f5);
+	}
+
+	:global(.dark) .quick-link :global(i:first-child) {
+		color: var(--text-secondary, #a3a3a3);
+	}
+
+	:global(.dark) .quick-link-desc {
+		color: var(--text-tertiary, #737373);
+	}
+
+	:global(.dark) .section-title {
+		color: var(--text-primary, #f5f5f5);
 	}
 </style>

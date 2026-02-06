@@ -280,6 +280,21 @@
 </svelte:head>
 
 <div class="admin-page">
+	<!-- Info Banner -->
+	<div class="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+		<div class="flex items-start">
+			<span class="i-ph-info text-blue-600 text-xl mr-3 mt-0.5"></span>
+			<div>
+				<h3 class="font-semibold text-blue-900 mb-1">End User ABAC</h3>
+				<p class="text-sm text-blue-800">
+					This page manages attributes for <strong>End Users</strong>.
+					For <strong>Admin Operator</strong> attribute management, visit
+					<a href="/admin/admin-abac" class="underline hover:text-blue-900">Admin ABAC</a>.
+				</p>
+			</div>
+		</div>
+	</div>
+
 	<!-- Page Header -->
 	<div class="page-header">
 		<div>

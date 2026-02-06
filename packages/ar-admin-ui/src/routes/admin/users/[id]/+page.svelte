@@ -10,6 +10,11 @@
 		type RoleAssignment,
 		type ScopeType
 	} from '$lib/api/admin-roles';
+	import {
+		adminConsentStatementsAPI,
+		type UserConsentRecord,
+		type ConsentItemHistory
+	} from '$lib/api/admin-consent-statements';
 	import OrganizationSelectDialog from '$lib/components/OrganizationSelectDialog.svelte';
 	import { Modal, ToggleSwitch } from '$lib/components';
 	import type { OrganizationNode } from '$lib/api/admin-organizations';
@@ -55,6 +60,27 @@
 	);
 	let confirmLoading = $state(false);
 	let revokedSessionsCount = $state<number | null>(null);
+
+	// Tab management
+	type TabId = 'overview' | 'roles' | 'consents' | 'actions';
+	let activeTab = $state<TabId>('overview');
+
+	// Consent records state
+	let consentRecords = $state<UserConsentRecord[]>([]);
+	let consentLoading = $state(false);
+	let consentError = $state('');
+
+	// Consent history modal
+	let showHistoryModal = $state(false);
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let selectedStatementForHistory = $state<string | null>(null);
+	let consentHistory = $state<ConsentItemHistory[]>([]);
+	let historyLoading = $state(false);
+
+	// Withdraw consent modal
+	let showWithdrawModal = $state(false);
+	let statementToWithdraw = $state<{ id: string; version: string } | null>(null);
+	let withdrawLoading = $state(false);
 
 	const userId = $derived($page.params.id ?? '');
 
@@ -325,6 +351,111 @@
 		}
 	}
 
+	// Tab switching - load consent records on first access to consents tab
+	function switchTab(tab: TabId) {
+		activeTab = tab;
+		if (tab === 'consents' && consentRecords.length === 0 && !consentLoading) {
+			loadConsentRecords();
+		}
+	}
+
+	// Consent records loading
+	async function loadConsentRecords() {
+		consentLoading = true;
+		consentError = '';
+		try {
+			const response = await adminConsentStatementsAPI.listUserConsentRecords(userId);
+			consentRecords = response.records || [];
+		} catch (err) {
+			console.error('Failed to load consent records:', err);
+			consentError = err instanceof Error ? err.message : 'Failed to load consent records';
+		} finally {
+			consentLoading = false;
+		}
+	}
+
+	// Consent history loading
+	async function loadConsentHistory(statementId: string) {
+		historyLoading = true;
+		consentError = '';
+		try {
+			const response = await adminConsentStatementsAPI.getUserConsentHistory(userId, statementId);
+			consentHistory = response.history || [];
+			showHistoryModal = true;
+		} catch (err) {
+			console.error('Failed to load consent history:', err);
+			consentError = err instanceof Error ? err.message : 'Failed to load consent history';
+		} finally {
+			historyLoading = false;
+		}
+	}
+
+	// Withdraw consent
+	async function handleWithdrawConsent() {
+		if (!statementToWithdraw) return;
+
+		withdrawLoading = true;
+		consentError = '';
+		try {
+			await adminConsentStatementsAPI.withdrawUserConsent(userId, statementToWithdraw.id);
+			await loadConsentRecords();
+			showWithdrawModal = false;
+			statementToWithdraw = null;
+		} catch (err) {
+			console.error('Failed to withdraw consent:', err);
+			consentError = err instanceof Error ? err.message : 'Failed to withdraw consent';
+		} finally {
+			withdrawLoading = false;
+		}
+	}
+
+	// Consent status badge helpers
+	function getConsentStatusBadgeClass(status: string): string {
+		switch (status) {
+			case 'granted':
+				return 'badge badge-success';
+			case 'denied':
+				return 'badge badge-danger';
+			case 'withdrawn':
+				return 'badge badge-warning';
+			case 'expired':
+				return 'badge badge-neutral';
+			default:
+				return 'badge badge-neutral';
+		}
+	}
+
+	function getConsentStatusLabel(status: string): string {
+		switch (status) {
+			case 'granted':
+				return 'Granted';
+			case 'denied':
+				return 'Denied';
+			case 'withdrawn':
+				return 'Withdrawn';
+			case 'expired':
+				return 'Expired';
+			default:
+				return status;
+		}
+	}
+
+	// History action label helper
+	function getActionLabel(action: string): string {
+		switch (action) {
+			case 'grant':
+				return 'Granted';
+			case 'deny':
+				return 'Denied';
+			case 'withdraw':
+				return 'Withdrawn';
+			case 'version_upgrade':
+				return 'Version Upgraded';
+			default:
+				return action;
+		}
+	}
+
 	function getConfirmDialogContent() {
 		switch (confirmAction) {
 			case 'suspend':
@@ -400,7 +531,41 @@
 			<div class="alert alert-error">{actionError}</div>
 		{/if}
 
-		<!-- User Details -->
+		<!-- Tab Navigation -->
+		<div class="tabs">
+			<button
+				class="tab"
+				class:active={activeTab === 'overview'}
+				onclick={() => switchTab('overview')}
+			>
+				<i class="i-ph-user"></i>
+				Overview
+			</button>
+			<button class="tab" class:active={activeTab === 'roles'} onclick={() => switchTab('roles')}>
+				<i class="i-ph-shield-check"></i>
+				Roles
+			</button>
+			<button
+				class="tab"
+				class:active={activeTab === 'consents'}
+				onclick={() => switchTab('consents')}
+			>
+				<i class="i-ph-check-circle"></i>
+				Consents
+			</button>
+			<button
+				class="tab"
+				class:active={activeTab === 'actions'}
+				onclick={() => switchTab('actions')}
+			>
+				<i class="i-ph-gear"></i>
+				Actions
+			</button>
+		</div>
+
+		<!-- Overview Tab -->
+		{#if activeTab === 'overview'}
+			<!-- User Details -->
 		<div class="panel">
 			<div class="panel-header">
 				<h2 class="panel-title">User Information</h2>
@@ -589,33 +754,36 @@
 			</dl>
 		</div>
 
-		<!-- Passkeys -->
-		<div class="panel">
-			<h2 class="panel-title">Passkeys</h2>
-			{#if user.passkeys && user.passkeys.length > 0}
-				<ul class="passkey-list">
-					{#each user.passkeys as passkey (passkey.id)}
-						<li class="passkey-item">
-							<div class="passkey-header">
-								<div>
-									<p class="passkey-name">
-										{sanitizeText(passkey.device_name || 'Unnamed Device')}
-									</p>
-									<p class="passkey-meta">Created: {formatTimestamp(passkey.created_at)}</p>
+			<!-- Passkeys -->
+			<div class="panel">
+				<h2 class="panel-title">Passkeys</h2>
+				{#if user.passkeys && user.passkeys.length > 0}
+					<ul class="passkey-list">
+						{#each user.passkeys as passkey (passkey.id)}
+							<li class="passkey-item">
+								<div class="passkey-header">
+									<div>
+										<p class="passkey-name">
+											{sanitizeText(passkey.device_name || 'Unnamed Device')}
+										</p>
+										<p class="passkey-meta">Created: {formatTimestamp(passkey.created_at)}</p>
+									</div>
+									<p class="passkey-meta">Last used: {formatTimestamp(passkey.last_used_at)}</p>
 								</div>
-								<p class="passkey-meta">Last used: {formatTimestamp(passkey.last_used_at)}</p>
-							</div>
-						</li>
-					{/each}
-				</ul>
-			{:else}
-				<div class="empty-state">
-					<p class="empty-state-description">No passkeys registered</p>
-				</div>
-			{/if}
-		</div>
+							</li>
+						{/each}
+					</ul>
+				{:else}
+					<div class="empty-state">
+						<p class="empty-state-description">No passkeys registered</p>
+					</div>
+				{/if}
+			</div>
+		{/if}
 
-		<!-- Role Assignments -->
+		<!-- Roles Tab -->
+		{#if activeTab === 'roles'}
+			<!-- Role Assignments -->
 		<div class="panel">
 			<div class="panel-header">
 				<h2 class="panel-title">Role Assignments</h2>
@@ -677,9 +845,90 @@
 				</div>
 			{/if}
 		</div>
+		{/if}
 
-		<!-- Actions -->
-		<div class="panel">
+		<!-- Consents Tab -->
+		{#if activeTab === 'consents'}
+			<div class="panel">
+				<h2 class="panel-title">Consent Records</h2>
+
+				{#if consentError}
+					<div class="alert alert-error">{consentError}</div>
+				{/if}
+
+				{#if consentLoading}
+					<div class="loading-state">
+						<i class="i-ph-circle-notch loading-spinner"></i>
+						<p>Loading consent records...</p>
+					</div>
+				{:else if consentRecords.length > 0}
+					<div class="data-table-container">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Statement</th>
+									<th>Version</th>
+									<th>Status</th>
+									<th>Granted At</th>
+									<th>Withdrawn At</th>
+									<th>Expires At</th>
+									<th class="text-right">Actions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each consentRecords as record (record.id)}
+									<tr>
+										<td><span style="font-weight: 500;">{record.statement_id}</span></td>
+										<td class="muted">{record.version}</td>
+										<td>
+											<span class={getConsentStatusBadgeClass(record.status)}>
+												{getConsentStatusLabel(record.status)}
+											</span>
+										</td>
+										<td class="muted">{formatTimestamp(record.granted_at ?? null)}</td>
+										<td class="muted">{formatTimestamp(record.withdrawn_at ?? null)}</td>
+										<td class="muted">{formatTimestamp(record.expires_at ?? null)}</td>
+										<td class="text-right">
+											<button
+												class="btn btn-secondary btn-sm"
+												onclick={() => {
+													selectedStatementForHistory = record.statement_id;
+													loadConsentHistory(record.statement_id);
+												}}
+											>
+												History
+											</button>
+											{#if record.status === 'granted'}
+												<button
+													class="btn btn-danger btn-sm"
+													onclick={() => {
+														statementToWithdraw = {
+															id: record.statement_id,
+															version: record.version
+														};
+														showWithdrawModal = true;
+													}}
+												>
+													Withdraw
+												</button>
+											{/if}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{:else}
+					<div class="empty-state">
+						<p class="empty-state-description">No consent records found for this user</p>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Actions Tab -->
+		{#if activeTab === 'actions'}
+			<div class="panel">
 			<h2 class="panel-title">Actions</h2>
 			<div class="action-buttons">
 				{#if user.status === 'active'}
@@ -702,19 +951,23 @@
 				</button>
 			</div>
 		</div>
+		{/if}
 	{/if}
 </div>
 
 <!-- Confirmation Dialog -->
 {#if showConfirmDialog}
 	{@const dialogContent = getConfirmDialogContent()}
-	<Modal open={showConfirmDialog} onClose={closeConfirmDialog} title={revokedSessionsCount !== null ? 'Sessions Revoked' : dialogContent.title} size="sm">
+	<Modal
+		open={showConfirmDialog}
+		onClose={closeConfirmDialog}
+		title={revokedSessionsCount !== null ? 'Sessions Revoked' : dialogContent.title}
+		size="sm"
+	>
 		{#if revokedSessionsCount !== null}
 			<!-- Success message for revoke-sessions -->
 			<div class="alert alert-success">
-				Successfully revoked {revokedSessionsCount} session{revokedSessionsCount === 1
-					? ''
-					: 's'}.
+				Successfully revoked {revokedSessionsCount} session{revokedSessionsCount === 1 ? '' : 's'}.
 				{#if revokedSessionsCount > 0}
 					Active sessions in memory will expire naturally.
 				{/if}
@@ -829,7 +1082,12 @@
 </Modal>
 
 <!-- Remove Role Confirmation Dialog -->
-<Modal open={showRemoveRoleDialog && !!roleToRemove} onClose={closeRemoveRoleDialog} title="Remove Role" size="sm">
+<Modal
+	open={showRemoveRoleDialog && !!roleToRemove}
+	onClose={closeRemoveRoleDialog}
+	title="Remove Role"
+	size="sm"
+>
 	<p class="modal-description">
 		Are you sure you want to remove the role <strong
 			>{sanitizeText(roleToRemove?.role_display_name || roleToRemove?.role_name || '')}</strong
@@ -840,11 +1098,7 @@
 		from this user?
 	</p>
 	{#snippet footer()}
-		<button
-			class="btn btn-secondary"
-			onclick={closeRemoveRoleDialog}
-			disabled={removeRoleLoading}
-		>
+		<button class="btn btn-secondary" onclick={closeRemoveRoleDialog} disabled={removeRoleLoading}>
 			Cancel
 		</button>
 		<button class="btn btn-danger" onclick={removeRole} disabled={removeRoleLoading}>
@@ -860,3 +1114,109 @@
 	onSelect={handleOrgSelect}
 	title="Select Organization for Role Scope"
 />
+
+<!-- Consent History Modal -->
+<Modal
+	open={showHistoryModal}
+	onClose={() => {
+		showHistoryModal = false;
+		selectedStatementForHistory = null;
+		consentHistory = [];
+	}}
+	title="Consent History"
+	size="lg"
+>
+	{#if historyLoading}
+		<div class="loading-state">
+			<i class="i-ph-circle-notch loading-spinner"></i>
+			<p>Loading history...</p>
+		</div>
+	{:else if consentHistory.length > 0}
+		<div class="data-table-container">
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Action</th>
+						<th>Version</th>
+						<th>Status Change</th>
+						<th>Timestamp</th>
+						<th>Client</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each consentHistory as item (item.id)}
+						<tr>
+							<td><span style="font-weight: 500;">{getActionLabel(item.action)}</span></td>
+							<td class="muted">
+								{#if item.version_before !== item.version_after}
+									{item.version_before || '-'} → {item.version_after || '-'}
+								{:else}
+									{item.version_after || '-'}
+								{/if}
+							</td>
+							<td class="muted">
+								{#if item.status_before !== item.status_after}
+									{item.status_before || '-'} → {item.status_after || '-'}
+								{:else}
+									{item.status_after || '-'}
+								{/if}
+							</td>
+							<td class="muted">{formatTimestamp(item.created_at)}</td>
+							<td class="muted">{item.client_id || '-'}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+	{:else}
+		<div class="empty-state">
+			<p class="empty-state-description">No history found</p>
+		</div>
+	{/if}
+
+	{#snippet footer()}
+		<button
+			class="btn btn-secondary"
+			onclick={() => {
+				showHistoryModal = false;
+				selectedStatementForHistory = null;
+				consentHistory = [];
+			}}
+		>
+			Close
+		</button>
+	{/snippet}
+</Modal>
+
+<!-- Withdraw Consent Confirmation Modal -->
+<Modal
+	open={showWithdrawModal}
+	onClose={() => {
+		showWithdrawModal = false;
+		statementToWithdraw = null;
+	}}
+	title="Withdraw Consent"
+	size="sm"
+>
+	<p class="modal-description">
+		Are you sure you want to withdraw consent for statement
+		<strong>{statementToWithdraw?.id}</strong> (version {statementToWithdraw?.version})?
+		This action will be recorded in the consent history.
+	</p>
+
+	{#snippet footer()}
+		<button
+			class="btn btn-secondary"
+			onclick={() => {
+				showWithdrawModal = false;
+				statementToWithdraw = null;
+			}}
+			disabled={withdrawLoading}
+		>
+			Cancel
+		</button>
+		<button class="btn btn-danger" onclick={handleWithdrawConsent} disabled={withdrawLoading}>
+			{withdrawLoading ? 'Withdrawing...' : 'Withdraw Consent'}
+		</button>
+	{/snippet}
+</Modal>

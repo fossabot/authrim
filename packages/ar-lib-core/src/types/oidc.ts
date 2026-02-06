@@ -307,6 +307,7 @@ export interface ClientRegistrationRequest {
   // https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin
   // ==========================================================================
   initiate_login_uri?: string;
+  login_ui_url?: string | null; // Client-specific login UI base URL
 }
 
 /**
@@ -375,6 +376,7 @@ export interface ClientRegistrationResponse {
   // https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin
   // ==========================================================================
   initiate_login_uri?: string;
+  login_ui_url?: string | null; // Client-specific login UI base URL
   // ==========================================================================
   // RFC 7592: Client Configuration Endpoint
   // https://datatracker.ietf.org/doc/html/rfc7592
@@ -469,6 +471,9 @@ export interface ClientMetadata extends ClientRegistrationResponse {
    */
   allowed_redirect_origins?: string[];
 
+  /** Client-specific login UI base URL (overrides global UI_URL) */
+  login_ui_url?: string | null;
+
   // ==========================================================================
   // OIDC Native SSO 1.0 (draft-07) Settings
   // ==========================================================================
@@ -488,8 +493,6 @@ export interface ClientMetadata extends ClientRegistrationResponse {
   // ==========================================================================
   // OIDC 3rd Party Initiated Login (OIDC Core Section 4)
   // ==========================================================================
-  /** URI for third-party initiated login */
-  initiate_login_uri?: string;
 
   // ==========================================================================
   // RFC 7592: Client Configuration Endpoint

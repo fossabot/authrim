@@ -55,7 +55,8 @@
 		// End User Monitoring
 		endUserMonitoring: [
 			{ path: '/admin/audit-logs', label: 'User Audit Logs', icon: 'i-ph-file-text' },
-			{ path: '/admin/access-trace', label: 'Access Trace', icon: 'i-ph-path' }
+			{ path: '/admin/access-trace', label: 'Access Trace', icon: 'i-ph-path' },
+			{ path: '/admin/diagnostic-logging', label: 'Diagnostic Logging', icon: 'i-ph-bug' }
 		],
 		// Applications
 		applications: [
@@ -66,6 +67,8 @@
 		// Authentication
 		authentication: [
 			{ path: '/admin/flows', label: 'Flows', icon: 'i-ph-flow-arrow' },
+			{ path: '/admin/consents', label: 'Consents', icon: 'i-ph-handshake' },
+			{ path: '/admin/consent-statements', label: 'Consent Statements', icon: 'i-ph-list-checks' },
 			{ path: '/admin/external-idp', label: 'External IdP', icon: 'i-ph-globe' }
 		],
 		// Configuration
@@ -96,11 +99,26 @@
 		// Admin Management (Admin operators, not end users)
 		adminManagement: [
 			{ path: '/admin/admins', label: 'Admin Users', icon: 'i-ph-user-gear' },
-			{ path: '/admin/admin-roles', label: 'Admin Roles', icon: 'i-ph-crown' },
+			{
+				parent: {
+					href: '/admin/admin-access-control',
+					icon: 'i-ph-shield-star',
+					label: 'Admin Access Control'
+				},
+				children: [
+					{ href: '/admin/admin-rbac', label: 'RBAC (Roles)' },
+					{ href: '/admin/admin-abac', label: 'ABAC (Attributes)' },
+					{ href: '/admin/admin-rebac', label: 'ReBAC' },
+					{ href: '/admin/admin-policies', label: 'Policies' }
+				]
+			},
 			{ path: '/admin/ip-allowlist', label: 'IP Allowlist', icon: 'i-ph-shield-check' },
 			{ path: '/admin/admin-audit', label: 'Admin Audit Log', icon: 'i-ph-clipboard-text' }
 		]
 	};
+
+	// Extract admin management items for type safety
+	const [adminUsersItem, adminAccessControlItem, ...adminOtherItems] = platformNavItems.adminManagement;
 
 	// All nav items flattened for breadcrumb lookup
 	const allNavItems = [
@@ -125,7 +143,28 @@
 		...platformNavItems.identitySchema,
 		...platformNavItems.securityCompliance,
 		...platformNavItems.operations,
-		...platformNavItems.adminManagement
+		// Admin Management with Access Control Hub
+		{
+			path: adminUsersItem.path!,
+			label: adminUsersItem.label!,
+			icon: adminUsersItem.icon!
+		},
+		{
+			path: adminAccessControlItem.parent!.href,
+			label: adminAccessControlItem.parent!.label,
+			icon: adminAccessControlItem.parent!.icon
+		},
+		...adminAccessControlItem.children!.map((c) => ({
+			path: c.href,
+			label: c.label,
+			icon: 'i-ph-arrow-right'
+		})),
+		// IP Allowlist, Admin Audit
+		...adminOtherItems.map((item) => ({
+			path: item.path!,
+			label: item.label!,
+			icon: item.icon!
+		}))
 	];
 
 	// Check if nav item is active
@@ -304,12 +343,22 @@
 
 				<!-- Admin Management (Admin Operators) -->
 				<NavGroupLabel label="Admin Operators" />
-				{#each platformNavItems.adminManagement as item (item.path)}
+				<NavItem
+					href={adminUsersItem.path!}
+					icon={adminUsersItem.icon!}
+					label={adminUsersItem.label!}
+					active={isActive(adminUsersItem.path!)}
+				/>
+				<NavItemGroup
+					parent={adminAccessControlItem.parent!}
+					children={adminAccessControlItem.children!}
+				/>
+				{#each adminOtherItems as item (item.path)}
 					<NavItem
-						href={item.path}
-						icon={item.icon}
-						label={item.label}
-						active={isActive(item.path)}
+						href={item.path!}
+						icon={item.icon!}
+						label={item.label!}
+						active={isActive(item.path!)}
 					/>
 				{/each}
 			</NavSection>

@@ -309,7 +309,12 @@
 </div>
 
 <!-- Create Dialog -->
-<Modal open={showCreateDialog} onClose={closeCreateDialog} title="Add Role Assignment Rule" size="md">
+<Modal
+	open={showCreateDialog}
+	onClose={closeCreateDialog}
+	title="Add Role Assignment Rule"
+	size="md"
+>
 	{#if createError}
 		<div class="alert alert-error">{createError}</div>
 	{/if}
@@ -411,7 +416,12 @@
 </Modal>
 
 <!-- Test Dialog -->
-<Modal open={showTestDialog && !!ruleToTest} onClose={closeTestDialog} title={`Test Rule: ${ruleToTest?.name ?? ''}`} size="lg">
+<Modal
+	open={showTestDialog && !!ruleToTest}
+	onClose={closeTestDialog}
+	title={`Test Rule: ${ruleToTest?.name ?? ''}`}
+	size="lg"
+>
 	{#if testError}
 		<div class="alert alert-error">{testError}</div>
 	{/if}
@@ -419,9 +429,7 @@
 	<div class="form-group">
 		<label for="test-claims" class="form-label">Test Claims (JSON)</label>
 		<textarea id="test-claims" class="form-input" bind:value={testClaims} rows="6"></textarea>
-		<span class="cell-secondary"
-			>Enter the claims object that would be received from the IdP</span
-		>
+		<span class="cell-secondary">Enter the claims object that would be received from the IdP</span>
 	</div>
 
 	{#if testResult}
@@ -451,14 +459,19 @@
 </Modal>
 
 <!-- Delete Confirmation Dialog -->
-<Modal open={showDeleteDialog && !!ruleToDelete} onClose={closeDeleteDialog} title="Delete Role Assignment Rule" size="md">
+<Modal
+	open={showDeleteDialog && !!ruleToDelete}
+	onClose={closeDeleteDialog}
+	title="Delete Role Assignment Rule"
+	size="md"
+>
 	{#if deleteError}
 		<div class="alert alert-error">{deleteError}</div>
 	{/if}
 
 	<p class="modal-description">
-		Are you sure you want to delete this role assignment rule? Users will no longer be
-		automatically assigned the specified role based on this rule.
+		Are you sure you want to delete this role assignment rule? Users will no longer be automatically
+		assigned the specified role based on this rule.
 	</p>
 
 	{#if ruleToDelete}

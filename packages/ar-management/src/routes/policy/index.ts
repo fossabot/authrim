@@ -211,7 +211,9 @@ async function writeAuditLog(
 ): Promise<void> {
   try {
     const entry = createAuditLogEntry(eventType, subject, actor, action, result, 90);
-    const logId = `audit_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const randomBytes = new Uint8Array(5);
+    crypto.getRandomValues(randomBytes);
+    const logId = `audit_${Date.now()}_${Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
     const envPrefix = env.ENVIRONMENT || 'dev';
     const key = `${envPrefix}:audit:contract:${logId}`;
 

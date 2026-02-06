@@ -7,6 +7,7 @@
  */
 
 import type { Context } from 'hono';
+import { setCookie } from 'hono/cookie';
 import type { Env } from '@authrim/ar-lib-core';
 import {
   D1Adapter,
@@ -16,6 +17,11 @@ import {
   buildIssuerUrl,
   shouldUseBuiltinForms,
   getTenantIdFromContext,
+  createDiagnosticLoggerFromContext,
+  getDiagnosticSessionId,
+  createAuthContextFromHono,
+  // Challenge Store for auth_code generation
+  getChallengeStoreByChallengeId,
   // Event System
   publishEvent,
   AUTH_EVENTS,
@@ -27,6 +33,9 @@ import {
   createLogger,
   // Audit Log
   createAuditLog,
+  // Errors
+  AR_ERROR_CODES,
+  createErrorResponse,
 } from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
@@ -90,6 +99,34 @@ async function getCallbackParams(c: Context<{ Bindings: Env }>): Promise<{
 }
 
 /**
+ * Generate authorization code for Direct Auth token exchange
+ * TTL: 60 seconds, single-use
+ */
+async function generateAuthCode(
+  env: Env,
+  userId: string,
+  codeChallenge: string,
+  metadata?: Record<string, unknown>
+): Promise<string> {
+  const authCode = crypto.randomUUID();
+  const challengeStore = await getChallengeStoreByChallengeId(env, authCode);
+
+  await challengeStore.storeChallengeRpc({
+    id: `direct_auth:${authCode}`,
+    type: 'direct_auth_code',
+    userId,
+    challenge: codeChallenge, // Store code_challenge for verification
+    ttl: 60, // 60 seconds
+    metadata: {
+      ...metadata,
+      created_at: Date.now(),
+    },
+  });
+
+  return authCode;
+}
+
+/**
  * Handle OAuth callback from external IdP
  *
  * Query/Body Parameters:
@@ -103,6 +140,7 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
   const log = getLogger(c).module('CALLBACK');
   const providerIdOrSlug = c.req.param('provider');
   const { code, state, error, errorDescription, tenantId, user } = await getCallbackParams(c);
+  let diagnosticLogger: Awaited<ReturnType<typeof createDiagnosticLoggerFromContext>> = null;
 
   // Handle provider errors
   if (error) {
@@ -136,6 +174,14 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       return redirectWithError(c, 'invalid_state', 'Provider mismatch');
     }
 
+    // Create diagnostic logger (OIDF conformance)
+    diagnosticLogger = await createDiagnosticLoggerFromContext(c, {
+      tenantId: authState.tenantId || tenantId,
+      clientId: provider.clientId,
+    });
+    const diagnosticSessionId = getDiagnosticSessionId(c);
+    const flowId = authState.flowId;
+
     // 3. Get client secret (Apple requires dynamic JWT generation)
     let clientSecret: string;
     if (isAppleProvider(provider)) {
@@ -162,26 +208,147 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
     const providerIdentifier = provider.slug || provider.id;
     const callbackUri = `${c.env.ISSUER_URL}/auth/external/${providerIdentifier}/callback`;
 
+    // 4b. Log authorization response (OIDF conformance)
+    if (diagnosticLogger) {
+      await diagnosticLogger.logAuthDecision({
+        diagnosticSessionId,
+        flowId,
+        decision: 'allow',
+        reason: 'authorization_response',
+        flow: 'external_idp',
+        context: {
+          provider: provider.slug ?? provider.id,
+          client_id: provider.clientId,
+          authrim_client_id: authState.clientId,
+          redirect_uri: callbackUri,
+          state,
+          code,
+        },
+      });
+    }
+
     // 5. Exchange code for tokens
     const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret);
-    const tokens = await client.handleCallback(code, authState.codeVerifier || '');
+    if (!authState.codeVerifier) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.CALLBACK_FAILED,
+        'Missing code_verifier in auth state'
+      );
+    }
+
+    const { tokens, requestContext } = await client.exchangeCode(code, authState.codeVerifier);
+
+    if (diagnosticLogger) {
+      await diagnosticLogger.logTokenValidation({
+        diagnosticSessionId,
+        flowId,
+        step: 'token-request',
+        tokenType: 'authorization_code',
+        result: 'pass',
+        details: {
+          token_endpoint: requestContext.tokenEndpoint,
+          auth_method: requestContext.authMethod,
+          auth_header_present: requestContext.authHeaderPresent,
+          grant_type: 'authorization_code',
+          redirect_uri: callbackUri,
+          client_id: provider.clientId,
+          code,
+          code_verifier: authState.codeVerifier,
+        },
+      });
+
+      await diagnosticLogger.logTokenValidation({
+        diagnosticSessionId,
+        flowId,
+        step: 'token-response',
+        tokenType: 'token',
+        token: tokens.access_token,
+        result: 'pass',
+        details: {
+          token_endpoint: requestContext.tokenEndpoint,
+          token_type: tokens.token_type,
+          expires_in: tokens.expires_in,
+          scope: tokens.scope,
+          access_token: tokens.access_token,
+          id_token: tokens.id_token,
+          refresh_token: tokens.refresh_token,
+        },
+      });
+    }
 
     // 6. Validate ID token and/or fetch user info
     let userInfo;
+    let idTokenSub: string | undefined;
+    const diagnostics = diagnosticLogger
+      ? {
+          logger: diagnosticLogger,
+          flowId,
+          diagnosticSessionId,
+        }
+      : undefined;
     if (provider.providerType === 'oidc' && tokens.id_token && authState.nonce) {
       // Use the new options-based signature for comprehensive OIDC validation
-      userInfo = await client.validateIdToken(tokens.id_token, {
-        nonce: authState.nonce,
-        accessToken: tokens.access_token, // For at_hash validation if present
-        maxAge: authState.maxAge, // For auth_time validation if max_age was requested
-        acrValues: authState.acrValues, // For acr validation if acr_values was requested
-      });
+      userInfo = await client.validateIdToken(
+        tokens.id_token,
+        {
+          nonce: authState.nonce,
+          accessToken: tokens.access_token, // For at_hash validation if present
+          maxAge: authState.maxAge, // For auth_time validation if max_age was requested
+          acrValues: authState.acrValues, // For acr validation if acr_values was requested
+        },
+        diagnostics
+      );
+      idTokenSub = userInfo.sub;
 
       // Optionally fetch userinfo even when id_token is present
       // Enable this for OIDC RP certification testing or when userinfo has additional claims
       if (provider.alwaysFetchUserinfo) {
         try {
-          const userinfoData = await client.fetchUserInfo(tokens.access_token);
+          const { userInfo: userinfoData, endpoint } = await client.fetchUserInfoWithMeta(
+            tokens.access_token
+          );
+          if (diagnosticLogger) {
+            await diagnosticLogger.logTokenValidation({
+              diagnosticSessionId,
+              flowId,
+              step: 'userinfo-request',
+              tokenType: 'access_token',
+              token: tokens.access_token,
+              result: 'pass',
+              details: {
+                endpoint,
+              },
+            });
+            await diagnosticLogger.logTokenValidation({
+              diagnosticSessionId,
+              flowId,
+              step: 'userinfo-response',
+              tokenType: 'access_token',
+              token: tokens.access_token,
+              result: 'pass',
+              details: {
+                endpoint,
+                claims: userinfoData,
+              },
+            });
+          }
+          if (idTokenSub && userinfoData.sub && userinfoData.sub !== idTokenSub) {
+            if (diagnosticLogger) {
+              await diagnosticLogger.logTokenValidation({
+                diagnosticSessionId,
+                flowId,
+                step: 'userinfo-mismatch',
+                tokenType: 'id_token',
+                result: 'fail',
+                errorMessage: 'Userinfo sub claim does not match ID token sub',
+                details: {
+                  expected_sub: idTokenSub,
+                  actual_sub: userinfoData.sub,
+                },
+              });
+            }
+            throw new Error('Userinfo sub claim mismatch');
+          }
           // Merge userinfo data (userinfo may have additional claims not in id_token)
           userInfo = { ...userInfo, ...userinfoData };
         } catch {
@@ -190,7 +357,35 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
         }
       }
     } else {
-      userInfo = await client.fetchUserInfo(tokens.access_token);
+      const { userInfo: userinfoData, endpoint } = await client.fetchUserInfoWithMeta(
+        tokens.access_token
+      );
+      if (diagnosticLogger) {
+        await diagnosticLogger.logTokenValidation({
+          diagnosticSessionId,
+          flowId,
+          step: 'userinfo-request',
+          tokenType: 'access_token',
+          token: tokens.access_token,
+          result: 'pass',
+          details: {
+            endpoint,
+          },
+        });
+        await diagnosticLogger.logTokenValidation({
+          diagnosticSessionId,
+          flowId,
+          step: 'userinfo-response',
+          tokenType: 'access_token',
+          token: tokens.access_token,
+          result: 'pass',
+          details: {
+            endpoint,
+            claims: userinfoData,
+          },
+        });
+      }
+      userInfo = userinfoData;
     }
 
     // 6.2. Apple-specific: Parse user data from POST body (first authorization only)
@@ -273,15 +468,8 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       tenantId: authState.tenantId,
     });
 
-    // 8. Create Authrim session with external provider info for backchannel logout
-    const sessionId = await createSession(c.env, {
-      userId: result.userId,
-      externalProviderId: provider.id,
-      externalProviderSub: userInfo.sub,
-      acr: userInfo.acr, // Pass ACR if provider returned it
-    });
-
-    // 9. Publish authentication success events (non-blocking)
+    // 8. Publish authentication success event (non-blocking)
+    // Note: Session will be created during token exchange, not here
     publishEvent(c, {
       type: AUTH_EVENTS.EXTERNAL_IDP_SUCCEEDED,
       tenantId: authState.tenantId,
@@ -289,72 +477,122 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
         userId: result.userId,
         method: 'external_idp',
         clientId: provider.id,
-        sessionId,
-      } satisfies AuthEventData,
+      } satisfies Omit<AuthEventData, 'sessionId'>,
     }).catch((err: unknown) => {
       log.error('Failed to publish auth.external_idp.succeeded', {}, err as Error);
     });
 
-    publishEvent(c, {
-      type: SESSION_EVENTS.USER_CREATED,
-      tenantId: authState.tenantId,
-      data: {
-        sessionId,
-        userId: result.userId,
-        ttlSeconds: 3600,
-      } satisfies SessionEventData,
-    }).catch((err: unknown) => {
-      log.error('Failed to publish session.user.created', {}, err as Error);
-    });
-
-    // Write audit log for external IdP login (non-blocking)
-    const ipAddress =
-      c.req.header('CF-Connecting-IP') ||
-      c.req.header('X-Forwarded-For')?.split(',')[0]?.trim() ||
-      c.req.header('X-Real-IP') ||
-      'unknown';
-    const userAgent = c.req.header('User-Agent') || 'unknown';
-
-    // Schedule audit log with waitUntil to ensure it completes after response
-    const auditPromise = createAuditLog(c.env, {
-      tenantId: authState.tenantId,
-      userId: result.userId,
-      action: 'user.login',
-      resource: 'session',
-      resourceId: sessionId,
-      ipAddress,
-      userAgent,
-      metadata: JSON.stringify({
-        method: 'external_idp',
-        provider: provider.id,
-        is_new_user: result.isNewUser,
-      }),
-      severity: 'info',
-    }).catch((err: unknown) => {
-      log.error('Failed to create audit log for external idp login', {}, err as Error);
-    });
-    c.executionCtx?.waitUntil(auditPromise);
-
-    // 10. Build redirect URL with success
-    const redirectUrl = new URL(authState.redirectUri);
-
-    // Add success indicator
-    if (result.isNewUser) {
-      redirectUrl.searchParams.set('external_auth', 'registered');
-    } else if (result.stitchedFromExisting) {
-      redirectUrl.searchParams.set('external_auth', 'linked');
-    } else {
-      redirectUrl.searchParams.set('external_auth', 'success');
+    // 9. Generate authorization code for Direct Auth token exchange
+    // Use code_challenge from authState (client-side PKCE)
+    const codeChallenge = authState.codeChallenge;
+    if (!codeChallenge) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.CALLBACK_FAILED,
+        'Missing code_challenge in auth state'
+      );
     }
 
-    // 11. Return redirect with session cookie
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: redirectUrl.toString(),
-        'Set-Cookie': buildSessionCookie(sessionId, c.env.ISSUER_URL),
-      },
-    });
+    const clientId = authState.clientId;
+    if (!clientId) {
+      throw new ExternalIdPError(
+        ExternalIdPErrorCode.CALLBACK_FAILED,
+        'Missing client_id in auth state'
+      );
+    }
+
+    // 11. SSO判定: デフォルトはSSO有効（ハンドオフフロー）
+    const enableSso = authState.enableSso !== false; // デフォルト: true
+
+    if (enableSso) {
+      // SSO有効: ハンドオフフロー
+
+      // 11a. ユーザー検証（セッション作成前に実施）
+      const tenantId = getTenantIdFromContext(c);
+      const authCtx = createAuthContextFromHono(c, tenantId);
+      const userCore = await authCtx.repositories.userCore.findById(result.userId);
+
+      if (!userCore || !userCore.is_active) {
+        return createErrorResponse(c, AR_ERROR_CODES.USER_INACTIVE);
+      }
+
+      // 11b. セッション作成（SSOセッション）
+      const { stub: sessionStore, sessionId } = await getSessionStoreForNewSession(c.env);
+      const sessionTTL = 24 * 60 * 60; // 24 hours
+
+      await sessionStore.createSessionRpc(sessionId, result.userId, sessionTTL, {
+        email: userInfo.email || null,
+        name: userInfo.name || null,
+        amr: ['external_idp'],
+        acr: 'urn:mace:incommon:iap:bronze',
+        client_id: clientId,
+        external_idp: provider.id,
+      });
+
+      // セッションCookie設定
+      const issuerUrl = buildIssuerUrl(c.env);
+      const isSecure = issuerUrl.startsWith('https://');
+
+      setCookie(c, 'authrim_session', sessionId, {
+        path: '/',
+        httpOnly: true,
+        secure: isSecure,
+        sameSite: 'Lax',
+        maxAge: sessionTTL,
+      });
+
+      // 11c. ハンドオフトークン生成
+      const handoffToken = crypto.randomUUID();
+      const handoffStore = await getChallengeStoreByChallengeId(c.env, handoffToken);
+
+      await handoffStore.storeChallengeRpc({
+        id: `handoff:${handoffToken}`,
+        type: 'handoff',
+        userId: result.userId,
+        challenge: sessionId, // sessionIdを格納
+        ttl: 30, // 30秒（リダイレクト+JS実行で十分）
+        metadata: {
+          client_id: clientId,
+          state: authState.state,
+          aud: 'handoff', // トークン再利用事故防止
+          created_at: Date.now(),
+        },
+      });
+
+      // 11d. RPへリダイレクト（ハンドオフトークン付き + Referrer対策）
+      const redirectUrl = new URL(authState.redirectUri);
+      redirectUrl.searchParams.set('handoff_token', handoffToken);
+      redirectUrl.searchParams.set('state', authState.state);
+
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: redirectUrl.toString(),
+          'Referrer-Policy': 'no-referrer', // ブラウザ履歴・リファラ漏洩対策
+          'Cache-Control': 'no-store', // キャッシュ防止
+        },
+      });
+    } else {
+      // SSO無効: 従来のDirect Auth フロー（authCodeを返す）
+      const authCode = await generateAuthCode(c.env, result.userId, codeChallenge, {
+        method: 'external_idp',
+        provider: provider.id,
+        provider_id: provider.id,
+        provider_slug: provider.slug ?? provider.id,
+        client_id: clientId,
+        is_new_user: result.isNewUser,
+        stitched_from_existing: result.stitchedFromExisting,
+      });
+
+      const redirectUrl = new URL(authState.redirectUri);
+      redirectUrl.searchParams.set('code', authCode);
+
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: redirectUrl.toString(),
+        },
+      });
+    }
   } catch (error) {
     log.error('Callback error', {}, error as Error);
 
@@ -412,6 +650,10 @@ export async function handleExternalCallback(c: Context<{ Bindings: Env }>): Pro
       ExternalIdPErrorCode.CALLBACK_FAILED,
       'Authentication failed. Please try again.'
     );
+  } finally {
+    if (diagnosticLogger) {
+      await diagnosticLogger.cleanup();
+    }
   }
 }
 

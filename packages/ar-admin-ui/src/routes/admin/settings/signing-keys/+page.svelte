@@ -266,10 +266,15 @@
 </div>
 
 <!-- Normal Rotation Confirmation Dialog -->
-<Modal open={showNormalRotationDialog} onClose={() => (showNormalRotationDialog = false)} title="Confirm Key Rotation" size="sm">
+<Modal
+	open={showNormalRotationDialog}
+	onClose={() => (showNormalRotationDialog = false)}
+	title="Confirm Key Rotation"
+	size="sm"
+>
 	<p class="text-secondary">
-		This will create a new signing key. The current key will remain valid for 24 hours to
-		allow existing tokens to be verified.
+		This will create a new signing key. The current key will remain valid for 24 hours to allow
+		existing tokens to be verified.
 	</p>
 
 	{#snippet footer()}
@@ -287,15 +292,20 @@
 </Modal>
 
 <!-- Emergency Rotation Dialog -->
-<Modal open={showEmergencyDialog} onClose={() => {
-	showEmergencyDialog = false;
-	emergencyReason = '';
-	emergencyError = '';
-}} title="Emergency Key Rotation" size="md">
+<Modal
+	open={showEmergencyDialog}
+	onClose={() => {
+		showEmergencyDialog = false;
+		emergencyReason = '';
+		emergencyError = '';
+	}}
+	title="Emergency Key Rotation"
+	size="md"
+>
 	<div class="rotation-dialog-warning">
 		<p>
-			<strong>Warning:</strong> This will immediately revoke the current signing key. All existing
-			tokens will become invalid. JWKS cache on edge nodes may take up to 60 seconds to refresh.
+			<strong>Warning:</strong> This will immediately revoke the current signing key. All existing tokens
+			will become invalid. JWKS cache on edge nodes may take up to 60 seconds to refresh.
 		</p>
 	</div>
 	<div class="form-group">

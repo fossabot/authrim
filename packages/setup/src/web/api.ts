@@ -1030,12 +1030,42 @@ export function createApiRoutes(): Hono {
             const adminUiHasCustomDomain = !!cfg?.urls?.adminUi?.custom;
             const useDirectMode = apiHasCustomDomain && adminUiHasCustomDomain;
 
+            // Auto-create Login UI OAuth client (idempotent)
+            let loginUiClientId: string | undefined;
+            if (cfg?.components?.loginUi && !dryRun) {
+              const loginUiUrl =
+                cfg?.urls?.loginUi?.custom ||
+                cfg?.urls?.loginUi?.auto ||
+                `https://${env}-ar-login-ui.pages.dev`;
+
+              const { ensureLoginUiClient } = await import('../core/login-ui-client.js');
+              const clientResult = await ensureLoginUiClient({
+                apiBaseUrl,
+                loginUiUrl,
+                adminApiSecretPath: (resolved.paths as EnvironmentPaths).keyFiles.adminApiSecret,
+                onProgress: addProgress,
+              });
+
+              if (clientResult.success && clientResult.clientId) {
+                loginUiClientId = clientResult.clientId;
+                if (clientResult.alreadyExists) {
+                  addProgress(`  ✓ Login UI client exists: ${loginUiClientId}`);
+                } else {
+                  addProgress(`  ✓ Login UI client created: ${loginUiClientId}`);
+                }
+              } else {
+                addProgress(`  ⚠️  Login UI client creation skipped: ${clientResult.error}`);
+              }
+            }
+
             const { saveUiEnv } = await import('../core/ui-env.js');
             try {
               if (useDirectMode) {
                 await saveUiEnv(uiEnvPath, {
                   PUBLIC_API_BASE_URL: apiBaseUrl, // Frontend sends directly to backend
                   API_BACKEND_URL: '', // Proxy disabled
+                  PUBLIC_AUTHRIM_ISSUER: apiBaseUrl,
+                  PUBLIC_LOGIN_UI_CLIENT_ID: loginUiClientId,
                 });
                 addProgress(`ui.env synced (direct mode: ${apiBaseUrl})`);
                 addProgress(`Custom domains detected - Safari ITP proxy disabled`);
@@ -1043,6 +1073,8 @@ export function createApiRoutes(): Hono {
                 await saveUiEnv(uiEnvPath, {
                   PUBLIC_API_BASE_URL: '', // Empty for proxy mode (same-origin)
                   API_BACKEND_URL: apiBaseUrl, // Server-side proxy target
+                  PUBLIC_AUTHRIM_ISSUER: apiBaseUrl,
+                  PUBLIC_LOGIN_UI_CLIENT_ID: loginUiClientId,
                 });
                 addProgress(`ui.env synced (proxy mode: ${apiBaseUrl})`);
               }
@@ -1806,17 +1838,49 @@ export function createApiRoutes(): Hono {
               const adminUiHasCustomDomain = !!cfg?.urls?.adminUi?.custom;
               const useDirectMode = apiHasCustomDomain && adminUiHasCustomDomain;
 
+              // Auto-create Login UI OAuth client if deploying ar-login-ui (idempotent)
+              let loginUiClientId: string | undefined;
+              if (componentName === 'ar-login-ui' && !dryRun) {
+                const loginUiUrl =
+                  cfg?.urls?.loginUi?.custom ||
+                  cfg?.urls?.loginUi?.auto ||
+                  `https://${env}-ar-login-ui.pages.dev`;
+
+                const { ensureLoginUiClient } = await import('../core/login-ui-client.js');
+                const clientResult = await ensureLoginUiClient({
+                  apiBaseUrl,
+                  loginUiUrl,
+                  adminApiSecretPath: (resolved.paths as EnvironmentPaths).keyFiles.adminApiSecret,
+                  onProgress: addProgress,
+                });
+
+                if (clientResult.success && clientResult.clientId) {
+                  loginUiClientId = clientResult.clientId;
+                  if (clientResult.alreadyExists) {
+                    addProgress(`  ✓ Login UI client exists: ${loginUiClientId}`);
+                  } else {
+                    addProgress(`  ✓ Login UI client created: ${loginUiClientId}`);
+                  }
+                } else {
+                  addProgress(`  ⚠️  Login UI client creation skipped: ${clientResult.error}`);
+                }
+              }
+
               const { saveUiEnv } = await import('../core/ui-env.js');
               try {
                 if (useDirectMode) {
                   await saveUiEnv(uiEnvPath, {
                     PUBLIC_API_BASE_URL: apiBaseUrl,
                     API_BACKEND_URL: '',
+                    PUBLIC_AUTHRIM_ISSUER: apiBaseUrl,
+                    PUBLIC_LOGIN_UI_CLIENT_ID: loginUiClientId,
                   });
                 } else {
                   await saveUiEnv(uiEnvPath, {
                     PUBLIC_API_BASE_URL: '',
                     API_BACKEND_URL: apiBaseUrl,
+                    PUBLIC_AUTHRIM_ISSUER: apiBaseUrl,
+                    PUBLIC_LOGIN_UI_CLIENT_ID: loginUiClientId,
                   });
                 }
                 addProgress(`ui.env synced for ${componentName}`);

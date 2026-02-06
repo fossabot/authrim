@@ -140,6 +140,8 @@ export interface AdminRole {
   role_type: AdminRoleType;
   /** Whether this is a system role (cannot be modified) */
   is_system: boolean;
+  /** Parent role ID for inheritance (nullable) */
+  inherits_from: string | null;
   /** Creation timestamp (Unix milliseconds) */
   created_at: number;
   /** Last update timestamp (Unix milliseconds) */
@@ -157,6 +159,7 @@ export interface AdminRoleCreateInput {
   permissions: string[];
   hierarchy_level?: number;
   role_type?: AdminRoleType;
+  inherits_from?: string | null;
 }
 
 /**
@@ -167,6 +170,7 @@ export interface AdminRoleUpdateInput {
   description?: string | null;
   permissions?: string[];
   hierarchy_level?: number;
+  inherits_from?: string | null;
 }
 
 // =============================================================================

@@ -1,0 +1,408 @@
+/**
+ * Diagnostic Log Formatter
+ *
+ * Pure function utilities for formatting diagnostic logs for OIDF submission.
+ * No I/O operations, no side effects - easy to test and maintain.
+ */
+
+import type {
+  DiagnosticLogEntry,
+  TokenValidationLogEntry,
+  AuthDecisionLogEntry,
+} from '../services/diagnostic/types.js';
+
+/**
+ * OIDF submission format entry
+ */
+export interface OIDFLogEntry {
+  /** Timestamp (ISO 8601 format) */
+  timestamp: string;
+  /** Diagnostic session ID (optional for backward compatibility) */
+  sessionId?: string;
+  /** Log category */
+  category: string;
+  /** Log level */
+  level: string;
+  /** Event type */
+  event: string;
+  /** Event details */
+  details: Record<string, unknown>;
+}
+
+/**
+ * Grouped logs by diagnostic session ID
+ */
+export interface GroupedLogs {
+  [sessionId: string]: DiagnosticLogEntry[];
+}
+
+/**
+ * Export options
+ */
+export interface ExportOptions {
+  /** Include only specific session IDs */
+  sessionIds?: string[];
+  /** Start timestamp (Unix epoch in milliseconds) */
+  startTime?: number;
+  /** End timestamp (Unix epoch in milliseconds) */
+  endTime?: number;
+  /** Include only specific categories */
+  categories?: string[];
+  /** Sort order */
+  sortOrder?: 'asc' | 'desc';
+  /** Sort mode */
+  sortMode?: 'session' | 'category' | 'timeline';
+}
+
+/**
+ * Sort diagnostic logs by timestamp
+ *
+ * @param logs - Diagnostic log entries
+ * @param order - Sort order (default: 'asc')
+ * @param mode - Sort mode (default: 'session')
+ * @returns Sorted logs
+ */
+export function sortLogsByTimestamp(
+  logs: DiagnosticLogEntry[],
+  order: 'asc' | 'desc' = 'asc',
+  mode: 'session' | 'category' | 'timeline' = 'session'
+): DiagnosticLogEntry[] {
+  const sorted = [...logs].sort((a, b) => {
+    if (mode === 'category') {
+      if (a.category !== b.category) {
+        return a.category.localeCompare(b.category);
+      }
+    } else if (mode === 'session') {
+      const sessionIdA = a.diagnosticSessionId || '';
+      const sessionIdB = b.diagnosticSessionId || '';
+      if (sessionIdA !== sessionIdB) {
+        return sessionIdA.localeCompare(sessionIdB);
+      }
+    }
+    // Then sort by timestamp
+    return a.timestamp - b.timestamp;
+  });
+
+  return order === 'desc' ? sorted.reverse() : sorted;
+}
+
+/**
+ * Group logs by diagnostic session ID
+ *
+ * @param logs - Diagnostic log entries
+ * @returns Grouped logs
+ */
+export function groupLogsBySessionId(logs: DiagnosticLogEntry[]): GroupedLogs {
+  const grouped: GroupedLogs = {};
+
+  for (const log of logs) {
+    const sessionId = log.diagnosticSessionId || 'unknown';
+    if (!grouped[sessionId]) {
+      grouped[sessionId] = [];
+    }
+    grouped[sessionId].push(log);
+  }
+
+  return grouped;
+}
+
+/**
+ * Filter logs by options
+ *
+ * @param logs - Diagnostic log entries
+ * @param options - Export options
+ * @returns Filtered logs
+ */
+export function filterLogs(
+  logs: DiagnosticLogEntry[],
+  options: ExportOptions
+): DiagnosticLogEntry[] {
+  let filtered = [...logs];
+
+  // Filter by session IDs
+  if (options.sessionIds && options.sessionIds.length > 0) {
+    filtered = filtered.filter((log) =>
+      log.diagnosticSessionId ? options.sessionIds!.includes(log.diagnosticSessionId) : false
+    );
+  }
+
+  // Filter by time range
+  if (options.startTime !== undefined) {
+    filtered = filtered.filter((log) => log.timestamp >= options.startTime!);
+  }
+  if (options.endTime !== undefined) {
+    filtered = filtered.filter((log) => log.timestamp <= options.endTime!);
+  }
+
+  // Filter by categories
+  if (options.categories && options.categories.length > 0) {
+    filtered = filtered.filter((log) => options.categories!.includes(log.category));
+  }
+
+  return filtered;
+}
+
+/**
+ * Convert diagnostic log to OIDF format
+ *
+ * @param log - Diagnostic log entry
+ * @returns OIDF log entry
+ */
+export function toOIDFFormat(log: DiagnosticLogEntry): OIDFLogEntry {
+  const base: OIDFLogEntry = {
+    timestamp: new Date(log.timestamp).toISOString(),
+    sessionId: log.diagnosticSessionId,
+    category: log.category,
+    level: log.level,
+    event: '',
+    details: {},
+  };
+
+  if (log.category === 'http-request') {
+    base.event = 'http_request';
+    base.details = {
+      flowId: log.flowId,
+      storageMode: log.storageMode,
+      method: log.method,
+      path: log.path,
+      query: log.query,
+      headers: log.headers,
+      bodySummary: log.bodySummary,
+      remoteAddress: log.remoteAddress,
+      requestId: log.requestId,
+    };
+  } else if (log.category === 'http-response') {
+    base.event = 'http_response';
+    base.details = {
+      flowId: log.flowId,
+      storageMode: log.storageMode,
+      status: log.status,
+      headers: log.headers,
+      bodySummary: log.bodySummary,
+      durationMs: log.durationMs,
+      requestId: log.requestId,
+    };
+  } else if (log.category === 'token-validation') {
+    const tokenLog = log as TokenValidationLogEntry;
+    base.event = `token_validation_${tokenLog.step}`;
+    base.details = {
+      flowId: log.flowId,
+      storageMode: log.storageMode,
+      tokenType: tokenLog.tokenType,
+      result: tokenLog.result,
+      expected: tokenLog.expected,
+      actual: tokenLog.actual,
+      errorMessage: tokenLog.errorMessage,
+      ...tokenLog.details,
+    };
+  } else if (log.category === 'auth-decision') {
+    const authLog = log as AuthDecisionLogEntry;
+    base.event = `auth_decision_${authLog.decision}`;
+    base.details = {
+      flowId: log.flowId,
+      storageMode: log.storageMode,
+      reason: authLog.reason,
+      flow: authLog.flow,
+      ...authLog.context,
+    };
+  }
+
+  return base;
+}
+
+/**
+ * Convert diagnostic logs to OIDF format
+ *
+ * @param logs - Diagnostic log entries
+ * @param options - Export options
+ * @returns OIDF log entries (sorted by timestamp)
+ */
+export function toOIDFFormatBatch(
+  logs: DiagnosticLogEntry[],
+  options: ExportOptions = {}
+): OIDFLogEntry[] {
+  // Filter logs
+  const filtered = filterLogs(logs, options);
+
+  // Sort logs
+  const sorted = sortLogsByTimestamp(filtered, options.sortOrder, options.sortMode);
+
+  // Convert to OIDF format
+  return sorted.map(toOIDFFormat);
+}
+
+/**
+ * Format logs as JSON string
+ *
+ * @param logs - Diagnostic log entries
+ * @param options - Export options
+ * @returns JSON string
+ */
+export function formatAsJSON(logs: DiagnosticLogEntry[], options: ExportOptions = {}): string {
+  const oidfLogs = toOIDFFormatBatch(logs, options);
+  return JSON.stringify(oidfLogs, null, 2);
+}
+
+/**
+ * Format logs as JSONL string (one JSON object per line)
+ *
+ * @param logs - Diagnostic log entries
+ * @param options - Export options
+ * @returns JSONL string
+ */
+export function formatAsJSONL(logs: DiagnosticLogEntry[], options: ExportOptions = {}): string {
+  const oidfLogs = toOIDFFormatBatch(logs, options);
+  return oidfLogs.map((log) => JSON.stringify(log)).join('\n');
+}
+
+/**
+ * Format logs as human-readable text
+ *
+ * @param logs - Diagnostic log entries
+ * @param options - Export options
+ * @returns Text string
+ */
+export function formatAsText(logs: DiagnosticLogEntry[], options: ExportOptions = {}): string {
+  const oidfLogs = toOIDFFormatBatch(logs, options);
+
+  const lines: string[] = [];
+  lines.push('='.repeat(80));
+  lines.push('OIDF Conformance Test - Diagnostic Logs');
+  lines.push('='.repeat(80));
+  lines.push('');
+
+  if (options.sortMode === 'timeline') {
+    for (const log of oidfLogs) {
+      lines.push(`[${log.timestamp}] ${log.level.toUpperCase()} - ${log.event}`);
+      lines.push(`  Category: ${log.category}`);
+
+      if (Object.keys(log.details).length > 0) {
+        lines.push('  Details:');
+        for (const [key, value] of Object.entries(log.details)) {
+          if (value !== undefined && value !== null) {
+            lines.push(`    ${key}: ${JSON.stringify(value)}`);
+          }
+        }
+      }
+      lines.push('');
+    }
+  } else if (options.sortMode === 'category') {
+    const grouped = oidfLogs.reduce(
+      (acc, log) => {
+        const category = log.category || 'unknown';
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(log);
+        return acc;
+      },
+      {} as Record<string, OIDFLogEntry[]>
+    );
+
+    for (const [category, categoryLogs] of Object.entries(grouped)) {
+      lines.push(`Category: ${category}`);
+      lines.push('-'.repeat(80));
+
+      for (const log of categoryLogs) {
+        lines.push(`[${log.timestamp}] ${log.level.toUpperCase()} - ${log.event}`);
+
+        if (Object.keys(log.details).length > 0) {
+          lines.push('  Details:');
+          for (const [key, value] of Object.entries(log.details)) {
+            if (value !== undefined && value !== null) {
+              lines.push(`    ${key}: ${JSON.stringify(value)}`);
+            }
+          }
+        }
+        lines.push('');
+      }
+
+      lines.push('');
+    }
+  } else {
+    // Default: group by session
+    const grouped = oidfLogs.reduce(
+      (acc, log) => {
+        const sessionId = log.sessionId || 'unknown';
+        if (!acc[sessionId]) {
+          acc[sessionId] = [];
+        }
+        acc[sessionId].push(log);
+        return acc;
+      },
+      {} as Record<string, OIDFLogEntry[]>
+    );
+
+    for (const [sessionId, sessionLogs] of Object.entries(grouped)) {
+      lines.push(`Session: ${sessionId}`);
+      lines.push('-'.repeat(80));
+
+      for (const log of sessionLogs) {
+        lines.push(`[${log.timestamp}] ${log.level.toUpperCase()} - ${log.event}`);
+        lines.push(`  Category: ${log.category}`);
+
+        if (Object.keys(log.details).length > 0) {
+          lines.push('  Details:');
+          for (const [key, value] of Object.entries(log.details)) {
+            if (value !== undefined && value !== null) {
+              lines.push(`    ${key}: ${JSON.stringify(value)}`);
+            }
+          }
+        }
+        lines.push('');
+      }
+
+      lines.push('');
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Get log statistics
+ *
+ * @param logs - Diagnostic log entries
+ * @returns Statistics
+ */
+export interface LogStatistics {
+  totalLogs: number;
+  sessionCount: number;
+  categoryBreakdown: Record<string, number>;
+  levelBreakdown: Record<string, number>;
+  timeRange: {
+    start: string;
+    end: string;
+  };
+}
+
+export function getLogStatistics(logs: DiagnosticLogEntry[]): LogStatistics {
+  const sessions = new Set<string>();
+  const categories: Record<string, number> = {};
+  const levels: Record<string, number> = {};
+  let minTime = Infinity;
+  let maxTime = -Infinity;
+
+  for (const log of logs) {
+    if (log.diagnosticSessionId) {
+      sessions.add(log.diagnosticSessionId);
+    }
+
+    categories[log.category] = (categories[log.category] || 0) + 1;
+    levels[log.level] = (levels[log.level] || 0) + 1;
+
+    if (log.timestamp < minTime) minTime = log.timestamp;
+    if (log.timestamp > maxTime) maxTime = log.timestamp;
+  }
+
+  return {
+    totalLogs: logs.length,
+    sessionCount: sessions.size,
+    categoryBreakdown: categories,
+    levelBreakdown: levels,
+    timeRange: {
+      start: minTime === Infinity ? 'N/A' : new Date(minTime).toISOString(),
+      end: maxTime === -Infinity ? 'N/A' : new Date(maxTime).toISOString(),
+    },
+  };
+}

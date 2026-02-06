@@ -9,7 +9,7 @@
  */
 
 import type { Context } from 'hono';
-import type { Env } from '@authrim/ar-lib-core';
+import type { Env, Session } from '@authrim/ar-lib-core';
 import {
   getSessionStoreBySessionId,
   isShardedSessionId,
@@ -18,11 +18,14 @@ import {
   getTenantIdFromContext,
   getLogger,
   createLogger,
+  createDiagnosticLoggerFromContext,
+  createAuthContextFromHono,
+  getChallengeStoreByChallengeId,
 } from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
 import { generatePKCE, generateState, generateNonce } from '../utils/pkce';
-import { storeAuthState, getStateExpiresAt } from '../utils/state';
+import { storeAuthState, getStateExpiresAt, consumeAuthState } from '../utils/state';
 import { decrypt, getEncryptionKeyOrUndefined } from '../utils/crypto';
 import { isAppleProvider, type AppleProviderQuirks } from '../providers/apple';
 
@@ -83,6 +86,9 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     const maxAgeParam = c.req.query('max_age');
     const acrValues = c.req.query('acr_values');
     const tenantId = c.req.query('tenant_id') || 'default';
+    const clientId = c.req.query('client_id');
+    const codeChallenge = c.req.query('code_challenge');
+    const codeChallengeMethod = c.req.query('code_challenge_method');
 
     // Parse max_age parameter (OIDC Core)
     const maxAge = maxAgeParam ? parseInt(maxAgeParam, 10) : undefined;
@@ -96,11 +102,43 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       );
     }
 
-    // Validate and sanitize redirect_uri to prevent Open Redirect attacks
+    // 1. Get client configuration (to validate redirect_uri)
     const tenantIdResolved = getTenantIdFromContext(c);
-    const redirectUri = await validateRedirectUri(requestedRedirectUri, c.env, tenantIdResolved);
+    let clientRedirectUris: string[] | undefined;
 
-    // 1. Get provider configuration (by slug or ID)
+    if (clientId) {
+      try {
+        const authCtx = createAuthContextFromHono(c, tenantIdResolved);
+        const client = await authCtx.repositories.client.findByClientId(clientId);
+
+        if (client && client.redirect_uris) {
+          // Parse redirect_uris (handle both JSON array and single string)
+          if (typeof client.redirect_uris === 'string') {
+            if (client.redirect_uris.trim().startsWith('[')) {
+              clientRedirectUris = JSON.parse(client.redirect_uris);
+            } else {
+              clientRedirectUris = [client.redirect_uris];
+            }
+          } else if (Array.isArray(client.redirect_uris)) {
+            clientRedirectUris = client.redirect_uris;
+          }
+        }
+      } catch (error) {
+        // Client lookup failed - continue without client redirect_uris
+        log.warn('Failed to load client for redirect_uri validation', { clientId });
+      }
+    }
+
+    // Validate and sanitize redirect_uri to prevent Open Redirect attacks
+    const redirectUri = await validateRedirectUri(
+      requestedRedirectUri,
+      c.env,
+      tenantIdResolved,
+      clientId,
+      clientRedirectUris
+    );
+
+    // 2. Get provider configuration (by slug or ID)
     const provider = await getProviderByIdOrSlug(c.env, providerIdOrName, tenantId);
 
     if (!provider || !provider.enabled) {
@@ -133,41 +171,248 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       sessionId = session.id;
     }
 
-    // 3. Generate PKCE, state, nonce
-    const { codeVerifier } = await generatePKCE();
+    // 3. Validate PKCE parameters from client
+    if (!clientId) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'client_id is required',
+        },
+        400
+      );
+    }
+
+    if (!codeChallenge || codeChallengeMethod !== 'S256') {
+      return c.json(
+        {
+          error: 'invalid_request',
+          error_description: 'code_challenge and code_challenge_method=S256 are required',
+        },
+        400
+      );
+    }
+
+    // 4. Generate state, nonce, and flowId
     const state = generateState();
     const nonce = generateNonce();
+    const flowId = crypto.randomUUID();
 
-    // 4. Decrypt client secret
+    // 5. Decrypt client secret
     const clientSecret = await decryptClientSecret(c.env, provider.clientSecretEncrypted);
 
-    // 4b. Decrypt private key for request object signing (if configured)
+    // 5b. Decrypt private key for request object signing (if configured)
     let privateKeyJwk: Record<string, unknown> | undefined;
     if (provider.useRequestObject && provider.privateKeyJwkEncrypted) {
       const decryptedPrivateKey = await decryptClientSecret(c.env, provider.privateKeyJwkEncrypted);
       privateKeyJwk = JSON.parse(decryptedPrivateKey);
     }
 
-    // 5. Build callback URL (use slug if available for cleaner URLs)
+    // 6. Build callback URL (use slug if available for cleaner URLs)
     const providerIdentifier = provider.slug || provider.id;
     const callbackUri = `${c.env.ISSUER_URL}/auth/external/${providerIdentifier}/callback`;
 
-    // 6. Store state in D1 (including max_age for auth_time validation, acr_values for acr validation)
+    // 7. Generate PKCE for Authrim ↔ External IdP flow
+    // This is separate from the client ↔ Authrim PKCE flow
+    const externalIdpPKCE = await generatePKCE();
+
+    // 8. Store state in D1 (including code_challenge for client-side PKCE)
     await storeAuthState(c.env, {
       tenantId,
+      clientId,
       providerId: provider.id,
       state,
       nonce,
-      codeVerifier,
+      codeVerifier: externalIdpPKCE.codeVerifier,
+      codeChallenge,
+      flowId,
       redirectUri,
       userId,
       sessionId,
       maxAge,
       acrValues,
+      prompt,
+      enableSso: provider.enableSso !== false,
       expiresAt: getStateExpiresAt(),
     });
 
-    // 7. Create OIDC client and generate authorization URL
+    // 9. Silent Auth処理 (prompt=none)
+    // OIDC Core 3.1.2.1: prompt=none時、認証済みの場合は成功、未認証の場合はerror=login_requiredを返す
+    // ⚠️ 注意: prompt は複数値可能（スペース区切り）、例: "none login"
+    const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+    const isSilentAuth = promptValues.includes('none');
+
+    if (isSilentAuth) {
+      // OIDC仕様: prompt=none は他のprompt値と同時指定不可
+      // 例: "none login" は矛盾（ユーザー操作禁止 vs 強制ログイン）
+      if (promptValues.length > 1) {
+        log.warn('Silent Auth: prompt=none with other values', { allPrompts: prompt });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'invalid_request');
+        errorRedirectUrl.searchParams.set(
+          'error_description',
+          'prompt=none cannot be combined with other values'
+        );
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      log.info('Silent Auth: prompt=none detected', { sessionId });
+
+      // PKCE必須チェック（AuthrimはすべてのcodeでPKCE必須）
+      if (!codeChallenge) {
+        log.error('Silent Auth: Missing code_challenge', { clientId });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'invalid_request');
+        errorRedirectUrl.searchParams.set('error_description', 'code_challenge is required');
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      // セッション存在チェック
+      if (!sessionId) {
+        // セッションなし → error=login_required
+        log.info('Silent Auth: No active session', { clientId });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'login_required');
+        errorRedirectUrl.searchParams.set('error_description', 'Authentication required');
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      // セッション有効性チェック
+      const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sessionId);
+      const session: Session | null = await sessionStore.getSessionRpc(sessionId);
+
+      if (!session) {
+        // セッション無効 → error=login_required
+        log.info('Silent Auth: Session expired or invalid', { sessionId });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'login_required');
+        errorRedirectUrl.searchParams.set('error_description', 'Authentication required');
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      // ⚠️ CRITICAL: state を消費（リプレイ攻撃対策）
+      // Silent Auth成功時もstateの二重使用を防ぐため、consumed_atをマーク
+      // 📝 タイミング: セッション検証後、トークン発行前
+      //   - 失敗パスではstate未消費（再試行可能）
+      //   - 成功パスでは発行前に消費（handoff/code発行失敗はほぼゼロ）
+      const consumedAuthState = await consumeAuthState(c.env, state);
+      if (!consumedAuthState) {
+        // state消費失敗（すでに使用済み or 期限切れ or 競合）
+        // 📝 error=invalid_request: state問題を示唆（vs login_required=未ログイン）
+        log.info('Silent Auth: State already consumed or expired', { state });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'invalid_request');
+        errorRedirectUrl.searchParams.set('error_description', 'Authentication request expired');
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      // セッション有効 → ハンドオフトークン or コード発行
+      // TypeScript type narrowing: session is guaranteed non-null after the check above
+      const validSession: Session = session;
+      log.info('Silent Auth: Issuing token', { sessionId, userId: validSession.userId });
+
+      // SSO有効時のみハンドオフトークン発行（enableSso=falseならコード発行）
+      const enableSso = provider.enableSso !== false;
+
+      if (enableSso) {
+        // ハンドオフトークン生成（callback.tsのパターンを再利用）
+        const handoffToken = crypto.randomUUID();
+        const handoffStore = await getChallengeStoreByChallengeId(c.env, handoffToken);
+
+        await handoffStore.storeChallengeRpc({
+          id: `handoff:${handoffToken}`,
+          type: 'handoff',
+          userId: validSession.userId,
+          challenge: sessionId,
+          ttl: 30, // 30秒
+          metadata: {
+            client_id: clientId,
+            state,
+            aud: 'handoff',
+            created_at: Date.now(),
+          },
+        });
+
+        // RPへリダイレクト（ハンドオフトークン付き）
+        const successRedirectUrl = new URL(redirectUri);
+        successRedirectUrl.searchParams.set('handoff_token', handoffToken);
+        successRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: successRedirectUrl.toString(),
+            'Referrer-Policy': 'no-referrer',
+            'Cache-Control': 'no-store',
+          },
+        });
+      } else {
+        // SSO無効時：authorization code発行
+        // codeChallenge は上でチェック済みなので安全に使用可能
+        const authCode = await generateAuthCode(c.env, validSession.userId, codeChallenge, {
+          method: 'silent_auth',
+          provider: provider.id,
+          provider_id: provider.id,
+          provider_slug: provider.slug ?? provider.id,
+          client_id: clientId!,
+          is_new_user: false,
+          stitched_from_existing: false,
+        });
+
+        const successRedirectUrl = new URL(redirectUri);
+        successRedirectUrl.searchParams.set('code', authCode);
+        successRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: successRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+    }
+
+    // 10. Create OIDC client and generate authorization URL
     const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret, privateKeyJwk);
 
     // Apple Sign In requires response_mode=form_post when requesting name or email scope
@@ -185,7 +430,7 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
     const authUrl = await client.createAuthorizationUrl({
       state,
       nonce,
-      codeVerifier,
+      codeVerifier: externalIdpPKCE.codeVerifier, // For Authrim ↔ External IdP PKCE
       prompt,
       loginHint,
       maxAge,
@@ -193,14 +438,65 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       responseMode,
     });
 
-    // 8. Redirect to provider
+    // Diagnostic logging (OIDF conformance)
+    const diagnosticLogger = await createDiagnosticLoggerFromContext(c, {
+      tenantId,
+      clientId: provider.clientId,
+    });
+
+    if (diagnosticLogger) {
+      const authUrlParsed = new URL(authUrl);
+      await diagnosticLogger.logAuthDecision({
+        decision: 'allow',
+        reason: 'authorization_request',
+        flow: 'external_idp',
+        flowId,
+        context: {
+          provider: provider.slug ?? provider.id,
+          client_id: provider.clientId,
+          authrim_client_id: clientId,
+          authorization_endpoint: authUrlParsed.origin + authUrlParsed.pathname,
+          redirect_uri: callbackUri,
+          response_type: 'code',
+          scope: provider.scopes,
+          state,
+          nonce,
+          code_challenge: authUrlParsed.searchParams.get('code_challenge'),
+          code_challenge_method: authUrlParsed.searchParams.get('code_challenge_method'),
+          response_mode: responseMode,
+          prompt,
+          login_hint: loginHint,
+          max_age: maxAge,
+          acr_values: acrValues,
+        },
+      });
+      await diagnosticLogger.cleanup();
+    }
+
+    // 10. Redirect to provider
     return c.redirect(authUrl);
   } catch (error) {
-    log.error('External start error', {}, error as Error);
+    const err = error as Error;
+    log.error(
+      'External start error',
+      {
+        errorName: err.name,
+        errorMessage: err.message,
+        errorStack: err.stack,
+        provider: c.req.param('provider'),
+      },
+      err
+    );
+
+    // Include error details in development/conformance mode
+    const isDev = c.env.ENABLE_CONFORMANCE_MODE === 'true';
+
     return c.json(
       {
         error: 'server_error',
-        error_description: 'Failed to start external login',
+        error_description: isDev
+          ? `Failed to start external login: ${err.message}`
+          : 'Failed to start external login',
       },
       500
     );
@@ -371,19 +667,37 @@ async function decryptClientSecret(env: Env, encrypted: string): Promise<string>
 }
 
 /**
+ * Default allowed redirect paths (when origin matches)
+ * These are standard OAuth/OIDC callback and flow endpoints
+ */
+const DEFAULT_ALLOWED_REDIRECT_PATHS = [
+  '/',
+  '/callback',
+  '/consent',
+  '/reauth',
+  '/device',
+  '/ciba',
+];
+
+/**
  * Validate redirect_uri to prevent Open Redirect attacks
  *
- * Only allows redirects to:
- * 1. Same origin as UI URL (from configuration)
- * 2. Same origin as Issuer URL
- * 3. Relative paths (converted to absolute using UI URL)
+ * Uses whitelist-based validation with exact path matching:
+ * 1. Origin must match UI URL or Issuer URL
+ * 2. Path must be in the allowed list (exact match)
+ * 3. OR: redirect_uri must match client's registered redirect_uris
  *
- * Falls back to UI URL or Issuer URL if redirect_uri is invalid or not provided
+ * Falls back to UI URL if redirect_uri is invalid or not provided
+ *
+ * SECURITY: This prevents Open Redirect attacks by rejecting arbitrary paths
+ * even if they share the same origin (e.g., /malicious-page?redirect=evil.com)
  */
 async function validateRedirectUri(
   requestedUri: string | undefined,
   env: Env,
-  tenantId: string
+  tenantId: string,
+  clientId?: string,
+  clientRedirectUris?: string[]
 ): Promise<string> {
   // Get UI config and build base URL
   const uiConfig = await getUIConfig(env);
@@ -397,10 +711,14 @@ async function validateRedirectUri(
     return defaultRedirect;
   }
 
+  const log = createLogger().module('START');
+
   try {
-    // Handle relative paths
+    // Handle relative paths - convert to absolute and re-validate
     if (requestedUri.startsWith('/')) {
-      return new URL(requestedUri, baseUrl).toString();
+      const absoluteUri = new URL(requestedUri, baseUrl).toString();
+      // Recursively validate the absolute URI
+      return validateRedirectUri(absoluteUri, env, tenantId, clientId, clientRedirectUris);
     }
 
     // Parse the requested URI
@@ -408,26 +726,103 @@ async function validateRedirectUri(
     const baseUrlParsed = new URL(baseUrl);
     const issuerUrlParsed = new URL(issuerUrl);
 
-    // Extract allowed origins
+    // Extract allowed origins from configuration
     const allowedOrigins = new Set([baseUrlParsed.origin, issuerUrlParsed.origin]);
 
-    // Check if the requested origin is allowed
-    if (allowedOrigins.has(requestedUrl.origin)) {
-      return requestedUri;
+    // Add origins from ALLOWED_ORIGINS environment variable
+    if (env.ALLOWED_ORIGINS) {
+      const additionalOrigins = env.ALLOWED_ORIGINS.split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0);
+      additionalOrigins.forEach((origin) => {
+        try {
+          const parsed = new URL(origin);
+          allowedOrigins.add(parsed.origin);
+        } catch {
+          // Ignore invalid origins
+        }
+      });
     }
 
-    // Log blocked redirect attempt for security monitoring
-    const log = createLogger().module('START');
-    log.warn('Blocked redirect to unauthorized origin', {
-      requestedOrigin: requestedUrl.origin,
-      allowedOrigins: Array.from(allowedOrigins),
-    });
+    // SECURITY: Check both origin AND path (whitelist-based exact match)
+    if (!allowedOrigins.has(requestedUrl.origin)) {
+      log.warn('Blocked redirect to unauthorized origin', {
+        requestedOrigin: requestedUrl.origin,
+        allowedOrigins: Array.from(allowedOrigins),
+      });
+      return defaultRedirect;
+    }
 
-    return defaultRedirect;
+    // Origin is allowed, now check the path
+    const requestedPath = requestedUrl.pathname;
+
+    // First, check if redirect_uri matches client's registered redirect_uris
+    if (clientRedirectUris && clientRedirectUris.length > 0) {
+      // Check if requested URI matches any registered redirect_uri
+      // Remove query params and hash for comparison
+      const requestedUriBase = requestedUrl.origin + requestedUrl.pathname;
+      for (const registeredUri of clientRedirectUris) {
+        try {
+          const registeredUrl = new URL(registeredUri);
+          const registeredUriBase = registeredUrl.origin + registeredUrl.pathname;
+
+          if (requestedUriBase === registeredUriBase) {
+            // Match found - allow the redirect_uri
+            return requestedUri;
+          }
+        } catch {
+          // Invalid registered URI - skip
+        }
+      }
+    }
+
+    // Fallback: Check against default allowed paths (for same-origin UI)
+    const allowedPaths = DEFAULT_ALLOWED_REDIRECT_PATHS;
+
+    if (!allowedPaths.includes(requestedPath)) {
+      log.warn('Blocked redirect to unauthorized path', {
+        requestedPath,
+        requestedOrigin: requestedUrl.origin,
+        allowedPaths,
+        clientId,
+      });
+      return defaultRedirect;
+    }
+
+    // Both origin and path are allowed - accept the redirect_uri
+    // Note: Query parameters are preserved and passed through
+    return requestedUri;
   } catch {
     // Invalid URL format - use default
-    const log = createLogger().module('START');
     log.warn('Invalid redirect_uri format', { requestedUri });
     return defaultRedirect;
   }
+}
+
+/**
+ * Generate authorization code for Direct Auth token exchange
+ * TTL: 60 seconds, single-use
+ */
+async function generateAuthCode(
+  env: Env,
+  userId: string,
+  codeChallenge: string,
+  metadata?: Record<string, unknown>
+): Promise<string> {
+  const authCode = crypto.randomUUID();
+  const challengeStore = await getChallengeStoreByChallengeId(env, authCode);
+
+  await challengeStore.storeChallengeRpc({
+    id: `direct_auth:${authCode}`,
+    type: 'direct_auth_code',
+    userId,
+    challenge: codeChallenge, // Store code_challenge for verification
+    ttl: 60, // 60 seconds
+    metadata: {
+      ...metadata,
+      created_at: Date.now(),
+    },
+  });
+
+  return authCode;
 }

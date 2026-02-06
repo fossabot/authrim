@@ -113,6 +113,8 @@ export const AR_ERROR_CODES = {
   AUTH_PROMPT_NONE_FAILED: 'AR000013',
   AUTH_MAX_AGE_EXCEEDED: 'AR000014',
   AUTH_DID_VERIFICATION_FAILED: 'AR000015',
+  AUTH_ORIGIN_NOT_ALLOWED: 'AR000016',
+  AUTH_CLIENT_NOT_FOUND: 'AR000017',
 
   // ============================================
   // TOKEN (AR010001 ~ AR019999)
@@ -428,6 +430,26 @@ export const ERROR_DEFINITIONS: Record<ARErrorCode, ErrorCodeDefinition> = {
     detailKey: 'auth.did_verification_failed.detail',
     meta: { retryable: false, user_action: 'retry', severity: 'warn' },
     securityLevel: 'public',
+  },
+  [AR_ERROR_CODES.AUTH_ORIGIN_NOT_ALLOWED]: {
+    code: 'AR000016',
+    rfcError: RFC_ERROR_CODES.INVALID_REQUEST,
+    status: 403,
+    typeSlug: 'auth/origin-not-allowed',
+    titleKey: 'auth.origin_not_allowed.title',
+    detailKey: 'auth.origin_not_allowed.detail',
+    meta: { retryable: false, user_action: 'contact_admin', severity: 'error' },
+    securityLevel: 'public',
+  },
+  [AR_ERROR_CODES.AUTH_CLIENT_NOT_FOUND]: {
+    code: 'AR000017',
+    rfcError: RFC_ERROR_CODES.INVALID_CLIENT,
+    status: 401,
+    typeSlug: 'auth/client-not-found',
+    titleKey: 'auth.client_not_found.title',
+    detailKey: 'auth.client_not_found.detail',
+    meta: { retryable: false, user_action: 'contact_admin', severity: 'error' },
+    securityLevel: 'internal',
   },
 
   // ============================================

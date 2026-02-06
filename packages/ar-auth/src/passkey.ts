@@ -32,6 +32,7 @@ import {
   createAuditLog,
   // Cookie Configuration
   getAdminCookieSameSite,
+  getSessionCookieSameSite,
   // Admin Session Repository
   AdminSessionRepository,
   D1Adapter,
@@ -961,18 +962,34 @@ export async function passkeyLoginVerifyHandler(c: Context<{ Bindings: Env }>) {
     });
     c.executionCtx?.waitUntil(auditPromise);
 
-    // Set session cookie for Admin UI
-    // This enables session-based authentication via adminAuthMiddleware
-    // Note: Uses 'authrim_admin_session' to avoid conflict with regular user sessions (authrim_session)
+    // Set session cookie based on login context (NOT user type)
+    // - Admin UI login (Referer contains /admin): 'authrim_admin_session'
+    // - Login UI / End-user login: 'authrim_session' for OIDC SSO
+    // This allows admin users to also have end-user sessions for SSO testing
     // SameSite is determined dynamically based on origin configuration:
-    // - Same origin (ISSUER_URL == ADMIN_UI_URL): 'Lax' (more secure)
+    // - Same origin: 'Lax' (more secure)
     // - Cross origin: 'None' (required for cross-origin)
-    setCookie(c, 'authrim_admin_session', sessionData.id, {
+    const referer = c.req.header('Referer') || '';
+    const isAdminContext = referer.includes('/admin');
+    const cookieName = isAdminContext ? 'authrim_admin_session' : 'authrim_session';
+    const sameSiteFn = isAdminContext ? getAdminCookieSameSite : getSessionCookieSameSite;
+    const sameSiteValue = sameSiteFn(c.env);
+
+    // Debug: Log session cookie creation for SSO troubleshooting
+    log.info('Setting session cookie', {
+      action: 'session_cookie_set',
+      cookieName,
+      sessionIdPrefix: sessionData.id.substring(0, 30),
+      sameSite: sameSiteValue,
+      isAdminContext,
+    });
+
+    setCookie(c, cookieName, sessionData.id, {
       path: '/',
       httpOnly: true,
       secure: true,
-      sameSite: getAdminCookieSameSite(c.env),
-      maxAge: 7 * 24 * 60 * 60, // 7 days (shorter for admin sessions)
+      sameSite: sameSiteValue,
+      maxAge: 7 * 24 * 60 * 60, // 7 days
     });
 
     return c.json({

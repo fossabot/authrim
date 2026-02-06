@@ -499,8 +499,7 @@
 <!-- Add PassKey Modal -->
 <Modal open={showAddModal} onClose={closeAddModal} title="Add New PassKey" size="md">
 	<p class="modal-description">
-		Enter a name for this passkey to help you identify it later (e.g., "MacBook Pro",
-		"YubiKey").
+		Enter a name for this passkey to help you identify it later (e.g., "MacBook Pro", "YubiKey").
 	</p>
 	<div class="form-group">
 		<label for="device-name">Device Name</label>

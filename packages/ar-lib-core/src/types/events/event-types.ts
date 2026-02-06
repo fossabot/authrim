@@ -125,6 +125,16 @@ export const CONSENT_EVENTS = {
   SCOPES_UPDATED: 'consent.scopes_updated',
   /** Consent expired due to time limit */
   EXPIRED: 'consent.expired',
+
+  // Consent Item Management Events (SAP CDC-like)
+  /** User granted consent to a specific consent item */
+  ITEM_GRANTED: 'consent.item_granted',
+  /** User denied consent to a specific consent item */
+  ITEM_DENIED: 'consent.item_denied',
+  /** User withdrew previously granted consent item */
+  ITEM_WITHDRAWN: 'consent.item_withdrawn',
+  /** User re-consented to a newer version of a consent item */
+  ITEM_VERSION_UPGRADED: 'consent.item_version_upgraded',
 } as const;
 
 export type ConsentEventType = (typeof CONSENT_EVENTS)[keyof typeof CONSENT_EVENTS];

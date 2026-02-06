@@ -367,13 +367,7 @@
 	</div>
 	<div class="form-group">
 		<label for="name">Name</label>
-		<input
-			type="text"
-			id="name"
-			class="input"
-			bind:value={newAdminName}
-			placeholder="John Doe"
-		/>
+		<input type="text" id="name" class="input" bind:value={newAdminName} placeholder="John Doe" />
 	</div>
 
 	{#snippet footer()}

@@ -223,6 +223,7 @@ app.use('*', async (c, next) => {
       'DPoP',
       'If-Match',
       'If-None-Match',
+      'X-Diagnostic-Session-Id',
       'X-Session-Id',
     ],
     exposeHeaders: [
@@ -351,6 +352,15 @@ app.post('/userinfo', async (c) => {
 app.all('/api/v1/auth/direct/*', async (c) => {
   const request = new Request(c.req.url, c.req.raw);
   return c.env.OP_AUTH.fetch(request);
+});
+
+/**
+ * Diagnostic Logs API v1 - Route to OP_MANAGEMENT worker
+ * - /api/v1/diagnostic-logs/ingest
+ */
+app.all('/api/v1/diagnostic-logs/*', async (c) => {
+  const request = new Request(c.req.url, c.req.raw);
+  return c.env.OP_MANAGEMENT.fetch(request);
 });
 
 /**

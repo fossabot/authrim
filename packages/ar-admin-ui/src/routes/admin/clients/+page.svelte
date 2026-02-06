@@ -353,7 +353,12 @@
 </div>
 
 <!-- Bulk Delete Confirmation Dialog -->
-<Modal open={showBulkDeleteDialog} onClose={closeBulkDeleteDialog} title="Delete {selectedIds.size} Client(s)" size="lg">
+<Modal
+	open={showBulkDeleteDialog}
+	onClose={closeBulkDeleteDialog}
+	title="Delete {selectedIds.size} Client(s)"
+	size="lg"
+>
 	{#if bulkDeleting}
 		<!-- Progress View -->
 		<div>
@@ -375,8 +380,7 @@
 	{:else}
 		<!-- Confirmation View -->
 		<p style="color: var(--text-secondary); margin-bottom: 16px;">
-			Are you sure you want to delete the following OAuth clients? This action cannot be
-			undone.
+			Are you sure you want to delete the following OAuth clients? This action cannot be undone.
 			<strong style="color: var(--danger);">
 				All tokens issued by these clients will become invalid.
 			</strong>

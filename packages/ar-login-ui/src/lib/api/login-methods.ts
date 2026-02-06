@@ -6,6 +6,7 @@
  */
 
 import { browser } from '$app/environment';
+import { buildDiagnosticHeaders } from '$lib/api/client';
 
 // =============================================================================
 // Types
@@ -119,7 +120,7 @@ export async function fetchLoginMethods(): Promise<{
 		const url = `${getApiBaseUrl()}/api/auth/login-methods`;
 		const response = await fetch(url, {
 			method: 'GET',
-			headers: { Accept: 'application/json' },
+			headers: buildDiagnosticHeaders({ Accept: 'application/json' }),
 			signal: controller.signal
 		});
 

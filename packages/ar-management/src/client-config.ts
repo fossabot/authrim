@@ -91,6 +91,14 @@ function validateRedirectUris(uris: unknown): string | null {
   return null;
 }
 
+function isCharArrayLike(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => typeof item === 'string' && item.length === 1)
+  );
+}
+
 /**
  * Validate client update request body for security
  *
@@ -102,6 +110,52 @@ function validateRedirectUris(uris: unknown): string | null {
 function validateUpdateRequest(
   body: Partial<ClientMetadata>
 ): { error: string; error_description: string } | null {
+  // Validate grant_types if provided
+  if (body.grant_types !== undefined) {
+    if (!Array.isArray(body.grant_types)) {
+      return {
+        error: 'invalid_client_metadata',
+        error_description: 'grant_types must be an array',
+      };
+    }
+    if (body.grant_types.some((grantType) => typeof grantType !== 'string')) {
+      return {
+        error: 'invalid_client_metadata',
+        error_description: 'All grant_types must be strings',
+      };
+    }
+    if (isCharArrayLike(body.grant_types)) {
+      return {
+        error: 'invalid_client_metadata',
+        error_description:
+          'grant_types appears malformed. Send grant type values, not character arrays.',
+      };
+    }
+  }
+
+  // Validate response_types if provided
+  if (body.response_types !== undefined) {
+    if (!Array.isArray(body.response_types)) {
+      return {
+        error: 'invalid_client_metadata',
+        error_description: 'response_types must be an array',
+      };
+    }
+    if (body.response_types.some((responseType) => typeof responseType !== 'string')) {
+      return {
+        error: 'invalid_client_metadata',
+        error_description: 'All response_types must be strings',
+      };
+    }
+    if (isCharArrayLike(body.response_types)) {
+      return {
+        error: 'invalid_client_metadata',
+        error_description:
+          'response_types appears malformed. Send response type values, not character arrays.',
+      };
+    }
+  }
+
   // Validate redirect_uris if provided
   if (body.redirect_uris !== undefined) {
     const error = validateRedirectUris(body.redirect_uris);
@@ -147,6 +201,20 @@ function validateUpdateRequest(
       };
     }
     const error = validateSecureUri(body.initiate_login_uri, 'initiate_login_uri');
+    if (error) {
+      return { error: 'invalid_client_metadata', error_description: error };
+    }
+  }
+
+  // Validate login_ui_url if provided
+  if (body.login_ui_url !== undefined) {
+    if (typeof body.login_ui_url !== 'string') {
+      return {
+        error: 'invalid_client_metadata',
+        error_description: 'login_ui_url must be a string',
+      };
+    }
+    const error = validateSecureUri(body.login_ui_url, 'login_ui_url');
     if (error) {
       return { error: 'invalid_client_metadata', error_description: error };
     }
@@ -478,6 +546,7 @@ export async function clientConfigUpdateHandler(c: Context<{ Bindings: Env }>): 
           frontchannel_logout_uri = ?,
           frontchannel_logout_session_required = ?,
           initiate_login_uri = ?,
+          login_ui_url = ?,
           updated_at = ?
         WHERE client_id = ?
         `,
@@ -527,6 +596,7 @@ export async function clientConfigUpdateHandler(c: Context<{ Bindings: Env }>): 
               : 0,
           // OIDC 3rd Party Initiated Login
           body.initiate_login_uri ?? (existingClient.initiate_login_uri as string | null),
+          body.login_ui_url ?? (existingClient.login_ui_url as string | null),
           // Timestamp
           now,
           // WHERE clause

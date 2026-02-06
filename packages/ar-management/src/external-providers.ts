@@ -295,18 +295,57 @@ export async function adminExternalProvidersDiscoverOidcHandler(c: Context<{ Bin
       return c.json({ error: 'URL not allowed for security reasons' }, 400);
     }
 
+    const normalizeHost = (host: string): string =>
+      host.startsWith('www.') ? host.slice(4) : host;
+    const baseHost = normalizeHost(parsedUrl.hostname);
+
     log.info('Fetching OIDC discovery', { url: discoveryUrl });
 
     // Fetch the OIDC configuration from the external provider
-    // Disable redirects to prevent SSRF via redirect
-    const response = await fetch(discoveryUrl, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Authrim OIDC Discovery/1.0',
-      },
-      redirect: 'error', // Don't follow redirects - SSRF protection
-    });
+    // Allow a single safe redirect (e.g., www -> apex) with SSRF protection
+    const fetchDiscovery = async (url: string, redirects: number): Promise<Response> => {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Authrim OIDC Discovery/1.0',
+        },
+        redirect: 'manual', // Handle redirects explicitly for SSRF protection
+      });
+
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get('Location');
+        if (!location) {
+          throw new Error('redirect_missing_location');
+        }
+
+        if (redirects >= 1) {
+          throw new Error('redirect_too_many');
+        }
+
+        const redirectUrl = new URL(location, url);
+        if (redirectUrl.protocol !== 'https:') {
+          throw new Error('redirect_insecure');
+        }
+
+        // Restrict to same base host (allow www <-> apex)
+        if (normalizeHost(redirectUrl.hostname) !== baseHost) {
+          throw new Error('redirect_host_mismatch');
+        }
+
+        // SSRF protection for redirect target
+        const redirectSafety = isUrlSafeForFetch(redirectUrl);
+        if (!redirectSafety.safe) {
+          throw new Error('redirect_blocked');
+        }
+
+        return fetchDiscovery(redirectUrl.toString(), redirects + 1);
+      }
+
+      return response;
+    };
+
+    const response = await fetchDiscovery(discoveryUrl, 0);
 
     if (!response.ok) {
       log.warn('OIDC discovery failed', { status: response.status, url: discoveryUrl });

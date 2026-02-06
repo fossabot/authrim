@@ -342,7 +342,12 @@
 </Modal>
 
 <!-- Edit Dialog -->
-<Modal open={showEditDialog && !!editingEntry} onClose={closeEditDialog} title="Edit IP Entry" size="md">
+<Modal
+	open={showEditDialog && !!editingEntry}
+	onClose={closeEditDialog}
+	title="Edit IP Entry"
+	size="md"
+>
 	<div class="form-group">
 		<label for="editIpRange">IP Address or CIDR Range</label>
 		<input type="text" id="editIpRange" class="input" bind:value={editIpRange} />
@@ -353,9 +358,7 @@
 	</div>
 
 	{#snippet footer()}
-		<button class="btn btn-secondary" onclick={closeEditDialog} disabled={saving}>
-			Cancel
-		</button>
+		<button class="btn btn-secondary" onclick={closeEditDialog} disabled={saving}> Cancel </button>
 		<button class="btn btn-primary" onclick={handleSave} disabled={saving}>
 			{saving ? 'Saving...' : 'Save'}
 		</button>
@@ -393,11 +396,7 @@
 
 	{#snippet footer()}
 		<button class="btn btn-secondary" onclick={closeCheckDialog}>Close</button>
-		<button
-			class="btn btn-primary"
-			onclick={handleCheckIp}
-			disabled={checking || !checkIp.trim()}
-		>
+		<button class="btn btn-primary" onclick={handleCheckIp} disabled={checking || !checkIp.trim()}>
 			{checking ? 'Checking...' : 'Check'}
 		</button>
 	{/snippet}

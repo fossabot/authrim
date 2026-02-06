@@ -31,6 +31,7 @@ import type { Env } from '@authrim/ar-lib-core';
 import {
   requestContextMiddleware,
   pluginContextMiddleware,
+  diagnosticLoggingMiddleware,
   createErrorResponse,
   AR_ERROR_CODES,
   getLogger,
@@ -70,6 +71,12 @@ app.use(
 );
 
 app.use('*', requestContextMiddleware());
+app.use(
+  '*',
+  diagnosticLoggingMiddleware({
+    excludePatterns: [/^\/saml\/health/, /^\/api\/health/, /^\/health\//],
+  })
+);
 app.use('*', pluginContextMiddleware());
 
 // Health check

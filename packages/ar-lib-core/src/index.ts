@@ -120,6 +120,43 @@ export * from './utils/native-sso-config';
 // Consent Versioning (GDPR Article 7 - Informed Consent)
 export * from './utils/consent-versioning';
 
+// Consent Statements (SAP CDC-like Consent Management)
+export type {
+  ConsentStatement,
+  ConsentStatementVersion,
+  ConsentStatementLocalization,
+  ConsentStatementUserRecord,
+  TenantConsentRequirement,
+  ClientConsentOverride,
+  ConsentScreenItem,
+  ConsentItemDecision,
+  ConsentEvidence,
+  ResolvedConsentRequirement,
+  ConsentItemHistoryRecord,
+  CreateConsentStatementInput,
+  UpdateConsentStatementInput,
+  CreateConsentVersionInput,
+  UpdateConsentVersionInput,
+  UpsertLocalizationInput,
+  SetTenantRequirementInput,
+  SetClientOverrideInput,
+  ConditionalConsentRule,
+  ConsentItemEventData,
+  ConsentItemVersionUpgradedEventData,
+} from './types/consent-statements';
+export {
+  ConsentCategory,
+  LegalBasis,
+  ConsentEnforcement,
+  ClientConsentRequirement,
+  ConsentContentType,
+  ConsentVersionStatus,
+  ConsentRecordStatus,
+  ConsentItemAction,
+  ConditionalRuleOperator,
+} from './types/consent-statements';
+export * from './utils/consent-statements';
+
 // Initial Setup (Admin Account Setup)
 export * from './utils/setup-token';
 export * from './utils/setup-session';
@@ -199,6 +236,11 @@ export * from './services/policy-resolver';
 // Audit Logging (Phase 10 - Unified Audit System)
 export * from './services/audit';
 
+// Diagnostic Logging (Debugging, Troubleshooting, OIDF Conformance)
+export * from './services/diagnostic';
+export * from './utils/diagnostic-security';
+export * from './utils/diagnostic-log-formatter';
+
 // Event System (Unified Event System)
 // Note: types/events exports are namespaced to avoid conflicts with types/contracts
 export * as Events from './types/events';
@@ -264,6 +306,7 @@ export * from './middleware/api-version';
 export * from './middleware/deprecation-headers';
 export * from './middleware/sdk-compatibility';
 export * from './middleware/idempotency';
+export * from './middleware/diagnostic-logging-middleware';
 
 // Plugin Context (Phase 9 - Plugin Architecture)
 export * from './middleware/plugin-context';

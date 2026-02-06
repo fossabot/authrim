@@ -117,6 +117,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       jit_provisioning?: boolean;
       require_email_verified?: boolean;
       always_fetch_userinfo?: boolean;
+      enable_sso?: boolean;
       icon_url?: string;
       button_color?: string;
       button_color_dark?: string;
@@ -319,6 +320,7 @@ export async function handleAdminCreateProvider(c: Context<{ Bindings: Env }>): 
       jitProvisioning: body.jit_provisioning !== false,
       requireEmailVerified: body.require_email_verified !== false,
       alwaysFetchUserinfo: body.always_fetch_userinfo === true,
+      enableSso: body.enable_sso !== false,
       providerQuirks: body.provider_quirks || defaultProviderQuirks,
       iconUrl: body.icon_url || defaultIconUrl,
       buttonColor: body.button_color || defaultButtonColor,
@@ -404,6 +406,7 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
       jit_provisioning?: boolean;
       require_email_verified?: boolean;
       always_fetch_userinfo?: boolean;
+      enable_sso?: boolean;
       icon_url?: string;
       button_color?: string;
       button_color_dark?: string;
@@ -444,6 +447,7 @@ export async function handleAdminUpdateProvider(c: Context<{ Bindings: Env }>): 
       updates.requireEmailVerified = body.require_email_verified;
     if (body.always_fetch_userinfo !== undefined)
       updates.alwaysFetchUserinfo = body.always_fetch_userinfo;
+    if (body.enable_sso !== undefined) updates.enableSso = body.enable_sso;
     if (body.icon_url !== undefined) updates.iconUrl = body.icon_url;
     if (body.button_color !== undefined) updates.buttonColor = body.button_color;
     if (body.button_color_dark !== undefined) updates.buttonColorDark = body.button_color_dark;

@@ -469,7 +469,12 @@
 </div>
 
 <!-- Detail Modal -->
-<Modal open={showDetailModal && !!selectedEntry} onClose={closeDetailModal} title="Audit Log Entry Details" size="lg">
+<Modal
+	open={showDetailModal && !!selectedEntry}
+	onClose={closeDetailModal}
+	title="Audit Log Entry Details"
+	size="lg"
+>
 	{#if selectedEntry}
 		<div class="detail-grid">
 			<div class="detail-item">
@@ -495,8 +500,7 @@
 			<div class="detail-item">
 				<span class="detail-label">Severity</span>
 				<span class="detail-value">
-					<span class={getSeverityBadgeClass(selectedEntry.severity)}
-						>{selectedEntry.severity}</span
+					<span class={getSeverityBadgeClass(selectedEntry.severity)}>{selectedEntry.severity}</span
 					>
 				</span>
 			</div>

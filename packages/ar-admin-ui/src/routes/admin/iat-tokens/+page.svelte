@@ -238,7 +238,12 @@
 </div>
 
 <!-- Create Token Dialog -->
-<Modal open={showCreateDialog} onClose={closeCreateDialog} title="Create Initial Access Token" size="md">
+<Modal
+	open={showCreateDialog}
+	onClose={closeCreateDialog}
+	title="Create Initial Access Token"
+	size="md"
+>
 	{#if createError}
 		<div class="alert alert-error">{createError}</div>
 	{/if}
@@ -286,7 +291,13 @@
 </Modal>
 
 <!-- Token Created Success Dialog -->
-<Modal open={showTokenCreatedDialog && !!createdToken} onClose={closeTokenCreatedDialog} title="Token Created Successfully" size="lg" closeOnOutsideClick={false}>
+<Modal
+	open={showTokenCreatedDialog && !!createdToken}
+	onClose={closeTokenCreatedDialog}
+	title="Token Created Successfully"
+	size="lg"
+	closeOnOutsideClick={false}
+>
 	{#if createdToken}
 		<div class="alert alert-warning">
 			<i class="i-ph-warning"></i>
@@ -329,15 +340,20 @@
 </Modal>
 
 <!-- Revoke Confirmation Dialog -->
-<Modal open={showRevokeDialog && !!tokenToRevoke} onClose={closeRevokeDialog} title="Revoke Initial Access Token" size="md">
+<Modal
+	open={showRevokeDialog && !!tokenToRevoke}
+	onClose={closeRevokeDialog}
+	title="Revoke Initial Access Token"
+	size="md"
+>
 	{#if tokenToRevoke}
 		{#if revokeError}
 			<div class="alert alert-error">{revokeError}</div>
 		{/if}
 
 		<p class="modal-description">
-			Are you sure you want to revoke this Initial Access Token? This action cannot be undone
-			and will prevent any new client registrations using this token.
+			Are you sure you want to revoke this Initial Access Token? This action cannot be undone and
+			will prevent any new client registrations using this token.
 		</p>
 
 		<div class="info-box">

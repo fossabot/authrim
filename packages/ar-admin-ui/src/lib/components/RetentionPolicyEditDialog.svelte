@@ -79,7 +79,7 @@
 </script>
 
 {#if category}
-	<Modal open={open && !!category} onClose={onClose} title="Edit Retention Policy" size="md">
+	<Modal open={open && !!category} {onClose} title="Edit Retention Policy" size="md">
 		<!-- Category Info -->
 		<div class="category-info">
 			<h3>{getCategoryDisplayName(category)}</h3>
@@ -155,8 +155,8 @@
 		<!-- Warning for short retention -->
 		{#if retentionDays < 30}
 			<div class="warning-message">
-				<strong>Warning:</strong> Short retention periods may impact compliance requirements. Ensure
-				this meets your organization's data retention policies.
+				<strong>Warning:</strong> Short retention periods may impact compliance requirements. Ensure this
+				meets your organization's data retention policies.
 			</div>
 		{/if}
 

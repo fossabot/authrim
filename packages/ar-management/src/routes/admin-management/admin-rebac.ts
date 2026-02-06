@@ -11,6 +11,7 @@ import type { Env, AdminAuthContext } from '@authrim/ar-lib-core';
 import {
   D1Adapter,
   AdminRelationshipRepository,
+  AdminRebacDefinitionRepository,
   AdminAuditLogRepository,
   createErrorResponse,
   AR_ERROR_CODES,
@@ -63,7 +64,8 @@ async function createAuditLog(
   action: string,
   resourceId: string,
   result: 'success' | 'failure',
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
+  resourceType: string = 'admin_relationship'
 ): Promise<void> {
   const authContext = c.get('adminAuth') as AdminAuthContext;
   const adapter = getAdminAdapter(c);
@@ -75,7 +77,7 @@ async function createAuditLog(
     admin_user_id: authContext.userId,
     admin_email: authContext.email || 'system',
     action,
-    resource_type: 'admin_relationship',
+    resource_type: resourceType,
     resource_id: resourceId,
     result,
     ip_address: c.req.header('CF-Connecting-IP') || undefined,
@@ -83,6 +85,259 @@ async function createAuditLog(
     metadata,
   });
 }
+
+// =============================================================================
+// ReBAC Definition Endpoints
+// =============================================================================
+
+/**
+ * GET /api/admin/admin-rebac-definitions
+ * List all ReBAC relationship type definitions
+ */
+adminRebacRouter.get('/admin-rebac-definitions', async (c: AdminContext) => {
+  try {
+    const adapter = getAdminAdapter(c);
+    const repo = new AdminRebacDefinitionRepository(adapter);
+    const tenantId = getTenantIdFromContext(c);
+    const includeSystem = c.req.query('include_system') !== 'false';
+    const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!) : undefined;
+    const offset = c.req.query('offset') ? parseInt(c.req.query('offset')!) : undefined;
+
+    const definitions = await repo.listDefinitions(tenantId, {
+      includeSystem,
+      limit,
+      offset,
+    });
+
+    return c.json({
+      items: definitions,
+      total: definitions.length,
+    });
+  } catch (error) {
+    console.error('Failed to list ReBAC definitions:', error);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+  }
+});
+
+/**
+ * GET /api/admin/admin-rebac-definitions/:id
+ * Get ReBAC definition by ID
+ */
+adminRebacRouter.get('/admin-rebac-definitions/:id', async (c: AdminContext) => {
+  try {
+    const adapter = getAdminAdapter(c);
+    const repo = new AdminRebacDefinitionRepository(adapter);
+    const tenantId = getTenantIdFromContext(c);
+    const id = c.req.param('id');
+
+    const definition = await repo.getDefinition(id);
+    if (!definition) {
+      return c.json({ error: 'not_found', message: 'ReBAC definition not found' }, 404);
+    }
+
+    // Tenant boundary check - prevent IDOR (allow system definitions for all tenants)
+    if (definition.tenant_id !== tenantId && !definition.is_system) {
+      return c.json({ error: 'not_found', message: 'ReBAC definition not found' }, 404);
+    }
+
+    return c.json(definition);
+  } catch (error) {
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+  }
+});
+
+/**
+ * POST /api/admin/admin-rebac-definitions
+ * Create new ReBAC relationship type definition
+ */
+adminRebacRouter.post('/admin-rebac-definitions', async (c: AdminContext) => {
+  const authContext = c.get('adminAuth') as AdminAuthContext;
+  if (!hasWritePermission(authContext)) {
+    return c.json({ error: 'forbidden', message: 'Write permission required' }, 403);
+  }
+
+  try {
+    const adapter = getAdminAdapter(c);
+    const repo = new AdminRebacDefinitionRepository(adapter);
+    const tenantId = getTenantIdFromContext(c);
+    const body = await c.req.json<{
+      relation_name: string;
+      display_name?: string;
+      description?: string;
+      priority?: number;
+    }>();
+
+    // Validate required fields
+    if (!body.relation_name) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          message: 'relation_name is required',
+        },
+        400
+      );
+    }
+
+    // Check for duplicate
+    const existing = await repo.getDefinitionByName(tenantId, body.relation_name);
+    if (existing) {
+      return c.json(
+        { error: 'conflict', message: 'Definition with this name already exists' },
+        409
+      );
+    }
+
+    // Explicit field mapping to prevent Mass Assignment
+    const definition = await repo.createDefinition({
+      tenant_id: tenantId,
+      relation_name: body.relation_name,
+      display_name: body.display_name,
+      description: body.description,
+      priority: body.priority,
+    });
+
+    await createAuditLog(
+      c,
+      'admin_rebac_definition.create',
+      definition.id,
+      'success',
+      {
+        relation_name: definition.relation_name,
+      },
+      'admin_rebac_definition'
+    );
+
+    return c.json(definition, 201);
+  } catch (error) {
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+  }
+});
+
+/**
+ * PATCH /api/admin/admin-rebac-definitions/:id
+ * Update ReBAC definition
+ */
+adminRebacRouter.patch('/admin-rebac-definitions/:id', async (c: AdminContext) => {
+  const authContext = c.get('adminAuth') as AdminAuthContext;
+  if (!hasWritePermission(authContext)) {
+    return c.json({ error: 'forbidden', message: 'Write permission required' }, 403);
+  }
+
+  try {
+    const adapter = getAdminAdapter(c);
+    const repo = new AdminRebacDefinitionRepository(adapter);
+    const tenantId = getTenantIdFromContext(c);
+    const id = c.req.param('id');
+
+    // Check if definition exists
+    const existing = await repo.getDefinition(id);
+    if (!existing) {
+      return c.json({ error: 'not_found', message: 'ReBAC definition not found' }, 404);
+    }
+
+    // Tenant boundary check - prevent IDOR
+    if (existing.tenant_id !== tenantId) {
+      return c.json({ error: 'not_found', message: 'ReBAC definition not found' }, 404);
+    }
+
+    // Can't update system definitions
+    if (existing.is_system) {
+      return c.json({ error: 'forbidden', message: 'Cannot update system definition' }, 403);
+    }
+
+    const body = await c.req.json<{
+      display_name?: string;
+      description?: string;
+      priority?: number;
+    }>();
+
+    // Explicit field mapping to prevent Mass Assignment
+    const definition = await repo.updateDefinition(id, {
+      display_name: body.display_name,
+      description: body.description,
+      priority: body.priority,
+    });
+
+    if (!definition) {
+      return c.json({ error: 'not_found', message: 'ReBAC definition not found' }, 404);
+    }
+
+    await createAuditLog(
+      c,
+      'admin_rebac_definition.update',
+      id,
+      'success',
+      {
+        changes: body,
+      },
+      'admin_rebac_definition'
+    );
+
+    return c.json(definition);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Cannot update')) {
+      return c.json({ error: 'forbidden', message: error.message }, 403);
+    }
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+  }
+});
+
+/**
+ * DELETE /api/admin/admin-rebac-definitions/:id
+ * Delete ReBAC definition
+ */
+adminRebacRouter.delete('/admin-rebac-definitions/:id', async (c: AdminContext) => {
+  const authContext = c.get('adminAuth') as AdminAuthContext;
+  if (!hasWritePermission(authContext)) {
+    return c.json({ error: 'forbidden', message: 'Write permission required' }, 403);
+  }
+
+  try {
+    const adapter = getAdminAdapter(c);
+    const repo = new AdminRebacDefinitionRepository(adapter);
+    const tenantId = getTenantIdFromContext(c);
+    const id = c.req.param('id');
+
+    // Check if definition exists
+    const existing = await repo.getDefinition(id);
+    if (!existing) {
+      return c.json({ error: 'not_found', message: 'ReBAC definition not found' }, 404);
+    }
+
+    // Tenant boundary check - prevent IDOR
+    if (existing.tenant_id !== tenantId) {
+      return c.json({ error: 'not_found', message: 'ReBAC definition not found' }, 404);
+    }
+
+    // Can't delete system definitions
+    if (existing.is_system) {
+      return c.json({ error: 'forbidden', message: 'Cannot delete system definition' }, 403);
+    }
+
+    const deleted = await repo.deleteDefinition(id);
+    if (!deleted) {
+      return c.json({ error: 'not_found', message: 'ReBAC definition not found' }, 404);
+    }
+
+    await createAuditLog(
+      c,
+      'admin_rebac_definition.delete',
+      id,
+      'success',
+      {
+        relation_name: existing.relation_name,
+      },
+      'admin_rebac_definition'
+    );
+
+    return c.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Cannot delete')) {
+      return c.json({ error: 'forbidden', message: error.message }, 403);
+    }
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+  }
+});
 
 // =============================================================================
 // Relationship Endpoints

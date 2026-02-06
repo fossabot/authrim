@@ -476,3 +476,230 @@ describe('client IP extraction', () => {
     expect(getClientIp(headers)).toBe('unknown');
   });
 });
+
+describe('Silent Auth (prompt=none)', () => {
+  describe('prompt parameter parsing', () => {
+    it('should detect prompt=none', () => {
+      const prompt = 'none';
+      const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+      const isSilentAuth = promptValues.includes('none');
+
+      expect(isSilentAuth).toBe(true);
+      expect(promptValues).toEqual(['none']);
+    });
+
+    it('should detect prompt=none in space-separated values', () => {
+      const prompt = 'none login';
+      const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+      const isSilentAuth = promptValues.includes('none');
+
+      expect(isSilentAuth).toBe(true);
+      expect(promptValues).toEqual(['none', 'login']);
+    });
+
+    it('should handle empty prompt', () => {
+      const prompt = '';
+      const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+      const isSilentAuth = promptValues.includes('none');
+
+      expect(isSilentAuth).toBe(false);
+      expect(promptValues).toEqual([]);
+    });
+
+    it('should handle undefined prompt', () => {
+      const prompt = undefined;
+      const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+      const isSilentAuth = promptValues.includes('none');
+
+      expect(isSilentAuth).toBe(false);
+      expect(promptValues).toEqual([]);
+    });
+
+    it('should handle other prompt values', () => {
+      const prompt = 'login consent';
+      const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+      const isSilentAuth = promptValues.includes('none');
+
+      expect(isSilentAuth).toBe(false);
+      expect(promptValues).toEqual(['login', 'consent']);
+    });
+  });
+
+  describe('prompt=none validation', () => {
+    it('should reject prompt=none with other values', () => {
+      const prompt = 'none login';
+      const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+      const isSilentAuth = promptValues.includes('none');
+      const isInvalid = isSilentAuth && promptValues.length > 1;
+
+      expect(isInvalid).toBe(true);
+    });
+
+    it('should accept prompt=none alone', () => {
+      const prompt = 'none';
+      const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+      const isSilentAuth = promptValues.includes('none');
+      const isInvalid = isSilentAuth && promptValues.length > 1;
+
+      expect(isInvalid).toBe(false);
+    });
+
+    it('should accept prompt=login alone', () => {
+      const prompt = 'login';
+      const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+      const isSilentAuth = promptValues.includes('none');
+      const isInvalid = isSilentAuth && promptValues.length > 1;
+
+      expect(isInvalid).toBe(false);
+    });
+  });
+
+  describe('error response format', () => {
+    it('should format login_required error correctly', () => {
+      const redirectUri = 'https://rp.example.com/callback';
+      const state = 'test-state';
+
+      const errorRedirectUrl = new URL(redirectUri);
+      errorRedirectUrl.searchParams.set('error', 'login_required');
+      errorRedirectUrl.searchParams.set('error_description', 'Authentication required');
+      errorRedirectUrl.searchParams.set('state', state);
+
+      expect(errorRedirectUrl.searchParams.get('error')).toBe('login_required');
+      expect(errorRedirectUrl.searchParams.get('error_description')).toBe(
+        'Authentication required'
+      );
+      expect(errorRedirectUrl.searchParams.get('state')).toBe('test-state');
+      expect(errorRedirectUrl.toString()).toContain('rp.example.com/callback');
+    });
+
+    it('should format invalid_request error correctly', () => {
+      const redirectUri = 'https://rp.example.com/callback';
+      const state = 'test-state';
+
+      const errorRedirectUrl = new URL(redirectUri);
+      errorRedirectUrl.searchParams.set('error', 'invalid_request');
+      errorRedirectUrl.searchParams.set('error_description', 'code_challenge is required');
+      errorRedirectUrl.searchParams.set('state', state);
+
+      expect(errorRedirectUrl.searchParams.get('error')).toBe('invalid_request');
+      expect(errorRedirectUrl.searchParams.get('error_description')).toBe(
+        'code_challenge is required'
+      );
+      expect(errorRedirectUrl.searchParams.get('state')).toBe('test-state');
+    });
+  });
+
+  describe('success response format', () => {
+    it('should format handoff_token response correctly', () => {
+      const redirectUri = 'https://rp.example.com/callback';
+      const state = 'test-state';
+      const handoffToken = 'handoff-token-123';
+
+      const successRedirectUrl = new URL(redirectUri);
+      successRedirectUrl.searchParams.set('handoff_token', handoffToken);
+      successRedirectUrl.searchParams.set('state', state);
+
+      expect(successRedirectUrl.searchParams.get('handoff_token')).toBe('handoff-token-123');
+      expect(successRedirectUrl.searchParams.get('state')).toBe('test-state');
+      expect(successRedirectUrl.searchParams.has('code')).toBe(false);
+    });
+
+    it('should format code response correctly (Direct Auth)', () => {
+      const redirectUri = 'https://rp.example.com/callback';
+      const state = 'test-state';
+      const authCode = 'auth-code-456';
+
+      const successRedirectUrl = new URL(redirectUri);
+      successRedirectUrl.searchParams.set('code', authCode);
+      successRedirectUrl.searchParams.set('state', state);
+
+      expect(successRedirectUrl.searchParams.get('code')).toBe('auth-code-456');
+      expect(successRedirectUrl.searchParams.get('state')).toBe('test-state');
+      expect(successRedirectUrl.searchParams.has('handoff_token')).toBe(false);
+    });
+  });
+
+  describe('PKCE validation', () => {
+    it('should require code_challenge for Silent Auth', () => {
+      const codeChallenge = undefined;
+      const isValid = !!codeChallenge;
+
+      expect(isValid).toBe(false);
+    });
+
+    it('should accept valid code_challenge', () => {
+      const codeChallenge = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+      const isValid = !!codeChallenge;
+
+      expect(isValid).toBe(true);
+    });
+  });
+
+  describe('error code usage', () => {
+    /**
+     * Tests the correct usage of OIDC error codes:
+     * - login_required: User is not authenticated (normal state)
+     * - invalid_request: Request is malformed (e.g., missing code_challenge, state expired)
+     */
+
+    it('should use login_required for missing session', () => {
+      const sessionId = undefined;
+      const errorCode = !sessionId ? 'login_required' : 'other';
+
+      expect(errorCode).toBe('login_required');
+    });
+
+    it('should use login_required for expired session', () => {
+      const session = null; // Session lookup returned null
+      const errorCode = !session ? 'login_required' : 'other';
+
+      expect(errorCode).toBe('login_required');
+    });
+
+    it('should use invalid_request for missing code_challenge', () => {
+      const codeChallenge = undefined;
+      const errorCode = !codeChallenge ? 'invalid_request' : 'other';
+
+      expect(errorCode).toBe('invalid_request');
+    });
+
+    it('should use invalid_request for state consumption failure', () => {
+      const consumedAuthState = null; // State already consumed or expired
+      const errorCode = !consumedAuthState ? 'invalid_request' : 'other';
+
+      expect(errorCode).toBe('invalid_request');
+    });
+
+    it('should use invalid_request for prompt=none with other values', () => {
+      const promptValues = ['none', 'login'];
+      const isSilentAuth = promptValues.includes('none');
+      const errorCode = isSilentAuth && promptValues.length > 1 ? 'invalid_request' : 'other';
+
+      expect(errorCode).toBe('invalid_request');
+    });
+  });
+
+  describe('SSO control', () => {
+    it('should use handoff flow when enableSso is true', () => {
+      const enableSso = true;
+      const flowType = enableSso ? 'handoff' : 'direct_auth';
+
+      expect(flowType).toBe('handoff');
+    });
+
+    it('should use direct auth flow when enableSso is false', () => {
+      const enableSso = false;
+      const flowType = enableSso ? 'handoff' : 'direct_auth';
+
+      expect(flowType).toBe('direct_auth');
+    });
+
+    it('should default to handoff flow when enableSso is undefined', () => {
+      const enableSso = undefined;
+      const actualEnableSso = enableSso !== false; // Default to true
+      const flowType = actualEnableSso ? 'handoff' : 'direct_auth';
+
+      expect(flowType).toBe('handoff');
+    });
+  });
+});

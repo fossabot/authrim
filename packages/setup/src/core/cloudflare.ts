@@ -1050,18 +1050,32 @@ export async function provisionResources(options: ProvisionOptions): Promise<Pro
   // Provision R2 buckets (optional)
   if (options.createR2) {
     onProgress('📁 R2 Buckets');
-    const bucketName = `${env}-authrim-avatars`;
-    onProgress(`  ⏳ Creating: ${bucketName}...`);
+    const avatarBucketName = `${env}-authrim-avatars`;
+    onProgress(`  ⏳ Creating: ${avatarBucketName}...`);
 
     try {
-      const result = await createR2Bucket(bucketName);
+      const result = await createR2Bucket(avatarBucketName);
       resources.r2.push({
         binding: 'AVATARS',
         name: result.name,
       });
-      onProgress(`  ✅ ${bucketName} created`);
+      onProgress(`  ✅ ${avatarBucketName} created`);
     } catch (error) {
-      onProgress(`  ⚠️ Skipped: ${bucketName} - ${sanitizeError(error)}`);
+      onProgress(`  ⚠️ Skipped: ${avatarBucketName} - ${sanitizeError(error)}`);
+    }
+
+    const diagnosticBucketName = `${env}-diagnostic-logs`;
+    onProgress(`  ⏳ Creating: ${diagnosticBucketName}...`);
+
+    try {
+      const result = await createR2Bucket(diagnosticBucketName);
+      resources.r2.push({
+        binding: 'DIAGNOSTIC_LOGS',
+        name: result.name,
+      });
+      onProgress(`  ✅ ${diagnosticBucketName} created`);
+    } catch (error) {
+      onProgress(`  ⚠️ Skipped: ${diagnosticBucketName} - ${sanitizeError(error)}`);
     }
     onProgress('');
   }
@@ -1129,7 +1143,7 @@ const AUTHRIM_PATTERNS = {
   // KV can have either lowercase or uppercase env prefix (e.g., conformance-CLIENTS_CACHE or TESTENV-CLIENTS_CACHE)
   kv: /^([a-zA-Z][a-zA-Z0-9-]*)-(?:CLIENTS_CACHE|INITIAL_ACCESS_TOKENS|SETTINGS|REBAC_CACHE|USER_CACHE|AUTHRIM_CONFIG|STATE_STORE|CONSENT_CACHE)(?:_preview)?$/i,
   queue: /^([a-z][a-z0-9-]*)-audit-queue$/,
-  r2: /^([a-z][a-z0-9-]*)-authrim-avatars$/,
+  r2: /^([a-z][a-z0-9-]*)-(authrim-avatars|diagnostic-logs)$/,
   // Pages projects: {env}-ar-admin-ui, {env}-ar-login-ui
   pages: /^([a-z][a-z0-9-]*)-(ar-admin-ui|ar-login-ui)$/,
 };

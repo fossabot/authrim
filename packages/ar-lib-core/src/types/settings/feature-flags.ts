@@ -197,7 +197,8 @@ export const FEATURE_FLAGS_SETTINGS_META: Record<keyof FeatureFlagsSettings, Set
     default: false,
     envKey: 'CONFORMANCE_ENABLED',
     label: 'Conformance Mode',
-    description: 'Enable OIDC conformance testing mode',
+    description:
+      'Enable OIDC conformance testing mode for OpenID Foundation certification. When enabled: (1) Uses built-in HTML forms instead of external UI for Login/Consent pages, (2) Required for passing OpenID conformance tests, (3) UI_URL configuration is ignored, (4) Should be disabled in production environments.',
     visibility: 'admin',
   },
   'feature.conformance_use_builtin_forms': {
@@ -206,7 +207,8 @@ export const FEATURE_FLAGS_SETTINGS_META: Record<keyof FeatureFlagsSettings, Set
     default: true,
     envKey: 'CONFORMANCE_USE_BUILTIN_FORMS',
     label: 'Use Built-in Forms',
-    description: 'Use built-in login/consent forms in conformance mode',
+    description:
+      'Use built-in HTML login/consent forms when conformance mode is enabled. This is required for OIDC conformance testing. When disabled: external UI must handle all authentication flows (not recommended for certification testing).',
     visibility: 'admin',
   },
 

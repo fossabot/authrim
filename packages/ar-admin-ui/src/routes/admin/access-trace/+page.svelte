@@ -366,7 +366,12 @@
 </div>
 
 <!-- Detail Dialog -->
-<Modal open={showDetailDialog && !!selectedEntry} onClose={closeDetail} title="Access Decision Detail" size="lg">
+<Modal
+	open={showDetailDialog && !!selectedEntry}
+	onClose={closeDetail}
+	title="Access Decision Detail"
+	size="lg"
+>
 	{#if selectedEntry}
 		<div class="detail-grid">
 			<div class="detail-row">

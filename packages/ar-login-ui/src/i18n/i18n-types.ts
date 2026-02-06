@@ -368,6 +368,40 @@ type RootTranslation = {
 	 */
 	consent_trustedClient: string
 	/**
+	 * R​e​q​u​i​r​e​d​ ​c​o​n​s​e​n​t​s
+	 */
+	consent_items_required_title: string
+	/**
+	 * O​p​t​i​o​n​a​l​ ​c​o​n​s​e​n​t​s
+	 */
+	consent_items_optional_title: string
+	/**
+	 * V​i​e​w​ ​d​o​c​u​m​e​n​t
+	 */
+	consent_item_view_document: string
+	/**
+	 * {​o​l​d​V​e​r​s​i​o​n​}​ ​→​ ​{​n​e​w​V​e​r​s​i​o​n​}​ ​u​p​d​a​t​e​d
+	 * @param {string} newVersion
+	 * @param {string} oldVersion
+	 */
+	consent_item_version_updated: RequiredParams<'newVersion' | 'oldVersion'>
+	/**
+	 * R​e​q​u​i​r​e​d
+	 */
+	consent_item_required_badge: string
+	/**
+	 * O​p​t​i​o​n​a​l
+	 */
+	consent_item_optional_badge: string
+	/**
+	 * R​e​q​u​e​s​t​ ​a​c​c​o​u​n​t​ ​d​e​l​e​t​i​o​n
+	 */
+	consent_delete_account_link: string
+	/**
+	 * Y​o​u​ ​m​u​s​t​ ​a​g​r​e​e​ ​t​o​ ​a​l​l​ ​r​e​q​u​i​r​e​d​ ​c​o​n​s​e​n​t​ ​i​t​e​m​s​ ​t​o​ ​c​o​n​t​i​n​u​e​.​ ​I​f​ ​y​o​u​ ​d​o​ ​n​o​t​ ​a​g​r​e​e​,​ ​y​o​u​ ​m​a​y​ ​r​e​q​u​e​s​t​ ​a​c​c​o​u​n​t​ ​d​e​l​e​t​i​o​n​.
+	 */
+	consent_block_message: string
+	/**
 	 * O​o​p​s​!​ ​S​o​m​e​t​h​i​n​g​ ​w​e​n​t​ ​w​r​o​n​g
 	 */
 	error_title: string
@@ -411,6 +445,10 @@ type RootTranslation = {
 	 * T​h​e​ ​a​u​t​h​o​r​i​z​a​t​i​o​n​ ​s​e​r​v​e​r​ ​i​s​ ​t​e​m​p​o​r​a​r​i​l​y​ ​u​n​a​b​l​e​ ​t​o​ ​h​a​n​d​l​e​ ​t​h​e​ ​r​e​q​u​e​s​t
 	 */
 	error_temporarily_unavailable: string
+	/**
+	 * A​u​t​h​e​n​t​i​c​a​t​i​o​n​ ​r​e​q​u​i​r​e​d​.​ ​P​l​e​a​s​e​ ​s​i​g​n​ ​i​n​ ​t​o​ ​c​o​n​t​i​n​u​e​.
+	 */
+	error_login_required: string
 	/**
 	 * A​n​ ​u​n​k​n​o​w​n​ ​e​r​r​o​r​ ​o​c​c​u​r​r​e​d
 	 */
@@ -602,6 +640,18 @@ type RootTranslation = {
 	 * A​ ​n​e​t​w​o​r​k​ ​e​r​r​o​r​ ​o​c​c​u​r​r​e​d​.​ ​P​l​e​a​s​e​ ​c​h​e​c​k​ ​y​o​u​r​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
 	 */
 	callback_errorNetwork: string
+	/**
+	 * A​u​t​h​e​n​t​i​c​a​t​i​o​n​ ​f​a​i​l​e​d​.​ ​P​l​e​a​s​e​ ​t​r​y​ ​l​o​g​g​i​n​g​ ​i​n​ ​a​g​a​i​n​.
+	 */
+	callback_errorMissingCodeVerifier: string
+	/**
+	 * Y​o​u​r​ ​b​r​o​w​s​e​r​ ​s​e​t​t​i​n​g​s​ ​p​r​e​v​e​n​t​ ​a​u​t​h​e​n​t​i​c​a​t​i​o​n​.​ ​P​l​e​a​s​e​ ​e​n​a​b​l​e​ ​c​o​o​k​i​e​s​ ​a​n​d​ ​s​t​o​r​a​g​e​.
+	 */
+	callback_errorStorageUnavailable: string
+	/**
+	 * Y​o​u​r​ ​b​r​o​w​s​e​r​ ​s​t​o​r​a​g​e​ ​i​s​ ​f​u​l​l​.​ ​P​l​e​a​s​e​ ​c​l​e​a​r​ ​s​o​m​e​ ​s​t​o​r​a​g​e​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+	 */
+	callback_errorStorageQuotaExceeded: string
 	/**
 	 * B​a​c​k​ ​t​o​ ​h​o​m​e
 	 */
@@ -1435,6 +1485,38 @@ export type TranslationFunctions = {
 	 */
 	consent_trustedClient: () => LocalizedString
 	/**
+	 * Required consents
+	 */
+	consent_items_required_title: () => LocalizedString
+	/**
+	 * Optional consents
+	 */
+	consent_items_optional_title: () => LocalizedString
+	/**
+	 * View document
+	 */
+	consent_item_view_document: () => LocalizedString
+	/**
+	 * {oldVersion} → {newVersion} updated
+	 */
+	consent_item_version_updated: (arg: { newVersion: string, oldVersion: string }) => LocalizedString
+	/**
+	 * Required
+	 */
+	consent_item_required_badge: () => LocalizedString
+	/**
+	 * Optional
+	 */
+	consent_item_optional_badge: () => LocalizedString
+	/**
+	 * Request account deletion
+	 */
+	consent_delete_account_link: () => LocalizedString
+	/**
+	 * You must agree to all required consent items to continue. If you do not agree, you may request account deletion.
+	 */
+	consent_block_message: () => LocalizedString
+	/**
 	 * Oops! Something went wrong
 	 */
 	error_title: () => LocalizedString
@@ -1478,6 +1560,10 @@ export type TranslationFunctions = {
 	 * The authorization server is temporarily unable to handle the request
 	 */
 	error_temporarily_unavailable: () => LocalizedString
+	/**
+	 * Authentication required. Please sign in to continue.
+	 */
+	error_login_required: () => LocalizedString
 	/**
 	 * An unknown error occurred
 	 */
@@ -1666,6 +1752,18 @@ export type TranslationFunctions = {
 	 * A network error occurred. Please check your connection and try again.
 	 */
 	callback_errorNetwork: () => LocalizedString
+	/**
+	 * Authentication failed. Please try logging in again.
+	 */
+	callback_errorMissingCodeVerifier: () => LocalizedString
+	/**
+	 * Your browser settings prevent authentication. Please enable cookies and storage.
+	 */
+	callback_errorStorageUnavailable: () => LocalizedString
+	/**
+	 * Your browser storage is full. Please clear some storage and try again.
+	 */
+	callback_errorStorageQuotaExceeded: () => LocalizedString
 	/**
 	 * Back to home
 	 */

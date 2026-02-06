@@ -101,6 +101,16 @@ const en = {
 	consent_noOrganization: 'No organization',
 	consent_trustedClient: 'Trusted application',
 
+	consent_items_required_title: 'Required consents',
+	consent_items_optional_title: 'Optional consents',
+	consent_item_view_document: 'View document',
+	consent_item_version_updated: '{oldVersion:string} → {newVersion:string} updated',
+	consent_item_required_badge: 'Required',
+	consent_item_optional_badge: 'Optional',
+	consent_delete_account_link: 'Request account deletion',
+	consent_block_message:
+		'You must agree to all required consent items to continue. If you do not agree, you may request account deletion.',
+
 	error_title: 'Oops! Something went wrong',
 	error_subtitle: 'We encountered an error while processing your request',
 	error_contactSupport: 'If this problem persists, please contact support',
@@ -114,6 +124,7 @@ const en = {
 	error_server_error: 'The authorization server encountered an unexpected error',
 	error_temporarily_unavailable:
 		'The authorization server is temporarily unable to handle the request',
+	error_login_required: 'Authentication required. Please sign in to continue.',
 	error_unknown: 'An unknown error occurred',
 
 	device_title: 'Device Verification',
@@ -165,6 +176,11 @@ const en = {
 	callback_errorStateMismatch: 'Security validation failed. Please try signing in again.',
 	callback_errorExchangeFailed: 'Failed to complete authentication. Please try again.',
 	callback_errorNetwork: 'A network error occurred. Please check your connection and try again.',
+	callback_errorMissingCodeVerifier: 'Authentication failed. Please try logging in again.',
+	callback_errorStorageUnavailable:
+		'Your browser settings prevent authentication. Please enable cookies and storage.',
+	callback_errorStorageQuotaExceeded:
+		'Your browser storage is full. Please clear some storage and try again.',
 
 	common_backToHome: 'Back to home',
 

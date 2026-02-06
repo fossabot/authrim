@@ -32,6 +32,8 @@ import {
   buildUIUrl,
   shouldUseBuiltinForms,
   createConfigurationError,
+  DEFAULT_UI_PATHS,
+  type UIConfig,
   // Custom Redirect URIs (Authrim Extension)
   validateCustomRedirectParams,
   // Contract Loader (Human Auth / AI Ephemeral Auth two-layer model)
@@ -46,6 +48,10 @@ import {
   // Logging
   getLogger,
   createLogger,
+  // Consent Management
+  resolveConsentRequirements,
+  checkUserConsentSatisfaction,
+  getUserClaimsForRules,
 } from '@authrim/ar-lib-core';
 import type { CachedUser, CachedConsent } from '@authrim/ar-lib-core';
 import type { Session, PARRequestData } from '@authrim/ar-lib-core';
@@ -128,7 +134,8 @@ async function getUIRedirectTarget(
     | 'loggedOut'
     | 'register',
   queryParams?: Record<string, string>,
-  tenantHint?: string
+  tenantHint?: string,
+  clientLoginUiUrl?: string | null
 ): Promise<UIRedirectResult> {
   // Check conformance mode first
   if (await shouldUseBuiltinForms(env)) {
@@ -147,7 +154,17 @@ async function getUIRedirectTarget(
     return { type: 'builtin', fallbackPath: fallbackPaths[path] || '/error' };
   }
 
-  // Check UI configuration
+  // Check client-specific login UI URL (priority 2)
+  if (clientLoginUiUrl) {
+    const clientConfig: UIConfig = {
+      baseUrl: clientLoginUiUrl,
+      paths: DEFAULT_UI_PATHS,
+    };
+    const url = buildUIUrl(clientConfig, path, queryParams, tenantHint);
+    return { type: 'redirect', url };
+  }
+
+  // Check global UI configuration (priority 3)
   const uiConfig = await getUIConfig(env);
   if (!uiConfig?.baseUrl) {
     // No UI configured and conformance mode disabled
@@ -1814,7 +1831,21 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
   // Check for existing session (cookie)
   // This is required for prompt=none to work correctly
-  const sessionId = c.req.header('Cookie')?.match(/authrim_session=([^;]+)/)?.[1];
+  const cookieHeader = c.req.header('Cookie');
+  const rawSessionId = cookieHeader?.match(/authrim_session=([^;]+)/)?.[1];
+  // URL decode the session ID - browsers may encode special characters like colons
+  const sessionId = rawSessionId ? decodeURIComponent(rawSessionId) : undefined;
+
+  // Debug logging for SSO troubleshooting
+  log.info('Session detection', {
+    action: 'session_detect',
+    hasCookieHeader: !!cookieHeader,
+    hasSessionId: !!sessionId,
+    sessionIdPrefix: sessionId ? sessionId.substring(0, 30) : null, // First 30 chars for debugging
+    isShardedFormat: sessionId ? isShardedSessionId(sessionId) : false,
+    clientId: validClientId,
+  });
+
   // Only process sharded session IDs (new format: {shardIndex}_session_{uuid})
   // Legacy sessions without shard prefix are treated as invalid (user must re-login)
   if (sessionId && c.env.SESSION_STORE && isShardedSessionId(sessionId)) {
@@ -1822,6 +1853,15 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sessionId);
 
       const session = (await sessionStore.getSessionRpc(sessionId)) as Session | null;
+
+      // Debug: Log session retrieval result
+      log.info('Session retrieved', {
+        action: 'session_retrieved',
+        hasSession: !!session,
+        sessionExpired: session ? session.expiresAt <= Date.now() : null,
+        sessionUserId: session?.userId,
+        clientId: validClientId,
+      });
 
       if (session) {
         // Check if session is not expired
@@ -1885,6 +1925,82 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
     if (_session_user_id) {
       sessionUserId = _session_user_id;
     }
+  }
+
+  // ============================================================
+  // SSO Configuration Retrieval and Application
+  // ============================================================
+  let ssoEnabled = false; // Default: disabled for security
+
+  try {
+    // Get SSO setting from KV or environment variables
+    // Priority: Client KV > Tenant KV > Client ENV > Tenant ENV > Default (false)
+
+    let tenantSsoSetting: boolean | null = null;
+    let clientSsoSetting: boolean | null = null;
+
+    // 1. Try to get client-level setting from KV
+    if (c.env.AUTHRIM_CONFIG) {
+      const clientKvKey = `settings:client:${validClientId}:client`;
+      const clientKvData = await c.env.AUTHRIM_CONFIG.get(clientKvKey);
+      if (clientKvData) {
+        try {
+          const clientData = JSON.parse(clientKvData);
+          if (typeof clientData['client.sso_enabled'] === 'boolean') {
+            clientSsoSetting = clientData['client.sso_enabled'];
+          }
+        } catch (parseError) {
+          log.warn('Failed to parse client KV data for SSO setting', {
+            action: 'sso_config_parse_error',
+            clientId: validClientId,
+          });
+        }
+      }
+    }
+
+    // 2. Try to get tenant-level setting from KV
+    if (c.env.AUTHRIM_CONFIG && clientSsoSetting === null) {
+      const tenantKvKey = `settings:tenant:${tenantId}:oauth`;
+      const tenantKvData = await c.env.AUTHRIM_CONFIG.get(tenantKvKey);
+      if (tenantKvData) {
+        try {
+          const tenantData = JSON.parse(tenantKvData);
+          if (typeof tenantData['oauth.sso_enabled'] === 'boolean') {
+            tenantSsoSetting = tenantData['oauth.sso_enabled'];
+          }
+        } catch (parseError) {
+          log.warn('Failed to parse tenant KV data for SSO setting', {
+            action: 'sso_config_parse_error',
+            tenantId,
+          });
+        }
+      }
+    }
+
+    // 3. Fallback to environment variables
+    if (clientSsoSetting === null && c.env.CLIENT_SSO_ENABLED !== undefined) {
+      clientSsoSetting = c.env.CLIENT_SSO_ENABLED === 'true';
+    }
+    if (tenantSsoSetting === null && c.env.OAUTH_SSO_ENABLED !== undefined) {
+      tenantSsoSetting = c.env.OAUTH_SSO_ENABLED === 'true';
+    }
+
+    // Priority: Client setting > Tenant setting > Default (false)
+    ssoEnabled = clientSsoSetting ?? tenantSsoSetting ?? false;
+
+    log.info('SSO configuration', {
+      action: 'sso_config',
+      clientId: validClientId,
+      tenantSsoSetting,
+      clientSsoSetting,
+      ssoEnabled,
+    });
+  } catch (error) {
+    log.error('Failed to get SSO settings, defaulting to disabled', {
+      action: 'sso_config_error',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    ssoEnabled = false;
   }
 
   // Handle id_token_hint parameter (fallback if no session cookie)
@@ -1963,6 +2079,66 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
     }
   }
 
+  // ============================================================
+  // OIDC Compliance: Authentication State Evaluation Order
+  // ============================================================
+  // Evaluation order: prompt=login (highest priority) → max_age → SSO setting
+  // This ensures OIDC specification compliance while enabling SSO control
+
+  // 1. prompt=login: Explicit re-authentication request (OIDC Core 3.1.2.1)
+  //    → Always force re-authentication regardless of SSO setting
+  if (prompt && prompt.includes('login') && _confirmed !== 'true') {
+    log.info('prompt=login - forcing re-authentication', {
+      action: 'prompt_login',
+      clientId: validClientId,
+    });
+    sessionUserId = undefined;
+    authTime = undefined;
+    isAnonymousSession = false;
+  }
+
+  // 2. max_age: Authentication age constraint (OIDC Core 3.1.2.1)
+  //    → Evaluated before SSO setting (specification requirement)
+  //    → For prompt=none, separate check in prompt processing (Line 2143-2155) returns error
+  //    → For other cases, clear session to trigger re-authentication
+  else if (max_age && authTime && !prompt?.includes('none') && _confirmed !== 'true') {
+    const authAge = Math.floor(Date.now() / 1000) - authTime;
+    const maxAgeSeconds = parseInt(max_age, 10);
+    if (authAge > maxAgeSeconds) {
+      log.info('max_age exceeded - re-authentication required', {
+        action: 'max_age_exceeded',
+        clientId: validClientId,
+        authAge,
+        maxAge: maxAgeSeconds,
+      });
+      sessionUserId = undefined;
+      authTime = undefined;
+      isAnonymousSession = false;
+    }
+  }
+
+  // 3. SSO Setting: Session sharing control (Authrim-specific feature)
+  //    → Applied after prompt=login and max_age
+  if (!ssoEnabled && sessionUserId) {
+    // Log if id_token_hint was provided but ignored due to SSO disabled
+    if (id_token_hint) {
+      log.warn('SSO disabled - ignoring id_token_hint', {
+        action: 'sso_disabled_id_token_hint',
+        clientId: validClientId,
+      });
+    }
+
+    log.info('SSO disabled - ignoring existing session', {
+      action: 'sso_disabled',
+      clientId: validClientId,
+      ignoredSessionUserId: sessionUserId,
+    });
+
+    sessionUserId = undefined;
+    authTime = undefined;
+    isAnonymousSession = false;
+  }
+
   // Handle prompt parameter (OIDC Core 3.1.2.1)
   if (prompt) {
     const promptValues = prompt.split(' ');
@@ -1977,6 +2153,20 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
     if (promptValues.includes('none')) {
       // prompt=none: MUST NOT display any authentication or consent UI
+
+      // When SSO is disabled, prompt=none always returns login_required
+      // because session sharing is not allowed (sessionUserId was cleared in OIDC compliance section)
+      if (!ssoEnabled) {
+        log.info('prompt=none rejected due to SSO disabled', {
+          action: 'prompt_none_sso_disabled',
+          clientId: validClientId,
+        });
+        return sendError(
+          'login_required',
+          'SSO is disabled for this client - prompt=none requires an active session but session sharing is not allowed'
+        );
+      }
+
       // If not authenticated, return login_required error
       if (!sessionUserId) {
         return sendError('login_required', 'User authentication is required');
@@ -2030,40 +2220,16 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       }
     }
 
-    if (promptValues.includes('login') && _confirmed !== 'true') {
-      // prompt=login: Force re-authentication even if user has valid session
-      // Clear session context to force login (unless user has already confirmed)
-      sessionUserId = undefined;
-      authTime = undefined;
-    }
-
+    // Note: prompt=login is handled in the OIDC compliance section above
     // Note: prompt=consent and prompt=select_account are handled by consent UI
     // They don't affect the authorization endpoint logic directly
   }
 
-  // Handle max_age parameter (OIDC Core 3.1.2.1)
-  // Skip this check if user has already confirmed re-authentication
-  let requiresReauthentication = false;
-  if (max_age && !prompt?.includes('none') && _confirmed !== 'true') {
-    const maxAgeSeconds = parseInt(max_age, 10);
+  // Note: max_age parameter is handled in the OIDC compliance section above
 
-    if (authTime) {
-      const currentTime = Math.floor(Date.now() / 1000);
-      const timeSinceAuth = currentTime - authTime;
-
-      if (timeSinceAuth > maxAgeSeconds) {
-        // Re-authentication required - show confirmation screen
-        requiresReauthentication = true;
-        // Note: Do NOT clear auth_time here - it will be preserved through the confirmation flow
-      }
-    }
-  }
-
-  // If re-authentication is required, show confirmation screen (unless already confirmed)
-  if (
-    (requiresReauthentication || (prompt?.includes('login') && sessionUserId)) &&
-    _confirmed !== 'true'
-  ) {
+  // If prompt=login was requested but session still exists (not yet cleared), show confirmation screen
+  // This handles edge cases where sessionUserId is restored after OIDC compliance section
+  if (prompt?.includes('login') && sessionUserId && _confirmed !== 'true') {
     // Store authorization request parameters in ChallengeStore (RPC)
     // Use challengeId-based sharding for better scalability
     const challengeId = crypto.randomUUID();
@@ -2103,11 +2269,18 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
     // Redirect to UI re-authentication screen
     // Conformance mode: use builtin forms
-    // UI configured: redirect to external UI
+    // Client-specific UI: use client's login_ui_url
+    // Global UI configured: redirect to external UI
     // Neither: return configuration error
-    const reauthTarget = await getUIRedirectTarget(c.env, 'reauth', {
-      challenge_id: challengeId,
-    });
+    const reauthTarget = await getUIRedirectTarget(
+      c.env,
+      'reauth',
+      {
+        challenge_id: challengeId,
+      },
+      undefined,
+      clientMetadata?.login_ui_url
+    );
     if (reauthTarget.type === 'redirect') {
       return c.redirect(reauthTarget.url, 302);
     } else if (reauthTarget.type === 'error') {
@@ -2165,11 +2338,18 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
     // Redirect to UI login screen
     // Conformance mode: use builtin forms
-    // UI configured: redirect to external UI
+    // Client-specific UI: use client's login_ui_url
+    // Global UI configured: redirect to external UI
     // Neither: return configuration error
-    const loginTarget = await getUIRedirectTarget(c.env, 'login', {
-      challenge_id: challengeId,
-    });
+    const loginTarget = await getUIRedirectTarget(
+      c.env,
+      'login',
+      {
+        challenge_id: challengeId,
+      },
+      undefined,
+      clientMetadata?.login_ui_url
+    );
     if (loginTarget.type === 'redirect') {
       return c.redirect(loginTarget.url, 302);
     } else if (loginTarget.type === 'error') {
@@ -2348,11 +2528,18 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
         // Redirect to UI consent screen
         // Conformance mode: use builtin forms
-        // UI configured: redirect to external UI
+        // Client-specific UI: use client's login_ui_url
+        // Global UI configured: redirect to external UI
         // Neither: return configuration error
-        const consentTarget = await getUIRedirectTarget(c.env, 'consent', {
-          challenge_id: challengeId,
-        });
+        const consentTarget = await getUIRedirectTarget(
+          c.env,
+          'consent',
+          {
+            challenge_id: challengeId,
+          },
+          undefined,
+          clientMetadata?.login_ui_url
+        );
         if (consentTarget.type === 'redirect') {
           return c.redirect(consentTarget.url, 302);
         } else if (consentTarget.type === 'error') {
@@ -2365,6 +2552,138 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
         );
       }
     } // End of Third-Party Client consent check
+  }
+
+  // ==========================================================================
+  // Consent Management Check (SAP CDC-like consent items)
+  // Only when consent_management_enabled and not already confirmed
+  // ==========================================================================
+  if (_consent_confirmed !== 'true') {
+    try {
+      const tenantId = getTenantIdFromContext(c);
+      const configManager = createOAuthConfigManager(c.env);
+
+      // Check KV first, then env, then code default (false)
+      let consentMgmtEnabled = false;
+      if (c.env.KV) {
+        try {
+          const kvVal = await c.env.KV.get('consent:consent_management_enabled');
+          if (kvVal !== null) {
+            consentMgmtEnabled = kvVal === 'true' || kvVal === '1';
+          } else {
+            const envVal = (c.env as unknown as Record<string, string>).ENABLE_CONSENT_MANAGEMENT;
+            consentMgmtEnabled = envVal === 'true' || envVal === '1';
+          }
+        } catch {
+          const envVal = (c.env as unknown as Record<string, string>).ENABLE_CONSENT_MANAGEMENT;
+          consentMgmtEnabled = envVal === 'true' || envVal === '1';
+        }
+      } else {
+        const envVal = (c.env as unknown as Record<string, string>).ENABLE_CONSENT_MANAGEMENT;
+        consentMgmtEnabled = envVal === 'true' || envVal === '1';
+      }
+
+      if (consentMgmtEnabled) {
+        const authCtx = createAuthContextFromHono(c, tenantId);
+        const userClaims = await getUserClaimsForRules(authCtx.coreAdapter, tenantId, sub);
+        const requirements = await resolveConsentRequirements(
+          authCtx.coreAdapter,
+          tenantId,
+          validClientId,
+          userClaims
+        );
+
+        if (requirements.length > 0) {
+          const { satisfied, unsatisfied } = await checkUserConsentSatisfaction(
+            authCtx.coreAdapter,
+            tenantId,
+            sub,
+            requirements
+          );
+
+          if (!satisfied) {
+            // prompt=none: can't show UI
+            if (prompt?.includes('none')) {
+              return sendError(
+                'consent_required',
+                'Consent management items require user interaction'
+              );
+            }
+
+            // Determine enforcement from first unsatisfied required item
+            const firstUnsatisfiedReq = requirements.find(
+              (r) => unsatisfied.includes(r.statement_id) && r.is_required
+            );
+            const enforcement = firstUnsatisfiedReq?.enforcement ?? 'block';
+
+            // Store challenge with consent item metadata
+            const challengeId = crypto.randomUUID();
+            const challengeStore = await getChallengeStoreByChallengeId(c.env, challengeId);
+
+            await challengeStore.storeChallengeRpc({
+              id: challengeId,
+              type: 'consent',
+              userId: sub,
+              challenge: challengeId,
+              ttl: 600,
+              metadata: {
+                response_type,
+                client_id,
+                redirect_uri,
+                scope,
+                state,
+                nonce,
+                code_challenge,
+                code_challenge_method,
+                claims,
+                response_mode,
+                max_age,
+                prompt,
+                id_token_hint,
+                acr_values,
+                display,
+                ui_locales,
+                login_hint,
+                sessionUserId: sub,
+                authTime,
+                org_id,
+                acting_as,
+                error_uri: validatedErrorUri,
+                cancel_uri: validatedCancelUri,
+                // Consent management metadata
+                consent_items_required: unsatisfied,
+                consent_items_enforcement: enforcement,
+              },
+            });
+
+            const clientMetadata = await getClientCached(c, c.env, validClientId);
+            const consentTarget = await getUIRedirectTarget(
+              c.env,
+              'consent',
+              { challenge_id: challengeId },
+              undefined,
+              clientMetadata?.login_ui_url
+            );
+            if (consentTarget.type === 'redirect') {
+              return c.redirect(consentTarget.url, 302);
+            } else if (consentTarget.type === 'error') {
+              return consentTarget.response;
+            }
+            return c.redirect(
+              `${consentTarget.fallbackPath}?challenge_id=${encodeURIComponent(challengeId)}`,
+              302
+            );
+          }
+        }
+      }
+    } catch (error) {
+      log.error(
+        'Consent management check failed',
+        { action: 'consent_mgmt_check' },
+        error as Error
+      );
+      // Non-blocking: continue if consent management check fails
+    }
   }
 
   // Record authentication time

@@ -244,7 +244,46 @@ const ja = {
 	admin_policy_available_claims: '使用可能なクレーム',
 	admin_policy_embedding_info: 'ポリシー埋め込み情報',
 	admin_policy_embedding_info_desc:
-		'有効にすると、認可サーバーはリクエストされたスコープをユーザーの権限に対して評価し、許可されたアクションのみをAccess Tokenに埋め込みます。'
+		'有効にすると、認可サーバーはリクエストされたスコープをユーザーの権限に対して評価し、許可されたアクションのみをAccess Tokenに埋め込みます。',
+
+	// Consent Statement Management
+	admin_sidebar_consent_statements: 'コンセント項目',
+	admin_consent_statements_title: 'コンセント項目管理',
+	admin_consent_statements_subtitle: 'コンセント項目、バージョン、多言語コンテンツ、要件を管理',
+	admin_consent_statements_tab_statements: '項目一覧',
+	admin_consent_statements_tab_versions: 'バージョン',
+	admin_consent_statements_tab_localizations: '多言語コンテンツ',
+	admin_consent_statements_tab_requirements: '要件設定',
+	admin_consent_statements_new: '新規作成',
+	admin_consent_statements_edit: '項目を編集',
+	admin_consent_statements_slug: 'スラッグ',
+	admin_consent_statements_category: 'カテゴリ',
+	admin_consent_statements_legal_basis: '法的根拠',
+	admin_consent_statements_purpose: 'データ処理目的',
+	admin_consent_statements_order: '表示順',
+	admin_consent_statements_active: '有効',
+	admin_consent_statements_inactive: '無効',
+	admin_consent_versions_new: '新規バージョン',
+	admin_consent_versions_version: 'バージョン (YYYYMMDD)',
+	admin_consent_versions_content_type: 'コンテンツタイプ',
+	admin_consent_versions_effective: '発効日',
+	admin_consent_versions_activate: '有効化',
+	admin_consent_versions_activate_confirm:
+		'このバージョンを有効化すると、既存ユーザーに再同意が求められる可能性があります。法的影響がある操作です。続行しますか？',
+	admin_consent_versions_current: '現在有効',
+	admin_consent_localizations_add: '言語を追加',
+	admin_consent_localizations_language: '言語 (BCP 47)',
+	admin_consent_localizations_title: 'タイトル',
+	admin_consent_localizations_description: '説明',
+	admin_consent_localizations_url: 'ドキュメントURL',
+	admin_consent_localizations_inline: 'インラインコンテンツ',
+	admin_consent_requirements_add: '要件を追加',
+	admin_consent_requirements_required: '必須',
+	admin_consent_requirements_optional: '任意',
+	admin_consent_requirements_enforcement: '強制モード',
+	admin_consent_requirements_min_version: '最低バージョン',
+	admin_consent_requirements_deletion_link: '削除リンクを表示',
+	admin_consent_requirements_rules: '条件付きルール (JSON)'
 } satisfies Translation;
 
 export default ja;

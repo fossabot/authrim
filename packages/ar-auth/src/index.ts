@@ -9,6 +9,7 @@ import {
   isAllowedOrigin,
   parseAllowedOrigins,
   requestContextMiddleware,
+  diagnosticLoggingMiddleware,
   createErrorResponse,
   AR_ERROR_CODES,
   // UI Configuration
@@ -78,6 +79,12 @@ const app = new Hono<{ Bindings: Env }>();
 // Middleware
 app.use('*', logger());
 app.use('*', requestContextMiddleware());
+app.use(
+  '*',
+  diagnosticLoggingMiddleware({
+    excludePatterns: [/^\/api\/health/, /^\/health\//, /^\/admin-init-setup/],
+  })
+);
 
 // Plugin Context - provides access to notifiers, idp handlers, authenticators
 // Plugins are loaded lazily on first request and cached per Worker lifecycle

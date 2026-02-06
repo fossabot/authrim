@@ -49,6 +49,12 @@ export interface UpstreamProvider {
    * Default: false
    */
   alwaysFetchUserinfo?: boolean;
+  /**
+   * Whether to enable SSO (Single Sign-On) for this provider.
+   * - true (default): Use handoff flow (redirect with handoff_token)
+   * - false: Use Direct Auth flow (redirect with authorization code)
+   */
+  enableSso?: boolean;
 
   // Provider-specific settings
   providerQuirks: Record<string, unknown>;
@@ -120,10 +126,17 @@ export interface LinkedIdentity {
 export interface ExternalIdpAuthState {
   id: string;
   tenantId: string;
+  /** Authrim client ID initiating the external IdP flow */
+  clientId?: string;
   providerId: string;
   state: string;
   nonce?: string;
+  /** @deprecated Use codeChallenge for client-side PKCE */
   codeVerifier?: string;
+  /** Code challenge for PKCE (client-side or server-side) */
+  codeChallenge?: string;
+  /** Flow ID for diagnostic correlation */
+  flowId?: string;
   redirectUri: string;
   userId?: string; // Set if linking to existing account
   sessionId?: string;
@@ -132,6 +145,10 @@ export interface ExternalIdpAuthState {
   maxAge?: number;
   /** acr_values parameter sent in authorization request (for acr validation) */
   acrValues?: string;
+  /** OIDC prompt parameter (none, login, consent, select_account) */
+  prompt?: string;
+  /** Whether SSO is enabled for this authentication flow */
+  enableSso?: boolean;
   expiresAt: number;
   createdAt: number;
 }
@@ -149,6 +166,7 @@ export interface ProviderMetadata {
   scopes_supported?: string[];
   response_types_supported: string[];
   grant_types_supported?: string[];
+  token_endpoint_auth_methods_supported?: string[];
   subject_types_supported?: string[];
   id_token_signing_alg_values_supported?: string[];
   claims_supported?: string[];

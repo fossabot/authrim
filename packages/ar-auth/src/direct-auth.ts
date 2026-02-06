@@ -1466,10 +1466,11 @@ export async function directTokenHandler(c: Context<{ Bindings: Env }>) {
       code: string;
       client_id: string;
       code_verifier: string;
+      provider_id?: string;
       request_refresh_token?: boolean;
     }>();
 
-    const { grant_type, code, client_id, code_verifier, request_refresh_token } = body;
+    const { grant_type, code, client_id, code_verifier, provider_id, request_refresh_token } = body;
 
     if (grant_type !== 'authorization_code' || !code || !client_id || !code_verifier) {
       return createErrorResponse(c, AR_ERROR_CODES.VALIDATION_REQUIRED_FIELD, {
@@ -1487,8 +1488,19 @@ export async function directTokenHandler(c: Context<{ Bindings: Env }>) {
     const { userId, metadata } = authCodeData;
 
     // Verify client_id matches
-    if (metadata?.client_id && metadata.client_id !== client_id) {
+    if (!metadata?.client_id || metadata.client_id !== client_id) {
       return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
+    }
+
+    // Verify provider_id matches when code is bound to an external provider
+    const allowedProviders = new Set<string>();
+    if (metadata?.provider_id) allowedProviders.add(String(metadata.provider_id));
+    if (metadata?.provider_slug) allowedProviders.add(String(metadata.provider_slug));
+    if (metadata?.provider) allowedProviders.add(String(metadata.provider));
+    if (allowedProviders.size > 0) {
+      if (!provider_id || !allowedProviders.has(provider_id)) {
+        return createErrorResponse(c, AR_ERROR_CODES.AUTH_INVALID_CODE);
+      }
     }
 
     // Get user info

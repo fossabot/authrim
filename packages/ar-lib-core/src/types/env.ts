@@ -41,6 +41,7 @@ export interface Env {
 
   // R2 Buckets
   AVATARS: R2Bucket;
+  DIAGNOSTIC_LOGS?: R2Bucket; // Diagnostic logs for debugging and OIDF conformance testing
 
   // KV Namespaces
   STATE_STORE: KVNamespace;
@@ -98,10 +99,13 @@ export interface Env {
   // Core OAuth/OIDC Features
   ENABLE_REFRESH_TOKEN_ROTATION?: string; // "false" to disable token rotation (for load testing only!)
   ENABLE_HTTP_REDIRECT?: string; // "true" to allow http:// redirect URIs for development
+  ALLOW_LOCALHOST?: string; // "true" or "1" to allow localhost origins in handoff verify (development only)
   ENABLE_STATE_REQUIRED?: string; // "true" to require state parameter (CSRF protection)
   ENABLE_USERINFO_REQUIRE_OPENID_SCOPE?: string; // "false" to allow UserInfo without openid scope (OAuth 2.0 compatibility)
   ENABLE_OPEN_REGISTRATION?: string; // "true" to allow registration without Initial Access Token
   ENABLE_CONFORMANCE_MODE?: string; // "true" to enable built-in forms instead of external UI
+  OAUTH_SSO_ENABLED?: string; // "true" to enable SSO (session sharing) at tenant level (default: "false")
+  CLIENT_SSO_ENABLED?: string; // "true" to enable SSO (session sharing) at client level (default: "false")
 
   // API & Versioning
   ENABLE_API_VERSIONING?: string; // "false" to disable API versioning middleware (default: enabled)

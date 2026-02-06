@@ -525,7 +525,6 @@
 		}
 	});
 
-
 	// =========================================================================
 	// Lifecycle
 	// =========================================================================
@@ -606,7 +605,6 @@
 				<stop offset="50%" stop-color="var(--arc-inactive-mid, rgba(100, 100, 140, 0.12))" />
 				<stop offset="100%" stop-color="var(--arc-inactive-end, rgba(100, 100, 140, 0.2))" />
 			</linearGradient>
-
 		</defs>
 
 		<!-- Map content -->
@@ -628,7 +626,9 @@
 							onclick={() => isDoCapable && onRegionClick?.(region)}
 							role={isDoCapable ? 'button' : 'img'}
 							tabindex={isDoCapable ? 0 : -1}
-							aria-label="{feature.properties?.NAME || 'Unknown'} - {region}{isDoCapable ? '' : ' (No DO support)'}"
+							aria-label="{feature.properties?.NAME || 'Unknown'} - {region}{isDoCapable
+								? ''
+								: ' (No DO support)'}"
 							onkeydown={(e) => isDoCapable && e.key === 'Enter' && onRegionClick?.(region)}
 						/>
 					{/each}

@@ -43,6 +43,10 @@ import {
   getCurrentPolicyVersions,
   checkRequiresReconsent,
   recordConsentHistory,
+  // Consent Management
+  getConsentItemsForScreen,
+  processConsentItemDecisions,
+  hashIpAddress,
   // Logger
   getLogger,
 } from '@authrim/ar-lib-core';
@@ -346,6 +350,65 @@ async function handleJsonConsentGet(
     };
   }
 
+  // Check consent management items
+  let consentItems: ExtendedConsentScreenData['consent_items'];
+  let consentManagementEnabled = false;
+  let consentLanguage = 'en';
+
+  try {
+    // Check if consent management is enabled
+    let mgmtEnabled = false;
+    if (c.env.KV) {
+      try {
+        const kvVal = await c.env.KV.get('consent:consent_management_enabled');
+        if (kvVal !== null) {
+          mgmtEnabled = kvVal === 'true' || kvVal === '1';
+        } else {
+          const envVal = (c.env as unknown as Record<string, string>).ENABLE_CONSENT_MANAGEMENT;
+          mgmtEnabled = envVal === 'true' || envVal === '1';
+        }
+      } catch {
+        const envVal = (c.env as unknown as Record<string, string>).ENABLE_CONSENT_MANAGEMENT;
+        mgmtEnabled = envVal === 'true' || envVal === '1';
+      }
+    } else {
+      const envVal = (c.env as unknown as Record<string, string>).ENABLE_CONSENT_MANAGEMENT;
+      mgmtEnabled = envVal === 'true' || envVal === '1';
+    }
+
+    if (mgmtEnabled) {
+      consentManagementEnabled = true;
+
+      // Determine language from ui_locales or Accept-Language
+      const uiLocales = metadata.ui_locales as string | undefined;
+      const acceptLang = c.req.header('Accept-Language');
+      consentLanguage =
+        uiLocales?.split(' ')[0] || acceptLang?.split(',')[0]?.split('-')[0] || 'en';
+
+      // Get default language from settings
+      let defaultLang = 'en';
+      if (c.env.KV) {
+        try {
+          const kvLang = await c.env.KV.get('consent:default_language');
+          if (kvLang) defaultLang = kvLang;
+        } catch {
+          /* use default */
+        }
+      }
+
+      consentItems = await getConsentItemsForScreen(
+        authCtx.coreAdapter,
+        tenantId,
+        clientRow.client_id,
+        userId,
+        consentLanguage,
+        defaultLang
+      );
+    }
+  } catch (err) {
+    // Non-blocking: consent management items are optional
+  }
+
   // Build response with extended data
   const responseData: ExtendedConsentScreenData = {
     challenge_id,
@@ -361,6 +424,10 @@ async function handleJsonConsentGet(
     // Extended consent features
     granular_scopes_enabled: granularScopesEnabled,
     versioning: versioningInfo,
+    // Consent management
+    consent_items: consentItems,
+    consent_management_enabled: consentManagementEnabled,
+    consent_language: consentLanguage,
   };
 
   return c.json(responseData);
@@ -583,6 +650,7 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
     let acknowledged_policy_versions:
       | { privacy_policy?: string; terms_of_service?: string }
       | undefined;
+    let consent_item_decisions: Record<string, 'granted' | 'denied'> | undefined;
 
     if (contentType.includes('application/json')) {
       // Parse JSON body
@@ -593,6 +661,7 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
         acting_as_user_id?: string;
         selected_scopes?: string[];
         acknowledged_policy_versions?: { privacy_policy?: string; terms_of_service?: string };
+        consent_item_decisions?: Record<string, 'granted' | 'denied'>;
       }>();
       challenge_id = jsonBody.challenge_id;
       approved = jsonBody.approved === true;
@@ -600,6 +669,7 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
       acting_as_user_id = jsonBody.acting_as_user_id;
       selected_scopes = jsonBody.selected_scopes;
       acknowledged_policy_versions = jsonBody.acknowledged_policy_versions;
+      consent_item_decisions = jsonBody.consent_item_decisions;
     } else {
       // Parse form data
       const body = await c.req.parseBody();
@@ -780,6 +850,57 @@ export async function consentPostHandler(c: Context<{ Bindings: Env }>) {
 
     // Invalidate consent cache so next check reflects updated consent
     await invalidateConsentCache(c.env, userId, client_id);
+
+    // Process consent item decisions (consent management)
+    if (consent_item_decisions && Object.keys(consent_item_decisions).length > 0) {
+      try {
+        const ipAddress = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || '';
+        const ipHash = ipAddress
+          ? await hashIpAddress(ipAddress, tenantId, c.env.KV ?? null)
+          : undefined;
+
+        await processConsentItemDecisions(
+          authCtx.coreAdapter,
+          tenantId,
+          userId,
+          consent_item_decisions,
+          {
+            ip_address: ipAddress || undefined,
+            user_agent: c.req.header('User-Agent'),
+            client_id,
+          },
+          ipHash
+        );
+
+        // Publish events for each decision
+        for (const [statementId, decision] of Object.entries(consent_item_decisions)) {
+          const eventType =
+            decision === 'granted' ? CONSENT_EVENTS.ITEM_GRANTED : CONSENT_EVENTS.ITEM_DENIED;
+          if (eventType) {
+            publishEvent(c, {
+              type: eventType,
+              tenantId,
+              data: {
+                userId,
+                clientId: client_id,
+                scopes: effectiveScope.split(' '),
+              } satisfies ConsentEventData,
+            }).catch((eventErr) => {
+              log.warn('Failed to publish consent event', {
+                action: 'consent_event',
+                eventType,
+                statementId,
+                decision,
+                error: eventErr instanceof Error ? eventErr.message : 'Unknown error',
+              });
+            });
+          }
+        }
+      } catch (err) {
+        log.warn('Failed to process consent item decisions', { action: 'consent_items' });
+        // Non-blocking - don't fail the consent flow
+      }
+    }
 
     // Check if versioning is enabled for history recording
     const versioningEnabled = await configManager.getConsentVersioningEnabled();

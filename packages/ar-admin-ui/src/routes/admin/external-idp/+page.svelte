@@ -195,15 +195,20 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-<Modal open={showDeleteDialog && !!providerToDelete} onClose={closeDeleteDialog} title="Delete External IdP Provider" size="md">
+<Modal
+	open={showDeleteDialog && !!providerToDelete}
+	onClose={closeDeleteDialog}
+	title="Delete External IdP Provider"
+	size="md"
+>
 	{#if providerToDelete}
 		{#if deleteError}
 			<div class="alert alert-error">{deleteError}</div>
 		{/if}
 
 		<p class="modal-description">
-			Are you sure you want to delete this external IdP provider? This action cannot be undone
-			and users will no longer be able to sign in with this provider.
+			Are you sure you want to delete this external IdP provider? This action cannot be undone and
+			users will no longer be able to sign in with this provider.
 		</p>
 
 		<div class="info-box">

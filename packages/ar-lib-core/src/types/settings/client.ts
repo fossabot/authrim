@@ -26,6 +26,9 @@ export interface ClientSettings {
   'client.consent_required': boolean;
   'client.first_party': boolean;
 
+  // SSO Override
+  'client.sso_enabled': boolean;
+
   // Token Behavior
   'client.refresh_token_rotation': boolean;
   'client.reuse_refresh_token': boolean;
@@ -85,6 +88,7 @@ export interface ClientSettings {
   'client.policy_uri': string;
   'client.client_uri': string;
   'client.initiate_login_uri': string;
+  'client.login_ui_url': string;
 
   // Application Settings
   'client.application_type': string;
@@ -195,6 +199,16 @@ export const CLIENT_SETTINGS_META: Record<keyof ClientSettings, SettingMeta> = {
     label: 'First Party App',
     description: 'Mark this client as a first-party application',
     visibility: 'admin',
+  },
+  'client.sso_enabled': {
+    key: 'client.sso_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'CLIENT_SSO_ENABLED',
+    label: 'SSO Enabled',
+    description:
+      'Enable Single Sign-On for this client. When disabled, users must authenticate even with an existing session.',
+    visibility: 'public',
   },
   'client.refresh_token_rotation': {
     key: 'client.refresh_token_rotation',
@@ -546,6 +560,16 @@ export const CLIENT_SETTINGS_META: Record<keyof ClientSettings, SettingMeta> = {
     description: 'URI to initiate login from RP',
     visibility: 'admin',
   },
+  'client.login_ui_url': {
+    key: 'client.login_ui_url',
+    type: 'string',
+    default: '',
+    envKey: 'CLIENT_LOGIN_UI_URL',
+    label: 'Login UI URL',
+    description:
+      'Client-specific login UI base URL (overrides global UI_URL). Must use HTTPS except localhost.',
+    visibility: 'public',
+  },
 
   // Application Settings
   'client.application_type': {
@@ -757,6 +781,7 @@ export const CLIENT_DEFAULTS: ClientSettings = {
   'client.dpop_required': false,
   'client.consent_required': true,
   'client.first_party': false,
+  'client.sso_enabled': false,
   'client.refresh_token_rotation': true,
   'client.reuse_refresh_token': false,
   'client.allow_authorization_code': true,
@@ -794,6 +819,7 @@ export const CLIENT_DEFAULTS: ClientSettings = {
   'client.policy_uri': '',
   'client.client_uri': '',
   'client.initiate_login_uri': '',
+  'client.login_ui_url': '',
   'client.application_type': 'web',
   'client.sector_identifier_uri': '',
   'client.default_max_age': 0,
