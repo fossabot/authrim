@@ -614,6 +614,7 @@ describe('OIDCRPClient', () => {
         authorizationEndpoint: 'https://custom/authorize',
         tokenEndpoint: 'https://custom/token',
         userinfoEndpoint: 'https://custom/userinfo',
+        tokenEndpointAuthMethod: 'client_secret_post' as const, // Prevent discovery call
       };
 
       const client = new OIDCRPClient(configWithAllEndpoints);
