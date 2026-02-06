@@ -199,6 +199,63 @@
 		token_endpoint_auth_signing_alg?: string;
 	} | null>(null);
 
+	function toStringArray(value: unknown): string[] {
+		let current: unknown = value;
+
+		for (let i = 0; i < 3; i++) {
+			if (typeof current !== 'string') break;
+			const trimmed = current.trim();
+			if (!trimmed) return [];
+			if (
+				!(
+					(trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+					(trimmed.startsWith('"') && trimmed.endsWith('"'))
+				)
+			)
+				break;
+
+			try {
+				current = JSON.parse(trimmed);
+			} catch {
+				break;
+			}
+		}
+
+		if (Array.isArray(current)) {
+			if (current.every((item) => typeof item === 'string' && item.length === 1)) {
+				return toStringArray(current.join(''));
+			}
+
+			return current
+				.filter((item): item is string => typeof item === 'string')
+				.map((item) => item.trim())
+				.filter((item) => item.length > 0);
+		}
+
+		if (typeof current === 'string') {
+			const trimmed = current.trim();
+			if (!trimmed) return [];
+			if (trimmed.includes(',')) {
+				return trimmed
+					.split(',')
+					.map((item) => item.trim())
+					.filter((item) => item.length > 0);
+			}
+			return [trimmed];
+		}
+
+		return [];
+	}
+
+	function normalizeClientArrays(input: Client): Client {
+		return {
+			...input,
+			redirect_uris: toStringArray(input.redirect_uris),
+			grant_types: toStringArray(input.grant_types),
+			response_types: toStringArray(input.response_types)
+		};
+	}
+
 	function arraysEqual(a?: string[], b?: string[]) {
 		const left = a ?? [];
 		const right = b ?? [];
@@ -562,7 +619,7 @@
 		error = '';
 
 		try {
-			client = await adminClientsAPI.get(clientId);
+			client = normalizeClientArrays(await adminClientsAPI.get(clientId));
 			// Load usage statistics (only on detail page per review feedback)
 			try {
 				usage = await adminClientsAPI.getUsage(clientId);
@@ -600,9 +657,9 @@
 		if (!client || !clientSettings) return;
 		editForm = {
 			client_name: client.client_name,
-			redirect_uris: [...client.redirect_uris],
-			grant_types: [...client.grant_types],
-			response_types: [...client.response_types],
+			redirect_uris: toStringArray(client.redirect_uris),
+			grant_types: toStringArray(client.grant_types),
+			response_types: toStringArray(client.response_types),
 			token_endpoint_auth_method: client.token_endpoint_auth_method,
 			scope: client.scope,
 			require_pkce: client.require_pkce ?? false
@@ -731,7 +788,7 @@
 
 		try {
 			// Save to Client API
-			client = await adminClientsAPI.update(clientId, editForm);
+			client = normalizeClientArrays(await adminClientsAPI.update(clientId, editForm));
 
 			// Save to Settings API (all tab fields)
 			if (clientSettings && Object.keys(settingsEditForm).length > 0) {

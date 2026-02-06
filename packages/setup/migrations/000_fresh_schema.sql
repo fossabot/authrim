@@ -286,11 +286,6 @@ CREATE TABLE credential_offers (
     issued_credential_id TEXT REFERENCES issued_credentials(id)
 );
 
-CREATE TABLE d1_migrations(
-		id         INTEGER PRIMARY KEY AUTOINCREMENT,
-		name       TEXT UNIQUE,
-		applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
 
 CREATE TABLE data_export_requests (
   id TEXT PRIMARY KEY,

@@ -145,6 +145,8 @@ export interface ExternalIdpAuthState {
   maxAge?: number;
   /** acr_values parameter sent in authorization request (for acr validation) */
   acrValues?: string;
+  /** OIDC prompt parameter (none, login, consent, select_account) */
+  prompt?: string;
   /** Whether SSO is enabled for this authentication flow */
   enableSso?: boolean;
   expiresAt: number;

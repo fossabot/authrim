@@ -6,6 +6,7 @@
  * These endpoints operate on DB_ADMIN, separate from EndUser management.
  *
  * Endpoints:
+ * - /api/admin/admin-access-control - Admin access control hub stats
  * - /api/admin/admins - Admin user management
  * - /api/admin/admin-roles - Admin role management
  * - /api/admin/ip-allowlist - IP restriction management
@@ -28,6 +29,7 @@ import { adminAbacRouter } from './admin-abac';
 import { adminRebacRouter } from './admin-rebac';
 import { adminPoliciesRouter } from './admin-policies';
 import { myPasskeysRouter } from './my-passkeys';
+import { adminAccessControlRouter } from './admin-access-control';
 
 // Create main router for admin management
 export const adminManagementRouter = new Hono<{ Bindings: Env }>();
@@ -41,6 +43,7 @@ adminManagementRouter.use('*', async (c, next) => {
 });
 
 // Mount sub-routers - Core Admin Management
+adminManagementRouter.route('/admin-access-control', adminAccessControlRouter);
 adminManagementRouter.route('/admins', adminUsersRouter);
 adminManagementRouter.route('/admin-roles', adminRolesRouter);
 adminManagementRouter.route('/ip-allowlist', ipAllowlistRouter);
@@ -53,6 +56,7 @@ adminManagementRouter.route('/', adminRebacRouter);
 adminManagementRouter.route('/', adminPoliciesRouter);
 
 // Re-export individual routers for flexibility
+export { adminAccessControlRouter } from './admin-access-control';
 export { adminUsersRouter } from './admins';
 export { adminRolesRouter } from './admin-roles';
 export { ipAllowlistRouter } from './ip-allowlist';

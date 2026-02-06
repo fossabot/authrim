@@ -185,6 +185,10 @@ export {
   AdminRelationshipRepository,
   type AdminRelationship,
   type AdminRelationshipCreateInput,
+  AdminRebacDefinitionRepository,
+  type AdminRebacDefinition,
+  type AdminRebacDefinitionCreateInput,
+  type AdminRebacDefinitionUpdateInput,
   // Admin Policies (Combined RBAC/ABAC/ReBAC)
   AdminPolicyRepository,
   type AdminPolicy,

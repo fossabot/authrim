@@ -96,7 +96,7 @@ deploy_package() {
 
     # Deploy to Cloudflare Pages
     echo "📤 Deploying to Cloudflare Pages..."
-    wrangler pages deploy "packages/$pkg/.svelte-kit/cloudflare" --project-name="$project_name"
+    wrangler pages deploy "packages/$pkg/.svelte-kit/cloudflare" --project-name="$project_name" --commit-dirty=true
 
     echo ""
     echo "✅ $pkg deployment complete!"

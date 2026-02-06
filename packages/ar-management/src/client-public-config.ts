@@ -35,9 +35,7 @@ export interface PublicClientConfig {
  * @param c - Hono context
  * @returns Public client configuration or error response
  */
-export async function clientPublicConfigHandler(
-  c: Context<{ Bindings: Env }>
-): Promise<Response> {
+export async function clientPublicConfigHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
   const clientId = c.req.param('client_id');
 
   if (!clientId) {

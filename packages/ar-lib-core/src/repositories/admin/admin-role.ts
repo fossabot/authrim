@@ -37,6 +37,7 @@ interface AdminRoleEntity extends BaseEntity {
   hierarchy_level: number;
   role_type: AdminRoleType;
   is_system: boolean;
+  inherits_from: string | null;
 }
 
 /**
@@ -70,6 +71,7 @@ export class AdminRoleRepository extends BaseRepository<AdminRoleEntity> {
         'hierarchy_level',
         'role_type',
         'is_system',
+        'inherits_from',
       ],
     });
   }
@@ -94,6 +96,7 @@ export class AdminRoleRepository extends BaseRepository<AdminRoleEntity> {
       hierarchy_level: input.hierarchy_level ?? 0,
       role_type: input.role_type ?? 'custom',
       is_system: false, // User-created roles are never system roles
+      inherits_from: input.inherits_from ?? null,
       created_at: now,
       updated_at: now,
     };
@@ -101,9 +104,9 @@ export class AdminRoleRepository extends BaseRepository<AdminRoleEntity> {
     const sql = `
       INSERT INTO admin_roles (
         id, tenant_id, name, display_name, description,
-        permissions_json, hierarchy_level, role_type, is_system,
+        permissions_json, hierarchy_level, role_type, is_system, inherits_from,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     await this.adapter.execute(sql, [
@@ -116,6 +119,7 @@ export class AdminRoleRepository extends BaseRepository<AdminRoleEntity> {
       role.hierarchy_level,
       role.role_type,
       role.is_system ? 1 : 0,
+      role.inherits_from,
       role.created_at,
       role.updated_at,
     ]);
@@ -159,6 +163,10 @@ export class AdminRoleRepository extends BaseRepository<AdminRoleEntity> {
     if (input.hierarchy_level !== undefined) {
       updates.push('hierarchy_level = ?');
       values.push(input.hierarchy_level);
+    }
+    if (input.inherits_from !== undefined) {
+      updates.push('inherits_from = ?');
+      values.push(input.inherits_from);
     }
 
     if (updates.length === 0) {
@@ -264,6 +272,7 @@ export class AdminRoleRepository extends BaseRepository<AdminRoleEntity> {
       hierarchy_level: (row.hierarchy_level as number) ?? 0,
       role_type: row.role_type as AdminRoleType,
       is_system: Boolean(row.is_system),
+      inherits_from: row.inherits_from as string | null,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     };
@@ -297,9 +306,46 @@ export class AdminRoleRepository extends BaseRepository<AdminRoleEntity> {
       hierarchy_level: entity.hierarchy_level,
       role_type: entity.role_type,
       is_system: entity.is_system,
+      inherits_from: entity.inherits_from,
       created_at: entity.created_at,
       updated_at: entity.updated_at,
     };
+  }
+
+  /**
+   * Get effective permissions for a role (including inherited permissions)
+   * Resolves the inheritance chain recursively
+   *
+   * @param roleId - Role ID
+   * @param visitedIds - Set of visited role IDs (to prevent circular references)
+   * @returns Array of unique permissions
+   */
+  async getEffectivePermissions(
+    roleId: string,
+    visitedIds: Set<string> = new Set()
+  ): Promise<string[]> {
+    // Prevent circular references
+    if (visitedIds.has(roleId)) {
+      return [];
+    }
+    visitedIds.add(roleId);
+
+    const role = await this.getRole(roleId);
+    if (!role) {
+      return [];
+    }
+
+    const permissions = new Set<string>(role.permissions);
+
+    // If role has a parent, recursively get parent permissions
+    if (role.inherits_from) {
+      const parentPermissions = await this.getEffectivePermissions(role.inherits_from, visitedIds);
+      for (const perm of parentPermissions) {
+        permissions.add(perm);
+      }
+    }
+
+    return Array.from(permissions);
   }
 }
 
@@ -423,6 +469,7 @@ export class AdminRoleAssignmentRepository extends BaseRepository<AdminRoleAssig
         r.hierarchy_level,
         r.role_type,
         r.is_system,
+        r.inherits_from,
         r.created_at as role_created_at,
         r.updated_at as role_updated_at
       FROM admin_role_assignments ra
@@ -468,6 +515,7 @@ export class AdminRoleAssignmentRepository extends BaseRepository<AdminRoleAssig
           hierarchy_level: (row.hierarchy_level as number) ?? 0,
           role_type: row.role_type as AdminRoleType,
           is_system: Boolean(row.is_system),
+          inherits_from: row.inherits_from as string | null,
           created_at: row.role_created_at as number,
           updated_at: row.role_updated_at as number,
         },

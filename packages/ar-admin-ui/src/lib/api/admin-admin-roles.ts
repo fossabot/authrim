@@ -244,3 +244,107 @@ export function getRoleTypeBadgeClass(roleType: string): string {
 			return 'badge badge-neutral';
 	}
 }
+
+/**
+ * Admin Permission Category
+ */
+export interface AdminPermissionCategory {
+	category: string;
+	description: string;
+	permissions: AdminPermission[];
+}
+
+/**
+ * Admin Permission Definitions
+ * Organized by category for UI display
+ */
+export const ADMIN_PERMISSION_DEFINITIONS: AdminPermissionCategory[] = [
+	{
+		category: 'Admin Users',
+		description: 'Manage Admin Operators',
+		permissions: [
+			{ key: 'admin:admin_users:read', description: 'View Admin users' },
+			{ key: 'admin:admin_users:write', description: 'Create and update Admin users' },
+			{ key: 'admin:admin_users:delete', description: 'Delete Admin users' },
+			{ key: 'admin:admin_users:*', description: 'Full Admin user management' }
+		]
+	},
+	{
+		category: 'Admin Roles',
+		description: 'Manage Admin roles and permissions',
+		permissions: [
+			{ key: 'admin:admin_roles:read', description: 'View Admin roles' },
+			{ key: 'admin:admin_roles:write', description: 'Create, update, and delete Admin roles' }
+		]
+	},
+	{
+		category: 'Admin Audit',
+		description: 'View Admin audit logs',
+		permissions: [{ key: 'admin:admin_audit:read', description: 'View Admin audit logs' }]
+	},
+	{
+		category: 'IP Allowlist',
+		description: 'Manage IP allowlist',
+		permissions: [
+			{ key: 'admin:ip_allowlist:read', description: 'View IP allowlist' },
+			{ key: 'admin:ip_allowlist:write', description: 'Manage IP allowlist' }
+		]
+	},
+	{
+		category: 'End Users',
+		description: 'Manage application end users',
+		permissions: [
+			{ key: 'admin:users:read', description: 'View end users' },
+			{ key: 'admin:users:write', description: 'Create and update end users' },
+			{ key: 'admin:users:delete', description: 'Delete end users' },
+			{ key: 'admin:users:unlock', description: 'Unlock locked user accounts' },
+			{ key: 'admin:users:*', description: 'Full end user management' }
+		]
+	},
+	{
+		category: 'OAuth Clients',
+		description: 'Manage OAuth clients',
+		permissions: [
+			{ key: 'admin:clients:read', description: 'View OAuth clients' },
+			{ key: 'admin:clients:write', description: 'Create and update OAuth clients' },
+			{ key: 'admin:clients:delete', description: 'Delete OAuth clients' },
+			{ key: 'admin:clients:*', description: 'Full OAuth client management' }
+		]
+	},
+	{
+		category: 'End User Roles',
+		description: 'Manage end user roles',
+		permissions: [
+			{ key: 'admin:roles:read', description: 'View end user roles' },
+			{ key: 'admin:roles:write', description: 'Create and update end user roles' },
+			{ key: 'admin:roles:delete', description: 'Delete end user roles' },
+			{ key: 'admin:roles:*', description: 'Full end user role management' }
+		]
+	},
+	{
+		category: 'Settings',
+		description: 'Manage system settings',
+		permissions: [
+			{ key: 'admin:settings:read', description: 'View system settings' },
+			{ key: 'admin:settings:write', description: 'Update system settings' }
+		]
+	},
+	{
+		category: 'Security',
+		description: 'Manage security settings',
+		permissions: [
+			{ key: 'admin:security:read', description: 'View security settings' },
+			{ key: 'admin:security:write', description: 'Update security settings' }
+		]
+	},
+	{
+		category: 'Audit Logs',
+		description: 'View end user audit logs',
+		permissions: [{ key: 'admin:audit:read', description: 'View end user audit logs' }]
+	},
+	{
+		category: 'Wildcard',
+		description: 'Full access to all functions',
+		permissions: [{ key: '*', description: 'Full access to all admin functions' }]
+	}
+];

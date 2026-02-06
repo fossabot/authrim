@@ -155,6 +155,92 @@ describe('Auth State Management', () => {
       expect(insertCall).toBeDefined();
       expect(insertCall!.params).toContain(300);
     });
+
+    it('should store prompt when provided', async () => {
+      const mockEnv = { DB: {} } as unknown as Env;
+
+      const stateData = {
+        tenantId: 'default',
+        providerId: 'google-provider',
+        state: 'state-value',
+        nonce: 'nonce-value',
+        codeVerifier: 'verifier',
+        redirectUri: 'https://example.com/callback',
+        prompt: 'none', // Silent Auth
+        expiresAt: Date.now() + 600000,
+      };
+
+      await storeAuthState(mockEnv, stateData);
+
+      const insertCall = sqlTracker.calls.find((c) =>
+        c.sql.includes('INSERT INTO external_idp_auth_states')
+      );
+      expect(insertCall).toBeDefined();
+      expect(insertCall!.params).toContain('none');
+    });
+
+    it('should store enableSso as 1 when true', async () => {
+      const mockEnv = { DB: {} } as unknown as Env;
+
+      const stateData = {
+        tenantId: 'default',
+        providerId: 'google-provider',
+        state: 'state-value',
+        redirectUri: 'https://example.com/callback',
+        enableSso: true,
+        expiresAt: Date.now() + 600000,
+      };
+
+      await storeAuthState(mockEnv, stateData);
+
+      const insertCall = sqlTracker.calls.find((c) =>
+        c.sql.includes('INSERT INTO external_idp_auth_states')
+      );
+      expect(insertCall).toBeDefined();
+      expect(insertCall!.params).toContain(1);
+    });
+
+    it('should store enableSso as 0 when false', async () => {
+      const mockEnv = { DB: {} } as unknown as Env;
+
+      const stateData = {
+        tenantId: 'default',
+        providerId: 'google-provider',
+        state: 'state-value',
+        redirectUri: 'https://example.com/callback',
+        enableSso: false, // Direct Auth
+        expiresAt: Date.now() + 600000,
+      };
+
+      await storeAuthState(mockEnv, stateData);
+
+      const insertCall = sqlTracker.calls.find((c) =>
+        c.sql.includes('INSERT INTO external_idp_auth_states')
+      );
+      expect(insertCall).toBeDefined();
+      expect(insertCall!.params).toContain(0);
+    });
+
+    it('should store enableSso as 1 when undefined (default)', async () => {
+      const mockEnv = { DB: {} } as unknown as Env;
+
+      const stateData = {
+        tenantId: 'default',
+        providerId: 'google-provider',
+        state: 'state-value',
+        redirectUri: 'https://example.com/callback',
+        // enableSso not provided - should default to 1
+        expiresAt: Date.now() + 600000,
+      };
+
+      await storeAuthState(mockEnv, stateData);
+
+      const insertCall = sqlTracker.calls.find((c) =>
+        c.sql.includes('INSERT INTO external_idp_auth_states')
+      );
+      expect(insertCall).toBeDefined();
+      expect(insertCall!.params).toContain(1);
+    });
   });
 
   describe('consumeAuthState', () => {
@@ -266,6 +352,69 @@ describe('Auth State Management', () => {
 
       expect(result).not.toBeNull();
       expect(result?.maxAge).toBe(300);
+    });
+
+    it('should include prompt in returned state', async () => {
+      const mockEnv = { DB: {} } as unknown as Env;
+      const now = Date.now();
+
+      mockExecute.mockResolvedValueOnce({ rowsAffected: 1 });
+      mockQueryOne.mockResolvedValueOnce({
+        id: 'state-id',
+        tenant_id: 'default',
+        provider_id: 'google',
+        state: 'state-with-prompt',
+        nonce: 'nonce',
+        code_verifier: 'verifier',
+        code_challenge: 'challenge',
+        redirect_uri: 'https://example.com/callback',
+        user_id: null,
+        session_id: null,
+        original_auth_request: null,
+        max_age: null,
+        acr_values: null,
+        prompt: 'none',
+        enable_sso: 1,
+        expires_at: now + 300000,
+        created_at: now - 60000,
+        consumed_at: now,
+      });
+
+      const result = await consumeAuthState(mockEnv, 'state-with-prompt');
+
+      expect(result).not.toBeNull();
+      expect(result?.prompt).toBe('none');
+    });
+
+    it('should include enableSso in returned state', async () => {
+      const mockEnv = { DB: {} } as unknown as Env;
+      const now = Date.now();
+
+      mockExecute.mockResolvedValueOnce({ rowsAffected: 1 });
+      mockQueryOne.mockResolvedValueOnce({
+        id: 'state-id',
+        tenant_id: 'default',
+        provider_id: 'google',
+        state: 'state-with-enable-sso',
+        nonce: 'nonce',
+        code_verifier: 'verifier',
+        redirect_uri: 'https://example.com/callback',
+        user_id: null,
+        session_id: null,
+        original_auth_request: null,
+        max_age: null,
+        acr_values: null,
+        prompt: null,
+        enable_sso: 0, // SSO disabled
+        expires_at: now + 300000,
+        created_at: now - 60000,
+        consumed_at: now,
+      });
+
+      const result = await consumeAuthState(mockEnv, 'state-with-enable-sso');
+
+      expect(result).not.toBeNull();
+      expect(result?.enableSso).toBe(false);
     });
   });
 

@@ -72,7 +72,15 @@
 			'consent.data_export_sync_threshold_kb'
 		],
 		other: ['consent.record_retention', 'consent.supported_display_types', 'consent.ui_locales'],
-		rbac: ['consent.rbac_org_selector', 'consent.rbac_acting_as', 'consent.rbac_show_roles']
+		rbac: ['consent.rbac_org_selector', 'consent.rbac_acting_as', 'consent.rbac_show_roles'],
+		consent_management: [
+			'consent.consent_management_enabled',
+			'consent.default_enforcement',
+			'consent.show_deletion_link',
+			'consent.deletion_url',
+			'consent.default_language',
+			'consent.ip_hash_retention_days'
+		]
 	};
 
 	// Client consent settings

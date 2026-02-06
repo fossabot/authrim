@@ -237,7 +237,8 @@
 			access_denied: () => $LL.error_access_denied(),
 			invalid_request: () => $LL.error_invalid_request(),
 			server_error: () => $LL.error_server_error(),
-			temporarily_unavailable: () => $LL.error_temporarily_unavailable()
+			temporarily_unavailable: () => $LL.error_temporarily_unavailable(),
+			login_required: () => $LL.error_login_required()
 		};
 		return (messages[code] || (() => $LL.error_unknown()))();
 	}

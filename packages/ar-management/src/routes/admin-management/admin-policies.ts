@@ -439,4 +439,160 @@ adminPoliciesRouter.post('/admin-policies/evaluate', async (c: AdminContext) => 
   }
 });
 
+/**
+ * POST /api/admin/admin-policies/simulate
+ * Simulate policy evaluation with user context for testing
+ */
+adminPoliciesRouter.post('/admin-policies/simulate', async (c: AdminContext) => {
+  try {
+    const adapter = getAdminAdapter(c);
+    const repo = new AdminPolicyRepository(adapter);
+    const tenantId = getTenantIdFromContext(c);
+
+    const body = await c.req.json<{
+      resource: string;
+      action: string;
+      admin_user_context: {
+        roles?: string[];
+        attributes?: Record<string, string | number | boolean>;
+        relationships?: Array<{ type: string; target: string }>;
+      };
+    }>();
+
+    // Validate required fields
+    if (!body.resource || !body.action || !body.admin_user_context) {
+      return c.json(
+        {
+          error: 'invalid_request',
+          message: 'resource, action, and admin_user_context are required',
+        },
+        400
+      );
+    }
+
+    // Get policies matching the resource and action
+    const policies = await repo.getPoliciesForResource(tenantId, body.resource, body.action);
+
+    // Evaluate policies
+    const evaluations = [];
+    let finalDecision: 'allow' | 'deny' | 'no_match' = 'no_match';
+
+    for (const policy of policies) {
+      const evaluation = evaluatePolicy(policy, body.admin_user_context);
+      evaluations.push({
+        policy_id: policy.id,
+        policy_name: policy.name,
+        matched: evaluation.matched,
+        effect: policy.effect,
+        priority: policy.priority,
+        condition_results: evaluation.conditionResults,
+      });
+
+      // Determine final decision (deny takes precedence)
+      if (evaluation.matched) {
+        if (policy.effect === 'deny') {
+          finalDecision = 'deny';
+          break; // Deny immediately
+        } else if (policy.effect === 'allow' && finalDecision === 'no_match') {
+          finalDecision = 'allow';
+        }
+      }
+    }
+
+    return c.json({
+      resource: body.resource,
+      action: body.action,
+      decision: finalDecision,
+      evaluations,
+      total_policies_evaluated: policies.length,
+    });
+  } catch (error) {
+    console.error('Policy simulation error:', error);
+    return createErrorResponse(c, AR_ERROR_CODES.INTERNAL_ERROR);
+  }
+});
+
+/**
+ * Evaluate a single policy against user context
+ * Exported for testing purposes
+ */
+export function evaluatePolicy(
+  policy: {
+    conditions: AdminPolicyConditions;
+  },
+  context: {
+    roles?: string[];
+    attributes?: Record<string, string | number | boolean>;
+    relationships?: Array<{ type: string; target: string }>;
+  }
+): { matched: boolean; conditionResults: Record<string, boolean> } {
+  const conditionResults: Record<string, boolean> = {};
+  const conditions = policy.conditions;
+  const conditionType = conditions.condition_type || 'all';
+
+  // RBAC: Check roles
+  if (conditions.roles && conditions.roles.length > 0) {
+    const hasRole = context.roles?.some((role) => conditions.roles?.includes(role)) ?? false;
+    conditionResults.roles = hasRole;
+  }
+
+  // ABAC: Check attributes
+  if (conditions.attributes && Object.keys(conditions.attributes).length > 0) {
+    const attributesMatch = Object.entries(conditions.attributes).every(([key, condition]) => {
+      const userValue = context.attributes?.[key];
+      if (userValue === undefined) return false;
+
+      // Condition evaluation
+      if (condition.equals !== undefined) {
+        return userValue === condition.equals;
+      }
+      if (condition.not_equals !== undefined) {
+        return userValue !== condition.not_equals;
+      }
+      if (condition.contains !== undefined && typeof userValue === 'string') {
+        return userValue.includes(condition.contains);
+      }
+      if (
+        condition.in !== undefined &&
+        (typeof userValue === 'string' || typeof userValue === 'number')
+      ) {
+        return condition.in.includes(userValue);
+      }
+      if (condition.gte !== undefined && typeof userValue === 'number') {
+        return userValue >= condition.gte;
+      }
+      if (condition.lte !== undefined && typeof userValue === 'number') {
+        return userValue <= condition.lte;
+      }
+      if (condition.gt !== undefined && typeof userValue === 'number') {
+        return userValue > condition.gt;
+      }
+      if (condition.lt !== undefined && typeof userValue === 'number') {
+        return userValue < condition.lt;
+      }
+      return false;
+    });
+    conditionResults.attributes = attributesMatch;
+  }
+
+  // ReBAC: Check relationships
+  if (conditions.relationships && Object.keys(conditions.relationships).length > 0) {
+    const relationshipsMatch = Object.keys(conditions.relationships).some((relType) => {
+      return context.relationships?.some((rel) => rel.type === relType) ?? false;
+    });
+    conditionResults.relationships = relationshipsMatch;
+  }
+
+  // Determine if policy matches based on condition type
+  const conditionValues = Object.values(conditionResults);
+  const matched =
+    conditionValues.length === 0
+      ? false
+      : conditionType === 'all'
+        ? conditionValues.every((v) => v)
+        : conditionValues.some((v) => v);
+
+  return { matched, conditionResults };
+}
+
 export default adminPoliciesRouter;

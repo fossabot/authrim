@@ -542,6 +542,101 @@ export async function deleteNonce(env: Env, nonce: string): Promise<void> {
 }
 
 /**
+ * Parse client metadata array fields with backward compatibility.
+ *
+ * Handles:
+ * - Normal JSON arrays: '["code"]'
+ * - Double-encoded JSON: "\"[\\\"code\\\"]\""
+ * - String values: "code" / "openid,profile"
+ * - Corrupted char arrays: ["[", "\"", "c", "o", "d", "e", "\"", "]"]
+ */
+function normalizeStringArray(value: unknown, fallback: string[] = []): string[] {
+  let current: unknown = value;
+
+  // Decode nested JSON string representations (max 3 passes for safety)
+  for (let i = 0; i < 3; i++) {
+    if (typeof current !== 'string') {
+      break;
+    }
+
+    const trimmed = current.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+
+    if (
+      !(
+        (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+        (trimmed.startsWith('"') && trimmed.endsWith('"'))
+      )
+    ) {
+      break;
+    }
+
+    try {
+      current = JSON.parse(trimmed);
+    } catch {
+      break;
+    }
+  }
+
+  if (Array.isArray(current)) {
+    // Repair malformed char arrays persisted from spread(string) patterns.
+    if (current.every((item) => typeof item === 'string' && item.length === 1)) {
+      return normalizeStringArray(current.join(''), fallback);
+    }
+
+    return current
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof current === 'string') {
+    const trimmed = current.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+
+    if (trimmed.includes(',')) {
+      return trimmed
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
+
+    return [trimmed];
+  }
+
+  return fallback;
+}
+
+function normalizeOptionalStringArray(value: unknown): string[] | undefined {
+  const normalized = normalizeStringArray(value, []);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeClientMetadata(client: ClientMetadata): ClientMetadata {
+  return {
+    ...client,
+    redirect_uris: normalizeStringArray(client.redirect_uris, []),
+    grant_types: normalizeStringArray(client.grant_types, ['authorization_code']),
+    response_types: normalizeStringArray(client.response_types, ['code']),
+    contacts: normalizeOptionalStringArray(client.contacts),
+    allowed_subject_token_clients: normalizeOptionalStringArray(
+      client.allowed_subject_token_clients
+    ),
+    allowed_token_exchange_resources: normalizeOptionalStringArray(
+      client.allowed_token_exchange_resources
+    ),
+    allowed_scopes: normalizeOptionalStringArray(client.allowed_scopes),
+    post_logout_redirect_uris: normalizeOptionalStringArray(client.post_logout_redirect_uris),
+    requestable_scopes: normalizeOptionalStringArray(client.requestable_scopes),
+    allowed_redirect_origins: normalizeOptionalStringArray(client.allowed_redirect_origins),
+  };
+}
+
+/**
  * Retrieve client metadata using Read-Through Cache pattern
  *
  * Architecture:
@@ -568,7 +663,7 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
 
   if (cached) {
     try {
-      return JSON.parse(cached) as ClientMetadata;
+      return normalizeClientMetadata(JSON.parse(cached) as ClientMetadata);
     } catch (error) {
       // Cache is corrupted - delete it and fetch from D1
       // PII Protection: Don't log full error (may contain cached data)
@@ -654,12 +749,12 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
     client_id: result.client_id,
     client_secret_hash: result.client_secret_hash ?? undefined,
     client_name: result.client_name ?? undefined,
-    redirect_uris: JSON.parse(result.redirect_uris) as string[],
-    grant_types: JSON.parse(result.grant_types) as string[],
-    response_types: JSON.parse(result.response_types) as string[],
+    redirect_uris: normalizeStringArray(result.redirect_uris, []),
+    grant_types: normalizeStringArray(result.grant_types, ['authorization_code']),
+    response_types: normalizeStringArray(result.response_types, ['code']),
     scope: result.scope ?? undefined,
     token_endpoint_auth_method: result.token_endpoint_auth_method ?? undefined,
-    contacts: result.contacts ? (JSON.parse(result.contacts) as string[]) : undefined,
+    contacts: normalizeOptionalStringArray(result.contacts),
     logo_uri: result.logo_uri ?? undefined,
     client_uri: result.client_uri ?? undefined,
     policy_uri: result.policy_uri ?? undefined,
@@ -676,19 +771,17 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
     allow_claims_without_scope: result.allow_claims_without_scope === 1,
     // RFC 8693: Token Exchange settings
     token_exchange_allowed: result.token_exchange_allowed === 1,
-    allowed_subject_token_clients: result.allowed_subject_token_clients
-      ? (JSON.parse(result.allowed_subject_token_clients) as string[])
-      : undefined,
-    allowed_token_exchange_resources: result.allowed_token_exchange_resources
-      ? (JSON.parse(result.allowed_token_exchange_resources) as string[])
-      : undefined,
+    allowed_subject_token_clients: normalizeOptionalStringArray(
+      result.allowed_subject_token_clients
+    ),
+    allowed_token_exchange_resources: normalizeOptionalStringArray(
+      result.allowed_token_exchange_resources
+    ),
     delegation_mode:
       (result.delegation_mode as 'none' | 'delegation' | 'impersonation') || 'delegation',
     // RFC 6749 Section 4.4: Client Credentials settings
     client_credentials_allowed: result.client_credentials_allowed === 1,
-    allowed_scopes: result.allowed_scopes
-      ? (JSON.parse(result.allowed_scopes) as string[])
-      : undefined,
+    allowed_scopes: normalizeOptionalStringArray(result.allowed_scopes),
     default_scope: result.default_scope ?? undefined,
     default_audience: result.default_audience ?? undefined,
     // OIDC 3rd Party Initiated Login (OIDC Core Section 4)
@@ -696,9 +789,7 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
     // RFC 7592: Client Configuration Endpoint (hash only, not exposed)
     registration_access_token_hash: result.registration_access_token_hash ?? undefined,
     // OIDC Logout endpoints
-    post_logout_redirect_uris: result.post_logout_redirect_uris
-      ? (JSON.parse(result.post_logout_redirect_uris) as string[])
-      : undefined,
+    post_logout_redirect_uris: normalizeOptionalStringArray(result.post_logout_redirect_uris),
     backchannel_logout_uri: result.backchannel_logout_uri ?? undefined,
     backchannel_logout_session_required: result.backchannel_logout_session_required === 1,
     frontchannel_logout_uri: result.frontchannel_logout_uri ?? undefined,
@@ -706,9 +797,7 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
     // RFC 7591: Dynamic Client Registration
     software_id: result.software_id ?? undefined,
     software_version: result.software_version ?? undefined,
-    requestable_scopes: result.requestable_scopes
-      ? (JSON.parse(result.requestable_scopes) as string[])
-      : undefined,
+    requestable_scopes: normalizeOptionalStringArray(result.requestable_scopes),
     // CIBA (Client Initiated Backchannel Authentication) settings
     backchannel_token_delivery_mode: result.backchannel_token_delivery_mode ?? undefined,
     backchannel_client_notification_endpoint:
@@ -717,9 +806,7 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
       result.backchannel_authentication_request_signing_alg ?? undefined,
     backchannel_user_code_parameter: result.backchannel_user_code_parameter === 1,
     // Authrim Extension: Custom Redirect URIs
-    allowed_redirect_origins: result.allowed_redirect_origins
-      ? (JSON.parse(result.allowed_redirect_origins) as string[])
-      : undefined,
+    allowed_redirect_origins: normalizeOptionalStringArray(result.allowed_redirect_origins),
     // PKCE settings
     require_pkce: result.require_pkce === 1,
     // Multi-tenant support
@@ -728,9 +815,11 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
     updated_at: result.updated_at,
   };
 
+  const normalizedClientData = normalizeClientMetadata(clientData);
+
   // Step 4: Populate CLIENTS_CACHE (TTL based on cache mode)
   try {
-    await env.CLIENTS_CACHE.put(cacheKey, JSON.stringify(clientData), {
+    await env.CLIENTS_CACHE.put(cacheKey, JSON.stringify(normalizedClientData), {
       expirationTtl: cacheTtl,
     });
   } catch (error) {
@@ -740,7 +829,7 @@ export async function getClient(env: Env, clientId: string): Promise<ClientMetad
     log.warn('Failed to cache client data');
   }
 
-  return clientData;
+  return normalizedClientData;
 }
 
 /**

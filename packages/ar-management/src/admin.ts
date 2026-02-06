@@ -220,6 +220,73 @@ function logSanitizedError(context: string, error: unknown): void {
   }
 }
 
+function parseClientStringArray(value: unknown, fallback: string[] = []): string[] {
+  let current: unknown = value;
+
+  for (let i = 0; i < 3; i++) {
+    if (typeof current !== 'string') {
+      break;
+    }
+
+    const trimmed = current.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+
+    if (
+      !(
+        (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+        (trimmed.startsWith('"') && trimmed.endsWith('"'))
+      )
+    ) {
+      break;
+    }
+
+    try {
+      current = JSON.parse(trimmed);
+    } catch {
+      break;
+    }
+  }
+
+  if (Array.isArray(current)) {
+    if (current.every((item) => typeof item === 'string' && item.length === 1)) {
+      return parseClientStringArray(current.join(''), fallback);
+    }
+
+    return current
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof current === 'string') {
+    const trimmed = current.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+
+    if (trimmed.includes(',')) {
+      return trimmed
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
+
+    return [trimmed];
+  }
+
+  return fallback;
+}
+
+function isCharArrayLike(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => typeof item === 'string' && item.length === 1)
+  );
+}
+
 /**
  * Get error details for response (PII Protection)
  * Only includes details in development environment to prevent information leakage
@@ -1788,17 +1855,17 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       client_id: client.client_id,
       client_secret_hash: client.client_secret_hash ?? undefined,
       client_name: client.client_name,
-      redirect_uris: JSON.parse(client.redirect_uris) as string[],
-      grant_types: JSON.parse(client.grant_types) as string[],
-      response_types: JSON.parse(client.response_types) as string[],
+      redirect_uris: parseClientStringArray(client.redirect_uris, []),
+      grant_types: parseClientStringArray(client.grant_types, ['authorization_code']),
+      response_types: parseClientStringArray(client.response_types, ['code']),
       scope: client.scope ?? undefined,
       logo_uri: client.logo_uri ?? undefined,
       client_uri: client.client_uri ?? undefined,
       policy_uri: client.policy_uri ?? undefined,
       tos_uri: client.tos_uri ?? undefined,
-      contacts: client.contacts ? (JSON.parse(client.contacts) as string[]) : undefined,
+      contacts: client.contacts ? parseClientStringArray(client.contacts, []) : undefined,
       post_logout_redirect_uris: client.post_logout_redirect_uris
-        ? (JSON.parse(client.post_logout_redirect_uris) as string[])
+        ? parseClientStringArray(client.post_logout_redirect_uris, [])
         : undefined,
       token_endpoint_auth_method: client.token_endpoint_auth_method,
       subject_type: client.subject_type ?? undefined,
@@ -1811,16 +1878,16 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       // Token Exchange (RFC 8693)
       token_exchange_allowed: client.token_exchange_allowed,
       allowed_subject_token_clients: client.allowed_subject_token_clients
-        ? (JSON.parse(client.allowed_subject_token_clients) as string[])
+        ? parseClientStringArray(client.allowed_subject_token_clients, [])
         : undefined,
       allowed_token_exchange_resources: client.allowed_token_exchange_resources
-        ? (JSON.parse(client.allowed_token_exchange_resources) as string[])
+        ? parseClientStringArray(client.allowed_token_exchange_resources, [])
         : undefined,
       delegation_mode: client.delegation_mode,
       // Client Credentials (RFC 6749 Section 4.4)
       client_credentials_allowed: client.client_credentials_allowed,
       allowed_scopes: client.allowed_scopes
-        ? (JSON.parse(client.allowed_scopes) as string[])
+        ? parseClientStringArray(client.allowed_scopes, [])
         : undefined,
       default_scope: client.default_scope ?? undefined,
       default_audience: client.default_audience ?? undefined,
@@ -1840,13 +1907,13 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
       frontchannel_logout_session_required: client.frontchannel_logout_session_required,
       // Authrim Extension
       allowed_redirect_origins: client.allowed_redirect_origins
-        ? (JSON.parse(client.allowed_redirect_origins) as string[])
+        ? parseClientStringArray(client.allowed_redirect_origins, [])
         : undefined,
       // DCR
       software_id: client.software_id ?? undefined,
       software_version: client.software_version ?? undefined,
       requestable_scopes: client.requestable_scopes
-        ? (JSON.parse(client.requestable_scopes) as string[])
+        ? parseClientStringArray(client.requestable_scopes, [])
         : undefined,
       // PKCE
       require_pkce: client.require_pkce,
@@ -1890,15 +1957,15 @@ export async function adminClientCreateHandler(c: Context<{ Bindings: Env }>) {
           client_id: client.client_id,
           client_secret: clientSecret, // Return secret only on creation
           client_name: client.client_name,
-          redirect_uris: JSON.parse(client.redirect_uris),
-          grant_types: JSON.parse(client.grant_types),
-          response_types: JSON.parse(client.response_types),
+          redirect_uris: parseClientStringArray(client.redirect_uris, []),
+          grant_types: parseClientStringArray(client.grant_types, ['authorization_code']),
+          response_types: parseClientStringArray(client.response_types, ['code']),
           scope: client.scope,
           logo_uri: client.logo_uri,
           client_uri: client.client_uri,
           policy_uri: client.policy_uri,
           tos_uri: client.tos_uri,
-          contacts: client.contacts ? JSON.parse(client.contacts) : [],
+          contacts: client.contacts ? parseClientStringArray(client.contacts, []) : [],
           token_endpoint_auth_method: client.token_endpoint_auth_method,
           subject_type: client.subject_type,
           sector_identifier_uri: client.sector_identifier_uri,
@@ -1951,32 +2018,12 @@ export async function adminClientsListHandler(c: Context<{ Bindings: Env }>) {
     const formattedClients = result.items.map((client) => {
       const { client_secret_hash: _excluded, ...clientWithoutHash } = client;
 
-      // Helper function to safely parse JSON or return as-is if already parsed
-      // Handles both JSON arrays and comma-separated strings for backward compatibility
-      const safeJsonParse = (value: unknown, fieldName: string): unknown => {
-        if (typeof value === 'string') {
-          // Try JSON parse first
-          if (value.startsWith('[')) {
-            try {
-              return JSON.parse(value);
-            } catch (error) {
-              console.error(`Failed to parse ${fieldName} as JSON:`, value, error);
-              throw new Error(`Invalid JSON in ${fieldName}: ${value}`);
-            }
-          }
-          // If not JSON, treat as comma-separated string (legacy format)
-          return value.split(',').map((v) => v.trim());
-        }
-        // If it's already an array/object, return as-is
-        return value;
-      };
-
       return {
         ...clientWithoutHash,
-        redirect_uris: safeJsonParse(client.redirect_uris, 'redirect_uris'),
-        grant_types: safeJsonParse(client.grant_types, 'grant_types'),
-        response_types: safeJsonParse(client.response_types, 'response_types'),
-        contacts: client.contacts ? safeJsonParse(client.contacts, 'contacts') : [],
+        redirect_uris: parseClientStringArray(client.redirect_uris, []),
+        grant_types: parseClientStringArray(client.grant_types, ['authorization_code']),
+        response_types: parseClientStringArray(client.response_types, ['code']),
+        contacts: client.contacts ? parseClientStringArray(client.contacts, []) : [],
         created_at: toMilliseconds(client.created_at),
         updated_at: toMilliseconds(client.updated_at),
       };
@@ -2035,10 +2082,10 @@ export async function adminClientGetHandler(c: Context<{ Bindings: Env }>) {
     const { client_secret_hash: _excluded, ...clientWithoutHash } = client;
     const formattedClient = {
       ...clientWithoutHash,
-      redirect_uris: client.redirect_uris ? JSON.parse(client.redirect_uris as string) : [],
-      grant_types: client.grant_types ? JSON.parse(client.grant_types as string) : [],
-      response_types: client.response_types ? JSON.parse(client.response_types as string) : [],
-      contacts: client.contacts ? JSON.parse(client.contacts as string) : [],
+      redirect_uris: parseClientStringArray(client.redirect_uris, []),
+      grant_types: parseClientStringArray(client.grant_types, ['authorization_code']),
+      response_types: parseClientStringArray(client.response_types, ['code']),
+      contacts: client.contacts ? parseClientStringArray(client.contacts, []) : [],
       created_at: toMilliseconds(client.created_at as number),
       updated_at: toMilliseconds(client.updated_at as number),
     };
@@ -2138,6 +2185,84 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       }
     }
 
+    if (redirect_uris !== undefined) {
+      if (!Array.isArray(redirect_uris) || redirect_uris.length === 0) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'redirect_uris must be a non-empty array',
+          },
+          400
+        );
+      }
+
+      const hasInvalidUri = redirect_uris.some((uri) => {
+        if (typeof uri !== 'string') return true;
+        try {
+          new URL(uri);
+          return false;
+        } catch {
+          return true;
+        }
+      });
+
+      if (hasInvalidUri) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'redirect_uris must contain valid URI strings',
+          },
+          400
+        );
+      }
+    }
+
+    if (grant_types !== undefined) {
+      if (!Array.isArray(grant_types) || grant_types.some((v) => typeof v !== 'string')) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'grant_types must be an array of strings',
+          },
+          400
+        );
+      }
+
+      if (isCharArrayLike(grant_types)) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description:
+              'grant_types appears malformed. Send grant type values like authorization_code, not character arrays.',
+          },
+          400
+        );
+      }
+    }
+
+    if (response_types !== undefined) {
+      if (!Array.isArray(response_types) || response_types.some((v) => typeof v !== 'string')) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description: 'response_types must be an array of strings',
+          },
+          400
+        );
+      }
+
+      if (isCharArrayLike(response_types)) {
+        return c.json(
+          {
+            error: 'invalid_request',
+            error_description:
+              'response_types appears malformed. Send response type values like code, not character arrays.',
+          },
+          400
+        );
+      }
+    }
+
     // Check if there are any actual updates
     const hasUpdates = [
       client_name,
@@ -2229,7 +2354,15 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       const { client_secret_hash: _excluded, ...clientWithoutHash } = updatedClient;
       return c.json({
         success: true,
-        client: clientWithoutHash,
+        client: {
+          ...clientWithoutHash,
+          redirect_uris: parseClientStringArray(updatedClient.redirect_uris, []),
+          grant_types: parseClientStringArray(updatedClient.grant_types, ['authorization_code']),
+          response_types: parseClientStringArray(updatedClient.response_types, ['code']),
+          contacts: updatedClient.contacts
+            ? parseClientStringArray(updatedClient.contacts, [])
+            : [],
+        },
       });
     }
 

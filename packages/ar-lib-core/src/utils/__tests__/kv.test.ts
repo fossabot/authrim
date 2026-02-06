@@ -206,6 +206,63 @@ describe('KV Utilities', () => {
       expect(env.DB.prepare).not.toHaveBeenCalled();
     });
 
+    it('should normalize malformed response_types from cache', async () => {
+      const clientId = 'malformed-cached-client';
+      const cachedData = {
+        client_id: clientId,
+        client_name: 'Malformed Cached Client',
+        redirect_uris: ['http://example.com/callback'],
+        grant_types: ['authorization_code'],
+        response_types: ['[', '"', 'c', 'o', 'd', 'e', '"', ']'],
+      };
+
+      await clientsCacheKV.put(`tenant:default:client:${clientId}`, JSON.stringify(cachedData));
+
+      const retrieved = await getClient(env, clientId);
+
+      expect(retrieved).not.toBeNull();
+      expect(retrieved?.response_types).toEqual(['code']);
+    });
+
+    it('should normalize double-encoded response_types from D1', async () => {
+      const clientId = 'double-encoded-client';
+      const dbResult = {
+        client_id: clientId,
+        client_secret: 'secret',
+        client_name: 'Double Encoded Client',
+        redirect_uris: JSON.stringify(['http://localhost:3000/callback']),
+        grant_types: JSON.stringify(['authorization_code']),
+        response_types: JSON.stringify(JSON.stringify(['code'])),
+        scope: 'openid profile',
+        token_endpoint_auth_method: 'client_secret_basic',
+        contacts: null,
+        logo_uri: null,
+        client_uri: null,
+        policy_uri: null,
+        tos_uri: null,
+        jwks_uri: null,
+        jwks: null,
+        subject_type: null,
+        sector_identifier_uri: null,
+        id_token_signed_response_alg: null,
+        userinfo_signed_response_alg: null,
+        request_object_signing_alg: null,
+        allow_claims_without_scope: 0,
+        created_at: 1234567890,
+        updated_at: 1234567890,
+      };
+
+      (env.DB.prepare as ReturnType<typeof vi.fn>).mockReturnValue({
+        bind: vi.fn().mockReturnThis(),
+        first: vi.fn().mockResolvedValue(dbResult),
+      });
+
+      const retrieved = await getClient(env, clientId);
+
+      expect(retrieved).not.toBeNull();
+      expect(retrieved?.response_types).toEqual(['code']);
+    });
+
     it('should return null for non-existent client', async () => {
       // Mock D1 to return null
       (env.DB.prepare as ReturnType<typeof vi.fn>).mockReturnValue({

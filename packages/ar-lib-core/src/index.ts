@@ -120,6 +120,43 @@ export * from './utils/native-sso-config';
 // Consent Versioning (GDPR Article 7 - Informed Consent)
 export * from './utils/consent-versioning';
 
+// Consent Statements (SAP CDC-like Consent Management)
+export type {
+  ConsentStatement,
+  ConsentStatementVersion,
+  ConsentStatementLocalization,
+  ConsentStatementUserRecord,
+  TenantConsentRequirement,
+  ClientConsentOverride,
+  ConsentScreenItem,
+  ConsentItemDecision,
+  ConsentEvidence,
+  ResolvedConsentRequirement,
+  ConsentItemHistoryRecord,
+  CreateConsentStatementInput,
+  UpdateConsentStatementInput,
+  CreateConsentVersionInput,
+  UpdateConsentVersionInput,
+  UpsertLocalizationInput,
+  SetTenantRequirementInput,
+  SetClientOverrideInput,
+  ConditionalConsentRule,
+  ConsentItemEventData,
+  ConsentItemVersionUpgradedEventData,
+} from './types/consent-statements';
+export {
+  ConsentCategory,
+  LegalBasis,
+  ConsentEnforcement,
+  ClientConsentRequirement,
+  ConsentContentType,
+  ConsentVersionStatus,
+  ConsentRecordStatus,
+  ConsentItemAction,
+  ConditionalRuleOperator,
+} from './types/consent-statements';
+export * from './utils/consent-statements';
+
 // Initial Setup (Admin Account Setup)
 export * from './utils/setup-token';
 export * from './utils/setup-session';

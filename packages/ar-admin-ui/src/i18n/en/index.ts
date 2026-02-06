@@ -246,7 +246,47 @@ const en = {
 	admin_policy_available_claims: 'Available Claims',
 	admin_policy_embedding_info: 'Policy Embedding Information',
 	admin_policy_embedding_info_desc:
-		"When enabled, the authorization server evaluates requested scopes against the user's permissions and embeds only permitted actions in the Access Token."
+		"When enabled, the authorization server evaluates requested scopes against the user's permissions and embeds only permitted actions in the Access Token.",
+
+	// Consent Statement Management
+	admin_sidebar_consent_statements: 'Consent Statements',
+	admin_consent_statements_title: 'Consent Statement Management',
+	admin_consent_statements_subtitle:
+		'Manage consent items, versions, localizations, and requirements',
+	admin_consent_statements_tab_statements: 'Statements',
+	admin_consent_statements_tab_versions: 'Versions',
+	admin_consent_statements_tab_localizations: 'Localizations',
+	admin_consent_statements_tab_requirements: 'Requirements',
+	admin_consent_statements_new: 'New Statement',
+	admin_consent_statements_edit: 'Edit Statement',
+	admin_consent_statements_slug: 'Slug',
+	admin_consent_statements_category: 'Category',
+	admin_consent_statements_legal_basis: 'Legal Basis',
+	admin_consent_statements_purpose: 'Processing Purpose',
+	admin_consent_statements_order: 'Display Order',
+	admin_consent_statements_active: 'Active',
+	admin_consent_statements_inactive: 'Inactive',
+	admin_consent_versions_new: 'New Version',
+	admin_consent_versions_version: 'Version (YYYYMMDD)',
+	admin_consent_versions_content_type: 'Content Type',
+	admin_consent_versions_effective: 'Effective Date',
+	admin_consent_versions_activate: 'Activate',
+	admin_consent_versions_activate_confirm:
+		'Activating this version may require existing users to re-consent. This action has legal implications. Are you sure?',
+	admin_consent_versions_current: 'Current',
+	admin_consent_localizations_add: 'Add Language',
+	admin_consent_localizations_language: 'Language (BCP 47)',
+	admin_consent_localizations_title: 'Title',
+	admin_consent_localizations_description: 'Description',
+	admin_consent_localizations_url: 'Document URL',
+	admin_consent_localizations_inline: 'Inline Content',
+	admin_consent_requirements_add: 'Add Requirement',
+	admin_consent_requirements_required: 'Required',
+	admin_consent_requirements_optional: 'Optional',
+	admin_consent_requirements_enforcement: 'Enforcement',
+	admin_consent_requirements_min_version: 'Min Version',
+	admin_consent_requirements_deletion_link: 'Show Deletion Link',
+	admin_consent_requirements_rules: 'Conditional Rules (JSON)'
 } satisfies BaseTranslation;
 
 export default en;

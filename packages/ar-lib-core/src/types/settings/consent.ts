@@ -48,6 +48,21 @@ export interface ConsentSettings {
   'consent.rbac_org_selector': boolean;
   'consent.rbac_acting_as': boolean;
   'consent.rbac_show_roles': boolean;
+
+  // Consent Management (SAP CDC-like)
+  'consent.consent_management_enabled': boolean;
+  'consent.default_enforcement': string;
+  'consent.show_deletion_link': boolean;
+  'consent.deletion_url': string;
+  'consent.default_language': string;
+
+  // Migration Control
+  'consent.legacy_dual_write': boolean;
+  'consent.read_prefer_new': boolean;
+  'consent.dual_write_diff_log': boolean;
+
+  // IP Evidence
+  'consent.ip_hash_retention_days': number;
 }
 
 /**
@@ -262,6 +277,96 @@ export const CONSENT_SETTINGS_META: Record<keyof ConsentSettings, SettingMeta> =
     description: 'Display user roles on consent screen',
     visibility: 'public',
   },
+
+  // Consent Management
+  'consent.consent_management_enabled': {
+    key: 'consent.consent_management_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'ENABLE_CONSENT_MANAGEMENT',
+    label: 'Consent Management',
+    description: 'Enable SAP CDC-like consent management with arbitrary consent items',
+    visibility: 'admin',
+  },
+  'consent.default_enforcement': {
+    key: 'consent.default_enforcement',
+    type: 'enum',
+    default: 'block',
+    envKey: 'CONSENT_DEFAULT_ENFORCEMENT',
+    label: 'Default Enforcement',
+    description: 'Default enforcement mode for required consent items',
+    enum: ['block', 'allow_continue'],
+    visibility: 'admin',
+  },
+  'consent.show_deletion_link': {
+    key: 'consent.show_deletion_link',
+    type: 'boolean',
+    default: false,
+    envKey: 'CONSENT_SHOW_DELETION_LINK',
+    label: 'Show Deletion Link',
+    description: 'Show account deletion link when required consent is blocked',
+    visibility: 'admin',
+  },
+  'consent.deletion_url': {
+    key: 'consent.deletion_url',
+    type: 'string',
+    default: '',
+    envKey: 'CONSENT_DELETION_URL',
+    label: 'Deletion URL',
+    description: 'URL for account deletion when consent is blocked',
+    visibility: 'admin',
+  },
+  'consent.default_language': {
+    key: 'consent.default_language',
+    type: 'string',
+    default: 'en',
+    envKey: 'CONSENT_DEFAULT_LANGUAGE',
+    label: 'Default Consent Language',
+    description: 'Default language for consent content (BCP 47 code)',
+    visibility: 'admin',
+  },
+
+  // Migration Control
+  'consent.legacy_dual_write': {
+    key: 'consent.legacy_dual_write',
+    type: 'boolean',
+    default: true,
+    envKey: 'CONSENT_LEGACY_DUAL_WRITE',
+    label: 'Legacy Dual Write',
+    description: 'Write consent records to both new and legacy tables during migration',
+    visibility: 'internal',
+  },
+  'consent.read_prefer_new': {
+    key: 'consent.read_prefer_new',
+    type: 'boolean',
+    default: true,
+    envKey: 'CONSENT_READ_PREFER_NEW',
+    label: 'Prefer New Tables',
+    description: 'Prefer reading from new consent tables (fallback to legacy)',
+    visibility: 'internal',
+  },
+  'consent.dual_write_diff_log': {
+    key: 'consent.dual_write_diff_log',
+    type: 'boolean',
+    default: false,
+    envKey: 'CONSENT_DUAL_WRITE_DIFF_LOG',
+    label: 'Dual Write Diff Log',
+    description: 'Log differences between new and legacy consent writes for debugging',
+    visibility: 'internal',
+  },
+
+  // IP Evidence
+  'consent.ip_hash_retention_days': {
+    key: 'consent.ip_hash_retention_days',
+    type: 'number',
+    default: 365,
+    envKey: 'CONSENT_IP_HASH_RETENTION_DAYS',
+    label: 'IP Hash Retention (Days)',
+    description: 'How long to retain IP address hashes in consent records',
+    min: 30,
+    max: 3650,
+    visibility: 'admin',
+  },
 };
 
 /**
@@ -301,4 +406,16 @@ export const CONSENT_DEFAULTS: ConsentSettings = {
   'consent.rbac_org_selector': false,
   'consent.rbac_acting_as': false,
   'consent.rbac_show_roles': false,
+  // Consent Management
+  'consent.consent_management_enabled': false,
+  'consent.default_enforcement': 'block',
+  'consent.show_deletion_link': false,
+  'consent.deletion_url': '',
+  'consent.default_language': 'en',
+  // Migration Control
+  'consent.legacy_dual_write': true,
+  'consent.read_prefer_new': true,
+  'consent.dual_write_diff_log': false,
+  // IP Evidence
+  'consent.ip_hash_retention_days': 365,
 };

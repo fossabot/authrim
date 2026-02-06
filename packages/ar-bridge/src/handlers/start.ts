@@ -9,7 +9,7 @@
  */
 
 import type { Context } from 'hono';
-import type { Env } from '@authrim/ar-lib-core';
+import type { Env, Session } from '@authrim/ar-lib-core';
 import {
   getSessionStoreBySessionId,
   isShardedSessionId,
@@ -20,11 +20,12 @@ import {
   createLogger,
   createDiagnosticLoggerFromContext,
   createAuthContextFromHono,
+  getChallengeStoreByChallengeId,
 } from '@authrim/ar-lib-core';
 import { getProviderByIdOrSlug } from '../services/provider-store';
 import { OIDCRPClient } from '../clients/oidc-client';
 import { generatePKCE, generateState, generateNonce } from '../utils/pkce';
-import { storeAuthState, getStateExpiresAt } from '../utils/state';
+import { storeAuthState, getStateExpiresAt, consumeAuthState } from '../utils/state';
 import { decrypt, getEncryptionKeyOrUndefined } from '../utils/crypto';
 import { isAppleProvider, type AppleProviderQuirks } from '../providers/apple';
 
@@ -229,11 +230,189 @@ export async function handleExternalStart(c: Context<{ Bindings: Env }>): Promis
       sessionId,
       maxAge,
       acrValues,
+      prompt,
       enableSso: provider.enableSso !== false,
       expiresAt: getStateExpiresAt(),
     });
 
-    // 9. Create OIDC client and generate authorization URL
+    // 9. Silent Auth処理 (prompt=none)
+    // OIDC Core 3.1.2.1: prompt=none時、認証済みの場合は成功、未認証の場合はerror=login_requiredを返す
+    // ⚠️ 注意: prompt は複数値可能（スペース区切り）、例: "none login"
+    const promptValues = (prompt ?? '').split(' ').filter(Boolean);
+    const isSilentAuth = promptValues.includes('none');
+
+    if (isSilentAuth) {
+      // OIDC仕様: prompt=none は他のprompt値と同時指定不可
+      // 例: "none login" は矛盾（ユーザー操作禁止 vs 強制ログイン）
+      if (promptValues.length > 1) {
+        log.warn('Silent Auth: prompt=none with other values', { allPrompts: prompt });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'invalid_request');
+        errorRedirectUrl.searchParams.set(
+          'error_description',
+          'prompt=none cannot be combined with other values'
+        );
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      log.info('Silent Auth: prompt=none detected', { sessionId });
+
+      // PKCE必須チェック（AuthrimはすべてのcodeでPKCE必須）
+      if (!codeChallenge) {
+        log.error('Silent Auth: Missing code_challenge', { clientId });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'invalid_request');
+        errorRedirectUrl.searchParams.set('error_description', 'code_challenge is required');
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      // セッション存在チェック
+      if (!sessionId) {
+        // セッションなし → error=login_required
+        log.info('Silent Auth: No active session', { clientId });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'login_required');
+        errorRedirectUrl.searchParams.set('error_description', 'Authentication required');
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      // セッション有効性チェック
+      const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sessionId);
+      const session: Session | null = await sessionStore.getSessionRpc(sessionId);
+
+      if (!session) {
+        // セッション無効 → error=login_required
+        log.info('Silent Auth: Session expired or invalid', { sessionId });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'login_required');
+        errorRedirectUrl.searchParams.set('error_description', 'Authentication required');
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      // ⚠️ CRITICAL: state を消費（リプレイ攻撃対策）
+      // Silent Auth成功時もstateの二重使用を防ぐため、consumed_atをマーク
+      // 📝 タイミング: セッション検証後、トークン発行前
+      //   - 失敗パスではstate未消費（再試行可能）
+      //   - 成功パスでは発行前に消費（handoff/code発行失敗はほぼゼロ）
+      const consumedAuthState = await consumeAuthState(c.env, state);
+      if (!consumedAuthState) {
+        // state消費失敗（すでに使用済み or 期限切れ or 競合）
+        // 📝 error=invalid_request: state問題を示唆（vs login_required=未ログイン）
+        log.info('Silent Auth: State already consumed or expired', { state });
+        const errorRedirectUrl = new URL(redirectUri);
+        errorRedirectUrl.searchParams.set('error', 'invalid_request');
+        errorRedirectUrl.searchParams.set('error_description', 'Authentication request expired');
+        errorRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: errorRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+
+      // セッション有効 → ハンドオフトークン or コード発行
+      // TypeScript type narrowing: session is guaranteed non-null after the check above
+      const validSession: Session = session;
+      log.info('Silent Auth: Issuing token', { sessionId, userId: validSession.userId });
+
+      // SSO有効時のみハンドオフトークン発行（enableSso=falseならコード発行）
+      const enableSso = provider.enableSso !== false;
+
+      if (enableSso) {
+        // ハンドオフトークン生成（callback.tsのパターンを再利用）
+        const handoffToken = crypto.randomUUID();
+        const handoffStore = await getChallengeStoreByChallengeId(c.env, handoffToken);
+
+        await handoffStore.storeChallengeRpc({
+          id: `handoff:${handoffToken}`,
+          type: 'handoff',
+          userId: validSession.userId,
+          challenge: sessionId,
+          ttl: 30, // 30秒
+          metadata: {
+            client_id: clientId,
+            state,
+            aud: 'handoff',
+            created_at: Date.now(),
+          },
+        });
+
+        // RPへリダイレクト（ハンドオフトークン付き）
+        const successRedirectUrl = new URL(redirectUri);
+        successRedirectUrl.searchParams.set('handoff_token', handoffToken);
+        successRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: successRedirectUrl.toString(),
+            'Referrer-Policy': 'no-referrer',
+            'Cache-Control': 'no-store',
+          },
+        });
+      } else {
+        // SSO無効時：authorization code発行
+        // codeChallenge は上でチェック済みなので安全に使用可能
+        const authCode = await generateAuthCode(c.env, validSession.userId, codeChallenge, {
+          method: 'silent_auth',
+          provider: provider.id,
+          provider_id: provider.id,
+          provider_slug: provider.slug ?? provider.id,
+          client_id: clientId!,
+          is_new_user: false,
+          stitched_from_existing: false,
+        });
+
+        const successRedirectUrl = new URL(redirectUri);
+        successRedirectUrl.searchParams.set('code', authCode);
+        successRedirectUrl.searchParams.set('state', state);
+
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: successRedirectUrl.toString(),
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+    }
+
+    // 10. Create OIDC client and generate authorization URL
     const client = OIDCRPClient.fromProvider(provider, callbackUri, clientSecret, privateKeyJwk);
 
     // Apple Sign In requires response_mode=form_post when requesting name or email scope
@@ -618,4 +797,32 @@ async function validateRedirectUri(
     log.warn('Invalid redirect_uri format', { requestedUri });
     return defaultRedirect;
   }
+}
+
+/**
+ * Generate authorization code for Direct Auth token exchange
+ * TTL: 60 seconds, single-use
+ */
+async function generateAuthCode(
+  env: Env,
+  userId: string,
+  codeChallenge: string,
+  metadata?: Record<string, unknown>
+): Promise<string> {
+  const authCode = crypto.randomUUID();
+  const challengeStore = await getChallengeStoreByChallengeId(env, authCode);
+
+  await challengeStore.storeChallengeRpc({
+    id: `direct_auth:${authCode}`,
+    type: 'direct_auth_code',
+    userId,
+    challenge: codeChallenge, // Store code_challenge for verification
+    ttl: 60, // 60 seconds
+    metadata: {
+      ...metadata,
+      created_at: Date.now(),
+    },
+  });
+
+  return authCode;
 }

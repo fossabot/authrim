@@ -1362,6 +1362,7 @@ interface ConsentSubmission {
 	approved: boolean;
 	selected_org_id?: string;
 	acting_as_user_id?: string;
+	consent_item_decisions?: Record<string, 'granted' | 'denied'>;
 }
 
 /**

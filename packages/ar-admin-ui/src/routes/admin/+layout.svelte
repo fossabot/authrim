@@ -68,6 +68,7 @@
 		authentication: [
 			{ path: '/admin/flows', label: 'Flows', icon: 'i-ph-flow-arrow' },
 			{ path: '/admin/consents', label: 'Consents', icon: 'i-ph-handshake' },
+			{ path: '/admin/consent-statements', label: 'Consent Statements', icon: 'i-ph-list-checks' },
 			{ path: '/admin/external-idp', label: 'External IdP', icon: 'i-ph-globe' }
 		],
 		// Configuration
@@ -98,7 +99,19 @@
 		// Admin Management (Admin operators, not end users)
 		adminManagement: [
 			{ path: '/admin/admins', label: 'Admin Users', icon: 'i-ph-user-gear' },
-			{ path: '/admin/admin-roles', label: 'Admin Roles', icon: 'i-ph-crown' },
+			{
+				parent: {
+					href: '/admin/admin-access-control',
+					icon: 'i-ph-shield-star',
+					label: 'Admin Access Control'
+				},
+				children: [
+					{ href: '/admin/admin-rbac', label: 'RBAC (Roles)' },
+					{ href: '/admin/admin-abac', label: 'ABAC (Attributes)' },
+					{ href: '/admin/admin-rebac', label: 'ReBAC' },
+					{ href: '/admin/admin-policies', label: 'Policies' }
+				]
+			},
 			{ path: '/admin/ip-allowlist', label: 'IP Allowlist', icon: 'i-ph-shield-check' },
 			{ path: '/admin/admin-audit', label: 'Admin Audit Log', icon: 'i-ph-clipboard-text' }
 		]
@@ -127,7 +140,19 @@
 		...platformNavItems.identitySchema,
 		...platformNavItems.securityCompliance,
 		...platformNavItems.operations,
-		...platformNavItems.adminManagement
+		// Admin Management with Access Control Hub
+		platformNavItems.adminManagement[0], // Admin Users
+		{
+			path: platformNavItems.adminManagement[1].parent.href,
+			label: platformNavItems.adminManagement[1].parent.label,
+			icon: platformNavItems.adminManagement[1].parent.icon
+		},
+		...platformNavItems.adminManagement[1].children.map((c) => ({
+			path: c.href,
+			label: c.label,
+			icon: 'i-ph-arrow-right'
+		})),
+		...platformNavItems.adminManagement.slice(2) // IP Allowlist, Admin Audit
 	];
 
 	// Check if nav item is active
@@ -306,7 +331,17 @@
 
 				<!-- Admin Management (Admin Operators) -->
 				<NavGroupLabel label="Admin Operators" />
-				{#each platformNavItems.adminManagement as item (item.path)}
+				<NavItem
+					href={platformNavItems.adminManagement[0].path}
+					icon={platformNavItems.adminManagement[0].icon}
+					label={platformNavItems.adminManagement[0].label}
+					active={isActive(platformNavItems.adminManagement[0].path)}
+				/>
+				<NavItemGroup
+					parent={platformNavItems.adminManagement[1].parent}
+					children={platformNavItems.adminManagement[1].children}
+				/>
+				{#each platformNavItems.adminManagement.slice(2) as item (item.path)}
 					<NavItem
 						href={item.path}
 						icon={item.icon}

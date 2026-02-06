@@ -1831,7 +1831,21 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
   // Check for existing session (cookie)
   // This is required for prompt=none to work correctly
-  const sessionId = c.req.header('Cookie')?.match(/authrim_session=([^;]+)/)?.[1];
+  const cookieHeader = c.req.header('Cookie');
+  const rawSessionId = cookieHeader?.match(/authrim_session=([^;]+)/)?.[1];
+  // URL decode the session ID - browsers may encode special characters like colons
+  const sessionId = rawSessionId ? decodeURIComponent(rawSessionId) : undefined;
+
+  // Debug logging for SSO troubleshooting
+  log.info('Session detection', {
+    action: 'session_detect',
+    hasCookieHeader: !!cookieHeader,
+    hasSessionId: !!sessionId,
+    sessionIdPrefix: sessionId ? sessionId.substring(0, 30) : null, // First 30 chars for debugging
+    isShardedFormat: sessionId ? isShardedSessionId(sessionId) : false,
+    clientId: validClientId,
+  });
+
   // Only process sharded session IDs (new format: {shardIndex}_session_{uuid})
   // Legacy sessions without shard prefix are treated as invalid (user must re-login)
   if (sessionId && c.env.SESSION_STORE && isShardedSessionId(sessionId)) {
@@ -1839,6 +1853,15 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
       const { stub: sessionStore } = getSessionStoreBySessionId(c.env, sessionId);
 
       const session = (await sessionStore.getSessionRpc(sessionId)) as Session | null;
+
+      // Debug: Log session retrieval result
+      log.info('Session retrieved', {
+        action: 'session_retrieved',
+        hasSession: !!session,
+        sessionExpired: session ? session.expiresAt <= Date.now() : null,
+        sessionUserId: session?.userId,
+        clientId: validClientId,
+      });
 
       if (session) {
         // Check if session is not expired
@@ -1965,7 +1988,7 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
     // Priority: Client setting > Tenant setting > Default (false)
     ssoEnabled = clientSsoSetting ?? tenantSsoSetting ?? false;
 
-    log.debug('SSO configuration', {
+    log.info('SSO configuration', {
       action: 'sso_config',
       clientId: validClientId,
       tenantSsoSetting,
