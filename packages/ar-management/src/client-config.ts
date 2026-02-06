@@ -152,6 +152,20 @@ function validateUpdateRequest(
     }
   }
 
+  // Validate login_ui_url if provided
+  if (body.login_ui_url !== undefined) {
+    if (typeof body.login_ui_url !== 'string') {
+      return {
+        error: 'invalid_client_metadata',
+        error_description: 'login_ui_url must be a string',
+      };
+    }
+    const error = validateSecureUri(body.login_ui_url, 'login_ui_url');
+    if (error) {
+      return { error: 'invalid_client_metadata', error_description: error };
+    }
+  }
+
   // Validate post_logout_redirect_uris if provided
   if (body.post_logout_redirect_uris !== undefined) {
     if (!Array.isArray(body.post_logout_redirect_uris)) {
@@ -478,6 +492,7 @@ export async function clientConfigUpdateHandler(c: Context<{ Bindings: Env }>): 
           frontchannel_logout_uri = ?,
           frontchannel_logout_session_required = ?,
           initiate_login_uri = ?,
+          login_ui_url = ?,
           updated_at = ?
         WHERE client_id = ?
         `,
@@ -527,6 +542,7 @@ export async function clientConfigUpdateHandler(c: Context<{ Bindings: Env }>): 
               : 0,
           // OIDC 3rd Party Initiated Login
           body.initiate_login_uri ?? (existingClient.initiate_login_uri as string | null),
+          body.login_ui_url ?? (existingClient.login_ui_url as string | null),
           // Timestamp
           now,
           // WHERE clause

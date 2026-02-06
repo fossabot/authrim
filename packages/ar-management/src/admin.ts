@@ -1950,12 +1950,33 @@ export async function adminClientsListHandler(c: Context<{ Bindings: Env }>) {
     // SECURITY: Exclude client_secret_hash from response - never expose credential hashes
     const formattedClients = result.items.map((client) => {
       const { client_secret_hash: _excluded, ...clientWithoutHash } = client;
+
+      // Helper function to safely parse JSON or return as-is if already parsed
+      // Handles both JSON arrays and comma-separated strings for backward compatibility
+      const safeJsonParse = (value: unknown, fieldName: string): unknown => {
+        if (typeof value === 'string') {
+          // Try JSON parse first
+          if (value.startsWith('[')) {
+            try {
+              return JSON.parse(value);
+            } catch (error) {
+              console.error(`Failed to parse ${fieldName} as JSON:`, value, error);
+              throw new Error(`Invalid JSON in ${fieldName}: ${value}`);
+            }
+          }
+          // If not JSON, treat as comma-separated string (legacy format)
+          return value.split(',').map((v) => v.trim());
+        }
+        // If it's already an array/object, return as-is
+        return value;
+      };
+
       return {
         ...clientWithoutHash,
-        redirect_uris: JSON.parse(client.redirect_uris),
-        grant_types: JSON.parse(client.grant_types),
-        response_types: JSON.parse(client.response_types),
-        contacts: client.contacts ? JSON.parse(client.contacts) : [],
+        redirect_uris: safeJsonParse(client.redirect_uris, 'redirect_uris'),
+        grant_types: safeJsonParse(client.grant_types, 'grant_types'),
+        response_types: safeJsonParse(client.response_types, 'response_types'),
+        contacts: client.contacts ? safeJsonParse(client.contacts, 'contacts') : [],
         created_at: toMilliseconds(client.created_at),
         updated_at: toMilliseconds(client.updated_at),
       };
@@ -1973,11 +1994,13 @@ export async function adminClientsListHandler(c: Context<{ Bindings: Env }>) {
       },
     });
   } catch (error) {
+    console.error('Admin clients list error:', error);
     logSanitizedError('Admin clients list error', error);
     return c.json(
       {
         error: 'server_error',
         error_description: 'Failed to retrieve clients',
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       500
     );
@@ -2082,6 +2105,8 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       allow_claims_without_scope,
       allowed_redirect_origins,
       require_pkce,
+      initiate_login_uri,
+      login_ui_url,
     } = body;
 
     // Validate allowed_redirect_origins if provided (Custom Redirect URIs - Authrim Extension)
@@ -2130,6 +2155,8 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       allow_claims_without_scope,
       allowed_redirect_origins,
       require_pkce,
+      initiate_login_uri,
+      login_ui_url,
     ].some((v) => v !== undefined);
 
     if (!hasUpdates) {
@@ -2156,6 +2183,8 @@ export async function adminClientUpdateHandler(c: Context<{ Bindings: Env }>) {
       allow_claims_without_scope,
       allowed_redirect_origins: validatedAllowedOrigins,
       require_pkce,
+      initiate_login_uri,
+      login_ui_url,
     });
 
     // Invalidate CLIENTS_CACHE (explicit invalidation after D1 update)

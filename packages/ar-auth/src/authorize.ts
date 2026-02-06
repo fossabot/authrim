@@ -32,6 +32,8 @@ import {
   buildUIUrl,
   shouldUseBuiltinForms,
   createConfigurationError,
+  DEFAULT_UI_PATHS,
+  type UIConfig,
   // Custom Redirect URIs (Authrim Extension)
   validateCustomRedirectParams,
   // Contract Loader (Human Auth / AI Ephemeral Auth two-layer model)
@@ -128,7 +130,8 @@ async function getUIRedirectTarget(
     | 'loggedOut'
     | 'register',
   queryParams?: Record<string, string>,
-  tenantHint?: string
+  tenantHint?: string,
+  clientLoginUiUrl?: string | null
 ): Promise<UIRedirectResult> {
   // Check conformance mode first
   if (await shouldUseBuiltinForms(env)) {
@@ -147,7 +150,17 @@ async function getUIRedirectTarget(
     return { type: 'builtin', fallbackPath: fallbackPaths[path] || '/error' };
   }
 
-  // Check UI configuration
+  // Check client-specific login UI URL (priority 2)
+  if (clientLoginUiUrl) {
+    const clientConfig: UIConfig = {
+      baseUrl: clientLoginUiUrl,
+      paths: DEFAULT_UI_PATHS,
+    };
+    const url = buildUIUrl(clientConfig, path, queryParams, tenantHint);
+    return { type: 'redirect', url };
+  }
+
+  // Check global UI configuration (priority 3)
   const uiConfig = await getUIConfig(env);
   if (!uiConfig?.baseUrl) {
     // No UI configured and conformance mode disabled
@@ -2103,11 +2116,18 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
     // Redirect to UI re-authentication screen
     // Conformance mode: use builtin forms
-    // UI configured: redirect to external UI
+    // Client-specific UI: use client's login_ui_url
+    // Global UI configured: redirect to external UI
     // Neither: return configuration error
-    const reauthTarget = await getUIRedirectTarget(c.env, 'reauth', {
-      challenge_id: challengeId,
-    });
+    const reauthTarget = await getUIRedirectTarget(
+      c.env,
+      'reauth',
+      {
+        challenge_id: challengeId,
+      },
+      undefined,
+      clientMetadata?.login_ui_url
+    );
     if (reauthTarget.type === 'redirect') {
       return c.redirect(reauthTarget.url, 302);
     } else if (reauthTarget.type === 'error') {
@@ -2165,11 +2185,18 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
     // Redirect to UI login screen
     // Conformance mode: use builtin forms
-    // UI configured: redirect to external UI
+    // Client-specific UI: use client's login_ui_url
+    // Global UI configured: redirect to external UI
     // Neither: return configuration error
-    const loginTarget = await getUIRedirectTarget(c.env, 'login', {
-      challenge_id: challengeId,
-    });
+    const loginTarget = await getUIRedirectTarget(
+      c.env,
+      'login',
+      {
+        challenge_id: challengeId,
+      },
+      undefined,
+      clientMetadata?.login_ui_url
+    );
     if (loginTarget.type === 'redirect') {
       return c.redirect(loginTarget.url, 302);
     } else if (loginTarget.type === 'error') {
@@ -2348,11 +2375,18 @@ export async function authorizeHandler(c: Context<{ Bindings: Env }>) {
 
         // Redirect to UI consent screen
         // Conformance mode: use builtin forms
-        // UI configured: redirect to external UI
+        // Client-specific UI: use client's login_ui_url
+        // Global UI configured: redirect to external UI
         // Neither: return configuration error
-        const consentTarget = await getUIRedirectTarget(c.env, 'consent', {
-          challenge_id: challengeId,
-        });
+        const consentTarget = await getUIRedirectTarget(
+          c.env,
+          'consent',
+          {
+            challenge_id: challengeId,
+          },
+          undefined,
+          clientMetadata?.login_ui_url
+        );
         if (consentTarget.type === 'redirect') {
           return c.redirect(consentTarget.url, 302);
         } else if (consentTarget.type === 'error') {

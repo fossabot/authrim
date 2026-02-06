@@ -85,6 +85,7 @@ export interface ClientSettings {
   'client.policy_uri': string;
   'client.client_uri': string;
   'client.initiate_login_uri': string;
+  'client.login_ui_url': string;
 
   // Application Settings
   'client.application_type': string;
@@ -546,6 +547,16 @@ export const CLIENT_SETTINGS_META: Record<keyof ClientSettings, SettingMeta> = {
     description: 'URI to initiate login from RP',
     visibility: 'admin',
   },
+  'client.login_ui_url': {
+    key: 'client.login_ui_url',
+    type: 'string',
+    default: '',
+    envKey: 'CLIENT_LOGIN_UI_URL',
+    label: 'Login UI URL',
+    description:
+      'Client-specific login UI base URL (overrides global UI_URL). Must use HTTPS except localhost.',
+    visibility: 'public',
+  },
 
   // Application Settings
   'client.application_type': {
@@ -794,6 +805,7 @@ export const CLIENT_DEFAULTS: ClientSettings = {
   'client.policy_uri': '',
   'client.client_uri': '',
   'client.initiate_login_uri': '',
+  'client.login_ui_url': '',
   'client.application_type': 'web',
   'client.sector_identifier_uri': '',
   'client.default_max_age': 0,

@@ -77,6 +77,7 @@
 		policy_uri?: string;
 		client_uri?: string;
 		initiate_login_uri?: string;
+		login_ui_url?: string;
 		application_type?: string;
 		sector_identifier_uri?: string;
 		// Advanced tab
@@ -178,6 +179,7 @@
 		policy_uri?: string;
 		client_uri?: string;
 		initiate_login_uri?: string;
+		login_ui_url?: string;
 		application_type?: string;
 		sector_identifier_uri?: string;
 		// Advanced tab
@@ -389,6 +391,7 @@
 			(a.policy_uri ?? '') === (b.policy_uri ?? '') &&
 			(a.client_uri ?? '') === (b.client_uri ?? '') &&
 			(a.initiate_login_uri ?? '') === (b.initiate_login_uri ?? '') &&
+			(a.login_ui_url ?? '') === (b.login_ui_url ?? '') &&
 			(a.application_type ?? 'web') === (b.application_type ?? 'web') &&
 			(a.sector_identifier_uri ?? '') === (b.sector_identifier_uri ?? '') &&
 			// Advanced tab
@@ -668,6 +671,7 @@
 			policy_uri: (clientSettings.values['client.policy_uri'] as string) ?? '',
 			client_uri: (clientSettings.values['client.client_uri'] as string) ?? '',
 			initiate_login_uri: (clientSettings.values['client.initiate_login_uri'] as string) ?? '',
+			login_ui_url: (clientSettings.values['client.login_ui_url'] as string) ?? '',
 			application_type: (clientSettings.values['client.application_type'] as string) ?? 'web',
 			sector_identifier_uri:
 				(clientSettings.values['client.sector_identifier_uri'] as string) ?? '',
@@ -779,6 +783,7 @@
 							'client.policy_uri': settingsEditForm.policy_uri,
 							'client.client_uri': settingsEditForm.client_uri,
 							'client.initiate_login_uri': settingsEditForm.initiate_login_uri,
+							'client.login_ui_url': settingsEditForm.login_ui_url,
 							'client.application_type': settingsEditForm.application_type,
 							'client.sector_identifier_uri': settingsEditForm.sector_identifier_uri,
 							// Advanced tab
@@ -2193,6 +2198,31 @@
 								{/if}
 							</div>
 						{/if}
+
+						<!-- Login UI URL -->
+						<div class="form-group">
+							<!-- svelte-ignore a11y_label_has_associated_control -->
+							<label class="form-label">Login UI URL</label>
+							{#if isEditing}
+								<input
+									type="url"
+									class="form-input"
+									bind:value={settingsEditForm.login_ui_url}
+									placeholder="https://login.your-domain.com"
+								/>
+								<p class="form-hint">
+									Client-specific login UI base URL (overrides global UI_URL). Must use HTTPS except
+									localhost.
+								</p>
+							{:else}
+								<p class="display-text">
+									{clientSettings?.values['client.login_ui_url'] || 'Not configured'}
+								</p>
+								<p class="form-hint">
+									Client-specific login UI base URL (overrides global UI_URL)
+								</p>
+							{/if}
+						</div>
 
 						<!-- Application Type -->
 						<div class="form-group">

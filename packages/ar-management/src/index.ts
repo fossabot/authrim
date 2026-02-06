@@ -38,6 +38,7 @@ import {
   clientConfigUpdateHandler,
   clientConfigDeleteHandler,
 } from './client-config';
+import { clientPublicConfigHandler } from './client-public-config';
 import {
   adminSigningKeysStatusHandler,
   adminSigningKeysRotateHandler,
@@ -759,6 +760,13 @@ app.delete(
   '/clients/:client_id',
   rateLimitMiddleware(RateLimitProfiles.moderate),
   clientConfigDeleteHandler
+);
+
+// Public Client Configuration endpoint (no authentication required)
+app.get(
+  '/clients/:client_id/config',
+  rateLimitMiddleware(RateLimitProfiles.moderate),
+  clientPublicConfigHandler
 );
 
 // Token Introspection endpoint - RFC 7662

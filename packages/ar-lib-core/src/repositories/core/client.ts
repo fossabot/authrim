@@ -140,6 +140,10 @@ export interface OAuthClient {
   /** Whether PKCE is required for authorization requests */
   require_pkce: boolean;
 
+  // OIDC Dynamic Client Registration
+  initiate_login_uri: string | null;
+  login_ui_url: string | null;
+
   // Timestamps
   created_at: number;
   updated_at: number;
@@ -198,6 +202,9 @@ export interface CreateClientInput {
   requestable_scopes?: string[] | null;
   // PKCE (RFC 7636)
   require_pkce?: boolean;
+  // OIDC Dynamic Client Registration
+  initiate_login_uri?: string | null;
+  login_ui_url?: string | null;
 }
 
 /**
@@ -251,6 +258,9 @@ export interface UpdateClientInput {
   requestable_scopes?: string[] | null;
   // PKCE (RFC 7636)
   require_pkce?: boolean;
+  // OIDC Dynamic Client Registration
+  initiate_login_uri?: string | null;
+  login_ui_url?: string | null;
 }
 
 /**
@@ -349,6 +359,9 @@ export class ClientRepository {
         : null,
       // PKCE (RFC 7636)
       require_pkce: input.require_pkce ?? false,
+      // OIDC Dynamic Client Registration
+      initiate_login_uri: input.initiate_login_uri ?? null,
+      login_ui_url: input.login_ui_url ?? null,
       created_at: now,
       updated_at: now,
     };
@@ -372,8 +385,9 @@ export class ClientRepository {
         allowed_redirect_origins,
         software_id, software_version, requestable_scopes,
         require_pkce,
+        initiate_login_uri, login_ui_url,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         client.client_id,
         client.client_secret_hash,
@@ -419,6 +433,8 @@ export class ClientRepository {
         client.software_version,
         client.requestable_scopes,
         client.require_pkce ? 1 : 0,
+        client.initiate_login_uri,
+        client.login_ui_url,
         client.created_at,
         client.updated_at,
       ]
@@ -635,6 +651,15 @@ export class ClientRepository {
     if (input.require_pkce !== undefined) {
       updates.push('require_pkce = ?');
       params.push(input.require_pkce ? 1 : 0);
+    }
+    // OIDC Dynamic Client Registration
+    if (input.initiate_login_uri !== undefined) {
+      updates.push('initiate_login_uri = ?');
+      params.push(input.initiate_login_uri);
+    }
+    if (input.login_ui_url !== undefined) {
+      updates.push('login_ui_url = ?');
+      params.push(input.login_ui_url);
     }
 
     params.push(clientId);
