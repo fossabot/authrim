@@ -47,6 +47,7 @@
 		// Security tab
 		consent_required?: boolean;
 		first_party?: boolean;
+		sso_enabled?: boolean;
 		strict_redirect_matching?: boolean;
 		allow_localhost_redirect?: boolean;
 		default_max_age?: number;
@@ -149,6 +150,7 @@
 		// Security tab
 		consent_required?: boolean;
 		first_party?: boolean;
+		sso_enabled?: boolean;
 		strict_redirect_matching?: boolean;
 		allow_localhost_redirect?: boolean;
 		default_max_age?: number;
@@ -235,6 +237,7 @@
 			delegation_mode?: string;
 			consent_required?: boolean;
 			first_party?: boolean;
+			sso_enabled?: boolean;
 			strict_redirect_matching?: boolean;
 			allow_localhost_redirect?: boolean;
 			default_max_age?: number;
@@ -262,6 +265,7 @@
 			policy_uri?: string;
 			client_uri?: string;
 			initiate_login_uri?: string;
+			login_ui_url?: string;
 			application_type?: string;
 			sector_identifier_uri?: string;
 			id_token_signing_alg?: string;
@@ -294,6 +298,7 @@
 			delegation_mode?: string;
 			consent_required?: boolean;
 			first_party?: boolean;
+			sso_enabled?: boolean;
 			strict_redirect_matching?: boolean;
 			allow_localhost_redirect?: boolean;
 			default_max_age?: number;
@@ -321,6 +326,7 @@
 			policy_uri?: string;
 			client_uri?: string;
 			initiate_login_uri?: string;
+			login_ui_url?: string;
 			application_type?: string;
 			sector_identifier_uri?: string;
 			id_token_signing_alg?: string;
@@ -358,6 +364,7 @@
 			// Security tab
 			Boolean(a.consent_required) === Boolean(b.consent_required) &&
 			Boolean(a.first_party) === Boolean(b.first_party) &&
+			Boolean(a.sso_enabled) === Boolean(b.sso_enabled) &&
 			Boolean(a.strict_redirect_matching) === Boolean(b.strict_redirect_matching) &&
 			Boolean(a.allow_localhost_redirect) === Boolean(b.allow_localhost_redirect) &&
 			(a.default_max_age ?? 0) === (b.default_max_age ?? 0) &&
@@ -627,6 +634,7 @@
 			// Security tab
 			consent_required: (clientSettings.values['client.consent_required'] as boolean) ?? false,
 			first_party: (clientSettings.values['client.first_party'] as boolean) ?? false,
+			sso_enabled: (clientSettings.values['client.sso_enabled'] as boolean) ?? false,
 			strict_redirect_matching:
 				(clientSettings.values['client.strict_redirect_matching'] as boolean) ?? false,
 			allow_localhost_redirect:
@@ -750,6 +758,7 @@
 							// Security tab
 							'client.consent_required': settingsEditForm.consent_required,
 							'client.first_party': settingsEditForm.first_party,
+							'client.sso_enabled': settingsEditForm.sso_enabled,
 							'client.strict_redirect_matching': settingsEditForm.strict_redirect_matching,
 							'client.allow_localhost_redirect': settingsEditForm.allow_localhost_redirect,
 							'client.default_max_age': settingsEditForm.default_max_age,
@@ -1568,6 +1577,24 @@
 									{clientSettings?.values['client.consent_required'] ? 'Yes' : 'No'}
 								</p>
 								<p class="form-hint">Require user consent for this client</p>
+							{/if}
+						</div>
+
+						<!-- SSO Enabled -->
+						<div class="form-group">
+							{#if isEditing}
+								<ToggleSwitch
+									bind:checked={settingsEditForm.sso_enabled}
+									label="SSO Enabled"
+									description="Enable Single Sign-On (session sharing). When disabled, users must re-authenticate for this client even with an existing session."
+								/>
+							{:else}
+								<!-- svelte-ignore a11y_label_has_associated_control -->
+								<label class="form-label">SSO Enabled</label>
+								<p class="display-text">
+									{clientSettings?.values['client.sso_enabled'] ? 'Yes' : 'No'}
+								</p>
+								<p class="form-hint">Enable Single Sign-On (session sharing)</p>
 							{/if}
 						</div>
 

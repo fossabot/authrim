@@ -8,6 +8,7 @@
  */
 
 import type { OrganizationType, PlanType, RelationshipType, PermissionLevel } from './rbac';
+import type { ConsentScreenItem, ConsentEnforcement } from './consent-statements';
 
 // =============================================================================
 // Scope Information
@@ -184,6 +185,7 @@ export interface ConsentChallengeMetadata {
   max_age?: string;
   prompt?: string;
   acr_values?: string;
+  ui_locales?: string;
 
   // RBAC extensions (Phase 2-B)
   /** Target organization ID for org-scoped authorization */
@@ -198,6 +200,12 @@ export interface ConsentChallengeMetadata {
   error_uri?: string;
   /** Redirect on user cancellation (e.g., consent denial) */
   cancel_uri?: string;
+
+  // Consent Management
+  /** Required consent statement IDs */
+  consent_items_required?: string[];
+  /** Consent enforcement mode */
+  consent_items_enforcement?: ConsentEnforcement;
 }
 
 // =============================================================================
@@ -588,6 +596,14 @@ export interface ExtendedConsentScreenData extends ConsentScreenData {
       termsOfService?: { version: string; policyUri?: string };
     };
   };
+
+  // Consent Management (SAP CDC-like)
+  /** Consent items to display on consent screen */
+  consent_items?: ConsentScreenItem[];
+  /** Whether consent management feature is enabled */
+  consent_management_enabled?: boolean;
+  /** Consent language resolved for this user */
+  consent_language?: string;
 }
 
 /**
@@ -599,4 +615,7 @@ export interface ExtendedConsentSubmission extends ConsentSubmission {
     privacy_policy?: string;
     terms_of_service?: string;
   };
+
+  /** Consent item decisions (statement_id -> 'granted' | 'denied') */
+  consent_item_decisions?: Record<string, 'granted' | 'denied'>;
 }

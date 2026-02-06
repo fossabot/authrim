@@ -36,6 +36,9 @@ export interface OAuthSettings {
   // UserInfo Settings
   'oauth.userinfo_require_openid': boolean;
 
+  // SSO Settings
+  'oauth.sso_enabled': boolean;
+
   // Error Response Settings
   'oauth.error_description': boolean;
   'oauth.error_uri': boolean;
@@ -256,6 +259,18 @@ export const OAUTH_SETTINGS_META: Record<keyof OAuthSettings, SettingMeta> = {
     envKey: 'ENABLE_USERINFO_REQUIRE_OPENID_SCOPE',
     label: 'UserInfo Requires OpenID Scope',
     description: 'Require openid scope for UserInfo endpoint (OIDC compliance)',
+    visibility: 'public',
+  },
+
+  // SSO Settings
+  'oauth.sso_enabled': {
+    key: 'oauth.sso_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'OAUTH_SSO_ENABLED',
+    label: 'SSO Enabled',
+    description:
+      'Enable Single Sign-On (session sharing across clients). When disabled, users must re-authenticate for each client.',
     visibility: 'public',
   },
 
@@ -515,6 +530,7 @@ export const OAUTH_DEFAULTS: OAuthSettings = {
   'oauth.scope_required': false,
   // Note: pkce_required, pkce_s256_required, nonce_required moved to security.ts
   'oauth.userinfo_require_openid': true,
+  'oauth.sso_enabled': false,
   'oauth.error_description': true,
   'oauth.error_uri': false,
   'oauth.iss_response_param': true,

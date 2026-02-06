@@ -26,6 +26,9 @@ export interface ClientSettings {
   'client.consent_required': boolean;
   'client.first_party': boolean;
 
+  // SSO Override
+  'client.sso_enabled': boolean;
+
   // Token Behavior
   'client.refresh_token_rotation': boolean;
   'client.reuse_refresh_token': boolean;
@@ -196,6 +199,16 @@ export const CLIENT_SETTINGS_META: Record<keyof ClientSettings, SettingMeta> = {
     label: 'First Party App',
     description: 'Mark this client as a first-party application',
     visibility: 'admin',
+  },
+  'client.sso_enabled': {
+    key: 'client.sso_enabled',
+    type: 'boolean',
+    default: false,
+    envKey: 'CLIENT_SSO_ENABLED',
+    label: 'SSO Enabled',
+    description:
+      'Enable Single Sign-On for this client. When disabled, users must authenticate even with an existing session.',
+    visibility: 'public',
   },
   'client.refresh_token_rotation': {
     key: 'client.refresh_token_rotation',
@@ -768,6 +781,7 @@ export const CLIENT_DEFAULTS: ClientSettings = {
   'client.dpop_required': false,
   'client.consent_required': true,
   'client.first_party': false,
+  'client.sso_enabled': false,
   'client.refresh_token_rotation': true,
   'client.reuse_refresh_token': false,
   'client.allow_authorization_code': true,

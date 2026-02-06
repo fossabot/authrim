@@ -104,6 +104,8 @@ export interface Env {
   ENABLE_USERINFO_REQUIRE_OPENID_SCOPE?: string; // "false" to allow UserInfo without openid scope (OAuth 2.0 compatibility)
   ENABLE_OPEN_REGISTRATION?: string; // "true" to allow registration without Initial Access Token
   ENABLE_CONFORMANCE_MODE?: string; // "true" to enable built-in forms instead of external UI
+  OAUTH_SSO_ENABLED?: string; // "true" to enable SSO (session sharing) at tenant level (default: "false")
+  CLIENT_SSO_ENABLED?: string; // "true" to enable SSO (session sharing) at client level (default: "false")
 
   // API & Versioning
   ENABLE_API_VERSIONING?: string; // "false" to disable API versioning middleware (default: enabled)
