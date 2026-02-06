@@ -56,7 +56,7 @@
 
 	// Requirements
 	let requirements = $state<TenantConsentRequirement[]>([]);
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let _clients = $state<any[]>([]); // OAuth clients for requirement management (future use)
 	let showRequirementForm = $state(false);
 	let requirementFormData = $state({

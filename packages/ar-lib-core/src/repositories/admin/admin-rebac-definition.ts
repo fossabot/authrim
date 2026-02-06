@@ -148,11 +148,13 @@ export class AdminRebacDefinitionRepository extends BaseRepository<AdminRebacDef
     tenantId: string,
     options?: { includeSystem?: boolean; limit?: number; offset?: number }
   ): Promise<AdminRebacDefinition[]> {
-    let sql = 'SELECT * FROM admin_rebac_definitions WHERE tenant_id = ?';
+    let sql: string;
     const params: unknown[] = [tenantId];
 
     if (options?.includeSystem) {
-      sql += ' OR is_system = 1';
+      sql = 'SELECT * FROM admin_rebac_definitions WHERE (tenant_id = ? OR is_system = 1)';
+    } else {
+      sql = 'SELECT * FROM admin_rebac_definitions WHERE tenant_id = ? AND is_system = 0';
     }
 
     sql += ' ORDER BY priority DESC, relation_name ASC';

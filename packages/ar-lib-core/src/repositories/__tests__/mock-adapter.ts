@@ -97,23 +97,118 @@ export class MockDatabaseAdapter implements DatabaseAdapter {
     if (!table) return [];
 
     const allRows = Array.from(table.rows.values());
+
+    // Check for special OR pattern: (field1 = ? OR field2 = literal)
+    const orPattern = sql.match(
+      /WHERE\s+\((\w+)\s*=\s*\?\s+OR\s+(\w+)\s*=\s*([0-9]+|'[^']*'|"[^"]*")\)/i
+    );
+    if (orPattern) {
+      const field1 = orPattern[1];
+      const field2 = orPattern[2];
+      let literal: unknown = orPattern[3];
+
+      // Parse literal value
+      if (/^[0-9]+$/.test(orPattern[3])) {
+        literal = parseInt(orPattern[3], 10);
+      } else if ((literal as string).startsWith("'") || (literal as string).startsWith('"')) {
+        literal = (literal as string).slice(1, -1);
+      }
+
+      const value1 = params?.[0];
+
+      // Filter with OR logic
+      let results = allRows.filter((row) => row[field1] === value1 || row[field2] === literal);
+
+      // Continue with ORDER BY, LIMIT, OFFSET processing
+      // Handle ORDER BY (supports multiple fields)
+      const orderMatch = sql.match(/ORDER\s+BY\s+(.+?)(?:\s+LIMIT|\s+OFFSET|$)/i);
+      if (orderMatch) {
+        const orderClause = orderMatch[1].trim();
+        const orderFields = orderClause
+          .split(',')
+          .map((field) => {
+            const match = field.trim().match(/(\w+)\s+(ASC|DESC)?/i);
+            if (match) {
+              return {
+                field: match[1],
+                direction: (match[2] || 'ASC').toUpperCase() as 'ASC' | 'DESC',
+              };
+            }
+            return null;
+          })
+          .filter((f): f is { field: string; direction: 'ASC' | 'DESC' } => f !== null);
+
+        if (orderFields.length > 0) {
+          results.sort((a, b) => {
+            for (const { field, direction } of orderFields) {
+              const aVal = a[field] as number | string;
+              const bVal = b[field] as number | string;
+              if (aVal < bVal) return direction === 'ASC' ? -1 : 1;
+              if (aVal > bVal) return direction === 'ASC' ? 1 : -1;
+            }
+            return 0;
+          });
+        }
+      }
+
+      // Handle LIMIT and OFFSET
+      const limitMatch = sql.match(/LIMIT\s+\?/i);
+      const offsetMatch = sql.match(/OFFSET\s+\?/i);
+
+      if (limitMatch || offsetMatch) {
+        const { limitVal, offsetVal } = this.extractLimitOffset(sql, params);
+        if (offsetVal > 0) {
+          results = results.slice(offsetVal);
+        }
+        if (limitVal > 0) {
+          results = results.slice(0, limitVal);
+        }
+      } else {
+        const numericLimitMatch = sql.match(/LIMIT\s+(\d+)/i);
+        if (numericLimitMatch) {
+          results = results.slice(0, parseInt(numericLimitMatch[1]));
+        }
+      }
+
+      return results as T[];
+    }
+
+    // Standard AND conditions
     const conditions = this.parseWhereConditions(sql, params);
 
     // Filter rows
     let results = allRows.filter((row) => this.matchesConditions(row, conditions));
 
-    // Handle ORDER BY
-    const orderMatch = sql.match(/ORDER\s+BY\s+(\w+)\s+(ASC|DESC)?/i);
+    // Handle ORDER BY (supports multiple fields)
+    const orderMatch = sql.match(/ORDER\s+BY\s+(.+?)(?:\s+LIMIT|\s+OFFSET|$)/i);
     if (orderMatch) {
-      const orderField = orderMatch[1];
-      const orderDir = (orderMatch[2] || 'ASC').toUpperCase();
-      results.sort((a, b) => {
-        const aVal = a[orderField] as number | string;
-        const bVal = b[orderField] as number | string;
-        if (aVal < bVal) return orderDir === 'ASC' ? -1 : 1;
-        if (aVal > bVal) return orderDir === 'ASC' ? 1 : -1;
-        return 0;
-      });
+      const orderClause = orderMatch[1].trim();
+      // Parse multiple order fields: "priority DESC, relation_name ASC"
+      const orderFields = orderClause
+        .split(',')
+        .map((field) => {
+          const match = field.trim().match(/(\w+)\s+(ASC|DESC)?/i);
+          if (match) {
+            return {
+              field: match[1],
+              direction: (match[2] || 'ASC').toUpperCase() as 'ASC' | 'DESC',
+            };
+          }
+          return null;
+        })
+        .filter((f): f is { field: string; direction: 'ASC' | 'DESC' } => f !== null);
+
+      if (orderFields.length > 0) {
+        results.sort((a, b) => {
+          for (const { field, direction } of orderFields) {
+            const aVal = a[field] as number | string;
+            const bVal = b[field] as number | string;
+            if (aVal < bVal) return direction === 'ASC' ? -1 : 1;
+            if (aVal > bVal) return direction === 'ASC' ? 1 : -1;
+          }
+          return 0;
+        });
+      }
     }
 
     // Handle LIMIT and OFFSET
@@ -258,6 +353,26 @@ export class MockDatabaseAdapter implements DatabaseAdapter {
       }
     }
 
+    // Parse literal value conditions (field = 0, field = 'value')
+    const literalMatches = wherePart.match(/(\w+)\s*=\s*([0-9]+|'[^']*'|"[^"]*")/g);
+    if (literalMatches) {
+      for (const match of literalMatches) {
+        const parts = match.match(/(\w+)\s*=\s*([0-9]+|'[^']*'|"[^"]*")/);
+        if (parts) {
+          let value: unknown = parts[2];
+          // Parse numeric literals
+          if (/^[0-9]+$/.test(parts[2])) {
+            value = parseInt(parts[2], 10);
+          }
+          // Remove quotes from string literals
+          else if ((value as string).startsWith("'") || (value as string).startsWith('"')) {
+            value = (value as string).slice(1, -1);
+          }
+          conditions.push({ field: parts[1], value, operator: '=' });
+        }
+      }
+    }
+
     // Parse IS NOT NULL conditions
     const isNotNullMatches = wherePart.match(/(\w+)\s+IS\s+NOT\s+NULL/gi);
     if (isNotNullMatches) {
@@ -265,24 +380,6 @@ export class MockDatabaseAdapter implements DatabaseAdapter {
         const parts = match.match(/(\w+)\s+IS\s+NOT\s+NULL/i);
         if (parts) {
           conditions.push({ field: parts[1], value: null, operator: 'IS NOT NULL' });
-        }
-      }
-    }
-
-    // Parse literal number conditions (field = 1, field = 0)
-    const literalMatches = wherePart.match(/(\w+)\s*=\s*(\d+)/g);
-    if (literalMatches) {
-      for (const match of literalMatches) {
-        const parts = match.match(/(\w+)\s*=\s*(\d+)/);
-        if (parts && !match.includes('?')) {
-          // Only add if not already a placeholder condition
-          const fieldName = parts[1];
-          const value = parseInt(parts[2], 10);
-          // Check if field was already added via placeholder
-          const exists = conditions.some((c) => c.field === fieldName);
-          if (!exists) {
-            conditions.push({ field: fieldName, value });
-          }
         }
       }
     }
@@ -432,13 +529,8 @@ export class MockDatabaseAdapter implements DatabaseAdapter {
     const setFields = setClause.split(',').map((s) => s.trim().split('=')[0].trim());
     const setParamCount = setFields.length;
 
-    // Parse WHERE fields
-    const whereFields = whereClause.match(/(\w+)\s*=\s*\?/g) || [];
-    const whereParamCount = whereFields.length;
-
     // Split params
     const setParams = params.slice(0, setParamCount);
-    const whereParams = params.slice(setParamCount, setParamCount + whereParamCount);
 
     // Build update data
     const updateData: Record<string, unknown> = {};
@@ -446,12 +538,33 @@ export class MockDatabaseAdapter implements DatabaseAdapter {
       updateData[field] = setParams[idx];
     });
 
-    // Build conditions
+    // Parse WHERE conditions (both placeholders and literals)
     const conditions: Array<{ field: string; value: unknown }> = [];
-    whereFields.forEach((match, idx) => {
-      const fieldName = match.match(/(\w+)\s*=/)?.[1];
-      if (fieldName) {
-        conditions.push({ field: fieldName, value: whereParams[idx] });
+    const whereParts = whereClause.split(/\s+AND\s+/i);
+    let paramIndex = setParamCount;
+
+    whereParts.forEach((part) => {
+      part = part.trim();
+      // Match field = ? (placeholder)
+      const placeholderMatch = part.match(/(\w+)\s*=\s*\?/);
+      if (placeholderMatch) {
+        conditions.push({ field: placeholderMatch[1], value: params[paramIndex] });
+        paramIndex++;
+        return;
+      }
+      // Match field = literal (number or string)
+      const literalMatch = part.match(/(\w+)\s*=\s*([0-9]+|'[^']*'|"[^"]*")/);
+      if (literalMatch) {
+        let value: unknown = literalMatch[2];
+        // Parse numeric literals
+        if (/^[0-9]+$/.test(literalMatch[2])) {
+          value = parseInt(literalMatch[2], 10);
+        }
+        // Remove quotes from string literals
+        else if ((value as string).startsWith("'") || (value as string).startsWith('"')) {
+          value = (value as string).slice(1, -1);
+        }
+        conditions.push({ field: literalMatch[1], value });
       }
     });
 

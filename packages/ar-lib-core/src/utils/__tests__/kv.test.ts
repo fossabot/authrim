@@ -201,7 +201,21 @@ describe('KV Utilities', () => {
 
       const retrieved = await getClient(env, clientId);
 
-      expect(retrieved).toEqual(cachedData);
+      // normalizeClientMetadata adds default values for missing fields
+      const expectedNormalized = {
+        ...cachedData,
+        grant_types: ['authorization_code'], // Default added by normalization
+        response_types: ['code'], // Default added by normalization
+        contacts: undefined,
+        allowed_subject_token_clients: undefined,
+        allowed_token_exchange_resources: undefined,
+        allowed_scopes: undefined,
+        post_logout_redirect_uris: undefined,
+        requestable_scopes: undefined,
+        allowed_redirect_origins: undefined,
+      };
+
+      expect(retrieved).toEqual(expectedNormalized);
       // D1 should not be called when cache hits
       expect(env.DB.prepare).not.toHaveBeenCalled();
     });

@@ -31,23 +31,17 @@
 	let createError = '';
 
 	// Edit dialog state (unused, kept for future implementation)
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	let _showEditDialog = false;
+		let _showEditDialog = false;
 	let editingPolicy: AdminPolicy | null = null;
 	let editForm: AdminPolicyUpdateInput = {};
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	let _editLoading = false;
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	let _editError = '';
+		let _editLoading = false;
+		let _editError = '';
 
 	// Delete confirmation state (unused, kept for future implementation)
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	let _showDeleteDialog = false;
+		let _showDeleteDialog = false;
 	let deletingPolicy: AdminPolicy | null = null;
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	let _deleteLoading = false;
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	let _deleteError = '';
+		let _deleteLoading = false;
+		let _deleteError = '';
 
 	// Simulation dialog state
 	let showSimulationDialog = false;
@@ -123,8 +117,7 @@
 		_showEditDialog = true;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	async function _handleEdit() {
+		async function _handleEdit() {
 		if (!editingPolicy) return;
 
 		_editLoading = true;
@@ -159,8 +152,7 @@
 		_showDeleteDialog = true;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	async function _handleDelete() {
+		async function _handleDelete() {
 		if (!deletingPolicy) return;
 
 		_deleteLoading = true;

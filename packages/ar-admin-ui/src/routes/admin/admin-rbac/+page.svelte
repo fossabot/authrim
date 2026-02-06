@@ -18,18 +18,15 @@
 
 	// Create dialog state (unused, kept for future implementation)
 	let showCreateDialog = $state(false);
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	let _creating = $state(false);
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	let _createError = $state('');
+		let _creating = $state(false);
+		let _createError = $state('');
 	let newRoleName = $state('');
 	let newRoleDisplayName = $state('');
 	let newRoleDescription = $state('');
 	let selectedPermissions = $state<Set<string>>(new Set());
 
 	// Edit dialog state (unused, kept for future implementation)
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	let _showEditDialog = $state(false);
+		let _showEditDialog = $state(false);
 	let editingRole: AdminRole | null = $state(null);
 	let editDisplayName = $state('');
 	let editDescription = $state('');
@@ -73,8 +70,7 @@
 		showCreateDialog = false;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	async function _handleCreate() {
+		async function _handleCreate() {
 		if (!newRoleName.trim()) {
 			_createError = 'Role name is required';
 			return;
