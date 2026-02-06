@@ -129,7 +129,10 @@ export function getDiagnosticSessionId(): string | undefined {
 		try {
 			sessionId = crypto.randomUUID();
 		} catch {
-			sessionId = `diag_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+			// Fallback using cryptographically secure random values
+			const randomBytes = crypto.getRandomValues(new Uint8Array(8));
+			const randomStr = Array.from(randomBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+			sessionId = `diag_${Date.now()}_${randomStr}`;
 		}
 		sessionStorage.setItem(DIAGNOSTIC_SESSION_KEY, sessionId);
 	}

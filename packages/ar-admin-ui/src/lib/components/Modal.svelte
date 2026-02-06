@@ -36,7 +36,7 @@
 	}: Props = $props();
 
 	let dialogEl: HTMLDivElement | null = $state(null);
-	const dialogId = `modal-${Math.random().toString(36).slice(2, 9)}`;
+	const dialogId = `modal-${Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('')}`;
 	const titleId = `${dialogId}-title`;
 
 	const sizeStyles: Record<string, string> = {
