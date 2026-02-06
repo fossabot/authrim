@@ -117,6 +117,9 @@
 		]
 	};
 
+	// Extract admin management items for type safety
+	const [adminUsersItem, adminAccessControlItem, ...adminOtherItems] = platformNavItems.adminManagement;
+
 	// All nav items flattened for breadcrumb lookup
 	const allNavItems = [
 		// End Users section
@@ -141,18 +144,27 @@
 		...platformNavItems.securityCompliance,
 		...platformNavItems.operations,
 		// Admin Management with Access Control Hub
-		platformNavItems.adminManagement[0], // Admin Users
 		{
-			path: platformNavItems.adminManagement[1].parent.href,
-			label: platformNavItems.adminManagement[1].parent.label,
-			icon: platformNavItems.adminManagement[1].parent.icon
+			path: adminUsersItem.path!,
+			label: adminUsersItem.label!,
+			icon: adminUsersItem.icon!
 		},
-		...platformNavItems.adminManagement[1].children.map((c) => ({
+		{
+			path: adminAccessControlItem.parent!.href,
+			label: adminAccessControlItem.parent!.label,
+			icon: adminAccessControlItem.parent!.icon
+		},
+		...adminAccessControlItem.children!.map((c) => ({
 			path: c.href,
 			label: c.label,
 			icon: 'i-ph-arrow-right'
 		})),
-		...platformNavItems.adminManagement.slice(2) // IP Allowlist, Admin Audit
+		// IP Allowlist, Admin Audit
+		...adminOtherItems.map((item) => ({
+			path: item.path!,
+			label: item.label!,
+			icon: item.icon!
+		}))
 	];
 
 	// Check if nav item is active
@@ -332,21 +344,21 @@
 				<!-- Admin Management (Admin Operators) -->
 				<NavGroupLabel label="Admin Operators" />
 				<NavItem
-					href={platformNavItems.adminManagement[0].path}
-					icon={platformNavItems.adminManagement[0].icon}
-					label={platformNavItems.adminManagement[0].label}
-					active={isActive(platformNavItems.adminManagement[0].path)}
+					href={adminUsersItem.path!}
+					icon={adminUsersItem.icon!}
+					label={adminUsersItem.label!}
+					active={isActive(adminUsersItem.path!)}
 				/>
 				<NavItemGroup
-					parent={platformNavItems.adminManagement[1].parent}
-					children={platformNavItems.adminManagement[1].children}
+					parent={adminAccessControlItem.parent!}
+					children={adminAccessControlItem.children!}
 				/>
-				{#each platformNavItems.adminManagement.slice(2) as item (item.path)}
+				{#each adminOtherItems as item (item.path)}
 					<NavItem
-						href={item.path}
-						icon={item.icon}
-						label={item.label}
-						active={isActive(item.path)}
+						href={item.path!}
+						icon={item.icon!}
+						label={item.label!}
+						active={isActive(item.path!)}
 					/>
 				{/each}
 			</NavSection>

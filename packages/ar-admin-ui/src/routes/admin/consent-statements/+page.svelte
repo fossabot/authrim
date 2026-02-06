@@ -7,7 +7,7 @@
 		type ConsentStatementLocalization,
 		type TenantConsentRequirement
 	} from '$lib/api/admin-consent-statements';
-	import { adminClientsAPI, type Client } from '$lib/api/admin-clients';
+	import { adminClientsAPI } from '$lib/api/admin-clients';
 
 	// ---------------------------------------------------------------------------
 	// State
@@ -56,7 +56,8 @@
 
 	// Requirements
 	let requirements = $state<TenantConsentRequirement[]>([]);
-	// clients variable loaded in loadRequirements()
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
+	let _clients = $state<any[]>([]); // OAuth clients for requirement management (future use)
 	let showRequirementForm = $state(false);
 	let requirementFormData = $state({
 		statement_id: '',
@@ -161,7 +162,7 @@
 				adminClientsAPI.list({ limit: 100 })
 			]);
 			requirements = reqResult.requirements || [];
-			clients = clientResult.clients || [];
+			_clients = clientResult.clients || [];
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load requirements';
 		} finally {

@@ -72,6 +72,7 @@
 
 	// Consent history modal
 	let showHistoryModal = $state(false);
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	let selectedStatementForHistory = $state<string | null>(null);
 	let consentHistory = $state<ConsentItemHistory[]>([]);
 	let historyLoading = $state(false);

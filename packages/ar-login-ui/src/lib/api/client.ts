@@ -1357,7 +1357,7 @@ interface ConsentScreenData {
 	features: ConsentFeatureFlags;
 }
 
-interface ConsentSubmission {
+export interface ConsentSubmission {
 	challenge_id: string;
 	approved: boolean;
 	selected_org_id?: string;

@@ -166,7 +166,7 @@
 			class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 		>
 			<option value="">All Types</option>
-			{#each definitions as definition}
+			{#each definitions as definition (definition.id)}
 				<option value={definition.relation_name}>{definition.relation_name}</option>
 			{/each}
 		</select>
@@ -314,7 +314,7 @@
 							required
 							class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 						>
-							{#each definitions as definition}
+							{#each definitions as definition (definition.id)}
 								<option value={definition.relation_name}>
 									{definition.relation_name}
 									{#if definition.display_name}

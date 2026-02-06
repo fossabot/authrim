@@ -5,7 +5,7 @@
 	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
 	import { brandingStore } from '$lib/stores/branding.svelte';
 	import { LL } from '$i18n/i18n-svelte';
-	import { consentAPI } from '$lib/api/client';
+	import { consentAPI, type ConsentSubmission } from '$lib/api/client';
 	import { isValidRedirectUrl, isValidImageUrl, isValidLinkUrl } from '$lib/utils/url-validation';
 
 	// ---------------------------------------------------------------------------
@@ -175,7 +175,7 @@
 		allowLoading = true;
 
 		try {
-			const submitPayload: Record<string, unknown> = {
+			const submitPayload: ConsentSubmission = {
 				challenge_id: consentData.challenge_id,
 				approved: true,
 				selected_org_id: selectedOrgId || undefined,
@@ -185,7 +185,7 @@
 			if (consentData.consent_management_enabled && Object.keys(consentItemDecisions).length > 0) {
 				submitPayload.consent_item_decisions = consentItemDecisions;
 			}
-			const { data, error: apiError } = await consentAPI.submit(submitPayload as any);
+			const { data, error: apiError } = await consentAPI.submit(submitPayload);
 
 			if (apiError) {
 				throw new Error(apiError.error_description || 'Failed to approve consent');

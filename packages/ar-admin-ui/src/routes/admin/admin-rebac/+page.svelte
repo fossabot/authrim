@@ -144,7 +144,7 @@
 				</a>
 			</div>
 			<div class="space-y-2">
-				{#each definitions.slice(0, 5) as definition}
+				{#each definitions.slice(0, 5) as definition (definition.id)}
 					<div class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
 						<div>
 							<div class="font-mono text-sm text-gray-900 dark:text-gray-100">{definition.relation_name}</div>
@@ -182,7 +182,7 @@
 				</a>
 			</div>
 			<div class="space-y-2">
-				{#each relationships.slice(0, 5) as relationship}
+				{#each relationships.slice(0, 5) as relationship (relationship.id)}
 					<div class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
 						<div class="font-mono text-sm text-gray-900 dark:text-gray-100">
 							<span class="text-blue-600 dark:text-blue-400">{relationship.from_id}</span>

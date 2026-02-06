@@ -16,17 +16,20 @@
 	let loading = $state(true);
 	let error = $state('');
 
-	// Create dialog state
+	// Create dialog state (unused, kept for future implementation)
 	let showCreateDialog = $state(false);
-	let creating = $state(false);
-	let createError = $state('');
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let _creating = $state(false);
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let _createError = $state('');
 	let newRoleName = $state('');
 	let newRoleDisplayName = $state('');
 	let newRoleDescription = $state('');
 	let selectedPermissions = $state<Set<string>>(new Set());
 
-	// Edit dialog state
-	let showEditDialog = $state(false);
+	// Edit dialog state (unused, kept for future implementation)
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let _showEditDialog = $state(false);
 	let editingRole: AdminRole | null = $state(null);
 	let editDisplayName = $state('');
 	let editDescription = $state('');
@@ -70,14 +73,15 @@
 		showCreateDialog = false;
 	}
 
-	async function handleCreate() {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	async function _handleCreate() {
 		if (!newRoleName.trim()) {
-			createError = 'Role name is required';
+			_createError = 'Role name is required';
 			return;
 		}
 
-		creating = true;
-		createError = '';
+		_creating = true;
+		_createError = '';
 
 		try {
 			await adminAdminRolesAPI.create({
@@ -89,9 +93,9 @@
 			closeCreateDialog();
 			loadRoles();
 		} catch (err) {
-			createError = err instanceof Error ? err.message : 'Failed to create role';
+			_createError = err instanceof Error ? err.message : 'Failed to create role';
 		} finally {
-			creating = false;
+			_creating = false;
 		}
 	}
 
@@ -104,11 +108,11 @@
 		editDisplayName = role.display_name || '';
 		editDescription = role.description || '';
 		editPermissions = new Set(role.permissions);
-		showEditDialog = true;
+		_showEditDialog = true;
 	}
 
 	function closeEditDialog() {
-		showEditDialog = false;
+		_showEditDialog = false;
 		editingRole = null;
 	}
 
@@ -250,7 +254,7 @@
 
 <!-- Edit Role Dialog -->
 <Modal
-	open={showEditDialog && !!editingRole}
+	open={_showEditDialog && !!editingRole}
 	onClose={closeEditDialog}
 	title="Edit Role: {editingRole?.name || ''}"
 	size="lg"

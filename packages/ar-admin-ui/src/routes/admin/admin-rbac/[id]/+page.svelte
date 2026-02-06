@@ -5,7 +5,6 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import {
 		adminAdminRolesAPI,
-		type AdminRole,
 		type AdminRoleDetail,
 		ADMIN_PERMISSION_DEFINITIONS,
 		canEditAdminRole,
@@ -54,7 +53,7 @@
 		error = '';
 
 		try {
-			role = await adminAdminRolesAPI.get(roleId);
+			role = await adminAdminRolesAPI.get(roleId!);
 		} catch (err) {
 			console.error('Failed to load role:', err);
 			error = err instanceof Error ? err.message : 'Failed to load role';

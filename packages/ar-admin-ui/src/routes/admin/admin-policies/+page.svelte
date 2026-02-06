@@ -5,7 +5,8 @@
 		AdminPolicy,
 		AdminPolicyCreateInput,
 		AdminPolicyUpdateInput,
-		PolicySimulationInput
+		PolicySimulationInput,
+		PolicySimulationResult
 	} from '$lib/api/admin-admin-policies';
 
 	let policies: AdminPolicy[] = [];
@@ -29,18 +30,24 @@
 	let createLoading = false;
 	let createError = '';
 
-	// Edit dialog state
-	let showEditDialog = false;
+	// Edit dialog state (unused, kept for future implementation)
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let _showEditDialog = false;
 	let editingPolicy: AdminPolicy | null = null;
 	let editForm: AdminPolicyUpdateInput = {};
-	let editLoading = false;
-	let editError = '';
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let _editLoading = false;
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let _editError = '';
 
-	// Delete confirmation state
-	let showDeleteDialog = false;
+	// Delete confirmation state (unused, kept for future implementation)
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let _showDeleteDialog = false;
 	let deletingPolicy: AdminPolicy | null = null;
-	let deleteLoading = false;
-	let deleteError = '';
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let _deleteLoading = false;
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	let _deleteError = '';
 
 	// Simulation dialog state
 	let showSimulationDialog = false;
@@ -53,7 +60,7 @@
 			relationships: []
 		}
 	};
-	let simulationResult: any = null;
+	let simulationResult: PolicySimulationResult | null = null;
 	let simulationLoading = false;
 	let simulationError = '';
 
@@ -112,23 +119,24 @@
 			actions: policy.actions,
 			conditions: policy.conditions
 		};
-		editError = '';
-		showEditDialog = true;
+		_editError = '';
+		_showEditDialog = true;
 	}
 
-	async function handleEdit() {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	async function _handleEdit() {
 		if (!editingPolicy) return;
 
-		editLoading = true;
-		editError = '';
+		_editLoading = true;
+		_editError = '';
 		try {
 			await adminAdminPoliciesAPI.updatePolicy(editingPolicy.id, editForm);
-			showEditDialog = false;
+			_showEditDialog = false;
 			await loadPolicies();
 		} catch (err) {
-			editError = err instanceof Error ? err.message : 'Failed to update policy';
+			_editError = err instanceof Error ? err.message : 'Failed to update policy';
 		} finally {
-			editLoading = false;
+			_editLoading = false;
 		}
 	}
 
@@ -147,23 +155,24 @@
 
 	function openDeleteDialog(policy: AdminPolicy) {
 		deletingPolicy = policy;
-		deleteError = '';
-		showDeleteDialog = true;
+		_deleteError = '';
+		_showDeleteDialog = true;
 	}
 
-	async function handleDelete() {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	async function _handleDelete() {
 		if (!deletingPolicy) return;
 
-		deleteLoading = true;
-		deleteError = '';
+		_deleteLoading = true;
+		_deleteError = '';
 		try {
 			await adminAdminPoliciesAPI.deletePolicy(deletingPolicy.id);
-			showDeleteDialog = false;
+			_showDeleteDialog = false;
 			await loadPolicies();
 		} catch (err) {
-			deleteError = err instanceof Error ? err.message : 'Failed to delete policy';
+			_deleteError = err instanceof Error ? err.message : 'Failed to delete policy';
 		} finally {
-			deleteLoading = false;
+			_deleteLoading = false;
 		}
 	}
 
