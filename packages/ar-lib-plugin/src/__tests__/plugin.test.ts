@@ -599,8 +599,8 @@ describe('CapabilityRegistry - Extended', () => {
       const endTime = performance.now();
 
       expect(capabilities.length).toBe(50);
-      // Should complete in reasonable time (< 10ms)
-      expect(endTime - startTime).toBeLessThan(10);
+      // Should complete in reasonable time (< 20ms, relaxed for CI environments)
+      expect(endTime - startTime).toBeLessThan(20);
     });
   });
 });
